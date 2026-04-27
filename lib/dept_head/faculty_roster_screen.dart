@@ -10,7 +10,7 @@ class FacultyRosterScreen extends StatefulWidget {
 }
 
 class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
-  // --- DUMMY FACULTY DATA ---
+  // --- UPDATED DUMMY DATA WITH SENTIMENT ---
   final List<Map<String, dynamic>> _facultyList = [
     {
       'name': 'Kirito (Kazuto Kirigaya)',
@@ -18,6 +18,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
       'score': 4.95,
       'trend': 'up',
       'evals': 142,
+      'sentiment': {'pos': 0.85, 'neu': 0.10, 'neg': 0.05},
+      'tags': ['Expert Knowledge', 'Engaging', 'Fast Responder']
     },
     {
       'name': 'Asuna Yuuki',
@@ -25,41 +27,24 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
       'score': 4.88,
       'trend': 'up',
       'evals': 110,
-    },
-    {
-      'name': 'Eugeo',
-      'title': 'Instructor',
-      'score': 4.75,
-      'trend': 'same',
-      'evals': 95,
-    },
-    {
-      'name': 'Alice Zuberg',
-      'title': 'Assistant Professor',
-      'score': 4.60,
-      'trend': 'up',
-      'evals': 120,
-    },
-    {
-      'name': 'Sinon (Shino Asada)',
-      'title': 'Instructor',
-      'score': 4.30,
-      'trend': 'down',
-      'evals': 88,
+      'sentiment': {'pos': 0.80, 'neu': 0.15, 'neg': 0.05},
+      'tags': ['Approachable', 'Clear Rubrics', 'Patient']
     },
     {
       'name': 'Klein (Ryotaro Tsuboi)',
       'title': 'Adjunct Instructor',
-      'score': 2.85, // 👈 The low performer flagged on the dashboard
+      'score': 2.85,
       'trend': 'down',
       'evals': 105,
+      'sentiment': {'pos': 0.20, 'neu': 0.30, 'neg': 0.50},
+      'tags': ['Unclear Instructions', 'Slow Grading', 'Hard to Reach']
     },
+    // ... add more as needed
   ];
 
   String _searchQuery = '';
   String _sortBy = 'Score (Highest to Lowest)';
 
-  // Logic to filter and sort the roster
   List<Map<String, dynamic>> get _filteredAndSortedFaculty {
     List<Map<String, dynamic>> filtered = _facultyList.where((faculty) {
       return faculty['name'].toLowerCase().contains(_searchQuery.toLowerCase());
@@ -72,21 +57,20 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     } else if (_sortBy == 'Name (A-Z)') {
       filtered.sort((a, b) => a['name'].compareTo(b['name']));
     }
-
     return filtered;
   }
 
-  // ==========================================
-  // INSTRUCTOR DEEP-DIVE POPUP
-  // ==========================================
   void _showInstructorDetails(Map<String, dynamic> instructor) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
+        final sent = instructor['sentiment'] ?? {'pos': 0.0, 'neu': 0.0, 'neg': 0.0};
+        final tags = instructor['tags'] ?? [];
+
         return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
+          height: MediaQuery.of(context).size.height * 0.85, // Made taller for more info
           decoration: const BoxDecoration(
             color: AppColors.lightGray,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -94,118 +78,70 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Sticky Header
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: const BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 30,
-                      backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                      child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 24)),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.darkGray)),
-                          Text(instructor['title'], style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close, color: Colors.grey),
-                      onPressed: () => Navigator.pop(context),
-                    )
-                  ],
-                ),
-              ),
+              // Sticky Header (Same as before)
+              _buildModalHeader(instructor),
 
-              // Content Area
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Quick Stats
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
-                              child: Column(
-                                children: [
-                                  const Text('Overall Score', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                                  const SizedBox(height: 8),
-                                  Text('${instructor['score']}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: instructor['score'] >= 3.0 ? AppColors.deepBlue : Colors.red)),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
-                              child: Column(
-                                children: [
-                                  const Text('Total Evals', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                                  const SizedBox(height: 8),
-                                  Text('${instructor['evals']}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _buildQuickStats(instructor),
                       const SizedBox(height: 32),
 
-                      // Interventions Action (Only shows if score is low)
-                      if (instructor['score'] < 3.0) ...[
-                        const Text('Dean Actions', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.red.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.warning, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('Intervention Required', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text('This instructor has fallen below the acceptable threshold. Administrative action is advised.', style: TextStyle(color: AppColors.darkGray, fontSize: 13)),
-                              const SizedBox(height: 16),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Intervention report drafted.')));
-                                  },
-                                  child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      // ==========================================
+                      // 📊 SENTIMENT ANALYSIS SECTION
+                      // ==========================================
+                      const Text('Sentiment Analysis', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Comment Polarity Distribution', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            const SizedBox(height: 16),
+                            // Sentiment Bar
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                height: 12,
+                                child: Row(
+                                  children: [
+                                    Expanded(flex: (sent['pos'] * 100).toInt(), child: Container(color: Colors.green)),
+                                    Expanded(flex: (sent['neu'] * 100).toInt(), child: Container(color: Colors.orange)),
+                                    Expanded(flex: (sent['neg'] * 100).toInt(), child: Container(color: Colors.red)),
+                                  ],
                                 ),
-                              )
-                            ],
-                          ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildSentimentLegend(sent),
+                            const Divider(height: 32),
+                            const Text('Key Sentiment Tags', style: TextStyle(color: AppColors.darkGray, fontWeight: FontWeight.bold, fontSize: 14)),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: tags.map<Widget>((tag) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: instructor['score'] >= 3.0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: instructor['score'] >= 3.0 ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3)),
+                                ),
+                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? Colors.green.shade700 : Colors.red.shade700, fontWeight: FontWeight.w600)),
+                              )).toList(),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+
+                      const SizedBox(height: 32),
+                      // Action buttons for Dean
+                      if (instructor['score'] < 3.0) _buildInterventionCard(),
                     ],
                   ),
                 ),
@@ -217,6 +153,79 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     );
   }
 
+  // --- Helper UI Builders to keep code clean ---
+
+  Widget _buildModalHeader(Map<String, dynamic> instructor) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      child: Row(
+        children: [
+          CircleAvatar(radius: 30, backgroundColor: AppColors.royalBlue.withOpacity(0.1), child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 24))),
+          const SizedBox(width: 16),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.darkGray)),
+            Text(instructor['title'], style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context))
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickStats(Map<String, dynamic> instructor) {
+    return Row(
+      children: [
+        Expanded(child: _statCard('Overall Score', '${instructor['score']}', instructor['score'] >= 3.0 ? AppColors.deepBlue : Colors.red)),
+        const SizedBox(width: 16),
+        Expanded(child: _statCard('Total Evals', '${instructor['evals']}', AppColors.deepBlue)),
+      ],
+    );
+  }
+
+  Widget _statCard(String label, String val, Color valColor) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
+      child: Column(children: [
+        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 8),
+        Text(val, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: valColor)),
+      ]),
+    );
+  }
+
+  Widget _buildSentimentLegend(Map<String, dynamic> sent) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        _legendItem('Positive', '${(sent['pos'] * 100).toInt()}%', Colors.green),
+        _legendItem('Neutral', '${(sent['neu'] * 100).toInt()}%', Colors.orange),
+        _legendItem('Negative', '${(sent['neg'] * 100).toInt()}%', Colors.red),
+      ],
+    );
+  }
+
+  Widget _legendItem(String label, String perc, Color color) {
+    return Row(children: [
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 4),
+      Text('$label: ', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+      Text(perc, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+    ]);
+  }
+
+  Widget _buildInterventionCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.withOpacity(0.3))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width: 8), Text('Intervention Required', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
+        const SizedBox(height: 16),
+        SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {}, child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+      ]),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final roster = _filteredAndSortedFaculty;

@@ -6,7 +6,17 @@ import '../app_colors.dart';
 
 class GathererScannerView extends StatefulWidget {
   final VoidCallback onScan;
-  const GathererScannerView({super.key, required this.onScan});
+  // 👈 ADDED: A callback to switch to the Sync view
+  final VoidCallback onOpenSync;
+  // 👈 ADDED: To show the badge count
+  final int queueCount;
+
+  const GathererScannerView({
+    super.key,
+    required this.onScan,
+    required this.onOpenSync,
+    required this.queueCount
+  });
 
   @override
   State<GathererScannerView> createState() => _GathererScannerViewState();
@@ -67,6 +77,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
 
     try {
       final XFile imageFile = await _cameraController!.takePicture();
+      // Simulate quality check delay
       await Future.delayed(const Duration(milliseconds: 1500));
       widget.onScan();
     } catch (e) {
@@ -91,14 +102,9 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
     }
 
     final size = MediaQuery.of(context).size;
+    final scanAreaWidth = size.width * 0.92;
+    final scanAreaHeight = size.height * 0.68;
 
-    // ==========================================
-    // UPDATED SIZING FOR A LARGER SCAN WINDOW
-    // ==========================================
-    final scanAreaWidth = size.width * 0.92;   // Widened to 92% of the screen
-    final scanAreaHeight = size.height * 0.68; // Heightened to 68% of the screen
-
-    // Re-balanced the center to 45% so the taller box doesn't crash into the shutter button
     final scanRect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height * 0.45),
       width: scanAreaWidth,
@@ -110,20 +116,17 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 1. LIVE CAMERA FEED
           CameraPreview(_cameraController!),
 
-          // 2. THE PREMIUM DARK OVERLAY & CORNER BRACKETS
           CustomPaint(
             painter: _ScannerOverlayPainter(scanRect: scanRect),
           ),
 
-          // 3. GLOWING LASER SCAN ANIMATION
+          // Glowing laser animation
           AnimatedBuilder(
             animation: _scanLineController,
             builder: (context, child) {
               final currentY = scanRect.top + (_scanLineController.value * scanRect.height);
-
               return Positioned(
                 top: currentY,
                 left: scanRect.left,
@@ -142,7 +145,49 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
             },
           ),
 
-          // 4. UI ELEMENTS
+          // 👈 NEW: TOP NAVIGATION BAR WITH SYNC BUTTON
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 10,
+            left: 20,
+            right: 20,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'SCANNER',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
+                ),
+                GestureDetector(
+                  onTap: widget.onOpenSync,
+                  child: Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                        ),
+                        child: const Icon(Icons.cloud_sync, color: Colors.white, size: 28),
+                      ),
+                      if (widget.queueCount > 0)
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                          child: Text(
+                            '${widget.queueCount}',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Bottom Controls
           SafeArea(
             child: Align(
               alignment: Alignment.bottomCenter,
@@ -151,7 +196,6 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // FROSTED GLASS INSTRUCTION CHIP
                     ClipRRect(
                       borderRadius: BorderRadius.circular(30),
                       child: BackdropFilter(
@@ -179,10 +223,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                         ),
                       ),
                     ),
-
-                    const SizedBox(height: 24), // Spacing between chip and button
-
-                    // REFINED SHUTTER BUTTON
+                    const SizedBox(height: 24),
                     GestureDetector(
                       onTap: _captureAndCheckQuality,
                       child: AnimatedContainer(
@@ -219,6 +260,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
   }
 }
 
+// Keep your existing _ScannerOverlayPainter below...
 // ==========================================
 // CUSTOM PAINTER FOR PRO SCANNER LOOK
 // ==========================================

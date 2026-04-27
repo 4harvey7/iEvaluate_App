@@ -6,7 +6,11 @@ class GathererDashboardView extends StatelessWidget {
   final int scanned;
   final int target;
   final int queueCount;
-  final VoidCallback onStartScan; // 👈 Added to trigger the scanner tab!
+  final VoidCallback onStartScan;
+
+  // ✅ ADDED
+  final TextEditingController linkController;
+  final VoidCallback onOpenLink;
 
   const GathererDashboardView({
     super.key,
@@ -14,6 +18,10 @@ class GathererDashboardView extends StatelessWidget {
     required this.target,
     required this.queueCount,
     required this.onStartScan,
+
+    // ✅ ADDED
+    required this.linkController,
+    required this.onOpenLink,
   });
 
   @override
@@ -33,28 +41,60 @@ class GathererDashboardView extends StatelessWidget {
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5))
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  )
                 ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Welcome, Rodz Harvey', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                  const Text(
+                    'Welcome, Rodz Harvey',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.deepBlue,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 16, color: AppColors.deepBlue),
+                      const Icon(Icons.location_on_outlined,
+                          size: 16, color: AppColors.deepBlue),
                       const SizedBox(width: 4),
-                      Text('Terminal 2 • Data Gatherer', style: TextStyle(fontSize: 12, color: AppColors.deepBlue.withValues(alpha: 0.7))),
+                      Text(
+                        'Terminal 2 • Data Gatherer',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.deepBlue.withValues(alpha: 0.7),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Text('System Status: ', style: TextStyle(fontSize: 12, color: AppColors.deepBlue.withValues(alpha: 0.7))),
-                      const Text('Online', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                      Text(
+                        'System Status: ',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.deepBlue.withValues(alpha: 0.7),
+                        ),
+                      ),
+                      const Text(
+                        'Online',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       const SizedBox(width: 4),
-                      const CircleAvatar(radius: 5, backgroundColor: Colors.green),
+                      const CircleAvatar(
+                          radius: 5, backgroundColor: Colors.green),
                     ],
                   ),
                 ],
@@ -71,9 +111,10 @@ class GathererDashboardView extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onStartScan,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold, // High visibility action color
+                  backgroundColor: AppColors.gold,
                   foregroundColor: AppColors.deepBlue,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
                   elevation: 5,
                 ),
                 child: const Column(
@@ -81,11 +122,75 @@ class GathererDashboardView extends StatelessWidget {
                   children: [
                     Icon(Icons.camera_alt_outlined, size: 40),
                     SizedBox(height: 8),
-                    Text('START NEW DATA ENTRY', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                    Text(
+                      'START NEW DATA ENTRY',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+
+            // ==========================================
+            // 🔗 LINK INPUT (ADDED ONLY)
+            // ==========================================
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  )
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: linkController,
+                      decoration: InputDecoration(
+                        hintText: 'Paste form link...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: onOpenLink,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.gold,
+                      foregroundColor: AppColors.deepBlue,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'OPEN',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: 24),
 
             // ==========================================
@@ -97,20 +202,45 @@ class GathererDashboardView extends StatelessWidget {
                   child: Card(
                     color: AppColors.white,
                     elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('ENTRIES TODAY:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.deepBlue.withValues(alpha: 0.7))),
+                          Text(
+                            'ENTRIES TODAY:',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color:
+                              AppColors.deepBlue.withValues(alpha: 0.7),
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
+                            crossAxisAlignment:
+                            CrossAxisAlignment.baseline,
+                            textBaseline:
+                            TextBaseline.alphabetic,
                             children: [
-                              Text('$scanned', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.royalBlue)),
-                              Text(' / $target', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
+                              Text(
+                                '$scanned',
+                                style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.royalBlue,
+                                ),
+                              ),
+                              Text(
+                                ' / $target',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey,
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -123,15 +253,32 @@ class GathererDashboardView extends StatelessWidget {
                   child: Card(
                     color: AppColors.white,
                     elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
                         children: [
-                          Text('PENDING SYNCS:', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.deepBlue.withValues(alpha: 0.7))),
+                          Text(
+                            'PENDING SYNCS:',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color:
+                              AppColors.deepBlue.withValues(alpha: 0.7),
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Text('$queueCount', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.orange)),
+                          Text(
+                            '$queueCount',
+                            style: const TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange,
+                            ),
+                          ),
                         ],
                       ),
                     ),

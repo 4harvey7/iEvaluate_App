@@ -14,7 +14,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   // --- DUMMY SETTINGS STATE ---
   bool _emailNotifications = true;
   bool _pushNotifications = false;
-  bool _weeklyDigest = true;
+
   // REMOVED: Biometric state variable
 
   // --- INTERACTIVE PROFILE STATE ---
@@ -277,14 +277,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       value: _pushNotifications,
                       onChanged: (val) => setState(() => _pushNotifications = val),
                     ),
-                    const Divider(height: 1, indent: 56),
-                    _buildSwitchTile(
-                      title: 'Weekly Performance Digest',
-                      subtitle: 'A weekly summary of your evaluation trends.',
-                      icon: Icons.auto_graph,
-                      value: _weeklyDigest,
-                      onChanged: (val) => setState(() => _weeklyDigest = val),
-                    ),
+
                   ],
                 ),
               ),

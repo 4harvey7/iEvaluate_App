@@ -20,21 +20,22 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     'totalComments': 142,
   };
 
-  // --- 2. AI WORD CLOUD DATA ---
-  // Weights dictate the font size. Colors represent sentiment of the word.
+  // --- 2. 👈 UPGRADED AI WORD CLOUD DATA ---
+  // Added a 'rotated' boolean to flip some words vertically!
+  // Tweaked colors to be brighter against the dark background.
   final List<Map<String, dynamic>> _wordCloud = [
-    {'word': 'Engaging', 'weight': 32.0, 'color': Colors.green},
-    {'word': 'Fast-paced', 'weight': 24.0, 'color': Colors.orange},
-    {'word': 'Helpful', 'weight': 28.0, 'color': Colors.green},
-    {'word': 'Clear', 'weight': 22.0, 'color': AppColors.royalBlue},
-    {'word': 'Examples', 'weight': 26.0, 'color': AppColors.deepBlue},
-    {'word': 'Challenging', 'weight': 20.0, 'color': Colors.orange},
-    {'word': 'Approachable', 'weight': 18.0, 'color': Colors.green},
-    {'word': 'Projects', 'weight': 22.0, 'color': AppColors.royalBlue},
-    {'word': 'Strict', 'weight': 16.0, 'color': Colors.redAccent},
-    {'word': 'Inspiring', 'weight': 30.0, 'color': AppColors.gold},
-    {'word': 'Rubrics', 'weight': 14.0, 'color': Colors.grey},
-    {'word': 'Coding', 'weight': 24.0, 'color': AppColors.deepBlue},
+    {'word': 'Engaging', 'weight': 36.0, 'color': AppColors.gold, 'rotated': false},
+    {'word': 'Fast-paced', 'weight': 20.0, 'color': Colors.orangeAccent, 'rotated': false},
+    {'word': 'Helpful', 'weight': 28.0, 'color': Colors.greenAccent, 'rotated': false},
+    {'word': 'Clear', 'weight': 24.0, 'color': Colors.white, 'rotated': true},
+    {'word': 'Examples', 'weight': 32.0, 'color': Colors.lightBlueAccent, 'rotated': false},
+    {'word': 'Challenging', 'weight': 20.0, 'color': Colors.orange, 'rotated': true},
+    {'word': 'Approachable', 'weight': 26.0, 'color': Colors.greenAccent, 'rotated': false},
+    {'word': 'Projects', 'weight': 22.0, 'color': Colors.white70, 'rotated': false},
+    {'word': 'Strict', 'weight': 16.0, 'color': Colors.redAccent, 'rotated': false},
+    {'word': 'Inspiring', 'weight': 34.0, 'color': AppColors.gold, 'rotated': false},
+    {'word': 'Rubrics', 'weight': 14.0, 'color': Colors.white54, 'rotated': true},
+    {'word': 'Coding', 'weight': 28.0, 'color': Colors.lightBlue, 'rotated': false},
   ];
 
   // --- 3. RAW STUDENT FEEDBACK ---
@@ -149,7 +150,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               const SizedBox(height: 32),
 
               // ==========================================
-              // WORD CLOUD GENERATOR
+              // 👈 UPGRADED WORD CLOUD GENERATOR
               // ==========================================
               const Text('AI Word Cloud', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
@@ -157,26 +158,44 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
                 decoration: BoxDecoration(
-                  color: AppColors.deepBlue,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.royalBlue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
+                  // Added a sleek gradient background
+                  gradient: const LinearGradient(
+                    colors: [AppColors.deepBlue, Color(0xFF0B192C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [BoxShadow(color: AppColors.deepBlue.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 16.0, // Horizontal space between words
-                  runSpacing: 12.0, // Vertical space between lines
+                  spacing: 12.0, // Reduced to pack words tighter
+                  runSpacing: 4.0, // Squeezed vertical lines together
                   children: _wordCloud.map((wordData) {
-                    return Text(
+
+                    // Build the text widget
+                    Widget wordText = Text(
                       wordData['word'],
                       style: TextStyle(
                         fontSize: wordData['weight'],
-                        fontWeight: FontWeight.bold,
+                        // Bigger words get thicker fonts, smaller words get thinner fonts
+                        fontWeight: wordData['weight'] > 26 ? FontWeight.w900 : FontWeight.w600,
                         color: wordData['color'],
-                        // Adds a tiny shadow to make words pop off the dark background
-                        shadows: [Shadow(color: Colors.black.withOpacity(0.5), blurRadius: 2, offset: const Offset(1, 1))],
+                        height: 1.0, // Removes extra line spacing around the text
+                        letterSpacing: -0.5,
                       ),
                     );
+
+                    // If it's flagged as rotated, wrap it in a RotatedBox!
+                    if (wordData['rotated'] == true) {
+                      return RotatedBox(
+                        quarterTurns: 3, // Rotates it 90 degrees upward
+                        child: wordText,
+                      );
+                    }
+
+                    return wordText;
                   }).toList(),
                 ),
               ),

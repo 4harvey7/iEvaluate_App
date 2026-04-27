@@ -5,7 +5,7 @@ import 'user_management_screen.dart';
 import '../login_screen.dart';
 import 'personnel_management_screen.dart';
 import 'performance_analysis_screen.dart';
-import 'system_audit_screen.dart';
+import 'live_system_metrics_screen.dart';
 import 'sao_admin_settings.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -16,7 +16,9 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  // 👈 UPDATED: Roles removed! Everyone in this queue is assumed to be an Instructor.
+  // 👈 NEW: Track the number of scanned files
+  final int _filesScannedCount = 842;
+
   final List<Map<String, String>> _pendingApprovals = [
     {'name': 'Kirito (Kazuto Kirigaya)', 'dept': 'Computer Studies'},
     {'name': 'Asuna Yuuki', 'dept': 'Arts and Sciences'},
@@ -50,91 +52,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           )
         ],
       ),
-
-      // ==========================================
-      // ADMIN NAVIGATION DRAWER (Side Menu)
-      // ==========================================
-      drawer: Drawer(
-        backgroundColor: AppColors.white,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: AppColors.deepBlue),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 48),
-                  SizedBox(height: 12),
-                  Text(
-                    'System Administrator',
-                    style: TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Text(
-                    'Highest Access Level',
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-
-            _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true, onTap: () {
-              Navigator.pop(context);
-            }),
-
-            _buildDrawerItem(context, Icons.group, 'User Management', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const UserManagementScreen()),
-              );
-            }),
-
-            _buildDrawerItem(context, Icons.manage_accounts, 'Personnel Management', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PersonnelManagementScreen()),
-              );
-            }),
-
-            _buildDrawerItem(context, Icons.analytics, 'Performance Analysis', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const PerformanceAnalysisScreen()),
-              );
-            }),
-            _buildDrawerItem(context, Icons.admin_panel_settings_rounded, 'System Audit Logs', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SystemAuditScreen()),
-              );
-            }),
-            _buildDrawerItem(context, Icons.group, 'System Settings', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SaoAdminSettings()),
-              );
-            }),
-
-            _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false,
-              );
-            }),
-          ],
-        ),
-      ),
-
-      // ==========================================
-      // MAIN DASHBOARD CONTENT
-      // ==========================================
+      drawer: _buildDrawer(context),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
@@ -147,11 +65,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               const SizedBox(height: 24),
 
+              // ==========================================
+              // UPDATED METRIC CARDS
+              // ==========================================
               Row(
                 children: [
                   Expanded(child: _buildMetricCard('Total Users', '1,248', Icons.people, AppColors.royalBlue)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildMetricCard('Pending', '${_pendingApprovals.length}', Icons.pending_actions, AppColors.gold)),
+                  // 👈 UPDATED: "Pending" is now "Files Scanned"
+                  Expanded(child: _buildMetricCard('Files Scanned', '$_filesScannedCount', Icons.document_scanner_outlined, Colors.teal)),
                 ],
               ),
               const SizedBox(height: 32),
@@ -173,57 +95,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
               const SizedBox(height: 12),
 
-              _pendingApprovals.isEmpty
-                  ? const Center(child: Padding(
-                padding: EdgeInsets.all(24.0),
-                child: Text("No pending approvals.", style: TextStyle(color: Colors.grey)),
-              ))
-                  : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _pendingApprovals.length,
-                itemBuilder: (context, index) {
-                  final user = _pendingApprovals[index];
-                  return Card(
-                    color: AppColors.white,
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.lightGray,
-                        child: Text(user['name']![0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
-                      ),
-                      title: Text(user['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                      // 👈 UPDATED: Now only shows the department!
-                      subtitle: Text('Department: ${user['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
-                      // 👈 UPDATED: Swapped to Wrap to prevent overflow on smaller screens
-                      trailing: Wrap(
-                        spacing: -8,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.check_circle, color: Colors.green),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Approved ${user['name']}")),
-                              );
-                            },
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.cancel, color: Colors.red),
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text("Rejected ${user['name']}")),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
+              _buildPendingList(),
             ],
           ),
         ),
@@ -231,25 +103,55 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- Helper Widgets ---
+  // --- UI Components ---
 
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
-    return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
-      selected: isSelected,
-      onTap: onTap ?? () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("$title feature coming soon!")),
+  Widget _buildPendingList() {
+    return _pendingApprovals.isEmpty
+        ? const Center(child: Padding(
+      padding: EdgeInsets.all(24.0),
+      child: Text("No pending approvals.", style: TextStyle(color: Colors.grey)),
+    ))
+        : ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _pendingApprovals.length,
+      itemBuilder: (context, index) {
+        final user = _pendingApprovals[index];
+        return Card(
+          color: AppColors.white,
+          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: CircleAvatar(
+              backgroundColor: AppColors.lightGray,
+              child: Text(user['name']![0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+            ),
+            title: Text(user['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+            subtitle: Text('Department: ${user['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            trailing: Wrap(
+              spacing: -8,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.check_circle, color: Colors.green),
+                  onPressed: () => _handleApproval(user['name']!, true),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.cancel, color: Colors.red),
+                  onPressed: () => _handleApproval(user['name']!, false),
+                ),
+              ],
+            ),
+          ),
         );
       },
+    );
+  }
+
+  void _handleApproval(String name, bool approved) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("${approved ? 'Approved' : 'Rejected'} $name")),
     );
   }
 
@@ -273,6 +175,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
         ],
       ),
+    );
+  }
+
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: AppColors.white,
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          const DrawerHeader(
+            decoration: BoxDecoration(color: AppColors.deepBlue),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 48),
+                SizedBox(height: 12),
+                Text('System Administrator', style: TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('Highest Access Level', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              ],
+            ),
+          ),
+          _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true, onTap: () => Navigator.pop(context)),
+          _buildDrawerItem(context, Icons.group, 'User Management', false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const UserManagementScreen()));
+          }),
+          _buildDrawerItem(context, Icons.manage_accounts, 'Personnel Management', false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonnelManagementScreen()));
+          }),
+          _buildDrawerItem(context, Icons.analytics, 'Performance Analysis', false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const PerformanceAnalysisScreen()));
+          }),
+          _buildDrawerItem(context, Icons.admin_panel_settings_rounded, 'Live System Metrics', false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const LiveSystemMetricsScreen()));
+          }),
+          _buildDrawerItem(context, Icons.settings, 'System Settings', false, onTap: () {
+            Navigator.pop(context);
+            Navigator.push(context, MaterialPageRoute(builder: (context) => const SaoAdminSettings()));
+          }),
+          _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () {
+            Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
+    return ListTile(
+      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
+      title: Text(
+        title,
+        style: TextStyle(
+          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      onTap: onTap,
     );
   }
 }

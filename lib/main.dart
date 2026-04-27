@@ -1,5 +1,6 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'agreement_screen.dart'; // Import the new file
+import 'login_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,12 +15,12 @@ class MyApp extends StatelessWidget {
       title: 'iEvaluate',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        fontFamily: 'Roboto', // Change to your preferred font
+        fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFA32121)),
         useMaterial3: true,
       ),
       // Set the AgreementScreen as the starting point of the app
-      home: const AgreementScreen(),
+      home: const LoginScreen(),
     );
   }
 }

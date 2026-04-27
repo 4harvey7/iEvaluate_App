@@ -1,3 +1,4 @@
+// lib/signup_screen.dart
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
 
@@ -9,8 +10,9 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
-  // --- Step Tracker ---
-  int _currentStep = 0;
+  final PageController _pageController = PageController();
+  int _currentPage = 0;
+  final int _totalSteps = 4;
 
   // --- Controllers ---
   final TextEditingController _firstNameController = TextEditingController();
@@ -22,22 +24,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
+  // --- Validation States ---
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _hasAcceptedAgreements = false;
+  bool _has8Chars = false;
+  bool _hasUpper = false;
+  bool _hasNumber = false;
+  bool _hasSpecial = false;
+  bool _passwordsMatch = false;
 
   final List<String> _departments = [
-    'Computer Studies',
-    'Engineering',
-    'Education',
-    'Arts and Sciences',
-    'Business and Management',
-    'Technology',
-    'Nursing',
-    'Agriculture',
+    'Computer Studies', 'Engineering', 'Education', 'Arts and Sciences',
+    'Business and Management', 'Technology', 'Nursing', 'Agriculture',
   ];
 
   @override
   void dispose() {
+    _pageController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _addressController.dispose();
@@ -49,7 +53,309 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  // Pending Approval Dialog
+  // --- Logic ---
+  void _validatePassword(String value) {
+    setState(() {
+      _has8Chars = value.length >= 8;
+      _hasUpper = value.contains(RegExp(r'[A-Z]'));
+      _hasNumber = value.contains(RegExp(r'[0-9]'));
+      _hasSpecial = value.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+      _validateMatch();
+    });
+  }
+
+  void _validateMatch() {
+    setState(() {
+      _passwordsMatch = _passwordController.text.isNotEmpty &&
+          _passwordController.text == _confirmPasswordController.text;
+    });
+  }
+
+  String? _validateEmail(String? value) {
+    if (value == null || value.isEmpty) return 'Email is required';
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(value)) return 'Enter a valid email';
+    if (!value.endsWith('@ctu.edu.ph')) return 'Use @ctu.edu.ph email';
+    return null;
+  }
+
+  void _onContinue() {
+    if (_currentPage < _totalSteps - 1) {
+      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    } else {
+      _showPendingApprovalDialog();
+    }
+  }
+
+  void _onBack() {
+    if (_currentPage > 0) {
+      _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isSecurityStep = _currentPage == 2;
+    bool isReviewStep = _currentPage == 3;
+    bool passwordValid = _has8Chars && _hasUpper && _hasNumber && _hasSpecial && _passwordsMatch;
+    bool canProceed = !isSecurityStep || passwordValid;
+    if (isReviewStep) canProceed = _hasAcceptedAgreements;
+
+    return Scaffold(
+      backgroundColor: AppColors.white,
+      resizeToAvoidBottomInset: true, // Crucial for keyboard handling
+      appBar: AppBar(
+        backgroundColor: AppColors.deepBlue,
+        elevation: 0,
+        title: const Text('Registration', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              // Forces the content to be at least as tall as the screen
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  children: [
+                    // 1. Progress Bar
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      color: AppColors.deepBlue.withOpacity(0.05),
+                      child: Row(
+                        children: List.generate(_totalSteps, (index) => Expanded(
+                          child: Container(
+                            height: 4,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: index <= _currentPage ? AppColors.gold : Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        )),
+                      ),
+                    ),
+
+                    // 2. PageView (Needs a fixed height inside a scrollable column)
+                    // We use 500px as a baseline for your forms
+                    SizedBox(
+                      height: 520,
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        onPageChanged: (page) => setState(() => _currentPage = page),
+                        children: [
+                          _buildProfileStep(),
+                          _buildAcademicStep(),
+                          _buildSecurityStep(),
+                          _buildReviewStep(),
+                        ],
+                      ),
+                    ),
+
+                    const Spacer(), // Pushes buttons to the bottom if there is extra space
+
+                    // 3. Navigation Buttons
+                    Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Row(
+                        children: [
+                          if (_currentPage > 0)
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: _onBack,
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Back', style: TextStyle(color: AppColors.darkGray)),
+                              ),
+                            ),
+                          if (_currentPage > 0) const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: canProceed ? _onContinue : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.gold,
+                                foregroundColor: AppColors.deepBlue,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: Text(_currentPage == _totalSteps - 1 ? 'Complete Registration' : 'Continue'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // --- Helper Widgets ---
+
+  Widget _buildProfileStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Personal Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(child: _buildInput(controller: _firstNameController, hint: 'First Name', icon: Icons.person_outline)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildInput(controller: _lastNameController, hint: 'Last Name', icon: Icons.person_outline)),
+          ]),
+          const SizedBox(height: 16),
+          _buildInput(controller: _addressController, hint: 'Full Residential Address', icon: Icons.home_outlined),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAcademicStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Academic Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const SizedBox(height: 20),
+          _buildInput(controller: _idController, hint: 'University ID Number', icon: Icons.badge_outlined),
+          const SizedBox(height: 16),
+          _buildInput(
+            controller: _emailController,
+            hint: 'Institutional Email (@ctu.edu.ph)',
+            icon: Icons.email_outlined,
+            onChanged: (val) => setState(() {}),
+            errorText: _validateEmail(_emailController.text),
+          ),
+          const SizedBox(height: 16),
+          _buildDropdown(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityStep() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Security Settings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const SizedBox(height: 20),
+          _buildInput(
+            controller: _passwordController,
+            hint: 'Password',
+            icon: Icons.lock_outline,
+            isPass: true,
+            state: _obscurePassword,
+            toggle: () => setState(() => _obscurePassword = !_obscurePassword),
+            onChanged: _validatePassword,
+          ),
+          const SizedBox(height: 12),
+          _buildRequirementRow('At least 8 characters', _has8Chars),
+          _buildRequirementRow('One uppercase letter', _hasUpper),
+          _buildRequirementRow('One number', _hasNumber),
+          _buildRequirementRow('One special character', _hasSpecial),
+          const SizedBox(height: 24),
+          _buildInput(
+            controller: _confirmPasswordController,
+            hint: 'Confirm Password',
+            icon: Icons.lock_reset,
+            isPass: true,
+            state: _obscureConfirmPassword,
+            toggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+            onChanged: (val) => _validateMatch(),
+            errorText: (_confirmPasswordController.text.isNotEmpty && !_passwordsMatch) ? 'Passwords do not match' : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewStep() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("Review & Terms", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const SizedBox(height: 20),
+          Container(
+            height: 180,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+            child: const SingleChildScrollView(
+              child: Text("Data Privacy & NDA: By registering, you acknowledge that all evaluation data is sensitive and subject to university policy...", style: TextStyle(fontSize: 13, color: AppColors.darkGray)),
+            ),
+          ),
+          const Spacer(),
+          CheckboxListTile(
+            title: const Text("I accept terms and conditions", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            value: _hasAcceptedAgreements,
+            onChanged: (val) => setState(() => _hasAcceptedAgreements = val!),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInput({required TextEditingController controller, required String hint, required IconData icon, bool isPass = false, bool? state, VoidCallback? toggle, Function(String)? onChanged, String? errorText}) {
+    return TextField(
+      controller: controller,
+      obscureText: state ?? false,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        hintText: hint,
+        errorText: errorText,
+        prefixIcon: Icon(icon, color: AppColors.royalBlue, size: 20),
+        suffixIcon: isPass ? IconButton(icon: Icon(state! ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: toggle) : null,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 1.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
+      ),
+    );
+  }
+
+  Widget _buildRequirementRow(String label, bool isMet) {
+    return Row(
+      children: [
+        Icon(isMet ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isMet ? Colors.green : Colors.grey),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(fontSize: 12, color: isMet ? Colors.green : Colors.grey.shade600)),
+      ],
+    );
+  }
+
+  Widget _buildDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          hint: const Text("Select Department"),
+          isExpanded: true,
+          value: _departmentController.text.isEmpty ? null : _departmentController.text,
+          items: _departments.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+          onChanged: (val) => setState(() => _departmentController.text = val!),
+        ),
+      ),
+    );
+  }
+
   void _showPendingApprovalDialog() {
     showDialog(
       context: context,
@@ -57,307 +363,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           backgroundColor: AppColors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.access_time_filled, color: AppColors.gold, size: 28),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Registration Pending',
-                  style: TextStyle(
-                    color: AppColors.deepBlue,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            'Your account details have been submitted successfully. \n\nYou must wait for the SAO-Admin to review and approve your account.',
-            style: TextStyle(color: AppColors.darkGray, height: 1.5),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Center(child: Text('Submission Success', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold))),
+          content: const Text('Your registration is complete and pending approval.', textAlign: TextAlign.center),
           actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close dialog
-                Navigator.of(context).pop(); // Return to login
-              },
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.white,
-                backgroundColor: AppColors.deepBlue,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Return to Login'),
               ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                child: Text('I Understand', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
+            )
           ],
         );
       },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      // Removed the standard AppBar to use your custom header
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ==========================================
-            // 1. CUSTOM HEADER SECTION
-            // ==========================================
-            Container(
-              padding: const EdgeInsets.only(
-                  left: 8.0, right: 24.0, top: 20.0, bottom: 16.0), // Less left padding to fit the back button
-              color: AppColors.deepBlue,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      // Back Button manually added to the custom header
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: AppColors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Text(
-                        'Create Account',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const CircleAvatar(
-                    radius: 20,
-                    backgroundColor: AppColors.white,
-                    backgroundImage: AssetImage('assets/images/CTU_logo.png'),
-                  ),
-                ],
-              ),
-            ),
-
-            // ==========================================
-            // 2. STEPPER AREA
-            // ==========================================
-            Expanded( // Wrapped the Stepper in an Expanded widget so it scrolls properly below the header
-              child: Theme(
-                data: ThemeData(
-                  colorScheme: const ColorScheme.light(primary: AppColors.deepBlue),
-                  canvasColor: AppColors.white,
-                ),
-                child: Stepper(
-                  type: StepperType.vertical,
-                  currentStep: _currentStep,
-                  onStepTapped: (step) => setState(() => _currentStep = step),
-                  onStepContinue: () {
-                    final isLastStep = _currentStep == _getSteps().length - 1;
-                    if (isLastStep) {
-                      _showPendingApprovalDialog();
-                    } else {
-                      setState(() => _currentStep += 1);
-                    }
-                  },
-                  onStepCancel: () {
-                    _currentStep == 0 ? null : setState(() => _currentStep -= 1);
-                  },
-                  controlsBuilder: (BuildContext context, ControlsDetails details) {
-                    final isLastStep = _currentStep == _getSteps().length - 1;
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 24.0),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: details.onStepContinue,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.gold,
-                                foregroundColor: AppColors.deepBlue,
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  isLastStep ? 'Submit Registration' : 'Next Step',
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (_currentStep > 0) ...[
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: OutlinedButton(
-                                onPressed: details.onStepCancel,
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.darkGray,
-                                  side: const BorderSide(color: Colors.grey),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    'Back',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  },
-                  steps: _getSteps(),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Defining the Steps ---
-  List<Step> _getSteps() => [
-    // STEP 1: Personal Details
-    Step(
-      state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 0,
-      title: const Text('Personal Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.deepBlue)),
-      content: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: _buildTextField(controller: _firstNameController, hintText: 'First Name', icon: Icons.person_outline)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildTextField(controller: _lastNameController, hintText: 'Last Name', icon: Icons.person_outline)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(controller: _addressController, hintText: 'Full Address', icon: Icons.location_on_outlined),
-          ],
-        ),
-      ),
-    ),
-
-    // STEP 2: Academic Info
-    Step(
-      state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 1,
-      title: const Text('Academic Info', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.deepBlue)),
-      content: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          children: [
-            _buildTextField(controller: _idController, hintText: 'ID Number', icon: Icons.badge_outlined),
-            const SizedBox(height: 16),
-            _buildTextField(controller: _emailController, hintText: 'Email Address', icon: Icons.email_outlined),
-            const SizedBox(height: 16),
-            Container(
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-              child: DropdownMenu<String>(
-                controller: _departmentController,
-                expandedInsets: EdgeInsets.zero,
-                hintText: 'Search/Select Department',
-                leadingIcon: const Icon(Icons.domain, color: AppColors.royalBlue),
-                textStyle: const TextStyle(color: AppColors.darkGray),
-                menuStyle: MenuStyle(backgroundColor: WidgetStateProperty.all(AppColors.white)),
-                inputDecorationTheme: InputDecorationTheme(
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
-                ),
-                dropdownMenuEntries: _departments.map((dept) => DropdownMenuEntry<String>(value: dept, label: dept)).toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-
-    // STEP 3: Security
-    Step(
-      state: _currentStep > 2 ? StepState.complete : StepState.indexed,
-      isActive: _currentStep >= 2,
-      title: const Text('Security', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.deepBlue)),
-      content: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(16)),
-        child: Column(
-          children: [
-            _buildPasswordField(controller: _passwordController, hintText: 'Password', isConfirm: false),
-            const SizedBox(height: 16),
-            _buildPasswordField(controller: _confirmPasswordController, hintText: 'Confirm Password', isConfirm: true),
-          ],
-        ),
-      ),
-    ),
-  ];
-
-  // Reusable Widgets
-  Widget _buildTextField({required TextEditingController controller, required String hintText, required IconData icon}) {
-    return Container(
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-      child: TextField(
-        controller: controller,
-        style: const TextStyle(color: AppColors.darkGray),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon: Icon(icon, color: AppColors.royalBlue),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
-          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPasswordField({required TextEditingController controller, required String hintText, required bool isConfirm}) {
-    bool obscureState = isConfirm ? _obscureConfirmPassword : _obscurePassword;
-    return Container(
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-      child: TextField(
-        controller: controller,
-        obscureText: obscureState,
-        style: const TextStyle(color: AppColors.darkGray),
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon: const Icon(Icons.lock_outline, color: AppColors.royalBlue),
-          suffixIcon: IconButton(
-            icon: Icon(obscureState ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
-            onPressed: () {
-              setState(() => isConfirm ? _obscureConfirmPassword = !_obscureConfirmPassword : _obscurePassword = !_obscurePassword);
-            },
-          ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
-          contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        ),
-      ),
     );
   }
 }

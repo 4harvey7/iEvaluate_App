@@ -1,15 +1,15 @@
-// lib/sao_admin/system_audit_screen.dart
+// lib/sao_admin/live_system_metrics_screen.dart
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
 
-class SystemAuditScreen extends StatefulWidget {
-  const SystemAuditScreen({super.key});
+class LiveSystemMetricsScreen extends StatefulWidget {
+  const LiveSystemMetricsScreen({super.key});
 
   @override
-  State<SystemAuditScreen> createState() => _SystemAuditScreenState();
+  State<LiveSystemMetricsScreen> createState() => _LiveSystemMetricsScreenState();
 }
 
-class _SystemAuditScreenState extends State<SystemAuditScreen> {
+class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   // --- 1. DATA GATHERER PRODUCTIVITY ---
   final List<Map<String, dynamic>> _gathererProductivity = [
     {'name': 'John (Terminal 1)', 'scanned': 450, 'target': 500, 'color': AppColors.royalBlue},
@@ -32,7 +32,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.lightGray, // 👈 Reverted to hardcoded color
       appBar: AppBar(
         backgroundColor: AppColors.deepBlue,
         elevation: 0,
@@ -45,11 +45,6 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Live System Metrics',
-                style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
               const Text(
                 'Real-time tracking for AI processing, staff productivity, and device synchronization.',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -64,7 +59,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.white, // 👈 Reverted to hardcoded color
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
@@ -133,7 +128,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               ..._gathererProductivity.map((staff) {
                 double progress = staff['scanned'] / staff['target'];
                 return Card(
-                  color: AppColors.white,
+                  color: AppColors.white, // 👈 Reverted to hardcoded color
                   elevation: 1,
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -186,7 +181,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               const SizedBox(height: 12),
               ..._gathererSyncStatus.map((gatherer) {
                 return Card(
-                  color: AppColors.white,
+                  color: AppColors.white, // 👈 Reverted to hardcoded color
                   elevation: 1,
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: gatherer['isOnline'] ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3))),
@@ -222,7 +217,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.white, // 👈 Reverted to hardcoded color
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
