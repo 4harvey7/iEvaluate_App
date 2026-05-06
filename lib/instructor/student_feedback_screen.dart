@@ -78,6 +78,103 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     return _allFeedback.where((f) => f['sentiment'] == _selectedFilter).toList();
   }
 
+  // ============================================================
+  // AI INTERPRETATION LAYER — derived from _allFeedback &
+  // _sentimentSummary. No external APIs or backend logic.
+  // ============================================================
+
+  /// Builds a human-readable summary sentence from the sentiment numbers
+  /// and a quick keyword scan of the raw feedback texts.
+  String get _aiInsightSummary {
+    final positive = _sentimentSummary['positive'] as int;
+    final positiveFeedbacks = _allFeedback.where((f) => f['sentiment'] == 'Positive').toList();
+    final hasClear = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('clear') ||
+        (f['text'] as String).toLowerCase().contains('rubric'));
+    final hasApproachable = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('approachable') ||
+        (f['text'] as String).toLowerCase().contains('question'));
+    final hasInspiring = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('inspir') ||
+        (f['text'] as String).toLowerCase().contains('engag'));
+
+    if (positive >= 70) {
+      final traits = <String>[];
+      if (hasInspiring) traits.add('inspiring');
+      if (hasApproachable) traits.add('approachable');
+      if (hasClear) traits.add('organized');
+      final traitString = traits.isNotEmpty ? traits.join(', ') : 'effective';
+      return 'The majority of your students ($positive%) view you as a $traitString instructor. '
+          'Your teaching is making a strong positive impression across multiple courses.';
+    } else if (positive >= 50) {
+      return 'Most students ($positive%) feel positively about your teaching. '
+          'There are clear strengths to build on alongside some areas to address.';
+    } else {
+      return 'Student sentiment is mixed. Consider reviewing feedback carefully '
+          'to identify recurring concerns alongside your teaching strengths.';
+    }
+  }
+
+  /// Extracts positive theme tags from the positive feedback texts.
+  List<Map<String, String>> get _positiveThemes {
+    final themes = <Map<String, String>>[];
+    final texts = _allFeedback
+        .where((f) => f['sentiment'] == 'Positive')
+        .map((f) => (f['text'] as String).toLowerCase())
+        .join(' ');
+
+    if (texts.contains('example') || texts.contains('helpful')) {
+      themes.add({'icon': '💡', 'label': 'Helpful Examples'});
+    }
+    if (texts.contains('approachable') || texts.contains('question')) {
+      themes.add({'icon': '🤝', 'label': 'Approachable Style'});
+    }
+    if (texts.contains('inspir') || texts.contains('engag')) {
+      themes.add({'icon': '🌟', 'label': 'Inspiring Lectures'});
+    }
+    if (texts.contains('coding') || texts.contains('real-world') || texts.contains('project')) {
+      themes.add({'icon': '🛠️', 'label': 'Practical Projects'});
+    }
+    return themes;
+  }
+
+  /// Extracts improvement points only when critical feedback exists.
+  List<Map<String, String>> get _improvementInsights {
+    final criticalFeedbacks = _allFeedback.where((f) => f['sentiment'] == 'Critical').toList();
+    if (criticalFeedbacks.isEmpty) return [];
+
+    final insights = <Map<String, String>>[];
+    final texts = criticalFeedbacks.map((f) => (f['text'] as String).toLowerCase()).join(' ');
+
+    if (texts.contains('pacing') || texts.contains('fast') || texts.contains('keep up')) {
+      insights.add({
+        'icon': '⏱️',
+        'label': 'Lecture Pacing',
+        'detail': 'Some students find the pace too fast — consider adding recap checkpoints.',
+      });
+    }
+    if (texts.contains('strict') || texts.contains('exam')) {
+      insights.add({
+        'icon': '📋',
+        'label': 'Assessment Strictness',
+        'detail': 'A few students feel exams are strict relative to the rubrics provided.',
+      });
+    }
+    if (texts.contains('example') && texts.contains('more')) {
+      insights.add({
+        'icon': '📖',
+        'label': 'More Examples Needed',
+        'detail': 'Students are requesting more worked examples during instruction.',
+      });
+    }
+    // Always surface at least one general insight when critical feedback exists
+    if (insights.isEmpty) {
+      insights.add({
+        'icon': '💬',
+        'label': 'Student Concerns Noted',
+        'detail': 'Review critical comments individually to identify specific improvement areas.',
+      });
+    }
+    return insights;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,10 +192,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('AI Sentiment Analysis', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text('Our AI has read and categorized all written student comments from your evaluation forms.', style: TextStyle(color: Colors.grey, fontSize: 14)),
-              const SizedBox(height: 24),
+
 
               // ==========================================
               // SENTIMENT ANALYSIS DASHBOARD
@@ -148,6 +242,204 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 ),
               ),
               const SizedBox(height: 32),
+
+              // ==========================================
+              // ✨ NEW: AI INSTRUCTOR INSIGHT SUMMARY
+              // ==========================================
+              const Text('AI Instructor Insights', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+
+              // --- Main Insight Card ---
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header row
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.royalBlue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.auto_awesome, color: AppColors.royalBlue, size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('What Your Students Are Saying', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
+                            Text('AI-generated interpretation', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1, color: AppColors.lightGray),
+                    const SizedBox(height: 16),
+
+                    // Summary Text
+                    Text(
+                      _aiInsightSummary,
+                      style: const TextStyle(color: AppColors.darkGray, fontSize: 14, height: 1.6),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Analyzed comments pill
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.lightGray,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.comment_outlined, size: 12, color: Colors.grey),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Based on ${_sentimentSummary['totalComments']} comments',
+                                style: const TextStyle(color: Colors.grey, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // --- Positive Themes Block ---
+              if (_positiveThemes.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.green.withOpacity(0.15), width: 1),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.thumb_up_alt_outlined, color: Colors.green, size: 18),
+                          SizedBox(width: 8),
+                          Text('Key Positive Themes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text('Consistently praised aspects of your teaching', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(height: 16),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: _positiveThemes.map((theme) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.07),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.green.withOpacity(0.2), width: 1),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(theme['icon']!, style: const TextStyle(fontSize: 16)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  theme['label']!,
+                                  style: TextStyle(color: Colors.green.shade800, fontSize: 13, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // --- Improvement Insights Block (only when critical feedback exists) ---
+              if (_improvementInsights.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.orange.withOpacity(0.2), width: 1),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 18),
+                          SizedBox(width: 8),
+                          Text('Improvement Insights', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text('Areas flagged in student feedback worth reviewing', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(height: 16),
+                      Column(
+                        children: _improvementInsights.map((insight) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  width: 36,
+                                  height: 36,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(insight['icon']!, style: const TextStyle(fontSize: 16)),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(insight['label']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade800)),
+                                      const SizedBox(height: 2),
+                                      Text(insight['detail']!, style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.5)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              const SizedBox(height: 16),
+              // ==========================================
+              // END: AI INSTRUCTOR INSIGHT SUMMARY
+              // ==========================================
 
               // ==========================================
               // 👈 UPGRADED WORD CLOUD GENERATOR

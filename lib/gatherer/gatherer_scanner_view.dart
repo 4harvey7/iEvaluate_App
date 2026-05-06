@@ -6,16 +6,16 @@ import '../app_colors.dart';
 
 class GathererScannerView extends StatefulWidget {
   final VoidCallback onScan;
-  // 👈 ADDED: A callback to switch to the Sync view
   final VoidCallback onOpenSync;
-  // 👈 ADDED: To show the badge count
   final int queueCount;
+  final void Function(String url)? onSendFormLink;
 
   const GathererScannerView({
     super.key,
     required this.onScan,
     required this.onOpenSync,
-    required this.queueCount
+    required this.queueCount,
+    this.onSendFormLink,
   });
 
   @override
@@ -77,7 +77,6 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
 
     try {
       final XFile imageFile = await _cameraController!.takePicture();
-      // Simulate quality check delay
       await Future.delayed(const Duration(milliseconds: 1500));
       widget.onScan();
     } catch (e) {
@@ -89,6 +88,202 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
         setState(() => _isCheckingQuality = false);
       }
     }
+  }
+
+  void _openFormLinkModal() {
+    final TextEditingController urlController = TextEditingController();
+    String? errorText;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+                    // FIX: Use a uniform border color so borderRadius works correctly
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.85),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                      border: Border.all(
+                        color: AppColors.gold.withOpacity(0.35),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 20),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(2),
+                            ),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Icon(Icons.insert_link_rounded, color: AppColors.gold, size: 22),
+                            const SizedBox(width: 10),
+                            const Text(
+                              'Send Form Link',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        TextField(
+                          controller: urlController,
+                          autofocus: true,
+                          keyboardType: TextInputType.url,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          cursorColor: AppColors.gold,
+                          decoration: InputDecoration(
+                            hintText: 'Paste Google Form or survey link here...',
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
+                            prefixIcon: Icon(Icons.link, color: AppColors.gold.withOpacity(0.7)),
+                            errorText: errorText,
+                            errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                            filled: true,
+                            fillColor: Colors.white.withOpacity(0.07),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.gold.withOpacity(0.7), width: 1.5),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+                            ),
+                            focusedErrorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                            ),
+                          ),
+                          onChanged: (_) {
+                            if (errorText != null) {
+                              setModalState(() => errorText = null);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => Navigator.of(context).pop(),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+                                    color: Colors.white.withOpacity(0.06),
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'Cancel',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  final url = urlController.text.trim();
+                                  final uri = Uri.tryParse(url);
+                                  final isValid = uri != null &&
+                                      (uri.scheme == 'http' || uri.scheme == 'https') &&
+                                      uri.host.isNotEmpty;
+
+                                  if (!isValid) {
+                                    setModalState(() => errorText = 'Please enter a valid URL (e.g. https://...)');
+                                    return;
+                                  }
+
+                                  Navigator.of(context).pop();
+                                  if (widget.onSendFormLink != null) {
+                                    widget.onSendFormLink!(url);
+                                  } else {
+                                    debugPrint('Form link submitted: $url');
+                                  }
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Form link sent!'),
+                                      backgroundColor: AppColors.gold.withOpacity(0.9),
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: AppColors.gold,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.gold.withOpacity(0.4),
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Center(
+                                    child: Text(
+                                      'Send',
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -145,7 +340,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
             },
           ),
 
-          // 👈 NEW: TOP NAVIGATION BAR WITH SYNC BUTTON
+          // TOP NAVIGATION BAR — SCANNER label left, form link + sync buttons right
           Positioned(
             top: MediaQuery.of(context).padding.top + 10,
             left: 20,
@@ -157,31 +352,50 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                   'SCANNER',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
                 ),
-                GestureDetector(
-                  onTap: widget.onOpenSync,
-                  child: Stack(
-                    alignment: Alignment.topRight,
-                    children: [
-                      Container(
+                Row(
+                  children: [
+                    // Send Form Link button — sits just to the left of sync
+                    GestureDetector(
+                      onTap: _openFormLinkModal,
+                      child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.5),
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white.withOpacity(0.2)),
+                          border: Border.all(color: AppColors.gold.withOpacity(0.5)),
                         ),
-                        child: const Icon(Icons.cloud_sync, color: Colors.white, size: 28),
+                        child: const Icon(Icons.insert_link_rounded, color: AppColors.gold, size: 28),
                       ),
-                      if (widget.queueCount > 0)
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                          child: Text(
-                            '${widget.queueCount}',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 10),
+                    // Sync button
+                    GestureDetector(
+                      onTap: widget.onOpenSync,
+                      child: Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                            ),
+                            child: const Icon(Icons.cloud_sync, color: Colors.white, size: 28),
                           ),
-                        ),
-                    ],
-                  ),
+                          if (widget.queueCount > 0)
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                              child: Text(
+                                '${widget.queueCount}',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -260,10 +474,6 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
   }
 }
 
-// Keep your existing _ScannerOverlayPainter below...
-// ==========================================
-// CUSTOM PAINTER FOR PRO SCANNER LOOK
-// ==========================================
 class _ScannerOverlayPainter extends CustomPainter {
   final Rect scanRect;
 
