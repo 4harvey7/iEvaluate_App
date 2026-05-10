@@ -23,6 +23,12 @@ class AppColors {
   static Color get textTertiary => textPrimary.withOpacity(0.40);
   static const Color textInverted = Color(0xFFFFF9EB);
 
+  /// Pre-baked alpha variants of [textInverted] for use in const contexts
+  /// (e.g. `const TextStyle(color: AppColors.textInvertedDim)`), where
+  /// `.withOpacity()` would break const-ness.
+  static const Color textInvertedDim = Color(0xB3FFF9EB); // ~70% opacity
+  static const Color textInvertedFaint = Color(0x3DFFF9EB); // ~24% opacity
+
   // Borders / dividers
   static Color get borderHairline => textPrimary.withOpacity(0.08);
   static Color get borderSubtle => textPrimary.withOpacity(0.12);
