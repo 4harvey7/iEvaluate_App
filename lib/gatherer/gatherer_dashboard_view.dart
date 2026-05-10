@@ -1,6 +1,6 @@
 // lib/gatherer/gatherer_dashboard_view.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class GathererDashboardView extends StatelessWidget {
   final int scanned;
@@ -38,11 +38,11 @@ class GathererDashboardView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppColors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
                   )
@@ -56,20 +56,20 @@ class GathererDashboardView extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.deepBlue,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       const Icon(Icons.location_on_outlined,
-                          size: 16, color: AppColors.deepBlue),
+                          size: 16, color: AppColors.textPrimary),
                       const SizedBox(width: 4),
                       Text(
                         'Terminal 2 • Data Gatherer',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.deepBlue.withValues(alpha: 0.7),
+                          color: AppColors.textPrimary.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -81,20 +81,20 @@ class GathererDashboardView extends StatelessWidget {
                         'System Status: ',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppColors.deepBlue.withValues(alpha: 0.7),
+                          color: AppColors.textPrimary.withValues(alpha: 0.7),
                         ),
                       ),
                       const Text(
                         'Online',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.green,
+                          color: AppColors.success,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 4),
                       const CircleAvatar(
-                          radius: 5, backgroundColor: Colors.green),
+                          radius: 5, backgroundColor: AppColors.success),
                     ],
                   ),
                 ],
@@ -111,8 +111,8 @@ class GathererDashboardView extends StatelessWidget {
               child: ElevatedButton(
                 onPressed: onStartScan,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
-                  foregroundColor: AppColors.deepBlue,
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.textPrimary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20)),
                   elevation: 5,
@@ -142,11 +142,11 @@ class GathererDashboardView extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.white,
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   )
@@ -174,8 +174,8 @@ class GathererDashboardView extends StatelessWidget {
                   ElevatedButton(
                     onPressed: onOpenLink,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: AppColors.deepBlue,
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -200,7 +200,7 @@ class GathererDashboardView extends StatelessWidget {
               children: [
                 Expanded(
                   child: Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 2,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
@@ -215,7 +215,7 @@ class GathererDashboardView extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color:
-                              AppColors.deepBlue.withValues(alpha: 0.7),
+                              AppColors.textPrimary.withValues(alpha: 0.7),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -230,7 +230,7 @@ class GathererDashboardView extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.royalBlue,
+                                  color: AppColors.primary,
                                 ),
                               ),
                               Text(
@@ -238,7 +238,7 @@ class GathererDashboardView extends StatelessWidget {
                                 style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.grey,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                             ],
@@ -251,7 +251,7 @@ class GathererDashboardView extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 2,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
@@ -267,7 +267,7 @@ class GathererDashboardView extends StatelessWidget {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color:
-                              AppColors.deepBlue.withValues(alpha: 0.7),
+                              AppColors.textPrimary.withValues(alpha: 0.7),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -276,7 +276,7 @@ class GathererDashboardView extends StatelessWidget {
                             style: const TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              color: Colors.orange,
+                              color: AppColors.warning,
                             ),
                           ),
                         ],

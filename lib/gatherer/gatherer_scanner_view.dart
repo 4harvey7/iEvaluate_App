@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'dart:ui';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class GathererScannerView extends StatefulWidget {
   final VoidCallback onScan;
@@ -81,7 +81,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
       widget.onScan();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Capture failed. Try again.'), backgroundColor: Colors.red),
+        const SnackBar(content: Text('Capture failed. Try again.'), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) {
@@ -116,7 +116,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                       color: Colors.black.withOpacity(0.85),
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                       border: Border.all(
-                        color: AppColors.gold.withOpacity(0.35),
+                        color: AppColors.primary.withOpacity(0.35),
                         width: 1,
                       ),
                     ),
@@ -137,7 +137,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                         ),
                         Row(
                           children: [
-                            Icon(Icons.insert_link_rounded, color: AppColors.gold, size: 22),
+                            Icon(Icons.insert_link_rounded, color: AppColors.primary, size: 22),
                             const SizedBox(width: 10),
                             const Text(
                               'Send Form Link',
@@ -156,13 +156,13 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                           autofocus: true,
                           keyboardType: TextInputType.url,
                           style: const TextStyle(color: Colors.white, fontSize: 14),
-                          cursorColor: AppColors.gold,
+                          cursorColor: AppColors.primary,
                           decoration: InputDecoration(
                             hintText: 'Paste Google Form or survey link here...',
                             hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
-                            prefixIcon: Icon(Icons.link, color: AppColors.gold.withOpacity(0.7)),
+                            prefixIcon: Icon(Icons.link, color: AppColors.primary.withOpacity(0.7)),
                             errorText: errorText,
-                            errorStyle: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                            errorStyle: const TextStyle(color: AppColors.error, fontSize: 12),
                             filled: true,
                             fillColor: Colors.white.withOpacity(0.07),
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -172,15 +172,15 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                             ),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: AppColors.gold.withOpacity(0.7), width: 1.5),
+                              borderSide: BorderSide(color: AppColors.primary.withOpacity(0.7), width: 1.5),
                             ),
                             errorBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+                              borderSide: const BorderSide(color: AppColors.error, width: 1),
                             ),
                             focusedErrorBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+                              borderSide: const BorderSide(color: AppColors.error, width: 1.5),
                             ),
                           ),
                           onChanged: (_) {
@@ -240,7 +240,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: const Text('Form link sent!'),
-                                      backgroundColor: AppColors.gold.withOpacity(0.9),
+                                      backgroundColor: AppColors.primary.withOpacity(0.9),
                                       behavior: SnackBarBehavior.floating,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                     ),
@@ -250,10 +250,10 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                                   padding: const EdgeInsets.symmetric(vertical: 14),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                    color: AppColors.gold,
+                                    color: AppColors.primary,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.gold.withOpacity(0.4),
+                                        color: AppColors.primary.withOpacity(0.4),
                                         blurRadius: 10,
                                         spreadRadius: 1,
                                       ),
@@ -263,7 +263,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                                     child: Text(
                                       'Send',
                                       style: TextStyle(
-                                        color: Colors.black,
+                                        color: AppColors.textInverted,
                                         fontWeight: FontWeight.bold,
                                         letterSpacing: 0.5,
                                       ),
@@ -292,7 +292,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
       return Container(
         color: Colors.black,
         width: double.infinity,
-        child: const Center(child: CircularProgressIndicator(color: AppColors.gold)),
+        child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
 
@@ -329,9 +329,9 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                   width: scanRect.width,
                   height: 3,
                   decoration: BoxDecoration(
-                    color: AppColors.gold,
+                    color: AppColors.primary,
                     boxShadow: [
-                      BoxShadow(color: AppColors.gold.withOpacity(0.8), blurRadius: 15, spreadRadius: 3),
+                      BoxShadow(color: AppColors.primary.withOpacity(0.8), blurRadius: 15, spreadRadius: 3),
                       const BoxShadow(color: Colors.white, blurRadius: 4, spreadRadius: 0),
                     ],
                   ),
@@ -362,9 +362,9 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                         decoration: BoxDecoration(
                           color: Colors.black.withOpacity(0.5),
                           shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.gold.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.5)),
                         ),
-                        child: const Icon(Icons.insert_link_rounded, color: AppColors.gold, size: 28),
+                        child: const Icon(Icons.insert_link_rounded, color: AppColors.primary, size: 28),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -386,7 +386,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                           if (widget.queueCount > 0)
                             Container(
                               padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                              decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
                               child: Text(
                                 '${widget.queueCount}',
                                 style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
@@ -417,7 +417,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           decoration: BoxDecoration(
-                            color: _isCheckingQuality ? Colors.orange.withOpacity(0.8) : Colors.black.withOpacity(0.4),
+                            color: _isCheckingQuality ? AppColors.warning.withOpacity(0.8) : Colors.black.withOpacity(0.4),
                             borderRadius: BorderRadius.circular(30),
                             border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
                           ),
@@ -455,7 +455,7 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
                             width: _isCheckingQuality ? 32 : 70,
                             height: _isCheckingQuality ? 32 : 70,
                             decoration: BoxDecoration(
-                              color: _isCheckingQuality ? AppColors.gold : Colors.white,
+                              color: _isCheckingQuality ? AppColors.primary : Colors.white,
                               shape: BoxShape.rectangle,
                               borderRadius: BorderRadius.circular(_isCheckingQuality ? 8 : 50),
                             ),
@@ -490,7 +490,7 @@ class _ScannerOverlayPainter extends CustomPainter {
     canvas.drawPath(finalPath, backgroundPaint);
 
     final borderPaint = Paint()
-      ..color = AppColors.gold
+      ..color = AppColors.primary
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;

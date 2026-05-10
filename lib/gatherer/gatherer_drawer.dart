@@ -1,6 +1,6 @@
 // lib/gatherer/gatherer_drawer.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 // Note: We deleted the import for data_validation_screen.dart here because the main screen handles it now!
 
@@ -17,11 +17,11 @@ class GathererDrawer extends StatelessWidget {
   // The helper function lives inside here now!
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
+      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
+          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
@@ -33,20 +33,20 @@ class GathererDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           const DrawerHeader(
-            decoration: BoxDecoration(color: AppColors.deepBlue),
+            decoration: BoxDecoration(color: AppColors.textPrimary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                CircleAvatar(radius: 28, backgroundColor: AppColors.white, child: Icon(Icons.document_scanner, color: AppColors.deepBlue, size: 28)),
+                CircleAvatar(radius: 28, backgroundColor: AppColors.surface, child: Icon(Icons.document_scanner, color: AppColors.textPrimary, size: 28)),
                 SizedBox(height: 12),
-                Text('Terminal 2', style: TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('Data Gatherer Unit', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                Text('Terminal 2', style: TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('Data Gatherer Unit', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ],
             ),
           ),

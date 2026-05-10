@@ -1,6 +1,6 @@
 // lib/gatherer/gatherer_settings_view.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 
 class GathererSettingsView extends StatefulWidget {
@@ -23,12 +23,12 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Matches the "Profile" section header style
-            const Text('Profile', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
 
             // Matches the unified Profile Card
             Card(
-              color: AppColors.white,
+              color: AppColors.surface,
               elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Padding(
@@ -37,17 +37,17 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                   children: [
                     CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                        child: const Icon(Icons.document_scanner, color: AppColors.deepBlue, size: 28)
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: const Icon(Icons.document_scanner, color: AppColors.textPrimary, size: 28)
                     ),
                     const SizedBox(width: 16),
                     const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Terminal 2', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.darkGray)),
+                          Text('Terminal 2', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                           SizedBox(height: 4),
-                          Text('Data Gatherer Unit', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                          Text('Data Gatherer Unit', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                         ],
                       ),
                     )
@@ -58,10 +58,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             const SizedBox(height: 32),
 
             // Matches the unified Settings list style
-            const Text('Scanner Preferences', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('Scanner Preferences', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             Card(
-              color: AppColors.white,
+              color: AppColors.surface,
               elevation: 1,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               child: Column(
@@ -98,10 +98,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                         (route) => false,
                   );
                 },
-                icon: const Icon(Icons.logout, color: Colors.red),
-                label: const Text('End Shift & Log Out', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                icon: const Icon(Icons.logout, color: AppColors.error),
+                label: const Text('End Shift & Log Out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red, width: 2),
+                  side: const BorderSide(color: AppColors.error, width: 2),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
@@ -118,18 +118,18 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, color: AppColors.royalBlue),
+        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: AppColors.primary),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.white,
-        activeTrackColor: Colors.green,
+        activeColor: AppColors.surface,
+        activeTrackColor: AppColors.success,
         inactiveThumbColor: Colors.white,
-        inactiveTrackColor: Colors.grey.shade300,
+        inactiveTrackColor: AppColors.borderHairline,
       ),
     );
   }

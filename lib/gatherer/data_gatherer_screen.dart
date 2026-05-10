@@ -1,6 +1,6 @@
 // lib/gatherer/data_gatherer_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import 'gatherer_dashboard_view.dart';
 import 'gatherer_scanner_view.dart';
@@ -81,7 +81,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Form Scanned!'),
-          backgroundColor: Colors.green,
+          backgroundColor: AppColors.success,
           duration: Duration(seconds: 1),
         ));
       }
@@ -106,7 +106,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Cloud Sync Complete!'),
-        backgroundColor: Colors.green,
+        backgroundColor: AppColors.success,
       ));
     }
   }
@@ -159,16 +159,16 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
 
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
+        iconTheme: const IconThemeData(color: AppColors.surface),
         title: Text(
           tabTitles[_currentIndex],
           style: const TextStyle(
-            color: AppColors.white,
+            color: AppColors.surface,
             fontWeight: FontWeight.bold,
           ),
         ),

@@ -1,6 +1,6 @@
 // lib/data_validation_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 // Notice: We removed the gatherer_drawer.dart import because this screen doesn't need its own drawer anymore!
 
 class DataValidationScreen extends StatefulWidget {
@@ -61,7 +61,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
             height: MediaQuery.of(context).size.height * 0.90,
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
-              color: AppColors.lightGray,
+              color: AppColors.background,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
@@ -71,18 +71,18 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Itemized Data Validation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                    IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+                    const Text('Itemized Data Validation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                   ],
                 ),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.withOpacity(0.5))),
+                  decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.warning.withOpacity(0.5))),
                   child: Row(
                     children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
                       const SizedBox(width: 8),
-                      Expanded(child: Text('System Flag: ${form['issue']}', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13))),
+                      Expanded(child: Text('System Flag: ${form['issue']}', style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 13))),
                     ],
                   ),
                 ),
@@ -94,13 +94,13 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Original Scanned Document', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                        const Text('Original Scanned Document', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
                         Container(
                           height: 120,
                           width: double.infinity,
                           decoration: BoxDecoration(
-                              color: Colors.black87,
+                              color: AppColors.textPrimary,
                               borderRadius: BorderRadius.circular(12),
                               image: const DecorationImage(image: AssetImage('assets/images/CTU_logo.png'), fit: BoxFit.cover, opacity: 0.3)
                           ),
@@ -109,7 +109,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                         const SizedBox(height: 24),
 
                         // General Info
-                        const Text('Header Data', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                        const Text('Header Data', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         Row(
                           children: [
@@ -121,11 +121,11 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                         const SizedBox(height: 24),
 
                         // Itemized Scores
-                        const Text('Itemized Evaluation Scores (1-5)', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                        const Text('Itemized Evaluation Scores (1-5)', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                           child: ListView.separated(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -140,7 +140,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                                 children: [
                                   Expanded(
                                     flex: 4,
-                                    child: Text(qText, style: const TextStyle(fontSize: 13, color: AppColors.darkGray)),
+                                    child: Text(qText, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -153,12 +153,12 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                                         textAlign: TextAlign.center,
                                         decoration: InputDecoration(
                                           filled: true,
-                                          fillColor: isError ? Colors.red.withOpacity(0.1) : AppColors.lightGray,
+                                          fillColor: isError ? AppColors.error.withOpacity(0.1) : AppColors.background,
                                           contentPadding: EdgeInsets.zero,
-                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? Colors.red : Colors.transparent)),
-                                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? Colors.red : Colors.transparent)),
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? AppColors.error : Colors.transparent)),
+                                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? AppColors.error : Colors.transparent)),
                                         ),
-                                        style: TextStyle(fontWeight: FontWeight.bold, color: isError ? Colors.red : AppColors.deepBlue),
+                                        style: TextStyle(fontWeight: FontWeight.bold, color: isError ? AppColors.error : AppColors.textPrimary),
                                       ),
                                     ),
                                   )
@@ -176,9 +176,9 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                           decoration: InputDecoration(
                             labelText: 'Remarks & Suggestions (Required)',
                             filled: true,
-                            fillColor: AppColors.white,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? Colors.red : Colors.transparent)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? Colors.red : Colors.transparent)),
+                            fillColor: AppColors.surface,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? AppColors.error : Colors.transparent)),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? AppColors.error : Colors.transparent)),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -192,23 +192,23 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: Colors.red), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.error), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         onPressed: () {
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Form rejected.')));
                         },
-                        child: const Text('Reject', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        child: const Text('Reject', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: AppColors.success, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                         onPressed: () {
                           setState(() => _flaggedForms.remove(form));
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data approved!'), backgroundColor: Colors.green));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data approved!'), backgroundColor: AppColors.success));
                         },
                         child: const Text('Approve & Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
@@ -229,9 +229,9 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: AppColors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? Colors.red : Colors.transparent)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? Colors.red : Colors.transparent)),
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? AppColors.error : Colors.transparent)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? AppColors.error : Colors.transparent)),
       ),
     );
   }
@@ -249,15 +249,15 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Error Detection System', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+                const Text('Error Detection System', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text('The AI requires human verification for the following scanned documents before they can be added to the database.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                const Text('The AI requires human verification for the following scanned documents before they can be added to the database.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
                 const SizedBox(height: 24),
                 Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(12)),
                       child: Text('${_flaggedForms.length} Pending Verifications', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                   ],
@@ -271,10 +271,10 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.verified, color: Colors.green.shade200, size: 80),
+                  Icon(Icons.verified, color: AppColors.success.shade200, size: 80),
                   const SizedBox(height: 16),
-                  const Text('All Data Validated!', style: TextStyle(color: AppColors.darkGray, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Text('Database is clean and up to date.', style: TextStyle(color: Colors.grey)),
+                  const Text('All Data Validated!', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text('Database is clean and up to date.', style: TextStyle(color: AppColors.textSecondary)),
                 ],
               ),
             )
@@ -284,10 +284,10 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
               itemBuilder: (context, index) {
                 final form = _flaggedForms[index];
                 return Card(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   elevation: 2,
                   margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.orange.withOpacity(0.5), width: 1.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.warning.withOpacity(0.5), width: 1.5)),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
                     onTap: () => _showValidationSheet(form),
@@ -299,8 +299,8 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(form['id'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                              Text('Confidence: ${(form['confidence'] * 100).toInt()}%', style: TextStyle(fontWeight: FontWeight.bold, color: form['confidence'] < 0.7 ? Colors.red : Colors.orange, fontSize: 12)),
+                              Text(form['id'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              Text('Confidence: ${(form['confidence'] * 100).toInt()}%', style: TextStyle(fontWeight: FontWeight.bold, color: form['confidence'] < 0.7 ? AppColors.error : AppColors.warning, fontSize: 12)),
                             ],
                           ),
                           const Divider(),
@@ -308,15 +308,15 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.orange, size: 20),
+                              const Icon(Icons.error_outline, color: AppColors.warning, size: 20),
                               const SizedBox(width: 8),
-                              Expanded(child: Text(form['issue'], style: const TextStyle(color: AppColors.darkGray, fontSize: 14))),
+                              Expanded(child: Text(form['issue'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 14))),
                             ],
                           ),
                           const SizedBox(height: 12),
                           const Align(
                             alignment: Alignment.centerRight,
-                            child: Text('Tap to Resolve ➔', style: TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.bold, fontSize: 12)),
+                            child: Text('Tap to Resolve ➔', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
                           )
                         ],
                       ),

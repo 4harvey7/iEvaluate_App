@@ -1,6 +1,6 @@
 // lib/gatherer/gatherer_sync_view.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class GathererSyncView extends StatelessWidget {
   final List<Map<String, dynamic>> queue;
@@ -17,8 +17,8 @@ class GathererSyncView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Offline Queue', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
-            const Text('Upload scanned forms to the N8n backend', style: TextStyle(color: Colors.grey)),
+            const Text('Offline Queue', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text('Upload scanned forms to the N8n backend', style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 24),
 
             Expanded(
@@ -27,9 +27,9 @@ class GathererSyncView extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.cloud_done, color: Colors.green.shade200, size: 64),
+                    Icon(Icons.cloud_done, color: AppColors.success.shade200, size: 64),
                     const SizedBox(height: 16),
-                    const Text('All forms have been synced!', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                    const Text('All forms have been synced!', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
                   ],
                 ),
               )
@@ -39,14 +39,14 @@ class GathererSyncView extends StatelessWidget {
                   final form = queue[index];
                   bool isProcessing = form['status'] == 'Processing...';
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 12),
                     child: ListTile(
-                      leading: Icon(isProcessing ? Icons.sync : Icons.description, color: isProcessing ? AppColors.royalBlue : Colors.grey),
+                      leading: Icon(isProcessing ? Icons.sync : Icons.description, color: isProcessing ? AppColors.primary : AppColors.textSecondary),
                       title: Text(form['id'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(form['status'], style: TextStyle(color: isProcessing ? AppColors.royalBlue : Colors.grey, fontSize: 12)),
-                      trailing: isProcessing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_circle, color: Colors.green),
+                      subtitle: Text(form['status'], style: TextStyle(color: isProcessing ? AppColors.primary : AppColors.textSecondary, fontSize: 12)),
+                      trailing: isProcessing ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.check_circle, color: AppColors.success),
                     ),
                   );
                 },
@@ -58,7 +58,7 @@ class GathererSyncView extends StatelessWidget {
               height: 54,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: queue.isEmpty ? Colors.grey : AppColors.deepBlue,
+                  backgroundColor: queue.isEmpty ? AppColors.textSecondary : AppColors.textPrimary,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: queue.isEmpty || isSyncing ? null : onSync,
