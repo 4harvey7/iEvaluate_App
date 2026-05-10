@@ -1,6 +1,6 @@
 // lib/sao_admin/system_audit_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class SystemAuditScreen extends StatefulWidget {
   const SystemAuditScreen({super.key});
@@ -12,8 +12,8 @@ class SystemAuditScreen extends StatefulWidget {
 class _SystemAuditScreenState extends State<SystemAuditScreen> {
   // --- 1. DATA GATHERER PRODUCTIVITY ---
   final List<Map<String, dynamic>> _gathererProductivity = [
-    {'name': 'John (Terminal 1)', 'scanned': 450, 'target': 500, 'color': AppColors.royalBlue},
-    {'name': 'Maria (Terminal 2)', 'scanned': 320, 'target': 500, 'color': AppColors.gold},
+    {'name': 'John (Terminal 1)', 'scanned': 450, 'target': 500, 'color': AppColors.primary},
+    {'name': 'Maria (Terminal 2)', 'scanned': 320, 'target': 500, 'color': AppColors.primary},
   ];
 
   // --- 3. DATA GATHERER SYNC STATUS (Updated) ---
@@ -32,12 +32,12 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -47,26 +47,26 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
             children: [
               const Text(
                 'Live System Metrics',
-                style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Real-time tracking for AI processing, staff productivity, and device synchronization.',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 24),
 
               // ==========================================
               // 2. AI PROCESSING & ERROR METRICS
               // ==========================================
-              const Text('AI Processing Accuracy', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('AI Processing Accuracy', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: Column(
                   children: [
@@ -78,18 +78,18 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                  Icon(Icons.check_circle, color: AppColors.success, size: 20),
                                   SizedBox(width: 8),
-                                  Expanded(child: Text('Perfect Extraction', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                                  Expanded(child: Text('Perfect Extraction', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.success, fontSize: 13), overflow: TextOverflow.ellipsis)),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              const Text('85%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                              Text('Processed perfectly', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                              const Text('85%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              Text('Processed perfectly', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                             ],
                           ),
                         ),
-                        Container(width: 1, height: 80, color: Colors.grey.shade300),
+                        Container(width: 1, height: 80, color: AppColors.borderHairline),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
@@ -97,14 +97,14 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                             children: [
                               const Row(
                                 children: [
-                                  Icon(Icons.warning, color: Colors.orange, size: 20),
+                                  Icon(Icons.warning, color: AppColors.warning, size: 20),
                                   SizedBox(width: 8),
-                                  Expanded(child: Text('Manual Validated', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                                  Expanded(child: Text('Manual Validated', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.warning, fontSize: 13), overflow: TextOverflow.ellipsis)),
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              const Text('15%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                              Text('Messy handwriting', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                              const Text('15%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              Text('Messy handwriting', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                             ],
                           ),
                         ),
@@ -115,8 +115,8 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                       borderRadius: BorderRadius.circular(8),
                       child: Row(
                         children: [
-                          Expanded(flex: 85, child: Container(height: 12, color: Colors.green)),
-                          Expanded(flex: 15, child: Container(height: 12, color: Colors.orange)),
+                          Expanded(flex: 85, child: Container(height: 12, color: AppColors.success)),
+                          Expanded(flex: 15, child: Container(height: 12, color: AppColors.warning)),
                         ],
                       ),
                     ),
@@ -128,12 +128,12 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               // ==========================================
               // 1. DATA GATHERER PRODUCTIVITY (AUDIT LOGS)
               // ==========================================
-              const Text('Data Gatherer Productivity', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Data Gatherer Productivity', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               ..._gathererProductivity.map((staff) {
                 double progress = staff['scanned'] / staff['target'];
                 return Card(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   elevation: 1,
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -154,7 +154,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                                     child: Icon(Icons.person, color: staff['color'], size: 18),
                                   ),
                                   const SizedBox(width: 12),
-                                  Expanded(child: Text(staff['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 15), overflow: TextOverflow.ellipsis)),
+                                  Expanded(child: Text(staff['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 15), overflow: TextOverflow.ellipsis)),
                                 ],
                               ),
                             ),
@@ -167,7 +167,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: progress,
-                            backgroundColor: AppColors.lightGray,
+                            backgroundColor: AppColors.background,
                             color: staff['color'],
                             minHeight: 8,
                           ),
@@ -182,30 +182,30 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               // ==========================================
               // 3. DATA GATHERER SYNC STATUS (UPDATED)
               // ==========================================
-              const Text('Data Gatherer Sync Status', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Data Gatherer Sync Status', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               ..._gathererSyncStatus.map((gatherer) {
                 return Card(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   elevation: 1,
                   margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: gatherer['isOnline'] ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3))),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: gatherer['isOnline'] ? AppColors.success.withOpacity(0.3) : AppColors.warning.withOpacity(0.3))),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     leading: Icon(
                       gatherer['isOnline'] ? Icons.cloud_done : Icons.cloud_off,
-                      color: gatherer['isOnline'] ? Colors.green : Colors.orange,
+                      color: gatherer['isOnline'] ? AppColors.success : AppColors.warning,
                       size: 32,
                     ),
-                    title: Text(gatherer['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                    title: Text(gatherer['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     subtitle: Text(
                       gatherer['isOnline'] ? 'Fully Synced to Server' : '${gatherer['pending']} forms waiting',
-                      style: TextStyle(color: gatherer['isOnline'] ? Colors.grey : Colors.orange.shade800, fontWeight: gatherer['isOnline'] ? FontWeight.normal : FontWeight.bold),
+                      style: TextStyle(color: gatherer['isOnline'] ? AppColors.textSecondary : AppColors.warning, fontWeight: gatherer['isOnline'] ? FontWeight.normal : FontWeight.bold),
                     ),
                     trailing: gatherer['isOnline']
-                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        ? const Icon(Icons.check_circle, color: AppColors.success)
                         : IconButton(
-                      icon: const Icon(Icons.sync, color: Colors.orange),
+                      icon: const Icon(Icons.sync, color: AppColors.warning),
                       tooltip: 'Force Sync',
                       onPressed: () {},
                     ),
@@ -217,14 +217,14 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               // ==========================================
               // 4. OVERALL EVALUATION PROGRESS
               // ==========================================
-              const Text('Campus Evaluation Progress', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Campus Evaluation Progress', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: Column(
                   children: _collegeProgress.map((college) {
@@ -236,9 +236,9 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Expanded(child: Text(college['college'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray), overflow: TextOverflow.ellipsis)),
+                              Expanded(child: Text(college['college'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)),
                               const SizedBox(width: 8),
-                              Text(college['percentage'], style: TextStyle(fontWeight: FontWeight.bold, color: college['progress'] == 1.0 ? Colors.green : AppColors.royalBlue)),
+                              Text(college['percentage'], style: TextStyle(fontWeight: FontWeight.bold, color: college['progress'] == 1.0 ? AppColors.success : AppColors.primary)),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -246,8 +246,8 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
                               value: college['progress'],
-                              backgroundColor: AppColors.lightGray,
-                              color: college['progress'] == 1.0 ? Colors.green : AppColors.royalBlue,
+                              backgroundColor: AppColors.background,
+                              color: college['progress'] == 1.0 ? AppColors.success : AppColors.primary,
                               minHeight: 8,
                             ),
                           ),

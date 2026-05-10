@@ -1,6 +1,6 @@
 // lib/admin/sao_admin_settings.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 
 class SaoAdminSettings extends StatefulWidget {
@@ -90,7 +90,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.lightGray,
+                    color: AppColors.background,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Column(
@@ -100,8 +100,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Edit Admin Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+                          const Text('Edit Admin Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -115,16 +115,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         value: tempSelectedOffice,
                         decoration: InputDecoration(
                           labelText: 'Assigned Office',
-                          prefixIcon: const Icon(Icons.account_balance, color: AppColors.royalBlue),
+                          prefixIcon: const Icon(Icons.account_balance, color: AppColors.primary),
                           filled: true,
-                          fillColor: AppColors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                         ),
                         items: _offices.map((String office) {
                           return DropdownMenuItem<String>(
                             value: office,
-                            child: Text(office, style: const TextStyle(color: AppColors.darkGray)),
+                            child: Text(office, style: const TextStyle(color: AppColors.textPrimary)),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -138,7 +138,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.deepBlue,
+                            backgroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
@@ -148,9 +148,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               _userOffice = tempSelectedOffice;
                             });
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: Colors.green));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                           },
-                          child: const Text('Save Changes', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+                          child: const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -171,9 +171,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Change Password', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+          title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -187,18 +187,18 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
+                backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: Colors.green));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: AppColors.success));
               },
-              child: const Text('Update', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+              child: const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -217,20 +217,20 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: Colors.red),
+              Icon(Icons.warning_amber_rounded, color: AppColors.error),
               SizedBox(width: 8),
               Text("Reset Semester Data?"),
             ],
           ),
           content: const Text("This will archive all current evaluations and prep the database for a new semester. This cannot be undone."),
           actions: [
-            TextButton(child: const Text("Cancel", style: TextStyle(color: Colors.grey)), onPressed: () => Navigator.pop(context)),
+            TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Reset Data", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Database Reset Successfully.'), backgroundColor: Colors.red));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Database Reset Successfully.'), backgroundColor: AppColors.error));
               },
             ),
           ],
@@ -245,11 +245,11 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       obscureText: isPassword,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.royalBlue) : null,
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
         filled: true,
-        fillColor: AppColors.white,
+        fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
       ),
     );
   }
@@ -267,12 +267,12 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('System Settings', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('System Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -283,10 +283,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // ==========================================
               // 1. PROFILE SECTION
               // ==========================================
-              const Text('Administrator Profile', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Administrator Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
@@ -295,21 +295,21 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     children: [
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.gold.withOpacity(0.2),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.gold, fontSize: 24, fontWeight: FontWeight.bold)),
+                        backgroundColor: AppColors.primary.withOpacity(0.2),
+                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.darkGray)),
+                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
-                            Text('$_userTitle • $_userOffice', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text('$_userTitle • $_userOffice', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 8),
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -323,10 +323,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // ==========================================
               // 2. ACADEMIC TERM MANAGEMENT (Updated with Automation)
               // ==========================================
-              const Text('Academic Term Management', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Academic Term Management', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -344,7 +344,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           if (_autoUpdateTerm) _calculateCurrentTerm();
                         });
                       },
-                      iconColor: Colors.green,
+                      iconColor: AppColors.success,
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
 
@@ -360,7 +360,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Active Semester', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                                  const Text('Active Semester', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                   DropdownButton<String>(
                                     value: _selectedSemester,
                                     underline: const SizedBox(),
@@ -375,7 +375,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text('Academic Year', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                                  const Text('Academic Year', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                   DropdownButton<String>(
                                     value: _selectedYear,
                                     underline: const SizedBox(),
@@ -399,10 +399,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // ==========================================
               // 3. AI & FORM SETTINGS
               // ==========================================
-              const Text('Evaluation Parameters', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Evaluation Parameters', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -413,7 +413,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       icon: Icons.psychology,
                       value: _strictOcrValidation,
                       onChanged: (val) => setState(() => _strictOcrValidation = val),
-                      iconColor: AppColors.royalBlue,
+                      iconColor: AppColors.primary,
                     ),
                     const Divider(height: 1, indent: 56),
                     _buildSwitchTile(
@@ -422,7 +422,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       icon: Icons.inventory_2,
                       value: _autoArchiveReports,
                       onChanged: (val) => setState(() => _autoArchiveReports = val),
-                      iconColor: Colors.orange,
+                      iconColor: AppColors.warning,
                     ),
                   ],
                 ),
@@ -432,27 +432,27 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // ==========================================
               // 4. SECURITY & DANGER ZONE
               // ==========================================
-              const Text('Security & Administration', style: TextStyle(color: Colors.red, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Security & Administration', style: TextStyle(color: AppColors.error, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.royalBlue)),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.primary)),
+                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog,
                     ),
                     const Divider(height: 1, indent: 56),
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_forever, color: Colors.red)),
-                      title: const Text('Reset Semester Data', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_forever, color: AppColors.error)),
+                      title: const Text('Reset Semester Data', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                       onTap: _showResetSystemDialog, // Triggers the Danger Zone alert
                     ),
                   ],
@@ -470,10 +470,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   onPressed: () {
                     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                   },
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('Sign Out Securely', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                  icon: const Icon(Icons.logout, color: AppColors.error),
+                  label: const Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red, width: 2),
+                    side: const BorderSide(color: AppColors.error, width: 2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -481,7 +481,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               const SizedBox(height: 32),
 
               const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
             ],
           ),
@@ -503,18 +503,18 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
         child: Icon(icon, color: iconColor),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.white,
-        activeTrackColor: Colors.green,
+        activeColor: AppColors.surface,
+        activeTrackColor: AppColors.success,
         inactiveThumbColor: Colors.white,
-        inactiveTrackColor: Colors.grey.shade300,
+        inactiveTrackColor: AppColors.borderHairline,
       ),
     );
   }

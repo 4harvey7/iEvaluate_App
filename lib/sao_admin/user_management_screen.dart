@@ -1,6 +1,6 @@
 // lib/sao_admin/user_management_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -66,27 +66,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: AppColors.white,
+                backgroundColor: AppColors.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text('Edit Profile & Role', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                title: const Text('Edit Profile & Role', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: idController,
-                        decoration: const InputDecoration(labelText: 'ID Number', prefixIcon: Icon(Icons.badge, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'ID Number', prefixIcon: Icon(Icons.badge, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: selectedRole,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.primary)),
                         items: _roles.map((role) => DropdownMenuItem(
                           value: role,
                           child: Text(role, overflow: TextOverflow.ellipsis),
@@ -97,7 +97,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       DropdownButtonFormField<String>(
                         value: selectedDept,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Department', prefixIcon: Icon(Icons.domain, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Department', prefixIcon: Icon(Icons.domain, color: AppColors.primary)),
                         items: _departments.map((dept) => DropdownMenuItem(
                           value: dept,
                           child: Text(dept, overflow: TextOverflow.ellipsis),
@@ -110,10 +110,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.textPrimary, foregroundColor: AppColors.surface),
                     onPressed: () {
                       setState(() {
                         user['name'] = nameController.text;
@@ -122,7 +122,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         user['dept'] = selectedDept;
                       });
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile Updated Successfully'), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile Updated Successfully'), backgroundColor: AppColors.success));
                     },
                     child: const Text('Save Changes'),
                   ),
@@ -142,20 +142,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Reset Password for ${user['name']}', style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 18)),
+          title: Text('Reset Password for ${user['name']}', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Enter a new temporary password for this user.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Enter a new temporary password for this user.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               const SizedBox(height: 16),
               TextField(
                 controller: newPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
                   labelText: 'New Password',
-                  prefixIcon: Icon(Icons.lock_reset, color: AppColors.gold),
+                  prefixIcon: Icon(Icons.lock_reset, color: AppColors.primary),
                 ),
               ),
             ],
@@ -163,13 +163,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.deepBlue),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password for ${user['name']} has been reset!'), backgroundColor: AppColors.royalBlue));
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password for ${user['name']} has been reset!'), backgroundColor: AppColors.primary));
               },
               child: const Text('Confirm Reset', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
@@ -193,41 +193,41 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: AppColors.white,
+                backgroundColor: AppColors.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 title: const Row(
                   children: [
-                    Icon(Icons.person_add, color: AppColors.gold),
+                    Icon(Icons.person_add, color: AppColors.primary),
                     SizedBox(width: 12),
-                    Text('Create New User', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                    Text('Create New User', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Manually register a user and grant instant active access.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      const Text('Manually register a user and grant instant active access.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                       const SizedBox(height: 16),
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: idController,
-                        decoration: const InputDecoration(labelText: 'ID Number', prefixIcon: Icon(Icons.badge, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'ID Number', prefixIcon: Icon(Icons.badge, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: passwordController,
                         obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Temporary Password', prefixIcon: Icon(Icons.lock, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Temporary Password', prefixIcon: Icon(Icons.lock, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: selectedRole,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.primary)),
                         items: _roles.map((role) => DropdownMenuItem(value: role, child: Text(role, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setDialogState(() => selectedRole = val!),
                       ),
@@ -235,7 +235,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       DropdownButtonFormField<String>(
                         value: selectedDept,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Department', prefixIcon: Icon(Icons.domain, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Department', prefixIcon: Icon(Icons.domain, color: AppColors.primary)),
                         items: _departments.map((dept) => DropdownMenuItem(value: dept, child: Text(dept, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setDialogState(() => selectedDept = val!),
                       ),
@@ -245,10 +245,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.deepBlue),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                     onPressed: () {
                       setState(() {
                         _allUsers.insert(0, {
@@ -263,7 +263,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text('${nameController.text.isNotEmpty ? nameController.text : 'New User'} added successfully!'),
-                          backgroundColor: Colors.green
+                          backgroundColor: AppColors.success
                       ));
                     },
                     child: const Text('Create Account', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -280,7 +280,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (BuildContext context) {
         return StatefulBuilder(
@@ -291,18 +291,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                  const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 24),
 
-                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   Wrap(
                     spacing: 12,
                     children: ['Newest', 'Oldest'].map((sortType) {
                       return ChoiceChip(
                         label: Text(sortType),
                         selected: _sortBy == sortType,
-                        selectedColor: AppColors.royalBlue.withOpacity(0.2),
-                        labelStyle: TextStyle(color: _sortBy == sortType ? AppColors.deepBlue : Colors.grey),
+                        selectedColor: AppColors.primary.withOpacity(0.2),
+                        labelStyle: TextStyle(color: _sortBy == sortType ? AppColors.textPrimary : AppColors.textSecondary),
                         onSelected: (bool selected) {
                           if (selected) {
                             setModalState(() => _sortBy = sortType);
@@ -314,15 +314,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   Wrap(
                     spacing: 12,
                     children: ['All', 'Instructor', 'Department Head'].map((role) {
                       return ChoiceChip(
                         label: Text(role),
                         selected: _selectedRoleFilter == role,
-                        selectedColor: AppColors.royalBlue.withOpacity(0.2),
-                        labelStyle: TextStyle(color: _selectedRoleFilter == role ? AppColors.deepBlue : Colors.grey),
+                        selectedColor: AppColors.primary.withOpacity(0.2),
+                        labelStyle: TextStyle(color: _selectedRoleFilter == role ? AppColors.textPrimary : AppColors.textSecondary),
                         onSelected: (bool selected) {
                           if (selected) {
                             setModalState(() => _selectedRoleFilter = role);
@@ -339,8 +339,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     height: 50,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.deepBlue,
-                        foregroundColor: AppColors.white,
+                        backgroundColor: AppColors.textPrimary,
+                        foregroundColor: AppColors.surface,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => Navigator.pop(context),
@@ -361,15 +361,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final currentUsers = _filteredUsers;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('User Management', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('User Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add, color: AppColors.gold),
+            icon: const Icon(Icons.person_add, color: AppColors.primary),
             tooltip: 'Add New User Manually',
             onPressed: _showAddUserDialog,
           ),
@@ -382,19 +382,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             // SEARCH & FILTER BAR
             // ==========================================
             Container(
-              color: AppColors.white,
+              color: AppColors.surface,
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Row(
                 children: [
                   Expanded(
                     child: Container(
-                      decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
                       child: TextField(
                         onChanged: (value) => setState(() => _searchQuery = value),
                         decoration: const InputDecoration(
                           hintText: 'Search by Name or ID...',
-                          hintStyle: TextStyle(color: Colors.grey),
-                          prefixIcon: Icon(Icons.search, color: AppColors.royalBlue),
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          prefixIcon: Icon(Icons.search, color: AppColors.primary),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 14),
                         ),
@@ -404,11 +404,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(width: 12),
                   Container(
                     decoration: BoxDecoration(
-                      color: _selectedRoleFilter != 'All' ? AppColors.royalBlue : AppColors.royalBlue.withOpacity(0.1),
+                      color: _selectedRoleFilter != 'All' ? AppColors.primary : AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
-                      icon: Icon(Icons.filter_list, color: _selectedRoleFilter != 'All' ? AppColors.white : AppColors.royalBlue),
+                      icon: Icon(Icons.filter_list, color: _selectedRoleFilter != 'All' ? AppColors.surface : AppColors.primary),
                       onPressed: _showFilterBottomSheet,
                     ),
                   ),
@@ -421,7 +421,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             // ==========================================
             Expanded(
               child: currentUsers.isEmpty
-                  ? const Center(child: Text("No users found matching your filters.", style: TextStyle(color: Colors.grey, fontSize: 16)))
+                  ? const Center(child: Text("No users found matching your filters.", style: TextStyle(color: AppColors.textSecondary, fontSize: 16)))
                   : ListView.builder(
                 padding: const EdgeInsets.all(24.0),
                 itemCount: currentUsers.length,
@@ -430,7 +430,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   final isActive = user['status'] == 'Active';
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 2,
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -441,10 +441,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           // User Avatar
                           CircleAvatar(
                             radius: 24,
-                            backgroundColor: isActive ? AppColors.royalBlue.withOpacity(0.1) : Colors.grey.shade200,
+                            backgroundColor: isActive ? AppColors.primary.withOpacity(0.1) : AppColors.borderHairline,
                             child: Text(
                               user['name'][0],
-                              style: TextStyle(color: isActive ? AppColors.deepBlue : Colors.grey, fontWeight: FontWeight.bold, fontSize: 18),
+                              style: TextStyle(color: isActive ? AppColors.textPrimary : AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 18),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -459,22 +459,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
-                                    color: isActive ? AppColors.darkGray : Colors.grey,
+                                    color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
                                     decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text('${user['id']} • ${user['role']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                Text('${user['id']} • ${user['role']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                                 const SizedBox(height: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                    color: isActive ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     user['status'],
-                                    style: TextStyle(color: isActive ? Colors.green.shade700 : Colors.red.shade700, fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: isActive ? AppColors.success.shade700 : AppColors.error.shade700, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -483,7 +483,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                           // Admin Actions Dropdown (The 3 dots)
                           PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert, color: AppColors.darkGray),
+                            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             onSelected: (value) {
                               if (value == 'Edit Profile & Role') {
@@ -495,7 +495,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   user['status'] = isActive ? 'Disabled' : 'Active';
                                 });
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('${user['name']} is now ${user['status']}'), backgroundColor: user['status'] == 'Active' ? Colors.green : Colors.red),
+                                  SnackBar(content: Text('${user['name']} is now ${user['status']}'), backgroundColor: user['status'] == 'Active' ? AppColors.success : AppColors.error),
                                 );
                               }
                             },
@@ -503,7 +503,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               const PopupMenuItem(
                                 value: 'Edit Profile & Role',
                                 child: Row(children: [
-                                  Icon(Icons.edit, color: AppColors.royalBlue, size: 20),
+                                  Icon(Icons.edit, color: AppColors.primary, size: 20),
                                   SizedBox(width: 12),
                                   Expanded(child: Text('Edit Profile & Role'))
                                 ]),
@@ -511,7 +511,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               const PopupMenuItem(
                                 value: 'Reset Password',
                                 child: Row(children: [
-                                  Icon(Icons.lock_reset, color: AppColors.gold, size: 20),
+                                  Icon(Icons.lock_reset, color: AppColors.primary, size: 20),
                                   SizedBox(width: 12),
                                   Expanded(child: Text('Reset Password'))
                                 ]),
@@ -521,10 +521,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 value: 'Toggle Status',
                                 child: Row(
                                   children: [
-                                    Icon(isActive ? Icons.block : Icons.check_circle, color: isActive ? Colors.red : Colors.green, size: 20),
+                                    Icon(isActive ? Icons.block : Icons.check_circle, color: isActive ? AppColors.error : AppColors.success, size: 20),
                                     const SizedBox(width: 12),
                                     Expanded(
-                                        child: Text(isActive ? 'Disable Account' : 'Enable Account', style: TextStyle(color: isActive ? Colors.red : Colors.green))
+                                        child: Text(isActive ? 'Disable Account' : 'Enable Account', style: TextStyle(color: isActive ? AppColors.error : AppColors.success))
                                     ),
                                   ],
                                 ),

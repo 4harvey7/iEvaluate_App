@@ -1,6 +1,6 @@
 // lib/sao_admin/admin_dashboard.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import 'user_management_screen.dart';
 import '../login_screen.dart';
 import 'personnel_management_screen.dart';
@@ -28,26 +28,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
+        iconTheme: const IconThemeData(color: AppColors.surface),
         title: const Text(
           'SAO-Admin Command Center',
-          style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_none, color: AppColors.white),
+            icon: const Icon(Icons.notifications_none, color: AppColors.surface),
             onPressed: () {},
           ),
           const Padding(
             padding: EdgeInsets.only(right: 16.0),
             child: CircleAvatar(
               radius: 16,
-              backgroundColor: AppColors.gold,
-              child: Icon(Icons.shield, color: AppColors.deepBlue, size: 20),
+              backgroundColor: AppColors.primary,
+              child: Icon(Icons.shield, color: AppColors.textPrimary, size: 20),
             ),
           )
         ],
@@ -61,7 +61,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               const Text(
                 'System Overview',
-                style: TextStyle(color: AppColors.darkGray, fontSize: 22, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 24),
 
@@ -70,7 +70,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               // ==========================================
               Row(
                 children: [
-                  Expanded(child: _buildMetricCard('Total Users', '1,248', Icons.people, AppColors.royalBlue)),
+                  Expanded(child: _buildMetricCard('Total Users', '1,248', Icons.people, AppColors.primary)),
                   const SizedBox(width: 16),
                   // 👈 UPDATED: "Pending" is now "Files Scanned"
                   Expanded(child: _buildMetricCard('Files Scanned', '$_filesScannedCount', Icons.document_scanner_outlined, Colors.teal)),
@@ -84,12 +84,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const Expanded(
                     child: Text(
                       'Pending Account Approvals',
-                      style: TextStyle(color: AppColors.darkGray, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
                   TextButton(
                     onPressed: () {},
-                    child: const Text('View All', style: TextStyle(color: AppColors.royalBlue)),
+                    child: const Text('View All', style: TextStyle(color: AppColors.primary)),
                   )
                 ],
               ),
@@ -109,7 +109,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return _pendingApprovals.isEmpty
         ? const Center(child: Padding(
       padding: EdgeInsets.all(24.0),
-      child: Text("No pending approvals.", style: TextStyle(color: Colors.grey)),
+      child: Text("No pending approvals.", style: TextStyle(color: AppColors.textSecondary)),
     ))
         : ListView.builder(
       shrinkWrap: true,
@@ -118,27 +118,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       itemBuilder: (context, index) {
         final user = _pendingApprovals[index];
         return Card(
-          color: AppColors.white,
+          color: AppColors.surface,
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: CircleAvatar(
-              backgroundColor: AppColors.lightGray,
-              child: Text(user['name']![0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+              backgroundColor: AppColors.background,
+              child: Text(user['name']![0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             ),
-            title: Text(user['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-            subtitle: Text('Department: ${user['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            title: Text(user['name']!, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            subtitle: Text('Department: ${user['dept']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
             trailing: Wrap(
               spacing: -8,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.check_circle, color: Colors.green),
+                  icon: const Icon(Icons.check_circle, color: AppColors.success),
                   onPressed: () => _handleApproval(user['name']!, true),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.cancel, color: Colors.red),
+                  icon: const Icon(Icons.cancel, color: AppColors.error),
                   onPressed: () => _handleApproval(user['name']!, false),
                 ),
               ],
@@ -159,10 +159,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -170,9 +170,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         children: [
           Icon(icon, color: iconColor, size: 28),
           const SizedBox(height: 16),
-          Text(value, style: const TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
         ],
       ),
     );
@@ -180,20 +180,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface,
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
           const DrawerHeader(
-            decoration: BoxDecoration(color: AppColors.deepBlue),
+            decoration: BoxDecoration(color: AppColors.textPrimary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(Icons.admin_panel_settings, color: AppColors.gold, size: 48),
+                Icon(Icons.admin_panel_settings, color: AppColors.primary, size: 48),
                 SizedBox(height: 12),
-                Text('System Administrator', style: TextStyle(color: AppColors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                Text('Highest Access Level', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                Text('System Administrator', style: TextStyle(color: AppColors.surface, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text('Highest Access Level', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               ],
             ),
           ),
@@ -228,11 +228,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
+      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
+          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),

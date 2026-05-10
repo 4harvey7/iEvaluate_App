@@ -1,6 +1,6 @@
 // lib/sao_admin/personnel_management_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class PersonnelManagementScreen extends StatefulWidget {
   const PersonnelManagementScreen({super.key});
@@ -63,27 +63,27 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: AppColors.white,
+                backgroundColor: AppColors.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text('Edit Personnel', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                title: const Text('Edit Personnel', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: idController,
-                        decoration: const InputDecoration(labelText: 'Staff ID', prefixIcon: Icon(Icons.badge, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Staff ID', prefixIcon: Icon(Icons.badge, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: selectedRole,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.primary)),
                         items: _roles.map((role) => DropdownMenuItem(
                           value: role,
                           child: Text(role, overflow: TextOverflow.ellipsis),
@@ -96,10 +96,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepBlue, foregroundColor: AppColors.white),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.textPrimary, foregroundColor: AppColors.surface),
                     onPressed: () {
                       setState(() {
                         person['name'] = nameController.text;
@@ -107,7 +107,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                         person['role'] = selectedRole;
                       });
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel Updated Successfully'), backgroundColor: Colors.green));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel Updated Successfully'), backgroundColor: AppColors.success));
                     },
                     child: const Text('Save Changes'),
                   ),
@@ -132,41 +132,41 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                backgroundColor: AppColors.white,
+                backgroundColor: AppColors.surface,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 title: const Row(
                   children: [
-                    Icon(Icons.person_add_alt_1, color: AppColors.gold),
+                    Icon(Icons.person_add_alt_1, color: AppColors.primary),
                     SizedBox(width: 12),
-                    Expanded(child: Text('Add Personnel', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold))),
+                    Expanded(child: Text('Add Personnel', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
                   ],
                 ),
                 content: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text('Register new operational staff (e.g. Data Gatherers).', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      const Text('Register new operational staff (e.g. Data Gatherers).', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                       const SizedBox(height: 16),
                       TextField(
                         controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Full Name', prefixIcon: Icon(Icons.person, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: idController,
-                        decoration: const InputDecoration(labelText: 'Staff ID', prefixIcon: Icon(Icons.badge, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Staff ID', prefixIcon: Icon(Icons.badge, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 12),
                       TextField(
                         controller: passwordController,
                         obscureText: true,
-                        decoration: const InputDecoration(labelText: 'Temporary Password', prefixIcon: Icon(Icons.lock, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Temporary Password', prefixIcon: Icon(Icons.lock, color: AppColors.primary)),
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         value: selectedRole,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.royalBlue)),
+                        decoration: const InputDecoration(labelText: 'Role', prefixIcon: Icon(Icons.manage_accounts, color: AppColors.primary)),
                         items: _roles.map((role) => DropdownMenuItem(value: role, child: Text(role, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setDialogState(() => selectedRole = val!),
                       ),
@@ -176,10 +176,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.gold, foregroundColor: AppColors.deepBlue),
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                     onPressed: () {
                       setState(() {
                         _allPersonnel.insert(0, {
@@ -193,7 +193,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text('${nameController.text.isNotEmpty ? nameController.text : 'New Staff'} added successfully!'),
-                          backgroundColor: Colors.green
+                          backgroundColor: AppColors.success
                       ));
                     },
                     child: const Text('Create Staff', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -210,7 +210,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (BuildContext context) {
         return StatefulBuilder(
@@ -221,18 +221,18 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Filter Staff', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                  const Text('Filter Staff', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 24),
 
-                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   Wrap(
                     spacing: 12,
                     children: ['Newest', 'Oldest'].map((sortType) {
                       return ChoiceChip(
                         label: Text(sortType),
                         selected: _sortBy == sortType,
-                        selectedColor: AppColors.royalBlue.withOpacity(0.2),
-                        labelStyle: TextStyle(color: _sortBy == sortType ? AppColors.deepBlue : Colors.grey),
+                        selectedColor: AppColors.primary.withOpacity(0.2),
+                        labelStyle: TextStyle(color: _sortBy == sortType ? AppColors.textPrimary : AppColors.textSecondary),
                         onSelected: (bool selected) {
                           if (selected) {
                             setModalState(() => _sortBy = sortType);
@@ -244,15 +244,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   Wrap(
                     spacing: 12,
                     children: ['All', 'Data Gatherer', 'System Admin'].map((role) {
                       return ChoiceChip(
                         label: Text(role),
                         selected: _selectedRoleFilter == role,
-                        selectedColor: AppColors.royalBlue.withOpacity(0.2),
-                        labelStyle: TextStyle(color: _selectedRoleFilter == role ? AppColors.deepBlue : Colors.grey),
+                        selectedColor: AppColors.primary.withOpacity(0.2),
+                        labelStyle: TextStyle(color: _selectedRoleFilter == role ? AppColors.textPrimary : AppColors.textSecondary),
                         onSelected: (bool selected) {
                           if (selected) {
                             setModalState(() => _selectedRoleFilter = role);
@@ -269,8 +269,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     height: 50,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.deepBlue,
-                        foregroundColor: AppColors.white,
+                        backgroundColor: AppColors.textPrimary,
+                        foregroundColor: AppColors.surface,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: () => Navigator.pop(context),
@@ -291,15 +291,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     final currentPersonnel = _filteredPersonnel;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Personnel Management', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Personnel Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.person_add_alt_1, color: AppColors.gold),
+            icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
             tooltip: 'Add New Staff',
             onPressed: _showAddPersonnelDialog,
           ),
@@ -312,19 +312,19 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             // SEARCH & FILTER BAR
             // ==========================================
             Container(
-              color: AppColors.white,
+              color: AppColors.surface,
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
               child: Row(
                 children: [
                   Expanded(
                     child: Container(
-                      decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(12)),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(12)),
                       child: TextField(
                         onChanged: (value) => setState(() => _searchQuery = value),
                         decoration: const InputDecoration(
                           hintText: 'Search Staff Name or ID...',
-                          hintStyle: TextStyle(color: Colors.grey),
-                          prefixIcon: Icon(Icons.search, color: AppColors.royalBlue),
+                          hintStyle: TextStyle(color: AppColors.textSecondary),
+                          prefixIcon: Icon(Icons.search, color: AppColors.primary),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 14),
                         ),
@@ -334,11 +334,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const SizedBox(width: 12),
                   Container(
                     decoration: BoxDecoration(
-                      color: _selectedRoleFilter != 'All' ? AppColors.royalBlue : AppColors.royalBlue.withOpacity(0.1),
+                      color: _selectedRoleFilter != 'All' ? AppColors.primary : AppColors.primary.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: IconButton(
-                      icon: Icon(Icons.filter_list, color: _selectedRoleFilter != 'All' ? AppColors.white : AppColors.royalBlue),
+                      icon: Icon(Icons.filter_list, color: _selectedRoleFilter != 'All' ? AppColors.surface : AppColors.primary),
                       onPressed: _showFilterBottomSheet,
                     ),
                   ),
@@ -351,7 +351,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             // ==========================================
             Expanded(
               child: currentPersonnel.isEmpty
-                  ? const Center(child: Text("No personnel found matching your filters.", style: TextStyle(color: Colors.grey, fontSize: 16)))
+                  ? const Center(child: Text("No personnel found matching your filters.", style: TextStyle(color: AppColors.textSecondary, fontSize: 16)))
                   : ListView.builder(
                 padding: const EdgeInsets.all(24.0),
                 itemCount: currentPersonnel.length,
@@ -360,7 +360,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   final isActive = person['status'] == 'Active';
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 2,
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -371,10 +371,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                           // Avatar
                           CircleAvatar(
                             radius: 24,
-                            backgroundColor: isActive ? AppColors.royalBlue.withOpacity(0.1) : Colors.grey.shade200,
+                            backgroundColor: isActive ? AppColors.primary.withOpacity(0.1) : AppColors.borderHairline,
                             child: Text(
                               person['name'][0],
-                              style: TextStyle(color: isActive ? AppColors.deepBlue : Colors.grey, fontWeight: FontWeight.bold, fontSize: 18),
+                              style: TextStyle(color: isActive ? AppColors.textPrimary : AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 18),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -389,23 +389,23 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
-                                    color: isActive ? AppColors.darkGray : Colors.grey,
+                                    color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
                                     decoration: isActive ? TextDecoration.none : TextDecoration.lineThrough,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 // Subtitle updated: no office
-                                Text('${person['id']} • ${person['role']}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                                Text('${person['id']} • ${person['role']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                                 const SizedBox(height: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: isActive ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                    color: isActive ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     person['status'],
-                                    style: TextStyle(color: isActive ? Colors.green.shade700 : Colors.red.shade700, fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: isActive ? AppColors.success.shade700 : AppColors.error.shade700, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
@@ -414,13 +414,13 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
                           // Action Menu
                           PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_vert, color: AppColors.darkGray),
+                            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             onSelected: (value) {
                               if (value == 'Edit') {
                                 _showEditPersonnelDialog(person);
                               } else if (value == 'Reset') {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password reset link sent for ${person['name']}'), backgroundColor: AppColors.royalBlue));
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Password reset link sent for ${person['name']}'), backgroundColor: AppColors.primary));
                               } else if (value == 'Toggle') {
                                 setState(() {
                                   person['status'] = isActive ? 'Disabled' : 'Active';
@@ -431,7 +431,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                               const PopupMenuItem(
                                 value: 'Edit',
                                 child: Row(children: [
-                                  Icon(Icons.edit, color: AppColors.royalBlue, size: 20),
+                                  Icon(Icons.edit, color: AppColors.primary, size: 20),
                                   SizedBox(width: 12),
                                   Expanded(child: Text('Edit Personnel'))
                                 ]),
@@ -439,7 +439,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                               const PopupMenuItem(
                                 value: 'Reset',
                                 child: Row(children: [
-                                  Icon(Icons.lock_reset, color: AppColors.gold, size: 20),
+                                  Icon(Icons.lock_reset, color: AppColors.primary, size: 20),
                                   SizedBox(width: 12),
                                   Expanded(child: Text('Reset Password'))
                                 ]),
@@ -449,10 +449,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 value: 'Toggle',
                                 child: Row(
                                   children: [
-                                    Icon(isActive ? Icons.block : Icons.check_circle, color: isActive ? Colors.red : Colors.green, size: 20),
+                                    Icon(isActive ? Icons.block : Icons.check_circle, color: isActive ? AppColors.error : AppColors.success, size: 20),
                                     const SizedBox(width: 12),
                                     Expanded(
-                                        child: Text(isActive ? 'Disable Account' : 'Enable Account', style: TextStyle(color: isActive ? Colors.red : Colors.green))
+                                        child: Text(isActive ? 'Disable Account' : 'Enable Account', style: TextStyle(color: isActive ? AppColors.error : AppColors.success))
                                     ),
                                   ],
                                 ),

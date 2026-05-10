@@ -1,6 +1,6 @@
 // lib/sao_admin/performance_analysis_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class PerformanceAnalysisScreen extends StatefulWidget {
   const PerformanceAnalysisScreen({super.key});
@@ -21,11 +21,11 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   };
 
   final List<Map<String, dynamic>> _departmentAverages = [
-    {'dept': 'Computer Studies', 'score': 4.82, 'color': AppColors.royalBlue},
-    {'dept': 'Engineering', 'score': 4.65, 'color': AppColors.gold},
-    {'dept': 'Education', 'score': 4.51, 'color': Colors.green},
-    {'dept': 'Arts and Sciences', 'score': 4.30, 'color': Colors.orange},
-    {'dept': 'Business', 'score': 4.15, 'color': Colors.purple},
+    {'dept': 'Computer Studies', 'score': 4.82, 'color': AppColors.primary},
+    {'dept': 'Engineering', 'score': 4.65, 'color': AppColors.primary},
+    {'dept': 'Education', 'score': 4.51, 'color': AppColors.success},
+    {'dept': 'Arts and Sciences', 'score': 4.30, 'color': AppColors.warning},
+    {'dept': 'Business', 'score': 4.15, 'color': AppColors.textSecondary},
   ];
 
   final List<Map<String, dynamic>> _topInstructors = [
@@ -96,7 +96,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               return Container(
                 height: MediaQuery.of(context).size.height * 0.85,
                 decoration: const BoxDecoration(
-                  color: AppColors.lightGray,
+                  color: AppColors.background,
                   borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Column(
@@ -106,28 +106,28 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: const BoxDecoration(
-                        color: AppColors.white,
+                        color: AppColors.surface,
                         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                       ),
                       child: Row(
                         children: [
                           CircleAvatar(
                             radius: 30,
-                            backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                            child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 24)),
+                            backgroundColor: AppColors.primary.withOpacity(0.1),
+                            child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24)),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.darkGray)),
-                                Text(instructor['dept'], style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                                Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary)),
+                                Text(instructor['dept'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
                               ],
                             ),
                           ),
                           IconButton(
-                            icon: const Icon(Icons.close, color: Colors.grey),
+                            icon: const Icon(Icons.close, color: AppColors.textSecondary),
                             onPressed: () => Navigator.pop(context),
                           )
                         ],
@@ -147,7 +147,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                               children: [
                                 // 👈 FIX 1: Wrapped in Expanded to prevent horizontal overflow
                                 const Expanded(
-                                  child: Text('Historical Performance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                                  child: Text('Historical Performance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                 ),
 
                                 // Zoom Controls
@@ -155,14 +155,14 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.zoom_out, color: AppColors.royalBlue),
+                                      icon: const Icon(Icons.zoom_out, color: AppColors.primary),
                                       onPressed: () {
                                         if (chartScale > 0.6) setSheetState(() => chartScale -= 0.2);
                                       },
                                     ),
-                                    Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                                    Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                     IconButton(
-                                      icon: const Icon(Icons.zoom_in, color: AppColors.royalBlue),
+                                      icon: const Icon(Icons.zoom_in, color: AppColors.primary),
                                       onPressed: () {
                                         if (chartScale < 2.5) setSheetState(() => chartScale += 0.2);
                                       },
@@ -178,7 +178,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                               height: 220, // Safe height limit
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
                               child: SingleChildScrollView(
                                 scrollDirection: Axis.horizontal, // Swipe left/right if zoomed in!
                                 child: ConstrainedBox(
@@ -198,18 +198,18 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                           mainAxisAlignment: MainAxisAlignment.end,
                                           mainAxisSize: MainAxisSize.min, // Hugs the contents tightly
                                           children: [
-                                            Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                                            Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                             const SizedBox(height: 8),
                                             Container(
                                               width: barWidth,
                                               height: barHeight,
                                               decoration: BoxDecoration(
-                                                color: AppColors.royalBlue,
+                                                color: AppColors.primary,
                                                 borderRadius: BorderRadius.circular(6),
                                               ),
                                             ),
                                             const SizedBox(height: 8),
-                                            Text(data['sem'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text(data['sem'], style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                           ],
                                         ),
                                       );
@@ -222,22 +222,22 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                             const SizedBox(height: 32),
 
                             // --- CURRENT SUBJECT BREAKDOWN ---
-                            const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+                            const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                             const SizedBox(height: 16),
                             Column(
                               children: subjects.map<Widget>((subject) {
                                 return Container(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
+                                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray))),
+                                      Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary))),
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                                        child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                                        decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                                        child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)),
                                       ),
                                     ],
                                   ),
@@ -260,15 +260,15 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: AppColors.gold),
+            icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
             tooltip: 'Export Report',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating PDF Report...')));
@@ -288,19 +288,19 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Dashboard', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const Text('Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: AppColors.white,
+                      color: AppColors.surface,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: AppColors.borderHairline),
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _selectedSemester,
-                        icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.royalBlue),
-                        style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 14),
+                        icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
                         items: _semesters.map((String value) {
                           return DropdownMenuItem<String>(value: value, child: Text(value));
                         }).toList(),
@@ -317,9 +317,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               // ==========================================
               Row(
                 children: [
-                  Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.gold)),
+                  Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primary)),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildStatCard('Total Evals', _overviewStats['totalEvals']!, Icons.library_books, AppColors.royalBlue)),
+                  Expanded(child: _buildStatCard('Total Evals', _overviewStats['totalEvals']!, Icons.library_books, AppColors.primary)),
                 ],
               ),
               const SizedBox(height: 16),
@@ -327,9 +327,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.deepBlue, AppColors.royalBlue]),
+                  gradient: LinearGradient(colors: AppColors.heroGradient),
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: AppColors.royalBlue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -339,10 +339,10 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       children: [
                         Text('Data Extraction Rate', style: TextStyle(color: Colors.white70, fontSize: 14)),
                         SizedBox(height: 4),
-                        Text('System performing optimally', style: TextStyle(color: AppColors.white, fontSize: 12)),
+                        Text('System performing optimally', style: TextStyle(color: AppColors.surface, fontSize: 12)),
                       ],
                     ),
-                    Text(_overviewStats['completion']!, style: const TextStyle(color: AppColors.gold, fontSize: 28, fontWeight: FontWeight.bold)),
+                    Text(_overviewStats['completion']!, style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -351,11 +351,11 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               // ==========================================
               // DEPARTMENT PERFORMANCE CHART
               // ==========================================
-              const Text('Department Averages', style: TextStyle(color: AppColors.darkGray, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Department Averages', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10)]),
                 child: Column(
                   children: _departmentAverages.map((dept) {
                     double percentage = (dept['score'] / 5.0);
@@ -367,14 +367,14 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(dept['dept'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                              Text(dept['dept'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                               Text('${dept['score']}', style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'])),
                             ],
                           ),
                           const SizedBox(height: 8),
                           Stack(
                             children: [
-                              Container(height: 8, decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(4))),
+                              Container(height: 8, decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(4))),
                               FractionallySizedBox(
                                 widthFactor: percentage,
                                 child: Container(height: 8, decoration: BoxDecoration(color: dept['color'], borderRadius: BorderRadius.circular(4))),
@@ -395,8 +395,8 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.darkGray, fontSize: 18, fontWeight: FontWeight.bold)),
-                  TextButton(onPressed: () {}, child: const Text('View All', style: TextStyle(color: AppColors.royalBlue))),
+                  const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                  TextButton(onPressed: () {}, child: const Text('View All', style: TextStyle(color: AppColors.primary))),
                 ],
               ),
               const SizedBox(height: 8),
@@ -406,7 +406,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                   final List subjects = instructor['subjects'];
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 2,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -416,21 +416,21 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: CircleAvatar(
-                          backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                          child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                          backgroundColor: AppColors.primary.withOpacity(0.1),
+                          child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         ),
-                        title: Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                        subtitle: Text('${subjects.length} Subject(s) • ${instructor['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        title: Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        subtitle: Text('${subjects.length} Subject(s) • ${instructor['dept']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
                               instructor['trend'] == 'up' ? Icons.trending_up : Icons.trending_flat,
-                              color: instructor['trend'] == 'up' ? Colors.green : Colors.orange,
+                              color: instructor['trend'] == 'up' ? AppColors.success : AppColors.warning,
                               size: 20,
                             ),
                             const SizedBox(width: 8),
-                            Text('${instructor['overallScore']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.deepBlue)),
+                            Text('${instructor['overallScore']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                           ],
                         ),
                       ),
@@ -449,18 +449,18 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: iconColor, size: 28),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.darkGray, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
         ],
       ),
     );
