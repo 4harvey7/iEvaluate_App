@@ -1,6 +1,6 @@
 // lib/login_screen.dart
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
+import 'theme/app_colors.dart';
 import 'signup_screen.dart';
 import 'sao_admin/admin_dashboard.dart';
 import 'instructor/instructor_dashboard.dart';
@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Processing Login..."),
-          backgroundColor: AppColors.royalBlue,
+          backgroundColor: AppColors.primary,
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -57,26 +57,26 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.surface,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text(
           'iEvaluate',
           style: TextStyle(
-            color: AppColors.white,
+            color: AppColors.textPrimary,
             fontSize: 24,
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: const [
+        actions: [
           Padding(
-            padding: EdgeInsets.only(right: 24.0),
+            padding: const EdgeInsets.only(right: 24.0),
             child: CircleAvatar(
               radius: 18,
-              backgroundColor: AppColors.white,
-              backgroundImage: AssetImage('assets/images/CTU_logo.png'),
+              backgroundColor: AppColors.primaryTint,
+              backgroundImage: const AssetImage('assets/images/CTU_logo.png'),
             ),
           )
         ],
@@ -94,7 +94,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w900,
-                    color: AppColors.deepBlue,
+                    color: AppColors.textPrimary,
                     letterSpacing: -1.0,
                   ),
                 ),
@@ -103,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   'Secure Access to Academic Evaluation Tools',
                   style: TextStyle(
                     fontSize: 16,
-                    color: Colors.grey.shade600,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -132,7 +132,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Forgot Password logic
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: AppColors.royalBlue,
+                          foregroundColor: AppColors.primary,
                         ),
                         child: const Text(
                           'Forgot Password?',
@@ -151,8 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           _handleLogin(_idController.text.trim().toLowerCase());
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.gold,
-                          foregroundColor: AppColors.deepBlue,
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.textInverted,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         "Need an account?",
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
                       ),
                       TextButton(
                         onPressed: () {
@@ -188,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           'Register Here',
                           style: TextStyle(
-                            color: AppColors.royalBlue,
+                            color: AppColors.primary,
                             fontWeight: FontWeight.w800,
                             fontSize: 15,
                           ),
@@ -217,28 +217,28 @@ class _LoginScreenState extends State<LoginScreen> {
       style: const TextStyle(fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: Colors.grey.shade400),
-        prefixIcon: Icon(icon, color: AppColors.deepBlue.withOpacity(0.7), size: 22),
+        hintStyle: TextStyle(color: AppColors.textTertiary),
+        prefixIcon: Icon(icon, color: AppColors.textPrimary.withOpacity(0.7), size: 22),
         suffixIcon: isPassword
             ? IconButton(
           icon: Icon(
             _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.grey.shade400,
+            color: AppColors.textTertiary,
             size: 20,
           ),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         )
             : null,
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade200),
+          borderSide: BorderSide(color: AppColors.borderHairline),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.royalBlue, width: 1.5),
+          borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );

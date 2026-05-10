@@ -1,6 +1,6 @@
 // lib/signup_screen.dart
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
+import 'theme/app_colors.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -102,12 +102,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (isReviewStep) canProceed = _hasAcceptedAgreements;
 
     return Scaffold(
-      backgroundColor: AppColors.white,
+      backgroundColor: AppColors.surface,
       resizeToAvoidBottomInset: true, // Crucial for keyboard handling
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        title: const Text('Registration', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        title: const Text('Registration', style: TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.bold)),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -121,14 +121,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     // 1. Progress Bar
                     Container(
                       padding: const EdgeInsets.all(20),
-                      color: AppColors.deepBlue.withOpacity(0.05),
+                      color: AppColors.textPrimary.withOpacity(0.05),
                       child: Row(
                         children: List.generate(_totalSteps, (index) => Expanded(
                           child: Container(
                             height: 4,
                             margin: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
-                              color: index <= _currentPage ? AppColors.gold : Colors.grey.shade300,
+                              color: index <= _currentPage ? AppColors.primary : AppColors.borderSubtle,
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -168,7 +168,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   padding: const EdgeInsets.symmetric(vertical: 16),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                 ),
-                                child: const Text('Back', style: TextStyle(color: AppColors.darkGray)),
+                                child: const Text('Back', style: TextStyle(color: AppColors.textPrimary)),
                               ),
                             ),
                           if (_currentPage > 0) const SizedBox(width: 12),
@@ -177,8 +177,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                             child: ElevatedButton(
                               onPressed: canProceed ? _onContinue : null,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.gold,
-                                foregroundColor: AppColors.deepBlue,
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: AppColors.textInverted,
                                 padding: const EdgeInsets.symmetric(vertical: 16),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
@@ -206,7 +206,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Personal Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const Text("Personal Profile", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 20),
           Row(children: [
             Expanded(child: _buildInput(controller: _firstNameController, hint: 'First Name', icon: Icons.person_outline)),
@@ -226,7 +226,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Academic Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const Text("Academic Information", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 20),
           _buildInput(controller: _idController, hint: 'University ID Number', icon: Icons.badge_outlined),
           const SizedBox(height: 16),
@@ -250,7 +250,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Security Settings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const Text("Security Settings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 20),
           _buildInput(
             controller: _passwordController,
@@ -288,14 +288,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Review & Terms", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
+          const Text("Review & Terms", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 20),
           Container(
             height: 180,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderHairline)),
             child: const SingleChildScrollView(
-              child: Text("Data Privacy & NDA: By registering, you acknowledge that all evaluation data is sensitive and subject to university policy...", style: TextStyle(fontSize: 13, color: AppColors.darkGray)),
+              child: Text("Data Privacy & NDA: By registering, you acknowledge that all evaluation data is sensitive and subject to university policy...", style: TextStyle(fontSize: 13, color: AppColors.textPrimary)),
             ),
           ),
           const Spacer(),
@@ -318,14 +318,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: InputDecoration(
         hintText: hint,
         errorText: errorText,
-        prefixIcon: Icon(icon, color: AppColors.royalBlue, size: 20),
+        prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
         suffixIcon: isPass ? IconButton(icon: Icon(state! ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: toggle) : null,
         filled: true,
-        fillColor: Colors.grey.shade50,
+        fillColor: AppColors.surface,
         contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade200)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 1.5)),
-        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.redAccent)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderHairline)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+        errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error)),
       ),
     );
   }
@@ -333,9 +333,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildRequirementRow(String label, bool isMet) {
     return Row(
       children: [
-        Icon(isMet ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isMet ? Colors.green : Colors.grey),
+        Icon(isMet ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isMet ? AppColors.success : AppColors.textTertiary),
         const SizedBox(width: 8),
-        Text(label, style: TextStyle(fontSize: 12, color: isMet ? Colors.green : Colors.grey.shade600)),
+        Text(label, style: TextStyle(fontSize: 12, color: isMet ? AppColors.success : AppColors.textSecondary)),
       ],
     );
   }
@@ -343,7 +343,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget _buildDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderHairline)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           hint: const Text("Select Department"),
@@ -362,9 +362,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Center(child: Text('Submission Success', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold))),
+          title: const Center(child: Text('Submission Success', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold))),
           content: const Text('Your registration is complete and pending approval.', textAlign: TextAlign.center),
           actions: [
             SizedBox(

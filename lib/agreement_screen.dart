@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
+import 'theme/app_colors.dart';
 
 class AgreementScreen {
   static void show({
@@ -18,7 +18,7 @@ class AgreementScreen {
             bool canProceed = nda && dpa;
 
             return AlertDialog(
-              backgroundColor: AppColors.white,
+              backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
@@ -26,7 +26,7 @@ class AgreementScreen {
                 'Non-Disclosure & Data Privacy Agreement',
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: AppColors.deepBlue,
+                  color: AppColors.textPrimary,
                   fontSize: 16,
                 ),
               ),
@@ -88,8 +88,8 @@ class AgreementScreen {
                   }
                       : null,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.gold,
-                    foregroundColor: AppColors.deepBlue,
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textInverted,
                   ),
                   child: const Text("Accept"),
                 ),
