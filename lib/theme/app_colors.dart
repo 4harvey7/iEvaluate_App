@@ -17,21 +17,19 @@ class AppColors {
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceElevated = Color(0xFFFFFEF8);
 
-  // Text
+  // Text — all pre-baked as const Color so they can sit inside
+  // `const TextStyle(...)`, `const Icon(...)`, `const DrawerHeader(...)`
+  // and similar const contexts without breaking const-ness.
   static const Color textPrimary = Color(0xFF200F07); // Midnight Espresso
-  static Color get textSecondary => textPrimary.withOpacity(0.60);
-  static Color get textTertiary => textPrimary.withOpacity(0.40);
+  static const Color textSecondary = Color(0x99200F07); // ~60% opacity
+  static const Color textTertiary = Color(0x66200F07); // ~40% opacity
   static const Color textInverted = Color(0xFFFFF9EB);
-
-  /// Pre-baked alpha variants of [textInverted] for use in const contexts
-  /// (e.g. `const TextStyle(color: AppColors.textInvertedDim)`), where
-  /// `.withOpacity()` would break const-ness.
   static const Color textInvertedDim = Color(0xB3FFF9EB); // ~70% opacity
   static const Color textInvertedFaint = Color(0x3DFFF9EB); // ~24% opacity
 
   // Borders / dividers
-  static Color get borderHairline => textPrimary.withOpacity(0.08);
-  static Color get borderSubtle => textPrimary.withOpacity(0.12);
+  static const Color borderHairline = Color(0x14200F07); // ~8% opacity
+  static const Color borderSubtle = Color(0x1F200F07); // ~12% opacity
 
   // Status (warm-paired so they sit next to the orange without clashing)
   static const Color success = Color(0xFF2E7D5A);
