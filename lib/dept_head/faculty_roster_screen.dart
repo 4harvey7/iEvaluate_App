@@ -132,7 +132,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(color: instructor['score'] >= 3.0 ? AppColors.success.withOpacity(0.3) : AppColors.error.withOpacity(0.3)),
                                 ),
-                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? AppColors.success.shade700 : AppColors.error.shade700, fontWeight: FontWeight.w600)),
+                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? AppColors.success : AppColors.error, fontWeight: FontWeight.w600)),
                               )).toList(),
                             ),
                           ],

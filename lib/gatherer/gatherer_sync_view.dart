@@ -27,7 +27,7 @@ class GathererSyncView extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.cloud_done, color: AppColors.success.shade200, size: 64),
+                    Icon(Icons.cloud_done, color: AppColors.success, size: 64),
                     const SizedBox(height: 16),
                     const Text('All forms have been synced!', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
                   ],

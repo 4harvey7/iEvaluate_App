@@ -271,7 +271,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.verified, color: AppColors.success.shade200, size: 80),
+                  Icon(Icons.verified, color: AppColors.success, size: 80),
                   const SizedBox(height: 16),
                   const Text('All Data Validated!', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
                   const Text('Database is clean and up to date.', style: TextStyle(color: AppColors.textSecondary)),

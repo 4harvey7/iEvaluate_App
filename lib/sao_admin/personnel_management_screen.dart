@@ -405,7 +405,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                   ),
                                   child: Text(
                                     person['status'],
-                                    style: TextStyle(color: isActive ? AppColors.success.shade700 : AppColors.error.shade700, fontSize: 11, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: isActive ? AppColors.success : AppColors.error, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ],
