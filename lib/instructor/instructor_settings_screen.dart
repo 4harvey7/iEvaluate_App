@@ -1,6 +1,6 @@
 // lib/instructor/instructor_settings_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 
 class InstructorSettingsScreen extends StatefulWidget {
@@ -60,7 +60,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.lightGray,
+                    color: AppColors.background,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Column(
@@ -70,8 +70,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+                          const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -85,16 +85,16 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         value: tempSelectedDept,
                         decoration: InputDecoration(
                           labelText: 'Department',
-                          prefixIcon: const Icon(Icons.business, color: AppColors.royalBlue),
+                          prefixIcon: const Icon(Icons.business, color: AppColors.primary),
                           filled: true,
-                          fillColor: AppColors.white, // Changed to white for better contrast
+                          fillColor: AppColors.surface, // Changed to white for better contrast
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                         ),
                         items: _departments.map((String dept) {
                           return DropdownMenuItem<String>(
                             value: dept,
-                            child: Text(dept, style: const TextStyle(color: AppColors.darkGray)),
+                            child: Text(dept, style: const TextStyle(color: AppColors.textPrimary)),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -110,7 +110,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.deepBlue,
+                            backgroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
@@ -121,9 +121,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                               _userDept = tempSelectedDept;
                             });
                             Navigator.pop(context); // Close sheet
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: Colors.green));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                           },
-                          child: const Text('Save Changes', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+                          child: const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -144,9 +144,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Change Password', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+          title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -160,18 +160,18 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
+                backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: Colors.green));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: AppColors.success));
               },
-              child: const Text('Update', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+              child: const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -186,11 +186,11 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       obscureText: isPassword,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.royalBlue) : null,
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
         filled: true,
-        fillColor: AppColors.white, // Changed to white for better contrast
+        fillColor: AppColors.surface, // Changed to white for better contrast
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
       ),
     );
   }
@@ -198,12 +198,12 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Account Settings', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Account Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -214,10 +214,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               // ==========================================
               // 1. PROFILE SECTION
               // ==========================================
-              const Text('Profile', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
@@ -226,21 +226,21 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     children: [
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                        child: Text(_userName.isNotEmpty ? _userName[0] : 'U', style: const TextStyle(color: AppColors.deepBlue, fontSize: 28, fontWeight: FontWeight.bold)),
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        child: Text(_userName.isNotEmpty ? _userName[0] : 'U', style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.darkGray)),
+                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
-                            Text('$_userTitle • $_userDept', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text('$_userTitle • $_userDept', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 8),
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -254,10 +254,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               // ==========================================
               // 2. NOTIFICATION PREFERENCES
               // ==========================================
-              const Text('Notifications', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Notifications', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -286,10 +286,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               // ==========================================
               // 3. SECURITY & LOGIN
               // ==========================================
-              const Text('Security', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Security', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -298,11 +298,11 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.lock, color: AppColors.royalBlue),
+                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.lock, color: AppColors.primary),
                       ),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog,
                     ),
                     // 👈 UPDATED: Biometric login has been fully removed from here.
@@ -325,10 +325,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                           (route) => false,
                     );
                   },
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('Sign Out Securely', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                  icon: const Icon(Icons.logout, color: AppColors.error),
+                  label: const Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red, width: 2),
+                    side: const BorderSide(color: AppColors.error, width: 2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -336,7 +336,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               const SizedBox(height: 32),
 
               const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
             ],
           ),
@@ -357,18 +357,18 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, color: AppColors.royalBlue),
+        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+        child: Icon(icon, color: AppColors.primary),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.white,
-        activeTrackColor: Colors.green,
+        activeColor: AppColors.surface,
+        activeTrackColor: AppColors.success,
         inactiveThumbColor: Colors.white,
-        inactiveTrackColor: Colors.grey.shade300,
+        inactiveTrackColor: AppColors.borderHairline,
       ),
     );
   }

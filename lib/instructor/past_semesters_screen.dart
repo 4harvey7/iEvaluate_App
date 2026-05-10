@@ -1,6 +1,6 @@
 // lib/instructor/past_semesters_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class PastSemestersScreen extends StatefulWidget {
   const PastSemestersScreen({super.key});
@@ -52,15 +52,15 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
     final List<Map<String, dynamic>> chartData = _historicalData.reversed.toList();
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Past Semesters', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Past Semesters', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: AppColors.gold),
+            icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
             tooltip: 'Download Complete History',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating Full History PDF...')));
@@ -77,9 +77,9 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               // ==========================================
               // HEADER
               // ==========================================
-              const Text('Historical Growth', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Historical Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text('Track your evaluation scores and student feedback across all your previous academic terms.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Track your evaluation scores and student feedback across all your previous academic terms.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               const SizedBox(height: 24),
 
               // ==========================================
@@ -89,14 +89,14 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Performance Trend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.deepBlue)),
+                    const Text('Performance Trend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                     const SizedBox(height: 24),
 
                     // Custom Bar Chart
@@ -114,7 +114,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                           return Column(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
-                              Text('${data['overallScore']}', style: TextStyle(fontWeight: FontWeight.bold, color: isLatest ? AppColors.gold : AppColors.darkGray)),
+                              Text('${data['overallScore']}', style: TextStyle(fontWeight: FontWeight.bold, color: isLatest ? AppColors.primary : AppColors.textPrimary)),
                               const SizedBox(height: 8),
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 800),
@@ -122,16 +122,16 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                                 width: 40,
                                 height: barHeight,
                                 decoration: BoxDecoration(
-                                  color: isLatest ? AppColors.gold : AppColors.royalBlue.withOpacity(0.7),
+                                  color: isLatest ? AppColors.primary : AppColors.primary.withOpacity(0.7),
                                   borderRadius: BorderRadius.circular(6),
-                                  boxShadow: isLatest ? [BoxShadow(color: AppColors.gold.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))] : [],
+                                  boxShadow: isLatest ? [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))] : [],
                                 ),
                               ),
                               const SizedBox(height: 8),
                               Text(
                                 data['semester'].replaceAll('Semester ', 'Sem\n'), // Formats "1st Sem\n2026"
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                                style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
                               ),
                             ],
                           );
@@ -146,7 +146,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               // ==========================================
               // SEMESTER BREAKDOWN LIST
               // ==========================================
-              const Text('Detailed Breakdown', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Detailed Breakdown', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
 
               Column(
@@ -155,12 +155,12 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                   final bool isLatest = term == _historicalData.first;
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: isLatest ? const BorderSide(color: AppColors.gold, width: 2) : BorderSide.none,
+                      side: isLatest ? const BorderSide(color: AppColors.primary, width: 2) : BorderSide.none,
                     ),
                     child: Theme(
                       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -168,29 +168,29 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         leading: Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-                          child: const Icon(Icons.history_edu, color: AppColors.royalBlue),
+                          decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                          child: const Icon(Icons.history_edu, color: AppColors.primary),
                         ),
-                        title: Text(term['semester'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 16)),
+                        title: Text(term['semester'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16)),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 4.0),
-                          child: Text('${term['evaluations']} Total Evaluations', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          child: Text('${term['evaluations']} Total Evaluations', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (term['trend'] == 'up')
-                              const Icon(Icons.trending_up, color: Colors.green, size: 20)
+                              const Icon(Icons.trending_up, color: AppColors.success, size: 20)
                             else if (term['trend'] == 'down')
-                              const Icon(Icons.trending_down, color: Colors.red, size: 20)
+                              const Icon(Icons.trending_down, color: AppColors.error, size: 20)
                             else
-                              const Icon(Icons.remove, color: Colors.grey, size: 20),
+                              const Icon(Icons.remove, color: AppColors.textSecondary, size: 20),
 
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(color: AppColors.deepBlue, borderRadius: BorderRadius.circular(20)),
-                              child: Text('${term['overallScore']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.white, fontSize: 14)),
+                              decoration: BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.circular(20)),
+                              child: Text('${term['overallScore']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.surface, fontSize: 14)),
                             ),
                           ],
                         ),
@@ -199,7 +199,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         children: [
                           Container(
                             decoration: BoxDecoration(
-                              color: AppColors.lightGray.withOpacity(0.5),
+                              color: AppColors.background.withOpacity(0.5),
                               borderRadius: const BorderRadius.vertical(bottom: Radius.circular(16)),
                             ),
                             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
@@ -211,13 +211,13 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                                     children: [
                                       SizedBox(
                                         width: 50,
-                                        child: Text(subject['code'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.royalBlue, fontSize: 12)),
+                                        child: Text(subject['code'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12)),
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child: Text(subject['name'], style: const TextStyle(color: AppColors.darkGray, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                        child: Text(subject['name'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
                                       ),
-                                      Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 14)),
+                                      Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success, fontSize: 14)),
                                     ],
                                   ),
                                 );

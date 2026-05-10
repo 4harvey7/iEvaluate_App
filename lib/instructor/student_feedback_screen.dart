@@ -1,6 +1,6 @@
 // lib/instructor/student_feedback_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class StudentFeedbackScreen extends StatefulWidget {
   const StudentFeedbackScreen({super.key});
@@ -24,16 +24,16 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
   // Added a 'rotated' boolean to flip some words vertically!
   // Tweaked colors to be brighter against the dark background.
   final List<Map<String, dynamic>> _wordCloud = [
-    {'word': 'Engaging', 'weight': 36.0, 'color': AppColors.gold, 'rotated': false},
-    {'word': 'Fast-paced', 'weight': 20.0, 'color': Colors.orangeAccent, 'rotated': false},
-    {'word': 'Helpful', 'weight': 28.0, 'color': Colors.greenAccent, 'rotated': false},
+    {'word': 'Engaging', 'weight': 36.0, 'color': AppColors.primary, 'rotated': false},
+    {'word': 'Fast-paced', 'weight': 20.0, 'color': AppColors.warning, 'rotated': false},
+    {'word': 'Helpful', 'weight': 28.0, 'color': AppColors.success, 'rotated': false},
     {'word': 'Clear', 'weight': 24.0, 'color': Colors.white, 'rotated': true},
     {'word': 'Examples', 'weight': 32.0, 'color': Colors.lightBlueAccent, 'rotated': false},
-    {'word': 'Challenging', 'weight': 20.0, 'color': Colors.orange, 'rotated': true},
-    {'word': 'Approachable', 'weight': 26.0, 'color': Colors.greenAccent, 'rotated': false},
+    {'word': 'Challenging', 'weight': 20.0, 'color': AppColors.warning, 'rotated': true},
+    {'word': 'Approachable', 'weight': 26.0, 'color': AppColors.success, 'rotated': false},
     {'word': 'Projects', 'weight': 22.0, 'color': Colors.white70, 'rotated': false},
-    {'word': 'Strict', 'weight': 16.0, 'color': Colors.redAccent, 'rotated': false},
-    {'word': 'Inspiring', 'weight': 34.0, 'color': AppColors.gold, 'rotated': false},
+    {'word': 'Strict', 'weight': 16.0, 'color': AppColors.error, 'rotated': false},
+    {'word': 'Inspiring', 'weight': 34.0, 'color': AppColors.primary, 'rotated': false},
     {'word': 'Rubrics', 'weight': 14.0, 'color': Colors.white54, 'rotated': true},
     {'word': 'Coding', 'weight': 28.0, 'color': Colors.lightBlue, 'rotated': false},
   ];
@@ -178,12 +178,12 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Student Feedback', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Student Feedback', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
 
       ),
       body: SafeArea(
@@ -200,18 +200,18 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.pie_chart, color: AppColors.royalBlue),
+                        Icon(Icons.pie_chart, color: AppColors.primary),
                         SizedBox(width: 8),
-                        Text('Emotional Tone Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.deepBlue)),
+                        Text('Emotional Tone Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -221,9 +221,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       borderRadius: BorderRadius.circular(10),
                       child: Row(
                         children: [
-                          Expanded(flex: _sentimentSummary['positive'], child: Container(height: 12, color: Colors.green)),
-                          Expanded(flex: _sentimentSummary['neutral'], child: Container(height: 12, color: Colors.grey.shade400)),
-                          Expanded(flex: _sentimentSummary['negative'], child: Container(height: 12, color: Colors.redAccent)),
+                          Expanded(flex: _sentimentSummary['positive'], child: Container(height: 12, color: AppColors.success)),
+                          Expanded(flex: _sentimentSummary['neutral'], child: Container(height: 12, color: AppColors.textTertiary)),
+                          Expanded(flex: _sentimentSummary['negative'], child: Container(height: 12, color: AppColors.error)),
                         ],
                       ),
                     ),
@@ -233,9 +233,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildSentimentStat('Positive', '${_sentimentSummary['positive']}%', Colors.green),
-                        _buildSentimentStat('Neutral', '${_sentimentSummary['neutral']}%', Colors.grey.shade600),
-                        _buildSentimentStat('Critical', '${_sentimentSummary['negative']}%', Colors.redAccent),
+                        _buildSentimentStat('Positive', '${_sentimentSummary['positive']}%', AppColors.success),
+                        _buildSentimentStat('Neutral', '${_sentimentSummary['neutral']}%', AppColors.textSecondary),
+                        _buildSentimentStat('Critical', '${_sentimentSummary['negative']}%', AppColors.error),
                       ],
                     ),
                   ],
@@ -246,16 +246,16 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
               // ✨ NEW: AI INSTRUCTOR INSIGHT SUMMARY
               // ==========================================
-              const Text('AI Instructor Insights', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('AI Instructor Insights', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
 
               // --- Main Insight Card ---
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,29 +266,29 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.royalBlue.withOpacity(0.1),
+                            color: AppColors.primary.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.auto_awesome, color: AppColors.royalBlue, size: 20),
+                          child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
                         ),
                         const SizedBox(width: 12),
                         const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('What Your Students Are Saying', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
-                            Text('AI-generated interpretation', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                            Text('What Your Students Are Saying', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                            Text('AI-generated interpretation', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                           ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Divider(height: 1, color: AppColors.lightGray),
+                    const Divider(height: 1, color: AppColors.background),
                     const SizedBox(height: 16),
 
                     // Summary Text
                     Text(
                       _aiInsightSummary,
-                      style: const TextStyle(color: AppColors.darkGray, fontSize: 14, height: 1.6),
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.6),
                     ),
                     const SizedBox(height: 16),
 
@@ -298,17 +298,17 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: AppColors.lightGray,
+                            color: AppColors.background,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.comment_outlined, size: 12, color: Colors.grey),
+                              const Icon(Icons.comment_outlined, size: 12, color: AppColors.textSecondary),
                               const SizedBox(width: 4),
                               Text(
                                 'Based on ${_sentimentSummary['totalComments']} comments',
-                                style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                               ),
                             ],
                           ),
@@ -325,23 +325,23 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.green.withOpacity(0.15), width: 1),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                    border: Border.all(color: AppColors.success.withOpacity(0.15), width: 1),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.thumb_up_alt_outlined, color: Colors.green, size: 18),
+                          Icon(Icons.thumb_up_alt_outlined, color: AppColors.success, size: 18),
                           SizedBox(width: 8),
-                          Text('Key Positive Themes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
+                          Text('Key Positive Themes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text('Consistently praised aspects of your teaching', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('Consistently praised aspects of your teaching', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 16),
                       Wrap(
                         spacing: 10,
@@ -350,9 +350,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(0.07),
+                              color: AppColors.success.withOpacity(0.07),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.green.withOpacity(0.2), width: 1),
+                              border: Border.all(color: AppColors.success.withOpacity(0.2), width: 1),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -361,7 +361,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                 const SizedBox(width: 8),
                                 Text(
                                   theme['label']!,
-                                  style: TextStyle(color: Colors.green.shade800, fontSize: 13, fontWeight: FontWeight.w600),
+                                  style: TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
@@ -379,23 +379,23 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.orange.withOpacity(0.2), width: 1),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                    border: Border.all(color: AppColors.warning.withOpacity(0.2), width: 1),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.tips_and_updates_outlined, color: Colors.orange, size: 18),
+                          Icon(Icons.tips_and_updates_outlined, color: AppColors.warning, size: 18),
                           SizedBox(width: 8),
-                          Text('Improvement Insights', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.deepBlue)),
+                          Text('Improvement Insights', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text('Areas flagged in student feedback worth reviewing', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('Areas flagged in student feedback worth reviewing', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 16),
                       Column(
                         children: _improvementInsights.map((insight) {
@@ -409,7 +409,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   height: 36,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: Colors.orange.withOpacity(0.1),
+                                    color: AppColors.warning.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(insight['icon']!, style: const TextStyle(fontSize: 16)),
@@ -419,9 +419,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(insight['label']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade800)),
+                                      Text(insight['label']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning)),
                                       const SizedBox(height: 2),
-                                      Text(insight['detail']!, style: const TextStyle(color: Colors.grey, fontSize: 12, height: 1.5)),
+                                      Text(insight['detail']!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5)),
                                     ],
                                   ),
                                 ),
@@ -444,7 +444,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
               // 👈 UPGRADED WORD CLOUD GENERATOR
               // ==========================================
-              const Text('AI Word Cloud', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('AI Word Cloud', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
@@ -452,12 +452,12 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 decoration: BoxDecoration(
                   // Added a sleek gradient background
                   gradient: const LinearGradient(
-                    colors: [AppColors.deepBlue, Color(0xFF0B192C)],
+                    colors: [AppColors.textPrimary, Color(0xFF0B192C)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: AppColors.deepBlue.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.center,
@@ -499,8 +499,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Direct Quotes', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${_filteredFeedback.length} Comments', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                  const Text('Direct Quotes', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('${_filteredFeedback.length} Comments', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -516,14 +516,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       child: ChoiceChip(
                         label: Text(filter, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                         selected: isSelected,
-                        selectedColor: filter == 'Positive' ? Colors.green.withOpacity(0.2)
-                            : filter == 'Critical' ? Colors.red.withOpacity(0.2)
-                            : filter == 'Neutral' ? Colors.grey.withOpacity(0.2)
-                            : AppColors.royalBlue.withOpacity(0.2),
+                        selectedColor: filter == 'Positive' ? AppColors.success.withOpacity(0.2)
+                            : filter == 'Critical' ? AppColors.error.withOpacity(0.2)
+                            : filter == 'Neutral' ? AppColors.textTertiary.withOpacity(0.2)
+                            : AppColors.primary.withOpacity(0.2),
                         labelStyle: TextStyle(
                           color: isSelected
-                              ? (filter == 'Positive' ? Colors.green.shade800 : filter == 'Critical' ? Colors.red.shade800 : AppColors.deepBlue)
-                              : Colors.grey,
+                              ? (filter == 'Positive' ? AppColors.success : filter == 'Critical' ? AppColors.error : AppColors.textPrimary)
+                              : AppColors.textSecondary,
                         ),
                         onSelected: (bool selected) {
                           if (selected) setState(() => _selectedFilter = filter);
@@ -540,21 +540,21 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   ? const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32.0),
-                  child: Text("No comments match this filter.", style: TextStyle(color: Colors.grey)),
+                  child: Text("No comments match this filter.", style: TextStyle(color: AppColors.textSecondary)),
                 ),
               )
                   : Column(
                 children: _filteredFeedback.map((feedback) {
                   // Determine visual style based on sentiment
-                  Color sentimentColor = feedback['sentiment'] == 'Positive' ? Colors.green
-                      : feedback['sentiment'] == 'Critical' ? Colors.red
-                      : Colors.grey;
+                  Color sentimentColor = feedback['sentiment'] == 'Positive' ? AppColors.success
+                      : feedback['sentiment'] == 'Critical' ? AppColors.error
+                      : AppColors.textTertiary;
                   IconData sentimentIcon = feedback['sentiment'] == 'Positive' ? Icons.sentiment_very_satisfied
                       : feedback['sentiment'] == 'Critical' ? Icons.sentiment_dissatisfied
                       : Icons.sentiment_neutral;
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
@@ -571,16 +571,16 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(6)),
-                                child: Text(feedback['course'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.royalBlue)),
+                                decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(6)),
+                                child: Text(feedback['course'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
                               ),
-                              Text(feedback['date'], style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                              Text(feedback['date'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Text(
                             '"${feedback['text']}"',
-                            style: const TextStyle(color: AppColors.darkGray, fontSize: 14, fontStyle: FontStyle.italic, height: 1.4),
+                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontStyle: FontStyle.italic, height: 1.4),
                           ),
                           const SizedBox(height: 12),
                           Row(
@@ -609,7 +609,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
       children: [
         Text(percentage, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       ],
     );
   }
