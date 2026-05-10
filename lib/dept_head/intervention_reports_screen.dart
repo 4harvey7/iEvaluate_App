@@ -1,6 +1,6 @@
 // lib/dept_head/intervention_reports_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class InterventionReportsScreen extends StatefulWidget {
   const InterventionReportsScreen({super.key});
@@ -63,7 +63,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.lightGray,
+                    color: AppColors.background,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Column(
@@ -73,13 +73,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Draft Intervention', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+                          const Text('Draft Intervention', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      Text('Instructor: ${instructor['name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                      Text('Flagged for: ${instructor['issue']}', style: const TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text('Instructor: ${instructor['name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      Text('Flagged for: ${instructor['issue']}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 24),
 
                       // Dropdown for Action Type
@@ -87,14 +87,14 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                         value: selectedAction,
                         decoration: InputDecoration(
                           labelText: 'Mandated Action',
-                          prefixIcon: const Icon(Icons.gavel, color: AppColors.royalBlue),
+                          prefixIcon: const Icon(Icons.gavel, color: AppColors.primary),
                           filled: true,
-                          fillColor: AppColors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                         ),
                         items: _actionTypes.map((String action) {
-                          return DropdownMenuItem<String>(value: action, child: Text(action, style: const TextStyle(color: AppColors.darkGray, fontSize: 14)));
+                          return DropdownMenuItem<String>(value: action, child: Text(action, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)));
                         }).toList(),
                         onChanged: (String? newValue) {
                           if (newValue != null) setSheetState(() => selectedAction = newValue);
@@ -110,9 +110,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                           labelText: "Dean's Remarks / Notes",
                           alignLabelWithHint: true,
                           filled: true,
-                          fillColor: AppColors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -123,7 +123,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                         height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.deepBlue,
+                            backgroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
@@ -139,9 +139,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               });
                             });
                             Navigator.pop(context); // Close sheet
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: Colors.green));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
                           },
-                          child: const Text('Submit Official Report', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+                          child: const Text('Submit Official Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -157,12 +157,12 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -170,9 +170,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Administrative Actions', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Administrative Actions', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text('Manage formal warnings and track mandated training for flagged faculty members.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Manage formal warnings and track mandated training for flagged faculty members.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               const SizedBox(height: 24),
 
               // ==========================================
@@ -181,11 +181,11 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Pending Action Required', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Pending Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                    child: Text('${_pendingInterventions.length}', style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(12)),
+                    child: Text('${_pendingInterventions.length}', style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                   )
                 ],
               ),
@@ -195,13 +195,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+                  decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
                   child: const Column(
                     children: [
-                      Icon(Icons.check_circle_outline, color: Colors.green, size: 40),
+                      Icon(Icons.check_circle_outline, color: AppColors.success, size: 40),
                       SizedBox(height: 8),
-                      Text('All caught up!', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
-                      Text('No pending interventions required.', style: TextStyle(color: Colors.green, fontSize: 12)),
+                      Text('All caught up!', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
+                      Text('No pending interventions required.', style: TextStyle(color: AppColors.success, fontSize: 12)),
                     ],
                   ),
                 )
@@ -209,12 +209,12 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                 Column(
                   children: _pendingInterventions.map((instructor) {
                     return Card(
-                      color: AppColors.white,
+                      color: AppColors.surface,
                       elevation: 1,
                       margin: const EdgeInsets.only(bottom: 12),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.red.withOpacity(0.5), width: 1)
+                          side: BorderSide(color: AppColors.error.withOpacity(0.5), width: 1)
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
@@ -224,8 +224,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(instructor['id'], style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 12)),
-                                Text('Flagged: ${instructor['dateFlagged']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                Text(instructor['id'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.error, fontSize: 12)),
+                                Text('Flagged: ${instructor['dateFlagged']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                               ],
                             ),
                             const SizedBox(height: 12),
@@ -233,17 +233,17 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               children: [
                                 CircleAvatar(
                                   radius: 20,
-                                  backgroundColor: Colors.red.withOpacity(0.1),
-                                  child: const Icon(Icons.warning_amber_rounded, color: Colors.red),
+                                  backgroundColor: AppColors.error.withOpacity(0.1),
+                                  child: const Icon(Icons.warning_amber_rounded, color: AppColors.error),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 16)),
+                                      Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16)),
                                       const SizedBox(height: 4),
-                                      Text(instructor['issue'], style: const TextStyle(color: AppColors.darkGray, fontSize: 13)),
+                                      Text(instructor['issue'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
                                     ],
                                   ),
                                 ),
@@ -255,8 +255,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               child: OutlinedButton(
                                 onPressed: () => _showDraftingSheet(instructor), // 👈 Opens interactive sheet
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.deepBlue,
-                                  side: const BorderSide(color: AppColors.deepBlue),
+                                  foregroundColor: AppColors.textPrimary,
+                                  side: const BorderSide(color: AppColors.textPrimary),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                                 child: const Text('Draft Intervention Report', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -274,13 +274,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
               // ==========================================
               // INTERVENTION HISTORY (COMPLETED)
               // ==========================================
-              const Text('Intervention Log', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Intervention Log', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
 
               Column(
                 children: _completedInterventions.map((report) {
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -288,20 +288,20 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
-                        child: const Icon(Icons.gavel, color: Colors.green),
+                        decoration: BoxDecoration(color: AppColors.success.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const Icon(Icons.gavel, color: AppColors.success),
                       ),
-                      title: Text(report['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                      title: Text(report['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 4),
-                          Text(report['actionTaken'], style: const TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text(report['actionTaken'], style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                           const SizedBox(height: 2),
-                          Text('Completed: ${report['dateCompleted']} • Status: ${report['status']}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                          Text('Completed: ${report['dateCompleted']} • Status: ${report['status']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                         ],
                       ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: AppColors.textSecondary),
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opening read-only report...')));
                       },

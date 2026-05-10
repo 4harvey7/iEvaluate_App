@@ -1,6 +1,6 @@
 // lib/dept_head/subject_analytics_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class SubjectAnalyticsScreen extends StatefulWidget {
   const SubjectAnalyticsScreen({super.key});
@@ -57,12 +57,12 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Subject Analytics', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Subject Analytics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -70,9 +70,9 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Curriculum Health', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Curriculum Health', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text('Identifying subjects that may require curriculum review or additional teaching resources.', style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Identifying subjects that may require curriculum review or additional teaching resources.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
               const SizedBox(height: 24),
 
               // ==========================================
@@ -86,12 +86,12 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                   bool isAnomaly = (deptAvg - score) > 0.5;
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 20),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: BorderSide(color: isAnomaly ? Colors.orange.withOpacity(0.5) : Colors.transparent, width: 2),
+                      side: BorderSide(color: isAnomaly ? AppColors.warning.withOpacity(0.5) : Colors.transparent, width: 2),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(20.0),
@@ -104,35 +104,35 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(color: AppColors.royalBlue.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                                child: Text(subject['code'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.royalBlue, fontSize: 12)),
+                                decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
+                                child: Text(subject['code'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12)),
                               ),
                               if (isAnomaly)
                                 const Row(
                                   children: [
-                                    Icon(Icons.auto_graph, color: Colors.orange, size: 16),
+                                    Icon(Icons.auto_graph, color: AppColors.warning, size: 16),
                                     SizedBox(width: 4),
-                                    Text('System Anomaly', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 12)),
+                                    Text('System Anomaly', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 12)),
                                   ],
                                 ),
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.darkGray)),
+                          Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                           const SizedBox(height: 20),
 
                           // Metrics Row
                           Row(
                             children: [
-                              _buildMiniStat('Avg Score', '${subject['avgScore']}', isAnomaly ? Colors.orange : AppColors.deepBlue),
-                              _buildMiniStat('Difficulty', subject['difficulty'], AppColors.royalBlue),
-                              _buildMiniStat('Sentiment', subject['sentiment'], subject['sentiment'] == 'Critical' ? Colors.red : Colors.green),
+                              _buildMiniStat('Avg Score', '${subject['avgScore']}', isAnomaly ? AppColors.warning : AppColors.textPrimary),
+                              _buildMiniStat('Difficulty', subject['difficulty'], AppColors.primary),
+                              _buildMiniStat('Sentiment', subject['sentiment'], subject['sentiment'] == 'Critical' ? AppColors.error : AppColors.success),
                             ],
                           ),
                           const SizedBox(height: 20),
 
                           // Comparative Progress Bar
-                          const Text('Score vs. Department Average', style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
+                          const Text('Score vs. Department Average', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 8),
                           Stack(
                             children: [
@@ -140,7 +140,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                               Container(
                                 height: 12,
                                 width: double.infinity,
-                                decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(6)),
+                                decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(6)),
                               ),
                               // Subject Score Bar
                               FractionallySizedBox(
@@ -148,7 +148,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                 child: Container(
                                   height: 12,
                                   decoration: BoxDecoration(
-                                    color: isAnomaly ? Colors.orange : AppColors.royalBlue,
+                                    color: isAnomaly ? AppColors.warning : AppColors.primary,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                 ),
@@ -156,7 +156,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                               // Visual indicator for where the Dept Avg is
                               Positioned(
                                 left: (MediaQuery.of(context).size.width - 88) * (subject['deptAvg'] / 5.0),
-                                child: Container(width: 2, height: 12, color: AppColors.darkGray),
+                                child: Container(width: 2, height: 12, color: AppColors.textPrimary),
                               ),
                             ],
                           ),
@@ -164,9 +164,9 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text('0.0', style: TextStyle(color: Colors.grey, fontSize: 10)),
-                              Text('Dept Avg: ${subject['deptAvg']}', style: const TextStyle(color: AppColors.darkGray, fontSize: 10, fontWeight: FontWeight.bold)),
-                              const Text('5.0', style: TextStyle(color: Colors.grey, fontSize: 10)),
+                              const Text('0.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                              Text('Dept Avg: ${subject['deptAvg']}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
+                              const Text('5.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                             ],
                           ),
 
@@ -174,10 +174,10 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                             const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.orange.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+                              decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
                               child: const Text(
                                 "AI Note: Multiple instructors teaching this course have reported low scores. This suggests a Curricular Difficulty rather than poor teaching.",
-                                style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w500),
+                                style: TextStyle(fontSize: 11, color: AppColors.warning, fontWeight: FontWeight.w500),
                               ),
                             ),
                           ]
@@ -199,7 +199,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           const SizedBox(height: 4),
           Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: color), overflow: TextOverflow.ellipsis),
         ],

@@ -1,6 +1,6 @@
 // lib/dept_head/department_dashboard_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart'; // For logging out
 import 'faculty_roster_screen.dart';
 import 'subject_analytics_screen.dart';
@@ -32,41 +32,41 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
       'title': 'Low Performance Flag',
       'desc': 'Instructor Klein dropped below 3.0 average this semester.',
       'icon': Icons.warning_amber_rounded,
-      'color': Colors.red,
+      'color': AppColors.error,
     },
     {
       'type': 'warning',
       'title': 'Subject Anomaly',
       'desc': 'CS202 (Data Structures) shows 40% negative sentiment across all sections.',
       'icon': Icons.analytics,
-      'color': Colors.orange,
+      'color': AppColors.warning,
     },
   ];
 
   // --- DUMMY DEPT WORD CLOUD ---
   final List<Map<String, dynamic>> _deptWordCloud = [
-    {'word': 'Innovative', 'weight': 28.0, 'color': Colors.green},
-    {'word': 'Outdated Labs', 'weight': 22.0, 'color': Colors.orange},
-    {'word': 'Excellent Faculty', 'weight': 26.0, 'color': Colors.green},
-    {'word': 'Fast-paced', 'weight': 18.0, 'color': AppColors.royalBlue},
-    {'word': 'Coding', 'weight': 32.0, 'color': AppColors.deepBlue},
-    {'word': 'Heavy Workload', 'weight': 20.0, 'color': Colors.redAccent},
-    {'word': 'Helpful', 'weight': 24.0, 'color': Colors.green},
-    {'word': 'Theory-heavy', 'weight': 16.0, 'color': Colors.orange},
+    {'word': 'Innovative', 'weight': 28.0, 'color': AppColors.success},
+    {'word': 'Outdated Labs', 'weight': 22.0, 'color': AppColors.warning},
+    {'word': 'Excellent Faculty', 'weight': 26.0, 'color': AppColors.success},
+    {'word': 'Fast-paced', 'weight': 18.0, 'color': AppColors.primary},
+    {'word': 'Coding', 'weight': 32.0, 'color': AppColors.textPrimary},
+    {'word': 'Heavy Workload', 'weight': 20.0, 'color': AppColors.error},
+    {'word': 'Helpful', 'weight': 24.0, 'color': AppColors.success},
+    {'word': 'Theory-heavy', 'weight': 16.0, 'color': AppColors.warning},
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Department Overview', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Department Overview', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_active, color: AppColors.gold),
+            icon: const Icon(Icons.notifications_active, color: AppColors.primary),
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You have 2 new alerts.')));
             },
@@ -78,24 +78,24 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
       // DEPARTMENT HEAD NAVIGATION DRAWER
       // ==========================================
       drawer: Drawer(
-        backgroundColor: AppColors.white,
+        backgroundColor: AppColors.surface,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: const BoxDecoration(color: AppColors.deepBlue),
+              decoration: const BoxDecoration(color: AppColors.textPrimary),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.gold.withOpacity(0.2),
-                    child: const Text('AY', style: TextStyle(color: AppColors.gold, fontSize: 24, fontWeight: FontWeight.bold)),
+                    backgroundColor: AppColors.primary.withOpacity(0.2),
+                    child: const Text('AY', style: TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 12),
-                  Text(_deptInfo['dean'], style: const TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  const Text('Dean • Computer Studies', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(_deptInfo['dean'], style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold)),
+                  const Text('Dean • Computer Studies', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                 ],
               ),
             ),
@@ -149,18 +149,18 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Executive Dashboard', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text('Executive Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              Text(_deptInfo['college'], style: const TextStyle(color: AppColors.royalBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text(_deptInfo['college'], style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 24),
 
               // --- TOP SUMMARY CARD ---
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.deepBlue, AppColors.royalBlue]),
+                  gradient: LinearGradient(colors: AppColors.heroGradient),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.royalBlue.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
                 ),
                 child: Column(
                   children: [
@@ -177,7 +177,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.baseline,
                                 textBaseline: TextBaseline.alphabetic,
                                 children: [
-                                  Text('${_deptInfo['overallScore']}', style: const TextStyle(color: AppColors.gold, fontSize: 40, fontWeight: FontWeight.bold)),
+                                  Text('${_deptInfo['overallScore']}', style: const TextStyle(color: AppColors.primary, fontSize: 40, fontWeight: FontWeight.bold)),
                                   const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
                                 ],
                               ),
@@ -192,7 +192,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                             children: [
                               const Text('Active Faculty', style: TextStyle(color: Colors.white70, fontSize: 14)),
                               const SizedBox(height: 4),
-                              Text('${_deptInfo['facultyCount']}', style: const TextStyle(color: AppColors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+                              Text('${_deptInfo['facultyCount']}', style: const TextStyle(color: AppColors.surface, fontSize: 32, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -206,7 +206,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             const Text('Evaluation Completion Progress', style: TextStyle(color: Colors.white, fontSize: 12)),
-                            Text('${(_deptInfo['completionRate'] * 100).toInt()}%', style: const TextStyle(color: AppColors.gold, fontSize: 12, fontWeight: FontWeight.bold)),
+                            Text('${(_deptInfo['completionRate'] * 100).toInt()}%', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -215,7 +215,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                           child: LinearProgressIndicator(
                             value: _deptInfo['completionRate'],
                             backgroundColor: Colors.white24,
-                            color: AppColors.gold,
+                            color: AppColors.primary,
                             minHeight: 8,
                           ),
                         ),
@@ -231,16 +231,16 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
               // --- ACTION REQUIRED ALERTS ---
               const Row(
                 children: [
-                  Icon(Icons.assignment_late, color: AppColors.deepBlue),
+                  Icon(Icons.assignment_late, color: AppColors.textPrimary),
                   SizedBox(width: 8),
-                  Text('Action Required', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 12),
               Column(
                 children: _actionAlerts.map((alert) {
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
@@ -254,12 +254,12 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         decoration: BoxDecoration(color: alert['color'].withOpacity(0.1), shape: BoxShape.circle),
                         child: Icon(alert['icon'], color: alert['color']),
                       ),
-                      title: Text(alert['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                      title: Text(alert['title'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 4.0),
-                        child: Text(alert['desc'], style: const TextStyle(color: Colors.grey, fontSize: 13, height: 1.4)),
+                        child: Text(alert['desc'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
                       ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: () {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Opening detailed report for ${alert['title']}...')));
                       },
@@ -270,18 +270,18 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
               const SizedBox(height: 24),
 
               // --- DEPARTMENT AI WORD CLOUD ---
-              const Text('Department Voice (AI Analysis)', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Department Voice (AI Analysis)', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 4),
-              const Text('Aggregated themes from all student comments across the college.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              const Text('Aggregated themes from all student comments across the college.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
               const SizedBox(height: 16),
 
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.center,
@@ -311,11 +311,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   // --- Helper Widget for Drawer ---
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
+      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
+          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),

@@ -1,6 +1,6 @@
 // lib/dept_head/dept_head_settings_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 import '../login_screen.dart';
 
 class DeptHeadSettingsScreen extends StatefulWidget {
@@ -55,7 +55,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.lightGray,
+                    color: AppColors.background,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Column(
@@ -65,8 +65,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Edit Executive Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
+                          const Text('Edit Executive Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -80,16 +80,16 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         value: tempSelectedCollege,
                         decoration: InputDecoration(
                           labelText: 'College / Department',
-                          prefixIcon: const Icon(Icons.account_balance, color: AppColors.royalBlue),
+                          prefixIcon: const Icon(Icons.account_balance, color: AppColors.primary),
                           filled: true,
-                          fillColor: AppColors.white,
+                          fillColor: AppColors.surface,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                         ),
                         items: _colleges.map((String college) {
                           return DropdownMenuItem<String>(
                             value: college,
-                            child: Text(college, style: const TextStyle(color: AppColors.darkGray)),
+                            child: Text(college, style: const TextStyle(color: AppColors.textPrimary)),
                           );
                         }).toList(),
                         onChanged: (String? newValue) {
@@ -103,7 +103,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         height: 50,
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.deepBlue,
+                            backgroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: () {
@@ -113,9 +113,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                               _userCollege = tempSelectedCollege;
                             });
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: Colors.green));
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                           },
-                          child: const Text('Save Changes', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+                          child: const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -136,9 +136,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppColors.white,
+          backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Change Password', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+          title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -152,18 +152,18 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.gold,
+                backgroundColor: AppColors.primary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: Colors.green));
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password changed securely.'), backgroundColor: AppColors.success));
               },
-              child: const Text('Update', style: TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+              child: const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -177,11 +177,11 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       obscureText: isPassword,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.royalBlue) : null,
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
         filled: true,
-        fillColor: AppColors.white,
+        fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.royalBlue, width: 2)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
       ),
     );
   }
@@ -199,12 +199,12 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Account Settings', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Account Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -215,10 +215,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               // ==========================================
               // 1. PROFILE SECTION
               // ==========================================
-              const Text('Executive Profile', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Executive Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
@@ -227,21 +227,21 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     children: [
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.gold.withOpacity(0.2),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.gold, fontSize: 24, fontWeight: FontWeight.bold)),
+                        backgroundColor: AppColors.primary.withOpacity(0.2),
+                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.darkGray)),
+                            Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
-                            Text('$_userTitle • $_userCollege', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+                            Text('$_userTitle • $_userCollege', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 8),
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.royalBlue, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -255,10 +255,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               // ==========================================
               // 2. MANAGEMENT ALERT PREFERENCES
               // ==========================================
-              const Text('Management Alerts', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Management Alerts', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -269,7 +269,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       icon: Icons.trending_down,
                       value: _lowPerformanceAlerts,
                       onChanged: (val) => setState(() => _lowPerformanceAlerts = val),
-                      iconColor: Colors.red,
+                      iconColor: AppColors.error,
                     ),
                     const Divider(height: 1, indent: 56),
                     _buildSwitchTile(
@@ -278,7 +278,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       icon: Icons.warning_amber_rounded,
                       value: _negativeSentimentAlerts,
                       onChanged: (val) => setState(() => _negativeSentimentAlerts = val),
-                      iconColor: Colors.orange,
+                      iconColor: AppColors.warning,
                     ),
                     const Divider(height: 1, indent: 56),
                     _buildSwitchTile(
@@ -287,7 +287,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       icon: Icons.analytics,
                       value: _weeklyDepartmentDigest,
                       onChanged: (val) => setState(() => _weeklyDepartmentDigest = val),
-                      iconColor: AppColors.royalBlue,
+                      iconColor: AppColors.primary,
                     ),
                   ],
                 ),
@@ -297,10 +297,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               // ==========================================
               // 3. SECURITY
               // ==========================================
-              const Text('Security', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Security', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
-                color: AppColors.white,
+                color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
@@ -309,11 +309,11 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.lock, color: AppColors.royalBlue),
+                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.lock, color: AppColors.primary),
                       ),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog,
                     ),
                   ],
@@ -335,10 +335,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                           (route) => false,
                     );
                   },
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('Sign Out Securely', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
+                  icon: const Icon(Icons.logout, color: AppColors.error),
+                  label: const Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.red, width: 2),
+                    side: const BorderSide(color: AppColors.error, width: 2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
@@ -346,7 +346,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               const SizedBox(height: 32),
 
               const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
             ],
           ),
@@ -368,18 +368,18 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
         child: Icon(icon, color: iconColor),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-      subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.white,
-        activeTrackColor: Colors.green,
+        activeColor: AppColors.surface,
+        activeTrackColor: AppColors.success,
         inactiveThumbColor: Colors.white,
-        inactiveTrackColor: Colors.grey.shade300,
+        inactiveTrackColor: AppColors.borderHairline,
       ),
     );
   }

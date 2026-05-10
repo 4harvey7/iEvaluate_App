@@ -1,6 +1,6 @@
 // lib/dept_head/faculty_roster_screen.dart
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import '../theme/app_colors.dart';
 
 class FacultyRosterScreen extends StatefulWidget {
   const FacultyRosterScreen({super.key});
@@ -72,7 +72,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
         return Container(
           height: MediaQuery.of(context).size.height * 0.85, // Made taller for more info
           decoration: const BoxDecoration(
-            color: AppColors.lightGray,
+            color: AppColors.background,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
@@ -93,15 +93,15 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                       // ==========================================
                       // 📊 SENTIMENT ANALYSIS SECTION
                       // ==========================================
-                      const Text('Sentiment Analysis', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text('Sentiment Analysis', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Comment Polarity Distribution', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                            const Text('Comment Polarity Distribution', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 16),
                             // Sentiment Bar
                             ClipRRect(
@@ -110,9 +110,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                                 height: 12,
                                 child: Row(
                                   children: [
-                                    Expanded(flex: (sent['pos'] * 100).toInt(), child: Container(color: Colors.green)),
-                                    Expanded(flex: (sent['neu'] * 100).toInt(), child: Container(color: Colors.orange)),
-                                    Expanded(flex: (sent['neg'] * 100).toInt(), child: Container(color: Colors.red)),
+                                    Expanded(flex: (sent['pos'] * 100).toInt(), child: Container(color: AppColors.success)),
+                                    Expanded(flex: (sent['neu'] * 100).toInt(), child: Container(color: AppColors.warning)),
+                                    Expanded(flex: (sent['neg'] * 100).toInt(), child: Container(color: AppColors.error)),
                                   ],
                                 ),
                               ),
@@ -120,7 +120,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                             const SizedBox(height: 12),
                             _buildSentimentLegend(sent),
                             const Divider(height: 32),
-                            const Text('Key Sentiment Tags', style: TextStyle(color: AppColors.darkGray, fontWeight: FontWeight.bold, fontSize: 14)),
+                            const Text('Key Sentiment Tags', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
                             const SizedBox(height: 12),
                             Wrap(
                               spacing: 8,
@@ -128,11 +128,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                               children: tags.map<Widget>((tag) => Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: instructor['score'] >= 3.0 ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                                  color: instructor['score'] >= 3.0 ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: instructor['score'] >= 3.0 ? Colors.green.withOpacity(0.3) : Colors.red.withOpacity(0.3)),
+                                  border: Border.all(color: instructor['score'] >= 3.0 ? AppColors.success.withOpacity(0.3) : AppColors.error.withOpacity(0.3)),
                                 ),
-                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? Colors.green.shade700 : Colors.red.shade700, fontWeight: FontWeight.w600)),
+                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? AppColors.success.shade700 : AppColors.error.shade700, fontWeight: FontWeight.w600)),
                               )).toList(),
                             ),
                           ],
@@ -158,16 +158,16 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   Widget _buildModalHeader(Map<String, dynamic> instructor) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      decoration: const BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       child: Row(
         children: [
-          CircleAvatar(radius: 30, backgroundColor: AppColors.royalBlue.withOpacity(0.1), child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 24))),
+          CircleAvatar(radius: 30, backgroundColor: AppColors.primary.withOpacity(0.1), child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24))),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.darkGray)),
-            Text(instructor['title'], style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary)),
+            Text(instructor['title'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 14)),
           ])),
-          IconButton(icon: const Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context))
+          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context))
         ],
       ),
     );
@@ -176,9 +176,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   Widget _buildQuickStats(Map<String, dynamic> instructor) {
     return Row(
       children: [
-        Expanded(child: _statCard('Overall Score', '${instructor['score']}', instructor['score'] >= 3.0 ? AppColors.deepBlue : Colors.red)),
+        Expanded(child: _statCard('Overall Score', '${instructor['score']}', instructor['score'] >= 3.0 ? AppColors.textPrimary : AppColors.error)),
         const SizedBox(width: 16),
-        Expanded(child: _statCard('Total Evals', '${instructor['evals']}', AppColors.deepBlue)),
+        Expanded(child: _statCard('Total Evals', '${instructor['evals']}', AppColors.textPrimary)),
       ],
     );
   }
@@ -186,9 +186,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   Widget _statCard(String label, String val, Color valColor) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
         const SizedBox(height: 8),
         Text(val, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: valColor)),
       ]),
@@ -199,9 +199,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _legendItem('Positive', '${(sent['pos'] * 100).toInt()}%', Colors.green),
-        _legendItem('Neutral', '${(sent['neu'] * 100).toInt()}%', Colors.orange),
-        _legendItem('Negative', '${(sent['neg'] * 100).toInt()}%', Colors.red),
+        _legendItem('Positive', '${(sent['pos'] * 100).toInt()}%', AppColors.success),
+        _legendItem('Neutral', '${(sent['neu'] * 100).toInt()}%', AppColors.warning),
+        _legendItem('Negative', '${(sent['neg'] * 100).toInt()}%', AppColors.error),
       ],
     );
   }
@@ -210,19 +210,19 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     return Row(children: [
       Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 4),
-      Text('$label: ', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-      Text(perc, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+      Text('$label: ', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+      Text(perc, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
     ]);
   }
 
   Widget _buildInterventionCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.withOpacity(0.3))),
+      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.error.withOpacity(0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Row(children: [Icon(Icons.warning, color: Colors.red), SizedBox(width: 8), Text('Intervention Required', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red))]),
+        const Row(children: [Icon(Icons.warning, color: AppColors.error), SizedBox(width: 8), Text('Intervention Required', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error))]),
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () {}, child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+        SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), onPressed: () {}, child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
       ]),
     );
   }
@@ -231,12 +231,12 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     final roster = _filteredAndSortedFaculty;
 
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
 
       ),
       body: SafeArea(
@@ -247,7 +247,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             // ==========================================
             Container(
               padding: const EdgeInsets.all(24.0),
-              color: AppColors.white,
+              color: AppColors.surface,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -255,9 +255,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                     onChanged: (value) => setState(() => _searchQuery = value),
                     decoration: InputDecoration(
                       hintText: 'Search instructor name...',
-                      prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                      prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                       filled: true,
-                      fillColor: AppColors.lightGray,
+                      fillColor: AppColors.background,
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                     ),
@@ -266,11 +266,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${roster.length} Instructors Found', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                      Text('${roster.length} Instructors Found', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                       DropdownButton<String>(
                         value: _sortBy,
-                        icon: const Icon(Icons.sort, color: AppColors.royalBlue, size: 18),
-                        style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 13),
+                        icon: const Icon(Icons.sort, color: AppColors.primary, size: 18),
+                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                         underline: const SizedBox(),
                         items: ['Score (Highest to Lowest)', 'Score (Lowest to Highest)', 'Name (A-Z)'].map((String value) {
                           return DropdownMenuItem<String>(value: value, child: Text(value));
@@ -296,12 +296,12 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                   bool isLowPerformer = faculty['score'] < 3.0;
 
                   return Card(
-                    color: AppColors.white,
+                    color: AppColors.surface,
                     elevation: 1,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: isLowPerformer ? Colors.red.withOpacity(0.5) : Colors.transparent, width: 2),
+                      side: BorderSide(color: isLowPerformer ? AppColors.error.withOpacity(0.5) : Colors.transparent, width: 2),
                     ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
@@ -315,15 +315,15 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                               width: 30,
                               child: Text(
                                 '#${index + 1}',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: isLowPerformer ? Colors.red : Colors.grey.shade400, fontSize: 16),
+                                style: TextStyle(fontWeight: FontWeight.bold, color: isLowPerformer ? AppColors.error : AppColors.textTertiary, fontSize: 16),
                               ),
                             ),
 
                             // Profile Avatar
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                              child: Text(faculty['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
+                              backgroundColor: AppColors.primary.withOpacity(0.1),
+                              child: Text(faculty['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                             ),
                             const SizedBox(width: 16),
 
@@ -332,9 +332,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(faculty['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 15)),
+                                  Text(faculty['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 15)),
                                   const SizedBox(height: 2),
-                                  Text(faculty['title'], style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  Text(faculty['title'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                                 ],
                               ),
                             ),
@@ -347,18 +347,18 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                                   children: [
                                     Icon(
                                       faculty['trend'] == 'up' ? Icons.trending_up : (faculty['trend'] == 'down' ? Icons.trending_down : Icons.trending_flat),
-                                      color: faculty['trend'] == 'up' ? Colors.green : (faculty['trend'] == 'down' ? Colors.red : Colors.orange),
+                                      color: faculty['trend'] == 'up' ? AppColors.success : (faculty['trend'] == 'down' ? AppColors.error : AppColors.warning),
                                       size: 16,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
                                       '${faculty['score']}',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isLowPerformer ? Colors.red : AppColors.deepBlue),
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isLowPerformer ? AppColors.error : AppColors.textPrimary),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                Text('${faculty['evals']} evals', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                                Text('${faculty['evals']} evals', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                               ],
                             ),
                           ],
