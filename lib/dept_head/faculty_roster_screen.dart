@@ -1,46 +1,135 @@
 // lib/dept_head/faculty_roster_screen.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import 'intervention_reports_screen.dart';
+import 'instructor_detail_page.dart';
 
 class FacultyRosterScreen extends StatefulWidget {
-  const FacultyRosterScreen({super.key});
+  final String userId;
+  const FacultyRosterScreen({super.key, required this.userId});
 
   @override
   State<FacultyRosterScreen> createState() => _FacultyRosterScreenState();
 }
 
 class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
-  // --- UPDATED DUMMY DATA WITH SENTIMENT ---
-  final List<Map<String, dynamic>> _facultyList = [
-    {
-      'name': 'Kirito (Kazuto Kirigaya)',
-      'title': 'Senior Instructor',
-      'score': 4.95,
-      'trend': 'up',
-      'evals': 142,
-      'sentiment': {'pos': 0.85, 'neu': 0.10, 'neg': 0.05},
-      'tags': ['Expert Knowledge', 'Engaging', 'Fast Responder']
-    },
-    {
-      'name': 'Asuna Yuuki',
-      'title': 'Associate Professor',
-      'score': 4.88,
-      'trend': 'up',
-      'evals': 110,
-      'sentiment': {'pos': 0.80, 'neu': 0.15, 'neg': 0.05},
-      'tags': ['Approachable', 'Clear Rubrics', 'Patient']
-    },
-    {
-      'name': 'Klein (Ryotaro Tsuboi)',
-      'title': 'Adjunct Instructor',
-      'score': 2.85,
-      'trend': 'down',
-      'evals': 105,
-      'sentiment': {'pos': 0.20, 'neu': 0.30, 'neg': 0.50},
-      'tags': ['Unclear Instructions', 'Slow Grading', 'Hard to Reach']
-    },
-    // ... add more as needed
-  ];
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _facultyList = [];
+  String _currentTermId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchFacultyData();
+  }
+
+  Future<void> _fetchFacultyData() async {
+    setState(() => _isLoading = true);
+    try {
+      // 1. Get current term
+      final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
+      _currentTermId = settings?['current_term_id'] ?? '';
+
+      if (_currentTermId.isEmpty) {
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 2. Get Department of current user (Dean) — prefer passed userId
+      final deanId = widget.userId.isNotEmpty
+          ? widget.userId
+          : (_supabase.auth.currentUser?.id ?? '');
+      if (deanId.isEmpty) return;
+
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID, department_name:Department_name_ID(d_name)')
+          .eq('user_id', deanId)
+          .maybeSingle();
+      
+      final deptId = deptData?['Department_name_ID'];
+      final deptName = deptData?['department_name']?['d_name'] ?? 'Unknown Department';
+
+      debugPrint('--- [DEBUG] Roster Fetch ---');
+      debugPrint('User ID: $deanId');
+      debugPrint('Department ID: $deptId');
+      debugPrint('Department Name: $deptName');
+
+      if (deptId == null) {
+        debugPrint('Warning: Current user has no department assigned in department_table');
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      // 3. Fetch all instructors in this department
+      final facultyData = await _supabase
+          .from('user_info')
+          .select('''
+            id,
+            first_name,
+            last_name,
+            department_table!inner (
+              roles:roles (Roles),
+              Department_name_ID
+            ),
+            overall_total_survey (
+              overall_mean,
+              management_mean,
+              performance_mean,
+              total_responses,
+              term_id
+            )
+          ''')
+          .eq('department_table.Department_name_ID', deptId);
+      
+      debugPrint('Raw Faculty Data Count: ${facultyData.length}');
+
+      if (mounted) {
+        debugPrint('Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
+        setState(() {
+          _facultyList = (facultyData as List).map((f) {
+            // Handle department_table which might be a List or a Map
+            final deptRaw = f['department_table'];
+            Map<String, dynamic>? deptMap;
+            if (deptRaw is List && deptRaw.isNotEmpty) {
+              deptMap = deptRaw[0];
+            } else if (deptRaw is Map<String, dynamic>) {
+              deptMap = deptRaw;
+            }
+
+            final roleInfo = deptMap?['roles'];
+            
+            // Find the survey for the CURRENT term only
+            final surveyList = f['overall_total_survey'] as List?;
+            final survey = (surveyList != null) 
+                ? surveyList.firstWhere(
+                    (s) => s['term_id'] == _currentTermId, 
+                    orElse: () => null
+                  )
+                : null;
+
+            return {
+              'id': f['id'],
+              'name': '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim(),
+              'title': roleInfo?['Roles'] ?? 'Instructor',
+              'department': deptName,
+              'score': (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
+              'mgmt_score': (survey?['management_mean'] as num?)?.toDouble() ?? 0.0,
+              'perf_score': (survey?['performance_mean'] as num?)?.toDouble() ?? 0.0,
+              'evals': survey?['total_responses'] ?? 0,
+              'trend': 'flat', // Simplified for now
+            };
+          }).toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching faculty roster: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   String _searchQuery = '';
   String _sortBy = 'Score (Highest to Lowest)';
@@ -61,95 +150,15 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   }
 
   void _showInstructorDetails(Map<String, dynamic> instructor) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        final sent = instructor['sentiment'] ?? {'pos': 0.0, 'neu': 0.0, 'neg': 0.0};
-        final tags = instructor['tags'] ?? [];
-
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.85, // Made taller for more info
-          decoration: const BoxDecoration(
-            color: AppColors.background,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Sticky Header (Same as before)
-              _buildModalHeader(instructor),
-
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildQuickStats(instructor),
-                      const SizedBox(height: 32),
-
-                      // ==========================================
-                      // 📊 SENTIMENT ANALYSIS SECTION
-                      // ==========================================
-                      const Text('Sentiment Analysis', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Comment Polarity Distribution', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                            const SizedBox(height: 16),
-                            // Sentiment Bar
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: SizedBox(
-                                height: 12,
-                                child: Row(
-                                  children: [
-                                    Expanded(flex: (sent['pos'] * 100).toInt(), child: Container(color: AppColors.success)),
-                                    Expanded(flex: (sent['neu'] * 100).toInt(), child: Container(color: AppColors.warning)),
-                                    Expanded(flex: (sent['neg'] * 100).toInt(), child: Container(color: AppColors.error)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            _buildSentimentLegend(sent),
-                            const Divider(height: 32),
-                            const Text('Key Sentiment Tags', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14)),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: tags.map<Widget>((tag) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: instructor['score'] >= 3.0 ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: instructor['score'] >= 3.0 ? AppColors.success.withOpacity(0.3) : AppColors.error.withOpacity(0.3)),
-                                ),
-                                child: Text(tag, style: TextStyle(fontSize: 12, color: instructor['score'] >= 3.0 ? AppColors.success : AppColors.error, fontWeight: FontWeight.w600)),
-                              )).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 32),
-                      // Action buttons for Dean
-                      if (instructor['score'] < 3.0) _buildInterventionCard(),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InstructorDetailPage(
+          instructor: instructor,
+          deptHeadUserId: widget.userId,
+          currentTermId: _currentTermId,
+        ),
+      ),
     );
   }
 
@@ -161,7 +170,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
       decoration: const BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       child: Row(
         children: [
-          CircleAvatar(radius: 30, backgroundColor: AppColors.primary.withOpacity(0.1), child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24))),
+          CircleAvatar(radius: 30, backgroundColor: AppColors.primary.withValues(alpha: 0.1), child: Text(instructor['name'].isNotEmpty ? instructor['name'][0] : '?', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24))),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary)),
@@ -199,9 +208,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _legendItem('Positive', '${(sent['pos'] * 100).toInt()}%', AppColors.success),
-        _legendItem('Neutral', '${(sent['neu'] * 100).toInt()}%', AppColors.warning),
-        _legendItem('Negative', '${(sent['neg'] * 100).toInt()}%', AppColors.error),
+        _legendItem('Positive', '${((sent['pos'] ?? 0.0) * 100).toInt()}%', AppColors.success),
+        _legendItem('Neutral', '${((sent['neu'] ?? 0.0) * 100).toInt()}%', AppColors.warning),
+        _legendItem('Negative', '${((sent['neg'] ?? 0.0) * 100).toInt()}%', AppColors.error),
       ],
     );
   }
@@ -215,19 +224,53 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     ]);
   }
 
-  Widget _buildInterventionCard() {
+  Widget _buildInterventionCard(Map<String, dynamic> instructor) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.error.withOpacity(0.3))),
+      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.error.withValues(alpha: 0.3))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const Row(children: [Icon(Icons.warning, color: AppColors.error), SizedBox(width: 8), Text('Intervention Required', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error))]),
         const SizedBox(height: 16),
-        SizedBox(width: double.infinity, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), onPressed: () {}, child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))),
+        SizedBox(
+          width: double.infinity, 
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error), 
+            onPressed: () {
+              Navigator.pop(context); // Close Modal
+              Navigator.push(context, MaterialPageRoute(builder: (_) => InterventionReportsScreen(userId: widget.userId)));
+            }, 
+            child: const Text('Draft Intervention Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+          )
+        ),
       ]),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary.withValues(alpha: 0.5)),
+          const SizedBox(height: 16),
+          Text(
+            _searchQuery.isEmpty ? 'No instructors found in your department.' : 'No instructors match "$_searchQuery"',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+          ),
+          if (_searchQuery.isNotEmpty)
+            TextButton(
+              onPressed: () => setState(() => _searchQuery = ''),
+              child: const Text('Clear Search', style: TextStyle(color: AppColors.primary)),
+            ),
+        ],
+      ),
     );
   }
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
+    }
     final roster = _filteredAndSortedFaculty;
 
     return Scaffold(
@@ -264,21 +307,54 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                   ),
                   const SizedBox(height: 16),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${roster.length} Instructors Found', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                      DropdownButton<String>(
-                        value: _sortBy,
-                        icon: const Icon(Icons.sort, color: AppColors.primary, size: 18),
-                        style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                        underline: const SizedBox(),
-                        items: ['Score (Highest to Lowest)', 'Score (Lowest to Highest)', 'Name (A-Z)'].map((String value) {
-                          return DropdownMenuItem<String>(value: value, child: Text(value));
-                        }).toList(),
-                        onChanged: (newValue) => setState(() => _sortBy = newValue!),
+                      Expanded(
+                        child: Text(
+                          '${roster.length} Instructors Found',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+
+                      const SizedBox(width: 8),
+
+                      Flexible(
+                        child: DropdownButton<String>(
+                          isExpanded: true,
+                          value: _sortBy,
+                          icon: const Icon(
+                            Icons.sort,
+                            color: AppColors.primary,
+                            size: 18,
+                          ),
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          underline: const SizedBox(),
+                          items: [
+                            'Score (Highest to Lowest)',
+                            'Score (Lowest to Highest)',
+                            'Name (A-Z)'
+                          ].map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(
+                                value,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (newValue) =>
+                              setState(() => _sortBy = newValue!),
+                        ),
                       ),
                     ],
-                  ),
+                  )
                 ],
               ),
             ),
@@ -287,9 +363,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             // ROSTER LIST
             // ==========================================
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: roster.length,
+              child: roster.isEmpty 
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(24),
+                    itemCount: roster.length,
                 itemBuilder: (context, index) {
                   final faculty = roster[index];
                   // Flag low performers with a red border
@@ -301,7 +379,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: isLowPerformer ? AppColors.error.withOpacity(0.5) : Colors.transparent, width: 2),
+                      side: BorderSide(color: isLowPerformer ? AppColors.error.withValues(alpha: 0.5) : Colors.transparent, width: 2),
                     ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
@@ -322,8 +400,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                             // Profile Avatar
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.primary.withOpacity(0.1),
-                              child: Text(faculty['name'][0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                              child: Text(faculty['name'].isNotEmpty ? faculty['name'][0] : '?', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                             ),
                             const SizedBox(width: 16),
 

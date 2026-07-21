@@ -1,178 +1,287 @@
-// lib/instructor/student_feedback_screen.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 
 class StudentFeedbackScreen extends StatefulWidget {
-  const StudentFeedbackScreen({super.key});
+  final String userId;
+  final String? termId;
+  const StudentFeedbackScreen({super.key, required this.userId, this.termId});
 
   @override
   State<StudentFeedbackScreen> createState() => _StudentFeedbackScreenState();
 }
 
 class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
+  final _supabase = Supabase.instance.client;
   String _selectedFilter = 'All';
+  bool _isLoading = true;
+  String _activeTermDisplay = '';
 
-  // --- 1. AI SENTIMENT ANALYSIS DATA ---
-  final Map<String, dynamic> _sentimentSummary = {
-    'positive': 75,
-    'neutral': 15,
-    'negative': 10,
-    'totalComments': 142,
+  Map<String, dynamic> _sentimentSummary = {
+    'positive': 0,
+    'neutral': 0,
+    'negative': 0,
+    'totalComments': 0,
   };
 
-  // --- 2. 👈 UPGRADED AI WORD CLOUD DATA ---
-  // Added a 'rotated' boolean to flip some words vertically!
-  // Tweaked colors to be brighter against the dark background.
-  final List<Map<String, dynamic>> _wordCloud = [
-    {'word': 'Engaging', 'weight': 36.0, 'color': AppColors.primary, 'rotated': false},
-    {'word': 'Fast-paced', 'weight': 20.0, 'color': AppColors.warning, 'rotated': false},
-    {'word': 'Helpful', 'weight': 28.0, 'color': AppColors.success, 'rotated': false},
-    {'word': 'Clear', 'weight': 24.0, 'color': Colors.white, 'rotated': true},
-    {'word': 'Examples', 'weight': 32.0, 'color': Colors.lightBlueAccent, 'rotated': false},
-    {'word': 'Challenging', 'weight': 20.0, 'color': AppColors.warning, 'rotated': true},
-    {'word': 'Approachable', 'weight': 26.0, 'color': AppColors.success, 'rotated': false},
-    {'word': 'Projects', 'weight': 22.0, 'color': Colors.white70, 'rotated': false},
-    {'word': 'Strict', 'weight': 16.0, 'color': AppColors.error, 'rotated': false},
-    {'word': 'Inspiring', 'weight': 34.0, 'color': AppColors.primary, 'rotated': false},
-    {'word': 'Rubrics', 'weight': 14.0, 'color': Colors.white54, 'rotated': true},
-    {'word': 'Coding', 'weight': 28.0, 'color': Colors.lightBlue, 'rotated': false},
-  ];
+  List<Map<String, dynamic>> _wordCloud = [];
+  List<Map<String, dynamic>> _allFeedback = [];
+  String _aiInsightSummary = "Analyzing your feedback...";
+  List<Map<String, String>> _positiveThemes = [];
+  List<Map<String, String>> _improvementInsights = [];
 
-  // --- 3. RAW STUDENT FEEDBACK ---
-  final List<Map<String, dynamic>> _allFeedback = [
-    {
-      'course': 'CS101',
-      'text': 'The examples used in class are really helpful for understanding the code. Very inspiring lectures!',
-      'sentiment': 'Positive',
-      'date': 'Oct 12, 2026'
-    },
-    {
-      'course': 'CS202',
-      'text': 'Pacing is a bit fast during the Data Structures lectures. Sometimes hard to keep up.',
-      'sentiment': 'Critical',
-      'date': 'Oct 10, 2026'
-    },
-    {
-      'course': 'IT305',
-      'text': 'Always willing to answer questions after class. Great and approachable instructor!',
-      'sentiment': 'Positive',
-      'date': 'Oct 08, 2026'
-    },
-    {
-      'course': 'CS101',
-      'text': 'The grading rubrics are clear, but the exams are very strict.',
-      'sentiment': 'Neutral',
-      'date': 'Oct 05, 2026'
-    },
-    {
-      'course': 'IT305',
-      'text': 'The group projects were challenging but I learned a lot about real-world coding.',
-      'sentiment': 'Positive',
-      'date': 'Oct 01, 2026'
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchFeedbackData();
+  }
+
+  Future<void> _fetchFeedbackData() async {
+    try {
+      String? activeTermId = widget.termId;
+
+      // If no termId is provided (e.g., dashboard still loading), fetch the current active term
+      String activeTermName = "Current Term";
+      if (activeTermId == null || activeTermId.isEmpty) {
+        final settings = await _supabase
+            .from('system_settings')
+            .select('current_term_id, academic_terms(semester, academic_year)')
+            .maybeSingle();
+        activeTermId = settings?['current_term_id'];
+        if (settings?['academic_terms'] != null) {
+          final term = settings!['academic_terms'];
+          activeTermName = "${term['semester']} ${term['academic_year']}";
+        }
+      } else {
+        // Fetch term name for provided termId
+        final termData = await _supabase
+            .from('academic_terms')
+            .select('semester, academic_year')
+            .eq('id', activeTermId)
+            .maybeSingle();
+        if (termData != null) {
+          activeTermName = "${termData['semester']} ${termData['academic_year']}";
+        }
+      }
+
+      // If we still don't have a term ID, we can't filter correctly
+      if (activeTermId == null || activeTermId.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _allFeedback = [];
+          });
+        }
+        return;
+      }
+      
+      if (mounted) {
+        setState(() {
+          _activeTermDisplay = activeTermName;
+        });
+      }
+
+      var remarksQuery = _supabase
+          .from('student_remarks')
+          .select('remark, tone, created_at, subjects(subject_code)')
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', activeTermId);
+
+      var aiQuery = _supabase
+          .from('instructor_ai_suggestions')
+          .select()
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', activeTermId);
+
+      var wordCloudQuery = _supabase
+          .from('instructor_wordcloud')
+          .select('word, count')
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', activeTermId);
+
+      final responses = await Future.wait<dynamic>([
+        remarksQuery,
+        aiQuery.order('updated_at', ascending: false).limit(1).maybeSingle(),
+        wordCloudQuery.order('count', ascending: false).limit(25),
+      ]);
+
+      final remarks = responses[0] as List;
+      final aiSuggestion = responses[1] as Map<String, dynamic>?;
+      final words = responses[2] as List;
+
+      if (mounted) {
+        setState(() {
+          _allFeedback = remarks.map((r) {
+            // Using subjects!inner ensures we get records where subjects are linked
+            // We use standard Supabase relationship syntax
+            String subjectCode = 'N/A';
+            if (r['subjects'] != null) {
+              if (r['subjects'] is Map) {
+                subjectCode = r['subjects']['subject_code'] ?? 'N/A';
+              } else if (r['subjects'] is List && r['subjects'].isNotEmpty) {
+                subjectCode = r['subjects'][0]['subject_code'] ?? 'N/A';
+              }
+            }
+
+            return {
+              'course': subjectCode,
+              'text': r['remark'],
+              'sentiment': r['tone'] ?? 'Neutral',
+              'date': r['created_at'] != null ? DateTime.parse(r['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
+            };
+          }).toList();
+
+          int pos = _allFeedback.where((f) => f['sentiment'] == 'Positive').length;
+          int neu = _allFeedback.where((f) => f['sentiment'] == 'Neutral').length;
+          int neg = _allFeedback.where((f) => f['sentiment'] == 'Critical').length;
+          int total = _allFeedback.length;
+
+          if (total > 0) {
+            _sentimentSummary = {
+              'positive': ((pos / total) * 100).round(),
+              'neutral': ((neu / total) * 100).round(),
+              'negative': ((neg / total) * 100).round(),
+              'totalComments': total,
+            };
+          }
+
+          if (aiSuggestion != null) {
+            _aiInsightSummary = aiSuggestion['ai_suggestion'] ?? "";
+            _positiveThemes = _parseThemes(aiSuggestion['positive_themes'], '💡');
+            _improvementInsights = _parseImprovements(aiSuggestion['improvement_insights']);
+          }
+
+          // Dense Word Cloud Logic
+          _wordCloud = words.asMap().entries.map((entry) {
+            int index = entry.key;
+            var w = entry.value;
+            return {
+              'word': w['word'],
+              // More aggressive scaling for visual impact
+              'weight': 14.0 + (w['count'] as num).toDouble() * 4.5,
+              'color': _getWordColor(w['word']),
+              // More organic rotation pattern
+              'rotated': index % 5 == 0 || index % 7 == 0,
+            };
+          }).toList();
+          _wordCloud.shuffle(); // Distribute high/low counts randomly for better density
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching feedback: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<Map<String, String>> _parseThemes(dynamic data, String defaultIcon) {
+    if (data == null) return [];
+    if (data is! String || data.trim().isEmpty) return [];
+
+    final raw = data.trim();
+    List<String> parts;
+
+    // 1. Try numbered list: "1. text 2. text"
+    final numberedPattern = RegExp(r'\d+\.\s+');
+    if (numberedPattern.hasMatch(raw)) {
+      parts = raw.split(numberedPattern).where((s) => s.trim().isNotEmpty).toList();
+    }
+    // 2. Try newline-separated
+    else if (raw.contains('\n')) {
+      parts = raw.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    }
+    // 3. Try sentence split (". " boundary)
+    else {
+      parts = raw.split(RegExp(r'\.\s+')).where((s) => s.trim().isNotEmpty).toList();
+    }
+
+    // Merge dangling fragments that start with a conjunction/preposition
+    // back into the previous item so we don't get "and deep knowledge..."
+    const _danglers = {'and', 'or', 'but', 'as', 'with', 'which', 'that',
+                       'including', 'such', 'among', 'while', 'where'};
+    final merged = <String>[];
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final firstWord = trimmed.split(' ').first.toLowerCase().replaceAll(',', '');
+      if (merged.isNotEmpty && _danglers.contains(firstWord)) {
+        merged[merged.length - 1] = '${merged.last}. $trimmed';
+      } else {
+        merged.add(trimmed);
+      }
+    }
+
+    return merged
+        .where((s) => s.length > 5) // skip garbage fragments
+        .map((s) => {'icon': defaultIcon, 'label': s.endsWith('.') ? s : '$s.'})
+        .toList();
+  }
+
+  List<Map<String, String>> _parseImprovements(dynamic data) {
+    if (data == null) return [];
+    if (data is! String || data.trim().isEmpty) return [];
+
+    final raw = data.trim();
+    List<String> parts;
+
+    // 1. Numbered list
+    final numberedPattern = RegExp(r'\d+\.\s+');
+    if (numberedPattern.hasMatch(raw)) {
+      parts = raw.split(numberedPattern).where((s) => s.trim().isNotEmpty).toList();
+    }
+    // 2. Newline-separated
+    else if (raw.contains('\n')) {
+      parts = raw.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    }
+    // 3. Sentence split
+    else {
+      parts = raw.split(RegExp(r'\.\s+')).where((s) => s.trim().isNotEmpty).toList();
+    }
+
+    // Merge dangling fragments into previous item
+    const _danglers = {'and', 'or', 'but', 'as', 'with', 'which', 'that',
+                       'including', 'such', 'among', 'while', 'where', 'additional',
+                       'more', 'further'};
+    final merged = <String>[];
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final firstWord = trimmed.split(' ').first.toLowerCase().replaceAll(',', '');
+      if (merged.isNotEmpty && _danglers.contains(firstWord)) {
+        merged[merged.length - 1] = '${merged.last} $trimmed';
+      } else {
+        merged.add(trimmed);
+      }
+    }
+
+    // Build label from first few words of each item as a title
+    return merged
+        .where((s) => s.length > 5)
+        .map((s) {
+          final sentence = s.endsWith('.') ? s : '$s.';
+          // Extract a short label: first 3–5 words, capitalised
+          final words = sentence.split(' ');
+          final labelWords = words.take(words.length > 4 ? 4 : words.length).join(' ');
+          final label = labelWords.endsWith('.') ? labelWords : '$labelWords...';
+          return {
+            'icon': '⚠️',
+            'label': label[0].toUpperCase() + label.substring(1),
+            'detail': sentence,
+          };
+        })
+        .toList();
+  }
+
+  Color _getWordColor(String word) {
+    final colors = [AppColors.primary, AppColors.success, Colors.lightBlueAccent, AppColors.warning];
+    return colors[word.length % colors.length];
+  }
 
   // Filter Logic
   List<Map<String, dynamic>> get _filteredFeedback {
     if (_selectedFilter == 'All') return _allFeedback;
     return _allFeedback.where((f) => f['sentiment'] == _selectedFilter).toList();
-  }
-
-  // ============================================================
-  // AI INTERPRETATION LAYER — derived from _allFeedback &
-  // _sentimentSummary. No external APIs or backend logic.
-  // ============================================================
-
-  /// Builds a human-readable summary sentence from the sentiment numbers
-  /// and a quick keyword scan of the raw feedback texts.
-  String get _aiInsightSummary {
-    final positive = _sentimentSummary['positive'] as int;
-    final positiveFeedbacks = _allFeedback.where((f) => f['sentiment'] == 'Positive').toList();
-    final hasClear = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('clear') ||
-        (f['text'] as String).toLowerCase().contains('rubric'));
-    final hasApproachable = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('approachable') ||
-        (f['text'] as String).toLowerCase().contains('question'));
-    final hasInspiring = positiveFeedbacks.any((f) => (f['text'] as String).toLowerCase().contains('inspir') ||
-        (f['text'] as String).toLowerCase().contains('engag'));
-
-    if (positive >= 70) {
-      final traits = <String>[];
-      if (hasInspiring) traits.add('inspiring');
-      if (hasApproachable) traits.add('approachable');
-      if (hasClear) traits.add('organized');
-      final traitString = traits.isNotEmpty ? traits.join(', ') : 'effective';
-      return 'The majority of your students ($positive%) view you as a $traitString instructor. '
-          'Your teaching is making a strong positive impression across multiple courses.';
-    } else if (positive >= 50) {
-      return 'Most students ($positive%) feel positively about your teaching. '
-          'There are clear strengths to build on alongside some areas to address.';
-    } else {
-      return 'Student sentiment is mixed. Consider reviewing feedback carefully '
-          'to identify recurring concerns alongside your teaching strengths.';
-    }
-  }
-
-  /// Extracts positive theme tags from the positive feedback texts.
-  List<Map<String, String>> get _positiveThemes {
-    final themes = <Map<String, String>>[];
-    final texts = _allFeedback
-        .where((f) => f['sentiment'] == 'Positive')
-        .map((f) => (f['text'] as String).toLowerCase())
-        .join(' ');
-
-    if (texts.contains('example') || texts.contains('helpful')) {
-      themes.add({'icon': '💡', 'label': 'Helpful Examples'});
-    }
-    if (texts.contains('approachable') || texts.contains('question')) {
-      themes.add({'icon': '🤝', 'label': 'Approachable Style'});
-    }
-    if (texts.contains('inspir') || texts.contains('engag')) {
-      themes.add({'icon': '🌟', 'label': 'Inspiring Lectures'});
-    }
-    if (texts.contains('coding') || texts.contains('real-world') || texts.contains('project')) {
-      themes.add({'icon': '🛠️', 'label': 'Practical Projects'});
-    }
-    return themes;
-  }
-
-  /// Extracts improvement points only when critical feedback exists.
-  List<Map<String, String>> get _improvementInsights {
-    final criticalFeedbacks = _allFeedback.where((f) => f['sentiment'] == 'Critical').toList();
-    if (criticalFeedbacks.isEmpty) return [];
-
-    final insights = <Map<String, String>>[];
-    final texts = criticalFeedbacks.map((f) => (f['text'] as String).toLowerCase()).join(' ');
-
-    if (texts.contains('pacing') || texts.contains('fast') || texts.contains('keep up')) {
-      insights.add({
-        'icon': '⏱️',
-        'label': 'Lecture Pacing',
-        'detail': 'Some students find the pace too fast — consider adding recap checkpoints.',
-      });
-    }
-    if (texts.contains('strict') || texts.contains('exam')) {
-      insights.add({
-        'icon': '📋',
-        'label': 'Assessment Strictness',
-        'detail': 'A few students feel exams are strict relative to the rubrics provided.',
-      });
-    }
-    if (texts.contains('example') && texts.contains('more')) {
-      insights.add({
-        'icon': '📖',
-        'label': 'More Examples Needed',
-        'detail': 'Students are requesting more worked examples during instruction.',
-      });
-    }
-    // Always surface at least one general insight when critical feedback exists
-    if (insights.isEmpty) {
-      insights.add({
-        'icon': '💬',
-        'label': 'Student Concerns Noted',
-        'detail': 'Review critical comments individually to identify specific improvement areas.',
-      });
-    }
-    return insights;
   }
 
   @override
@@ -183,10 +292,18 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
-        title: const Text('Student Feedback', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Student Feedback', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, fontSize: 18)),
+            if (_activeTermDisplay.isNotEmpty)
+              Text(_activeTermDisplay, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12)),
+          ],
+        ),
       ),
-      body: SafeArea(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -202,7 +319,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,9 +338,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       borderRadius: BorderRadius.circular(10),
                       child: Row(
                         children: [
-                          Expanded(flex: _sentimentSummary['positive'], child: Container(height: 12, color: AppColors.success)),
-                          Expanded(flex: _sentimentSummary['neutral'], child: Container(height: 12, color: AppColors.textTertiary)),
-                          Expanded(flex: _sentimentSummary['negative'], child: Container(height: 12, color: AppColors.error)),
+                          Expanded(flex: (_sentimentSummary['positive'] as int).clamp(1, 100), child: Container(height: 12, color: AppColors.success)),
+                          Expanded(flex: (_sentimentSummary['neutral'] as int).clamp(1, 100), child: Container(height: 12, color: AppColors.textTertiary)),
+                          Expanded(flex: (_sentimentSummary['negative'] as int).clamp(1, 100), child: Container(height: 12, color: AppColors.error)),
                         ],
                       ),
                     ),
@@ -255,7 +372,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 5))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 5))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,7 +383,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: AppColors.primary.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(Icons.auto_awesome, color: AppColors.primary, size: 20),
@@ -327,8 +444,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.success.withOpacity(0.15), width: 1),
-                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                    border: Border.all(color: AppColors.success.withValues(alpha: 0.15), width: 1),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,20 +465,23 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         runSpacing: 10,
                         children: _positiveThemes.map((theme) {
                           return Container(
+                            constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width - 80),
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
-                              color: AppColors.success.withOpacity(0.07),
+                              color: AppColors.success.withValues(alpha: 0.07),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.success.withOpacity(0.2), width: 1),
+                              border: Border.all(color: AppColors.success.withValues(alpha: 0.2), width: 1),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(theme['icon']!, style: const TextStyle(fontSize: 16)),
                                 const SizedBox(width: 8),
-                                Text(
-                                  theme['label']!,
-                                  style: TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600),
+                                Flexible(
+                                  child: Text(
+                                    theme['label']!,
+                                    style: const TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600),
+                                  ),
                                 ),
                               ],
                             ),
@@ -381,8 +501,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.warning.withOpacity(0.2), width: 1),
-                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: 1),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -409,7 +529,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   height: 36,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: AppColors.warning.withOpacity(0.1),
+                                    color: AppColors.warning.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: Text(insight['icon']!, style: const TextStyle(fontSize: 16)),
@@ -448,45 +568,53 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               const SizedBox(height: 16),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
                 decoration: BoxDecoration(
-                  // Added a sleek gradient background
                   gradient: const LinearGradient(
-                    colors: [AppColors.textPrimary, Color(0xFF0B192C)],
+                    colors: [AppColors.textPrimary, Color(0xFF0F172A)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6))],
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))
+                  ],
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.center,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12.0, // Reduced to pack words tighter
-                  runSpacing: 4.0, // Squeezed vertical lines together
+                  spacing: 8.0,
+                  runSpacing: 6.0,
                   children: _wordCloud.map((wordData) {
+                    // Scale font: weight 14–58 maps to 10–22px readable range
+                    final double rawWeight = (wordData['weight'] as double).clamp(14.0, 58.0);
+                    final double fontSize = 10.0 + ((rawWeight - 14.0) / 44.0) * 12.0;
 
-                    // Build the text widget
-                    Widget wordText = Text(
+                    final Widget wordText = Text(
                       wordData['word'],
+                      textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: wordData['weight'],
-                        // Bigger words get thicker fonts, smaller words get thinner fonts
-                        fontWeight: wordData['weight'] > 26 ? FontWeight.w900 : FontWeight.w600,
+                        fontSize: fontSize,
+                        fontWeight: fontSize > 18 ? FontWeight.w800 : FontWeight.w600,
                         color: wordData['color'],
-                        height: 1.0, // Removes extra line spacing around the text
-                        letterSpacing: -0.5,
+                        height: 1.1,
+                        letterSpacing: -0.1,
+                        shadows: [
+                          Shadow(color: Colors.black.withValues(alpha: 0.3), offset: const Offset(0, 1), blurRadius: 2),
+                        ],
                       ),
                     );
 
-                    // If it's flagged as rotated, wrap it in a RotatedBox!
+                    // Restore organic layout: every 5th or 7th word goes vertical (bottom→top)
                     if (wordData['rotated'] == true) {
                       return RotatedBox(
-                        quarterTurns: 3, // Rotates it 90 degrees upward
-                        child: wordText,
+                        quarterTurns: 3, // 270° = bottom-to-top
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: wordText,
+                        ),
                       );
                     }
-
                     return wordText;
                   }).toList(),
                 ),
@@ -505,34 +633,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Filter Chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: ['All', 'Positive', 'Neutral', 'Critical'].map((filter) {
-                    bool isSelected = _selectedFilter == filter;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(filter, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-                        selected: isSelected,
-                        selectedColor: filter == 'Positive' ? AppColors.success.withOpacity(0.2)
-                            : filter == 'Critical' ? AppColors.error.withOpacity(0.2)
-                            : filter == 'Neutral' ? AppColors.textTertiary.withOpacity(0.2)
-                            : AppColors.primary.withOpacity(0.2),
-                        labelStyle: TextStyle(
-                          color: isSelected
-                              ? (filter == 'Positive' ? AppColors.success : filter == 'Critical' ? AppColors.error : AppColors.textPrimary)
-                              : AppColors.textSecondary,
-                        ),
-                        onSelected: (bool selected) {
-                          if (selected) setState(() => _selectedFilter = filter);
-                        },
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
+              // Filter chips
+              _buildFilterRow(),
               const SizedBox(height: 16),
 
               // Feedback List
@@ -559,7 +661,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: sentimentColor.withOpacity(0.3), width: 1)
+                        side: BorderSide(color: sentimentColor.withValues(alpha: 0.3), width: 1)
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -599,6 +701,110 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // Premium Filter Row with counts + icons
+  Widget _buildFilterRow() {
+    final filters = [
+      {
+        'label': 'All',
+        'icon': Icons.all_inclusive_rounded,
+        'count': _allFeedback.length,
+        'color': AppColors.primary,
+      },
+      {
+        'label': 'Positive',
+        'icon': Icons.sentiment_very_satisfied_rounded,
+        'count': _allFeedback.where((f) => f['sentiment'] == 'Positive').length,
+        'color': AppColors.success,
+      },
+      {
+        'label': 'Neutral',
+        'icon': Icons.sentiment_neutral_rounded,
+        'count': _allFeedback.where((f) => f['sentiment'] == 'Neutral').length,
+        'color': AppColors.textSecondary,
+      },
+      {
+        'label': 'Critical',
+        'icon': Icons.sentiment_dissatisfied_rounded,
+        'count': _allFeedback.where((f) => f['sentiment'] == 'Critical').length,
+        'color': AppColors.error,
+      },
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: filters.map((f) {
+          final label   = f['label']   as String;
+          final icon    = f['icon']    as IconData;
+          final count   = f['count']   as int;
+          final color   = f['color']   as Color;
+          final selected = _selectedFilter == label;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: selected ? color : AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: selected ? color : color.withValues(alpha: 0.3),
+                  width: selected ? 2 : 1,
+                ),
+                boxShadow: selected
+                    ? [BoxShadow(color: color.withValues(alpha: 0.25), blurRadius: 8, offset: const Offset(0, 3))]
+                    : [],
+              ),
+              child: InkWell(
+                onTap: () => setState(() => _selectedFilter = label),
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon,
+                          size: 16,
+                          color: selected ? Colors.white : color),
+                      const SizedBox(width: 6),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: selected ? Colors.white : color,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Colors.white.withValues(alpha: 0.25)
+                              : color.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: selected ? Colors.white : color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

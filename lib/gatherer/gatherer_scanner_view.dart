@@ -1,14 +1,48 @@
-// lib/gatherer/gatherer_scanner_view.dart
-import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:async';
+import 'dart:math';
+import 'dart:io' show Platform;
 import 'package:camera/camera.dart';
-import 'dart:ui';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'package:image/image.dart' as img;
 import '../theme/app_colors.dart';
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Paper size definitions (portrait width ÷ height ratio)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum PaperSize {
+  shortBond('Short Bond', '8.5 × 11"', 8.5 / 11.0),   // 0.773 — letter/short
+  a4('A4',         '210 × 297 mm', 210.0 / 297.0),     // 0.707 — standard A4
+  longBond('Long Bond', '8.5 × 13"', 8.5 / 13.0);     // 0.654 — legal/long
+
+  const PaperSize(this.label, this.dimensions, this.ratio);
+  final String label;
+  final String dimensions; // shown as subtitle in the toggle
+  final double ratio;      // portrait: width ÷ height
+
+  /// Short tag embedded in the filename so Python can detect paper size.
+  String get fileTag {
+    switch (this) {
+      case PaperSize.shortBond: return 'SHORT';
+      case PaperSize.a4:        return 'A4';
+      case PaperSize.longBond:  return 'LONG';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GathererScannerView
+// ═══════════════════════════════════════════════════════════════════════════════
+
 class GathererScannerView extends StatefulWidget {
-  final VoidCallback onScan;
+  final Function(String path) onScan;
   final VoidCallback onOpenSync;
   final int queueCount;
   final void Function(String url)? onSendFormLink;
+  final VoidCallback? onMenuPressed;
 
   const GathererScannerView({
     super.key,
@@ -16,456 +50,810 @@ class GathererScannerView extends StatefulWidget {
     required this.onOpenSync,
     required this.queueCount,
     this.onSendFormLink,
+    this.onMenuPressed,
   });
 
   @override
   State<GathererScannerView> createState() => _GathererScannerViewState();
 }
 
-class _GathererScannerViewState extends State<GathererScannerView> with SingleTickerProviderStateMixin {
-  CameraController? _cameraController;
-  bool _isCameraInitialized = false;
-  bool _isCheckingQuality = false;
+class _GathererScannerViewState extends State<GathererScannerView>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  // ── Camera state ─────────────────────────────────────────────────────────────
+  CameraController? _controller;
+  bool _isInitialized = false;
+  bool _isTakingPicture = false;
+  bool _isFocusing = false;
+  String? _capturedImagePath;
+  FlashMode _flashMode = FlashMode.off;
+  Offset? _focusPoint;
+  bool _showOrientationWarning = false;
 
-  late AnimationController _scanLineController;
+  // ── Blur Detection state ─────────────────────────────────────────────────────
+  bool _isBlurry = false;
+  double _blurScore = 0;
+  bool _isCheckingBlur = false;
+
+  // ── Sensor state (Tilt Guard) ────────────────────────────────────────────────
+  double _tiltAngle = 0;
+  StreamSubscription? _accelSub;
+
+  // ── Paper size selection ──────────────────────────────────────────────────────
+  PaperSize _selectedPaper = PaperSize.a4;
+
+  // ── Frame-ready animation: primary colour → greenAccent ──────────────────────
+  late AnimationController _frameAnimCtrl;
+  late Animation<Color?> _frameColorAnim;
+
+  bool _isInitializing = false;
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Lifecycle
+  // ══════════════════════════════════════════════════════════════════════════════
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
+    WidgetsBinding.instance.addObserver(this);
+    _frameAnimCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _frameColorAnim = ColorTween(
+      begin: AppColors.primary,
+      end: Colors.greenAccent,
+    ).animate(CurvedAnimation(parent: _frameAnimCtrl, curve: Curves.easeOut));
 
-    _scanLineController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    _accelSub = accelerometerEventStream().listen((e) {
+      // Improved Tilt Logic:
+      // We check if the phone is mostly upright (wall scan) or flat (table scan).
+      final double x = e.x;
+      final double y = e.y;
+      final double z = e.z;
+      // Calculate total magnitude to normalize
+      final double g = sqrt(x * x + y * y + z * z);
+
+      if (g < 1.0) return; // Ignore if in freefall or invalid
+
+      double tilt;
+      if (z.abs() > 7.0) {
+        // CASE: Phone is mostly FLAT (Table scanning)
+        // We use a higher dampening for flat mode to avoid jumpy warnings
+        tilt = acos((z.abs() / g).clamp(-1.0, 1.0)) * 180 / pi;
+        // Substantial buffer: if it's less than 8 degrees, call it zero
+        if (tilt < 8) tilt = 0;
+      } else {
+        // CASE: Phone is mostly UPRIGHT (Wall scanning)
+        tilt = asin((x.abs() / g).clamp(-1.0, 1.0)) * 180 / pi;
+      }
+
+      if (mounted) setState(() => _tiltAngle = tilt);
+    });
+
+    _initializeCamera();
   }
 
-  Future<void> _initializeCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
 
-      _cameraController = CameraController(
-        cameras.firstWhere((cam) => cam.lensDirection == CameraLensDirection.back, orElse: () => cameras.first),
-        ResolutionPreset.high,
-        enableAudio: false,
-      );
-
-      await _cameraController!.initialize();
-
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      setState(() => _isInitialized = false);
+      
+      final CameraController? c = _controller;
+      _controller = null;
+      c?.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_controller == null || !_isInitialized) {
+        _initializeCamera();
       }
-    } catch (e) {
-      debugPrint('Camera Initialization Error: $e');
     }
   }
 
   @override
   void dispose() {
-    _cameraController?.dispose();
-    _scanLineController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _accelSub?.cancel();
+    _frameAnimCtrl.dispose();
+    _isInitialized = false;
+    final c = _controller;
+    _controller = null;
+    c?.dispose();
     super.dispose();
   }
 
-  Future<void> _captureAndCheckQuality() async {
-    if (!_isCameraInitialized || _cameraController == null || _isCheckingQuality) return;
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Camera helpers
+  // ══════════════════════════════════════════════════════════════════════════════
 
-    setState(() => _isCheckingQuality = true);
+  Future<void> _initializeCamera() async {
+    if (_isInitializing || !mounted) return;
+    _isInitializing = true;
 
     try {
-      final XFile imageFile = await _cameraController!.takePicture();
-      await Future.delayed(const Duration(milliseconds: 1500));
-      widget.onScan();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Capture failed. Try again.'), backgroundColor: AppColors.error),
-      );
-    } finally {
       if (mounted) {
-        setState(() => _isCheckingQuality = false);
+        setState(() => _isInitialized = false);
       }
+
+      final cameras = await availableCameras();
+      if (cameras.isEmpty || !mounted) {
+        _isInitializing = false;
+        return;
+      }
+
+      // Dispose existing controller safely
+      if (_controller != null) {
+        final oldController = _controller;
+        _controller = null;
+        await oldController?.dispose();
+      }
+
+      if (!mounted) {
+        _isInitializing = false;
+        return;
+      }
+
+      final newController = CameraController(
+        cameras.first,
+        ResolutionPreset.max,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+
+      _controller = newController;
+
+      newController.addListener(() {
+        if (!mounted || _controller != newController) return;
+        final isLandscape =
+            newController.value.deviceOrientation ==
+                DeviceOrientation.landscapeLeft ||
+                newController.value.deviceOrientation ==
+                    DeviceOrientation.landscapeRight;
+        if (isLandscape != _showOrientationWarning) {
+          setState(() => _showOrientationWarning = isLandscape);
+        }
+      });
+
+      await newController.initialize();
+      
+      // Check again if we were disposed or replaced during initialization
+      if (!mounted || _controller != newController) {
+        await newController.dispose();
+        return;
+      }
+
+      await newController.setFlashMode(_flashMode);
+      await newController.setFocusMode(FocusMode.auto);
+
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
+    } catch (e) {
+      if (mounted) {
+        debugPrint('Camera init error: $e');
+      }
+    } finally {
+      _isInitializing = false;
     }
   }
 
-  void _openFormLinkModal() {
-    final TextEditingController urlController = TextEditingController();
-    String? errorText;
+  // ── Tap-to-focus ──────────────────────────────────────────────────────────────
+  Future<void> _handleFocus(TapUpDetails details) async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    final size = MediaQuery.of(context).size;
+    final pt = details.localPosition;
+    setState(() => _focusPoint = pt);
+    try {
+      await _controller!
+          .setFocusPoint(Offset(pt.dx / size.width, pt.dy / size.height));
+      await _controller!.setFocusMode(FocusMode.auto);
+    } catch (e) {
+      debugPrint('Focus error: $e');
+    }
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
+  }
 
+  // ── Flash toggle ──────────────────────────────────────────────────────────────
+  Future<void> _toggleFlash() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    final next =
+    _flashMode == FlashMode.off ? FlashMode.torch : FlashMode.off;
+    try {
+      await _controller!.setFlashMode(next);
+      setState(() => _flashMode = next);
+    } catch (e) {
+      debugPrint('Flash error: $e');
+    }
+  }
+
+  // ── Capture: focus-lock → animate green → shoot ───────────────────────────────
+  Future<void> _takePicture() async {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isTakingPicture ||
+        _isFocusing ||
+        _showOrientationWarning ||
+        _tiltAngle > 30) return;
+
+    // Step 1 — lock AF to centre
+    setState(() => _isFocusing = true);
+    try {
+      await _controller!.setFocusPoint(const Offset(0.5, 0.5));
+      await _controller!.setFocusMode(FocusMode.locked);
+    } catch (_) {}
+
+    // Step 2 — animate frame green while AF settles
+    _frameAnimCtrl.forward(from: 0);
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    // Step 3 — shoot
+    setState(() {
+      _isFocusing = false;
+      _isTakingPicture = true;
+    });
+    try {
+      final XFile photo = await _controller!.takePicture();
+      try {
+        await _controller!.setFocusMode(FocusMode.auto);
+      } catch (_) {}
+
+      // Run blur detection before showing preview
+      if (mounted) {
+        setState(() {
+          _isCheckingBlur = true;
+          _capturedImagePath = photo.path;
+        });
+      }
+
+      await _runBlurDetection(photo.path);
+
+      if (mounted) {
+        setState(() {
+          _isCheckingBlur = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Capture error: $e');
+      try {
+        await _controller!.setFocusMode(FocusMode.auto);
+      } catch (_) {}
+    } finally {
+      _frameAnimCtrl.reset();
+      if (mounted) setState(() => _isTakingPicture = false);
+    }
+  }
+
+  // ── Preview actions ───────────────────────────────────────────────────────────
+  void _retake() {
+    if (_capturedImagePath != null) {
+      final f = File(_capturedImagePath!);
+      if (f.existsSync()) try { f.deleteSync(); } catch (_) {}
+    }
+    setState(() {
+      _capturedImagePath = null;
+      _isBlurry = false;
+      _blurScore = 0;
+    });
+  }
+
+  Future<void> _runBlurDetection(String path) async {
+    try {
+      final bytes = await File(path).readAsBytes();
+      // Decode with a frame limit to avoid memory spikes
+      final image = img.decodeImage(bytes);
+      if (image == null) return;
+
+      // 1. Downscale for speed (processing a 12MP image in Dart is slow)
+      final small = img.copyResize(image, width: 640);
+
+      // 2. Grayscale
+      final gray = img.grayscale(small);
+
+      // 3. Laplacian filter for edge detection
+      // Standard 3x3 Laplacian kernel
+      final laplacian = [
+        0,  1, 0,
+        1, -4, 1,
+        0,  1, 0
+      ];
+
+      // Apply convolution
+      final edges = img.convolution(gray, filter: laplacian);
+
+      // 4. Calculate Variance of Laplacian
+      // Higher variance = sharper edges = less blur
+      double sum = 0;
+      double sumSq = 0;
+      final pixelCount = edges.width * edges.height;
+
+      for (final pixel in edges) {
+        // In img 4.x, pixel is an object. luminance gives 0-255
+        final l = pixel.luminance;
+        sum += l;
+        sumSq += l * l;
+      }
+
+      final mean = sum / pixelCount;
+      final variance = (sumSq / pixelCount) - (mean * mean);
+
+      if (mounted) {
+        setState(() {
+          _blurScore = variance;
+          // Threshold of 150-250 is usually safe for 640px document images.
+          // Lower values mean more blurry.
+          _isBlurry = variance < 200;
+        });
+        debugPrint('Blur Detection Score: $variance (isBlurry: $_isBlurry)');
+      }
+    } catch (e) {
+      debugPrint('Blur detection error: $e');
+    }
+  }
+
+  void _acceptImage() {
+    if (_capturedImagePath == null) return;
+
+    // Rename file to include paper size tag so the Python backend can read it
+    // e.g.  SCAN-1234567890_A4.jpg  /  _LONG.jpg  /  _SHORT.jpg
+    final orig = File(_capturedImagePath!);
+    final dir  = orig.parent.path;
+    final base = orig.path
+        .split(Platform.pathSeparator)
+        .last
+        .replaceFirst(RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false), '');
+    final newPath =
+        '$dir${Platform.pathSeparator}${base}_${_selectedPaper.fileTag}.jpg';
+    try {
+      orig.renameSync(newPath);
+      widget.onScan(newPath);
+    } catch (_) {
+      // Rename failed (e.g. cross-device); fall back to original path
+      widget.onScan(_capturedImagePath!);
+    }
+    setState(() => _capturedImagePath = null);
+  }
+
+  void _openFormLinkModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-              ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-                    // FIX: Use a uniform border color so borderRadius works correctly
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.85),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                      border: Border.all(
-                        color: AppColors.primary.withOpacity(0.35),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(
-                          child: Container(
-                            width: 40,
-                            height: 4,
-                            margin: const EdgeInsets.only(bottom: 20),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Icon(Icons.insert_link_rounded, color: AppColors.primary, size: 22),
-                            const SizedBox(width: 10),
-                            const Text(
-                              'Send Form Link',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        TextField(
-                          controller: urlController,
-                          autofocus: true,
-                          keyboardType: TextInputType.url,
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                          cursorColor: AppColors.primary,
-                          decoration: InputDecoration(
-                            hintText: 'Paste Google Form or survey link here...',
-                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
-                            prefixIcon: Icon(Icons.link, color: AppColors.primary.withOpacity(0.7)),
-                            errorText: errorText,
-                            errorStyle: const TextStyle(color: AppColors.error, fontSize: 12),
-                            filled: true,
-                            fillColor: Colors.white.withOpacity(0.07),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: Colors.white.withOpacity(0.15), width: 1),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: AppColors.primary.withOpacity(0.7), width: 1.5),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.error, width: 1),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: AppColors.error, width: 1.5),
-                            ),
-                          ),
-                          onChanged: (_) {
-                            if (errorText != null) {
-                              setModalState(() => errorText = null);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () => Navigator.of(context).pop(),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                                    color: Colors.white.withOpacity(0.06),
-                                  ),
-                                  child: const Center(
-                                    child: Text(
-                                      'Cancel',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w600,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: GestureDetector(
-                                onTap: () {
-                                  final url = urlController.text.trim();
-                                  final uri = Uri.tryParse(url);
-                                  final isValid = uri != null &&
-                                      (uri.scheme == 'http' || uri.scheme == 'https') &&
-                                      uri.host.isNotEmpty;
-
-                                  if (!isValid) {
-                                    setModalState(() => errorText = 'Please enter a valid URL (e.g. https://...)');
-                                    return;
-                                  }
-
-                                  Navigator.of(context).pop();
-                                  if (widget.onSendFormLink != null) {
-                                    widget.onSendFormLink!(url);
-                                  } else {
-                                    debugPrint('Form link submitted: $url');
-                                  }
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text('Form link sent!'),
-                                      backgroundColor: AppColors.primary.withOpacity(0.9),
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: AppColors.primary,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: AppColors.primary.withOpacity(0.4),
-                                        blurRadius: 10,
-                                        spreadRadius: 1,
-                                      ),
-                                    ],
-                                  ),
-                                  child: const Center(
-                                    child: Text(
-                                      'Send',
-                                      style: TextStyle(
-                                        color: AppColors.textInverted,
-                                        fontWeight: FontWeight.bold,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
+      builder: (_) => _FormLinkBottomSheet(
+        controller: TextEditingController(),
+        onSend: (url) => widget.onSendFormLink?.call(url),
+      ),
     );
   }
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Guide-frame geometry — respects paper ratio, clamps to screen
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  /// Returns the Rect for the paper guide frame in screen coordinates.
+  /// Frame is pinned near the top (below the toolbar) rather than centred,
+  /// so there is generous space below for the guidance text + capture button.
+  Rect _frameRect(Size screen, {double hPad = 30.0}) {
+    // How far from screen top the frame starts (approx: safeArea + toolbar height)
+    const topOffset  = 110.0;
+    // Reserve at the bottom for guidance text + capture button
+    const botReserve = 205.0;
+
+    final maxW = screen.width - hPad * 2;
+    final maxH = screen.height - topOffset - botReserve;
+
+    var fw = maxW;
+    var fh = fw / _selectedPaper.ratio;
+
+    // If too tall, constrain by height
+    if (fh > maxH) {
+      fh = maxH;
+      fw = fh * _selectedPaper.ratio;
+    }
+
+    return Rect.fromLTWH(
+      (screen.width - fw) / 2,
+      topOffset,   // ← pinned near top instead of vertically centred
+      fw,
+      fh,
+    );
+  }
+
+  bool get _busy => _isFocusing || _isTakingPicture;
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Build
+  // ══════════════════════════════════════════════════════════════════════════════
+
   @override
   Widget build(BuildContext context) {
-    if (!_isCameraInitialized || _cameraController == null) {
+    final CameraController? controller = _controller;
+
+    if (!_isInitialized || controller == null || !controller.value.isInitialized) {
       return Container(
-        color: Colors.black,
-        width: double.infinity,
-        child: const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        color: const Color(0xFF0F0F0F),
+        child:
+        const Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
 
-    final size = MediaQuery.of(context).size;
-    final scanAreaWidth = size.width * 0.92;
-    final scanAreaHeight = size.height * 0.68;
+    if (_capturedImagePath != null) return _buildPreviewScreen();
 
-    final scanRect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height * 0.45),
-      width: scanAreaWidth,
-      height: scanAreaHeight,
-    );
+    final screen = MediaQuery.of(context).size;
+    final frame = _frameRect(screen);
 
-    return Container(
-      color: Colors.black,
-      child: Stack(
-        fit: StackFit.expand,
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
         children: [
-          CameraPreview(_cameraController!),
-
-          CustomPaint(
-            painter: _ScannerOverlayPainter(scanRect: scanRect),
+          // 1. Camera preview with tap-to-focus
+          Positioned.fill(
+            child: GestureDetector(
+              onTapUp: _handleFocus,
+              child: Center(
+                child: CameraPreview(
+                  controller,
+                  key: ValueKey(controller),
+                ),
+              ),
+            ),
           ),
 
-          // Glowing laser animation
-          AnimatedBuilder(
-            animation: _scanLineController,
-            builder: (context, child) {
-              final currentY = scanRect.top + (_scanLineController.value * scanRect.height);
-              return Positioned(
-                top: currentY,
-                left: scanRect.left,
-                child: Container(
-                  width: scanRect.width,
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    boxShadow: [
-                      BoxShadow(color: AppColors.primary.withOpacity(0.8), blurRadius: 15, spreadRadius: 3),
-                      const BoxShadow(color: Colors.white, blurRadius: 4, spreadRadius: 0),
+          // 2. Dim overlay + aspect-correct guide frame (CustomPainter)
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _frameColorAnim,
+              builder: (_, __) => CustomPaint(
+                painter: _ScanOverlayPainter(
+                  frameRect: frame,
+                  dimColor: Colors.black.withOpacity(0.55),
+                  frameColor: _showOrientationWarning
+                      ? Colors.white24
+                      : (_frameColorAnim.value ?? AppColors.primary),
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Paper-size label (inside top-left of frame)
+          Positioned(
+            left: frame.left + 12,
+            top: frame.top + 12,
+            child: _PaperLabel(label: _selectedPaper.label),
+          ),
+
+          // 4. Tap-to-focus ring
+          if (_focusPoint != null)
+            Positioned(
+              left: _focusPoint!.dx - 30,
+              top: _focusPoint!.dy - 30,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.primary, width: 2),
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+
+          // 5. Orientation warning
+          if (_showOrientationWarning)
+            Container(
+              color: Colors.black87,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.screen_lock_portrait_rounded,
+                        size: 80, color: Colors.white),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'PLEASE HOLD PORTRAIT',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'The scanner works best in upright mode',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 6. UI controls (top bar + bottom guidance + capture button)
+          SafeArea(
+            child: Column(
+              children: [
+                // Top bar — [Flash] [Paper ▼]  |  Spacer  |  [Link] [Sync]
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      // Flash toggle
+                      _ActionButton(
+                        icon: _flashMode == FlashMode.torch
+                            ? Icons.flash_on_rounded
+                            : Icons.flash_off_rounded,
+                        onTap: _toggleFlash,
+                        activeColor: _flashMode == FlashMode.torch
+                            ? Colors.yellow
+                            : Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+
+                      // ── Compact paper-size dropdown ─────
+                      _PaperDropdown(
+                        selected: _selectedPaper,
+                        onChanged: (p) =>
+                            setState(() => _selectedPaper = p),
+                      ),
+
+                      const Spacer(),
+                      _ActionButton(
+                        icon: Icons.link_rounded,
+                        onTap: _openFormLinkModal,
+                        activeColor: AppColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      _ActionButton(
+                        icon: Icons.sync_rounded,
+                        onTap: widget.onOpenSync,
+                        badge: widget.queueCount,
+                      ),
                     ],
                   ),
                 ),
-              );
-            },
-          ),
 
-          // TOP NAVIGATION BAR — SCANNER label left, form link + sync buttons right
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 10,
-            left: 20,
-            right: 20,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'SCANNER',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
-                ),
-                Row(
-                  children: [
-                    // Send Form Link button — sits just to the left of sync
-                    GestureDetector(
-                      onTap: _openFormLinkModal,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.5),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppColors.primary.withOpacity(0.5)),
-                        ),
-                        child: const Icon(Icons.insert_link_rounded, color: AppColors.primary, size: 28),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Sync button
-                    GestureDetector(
-                      onTap: widget.onOpenSync,
-                      child: Stack(
-                        alignment: Alignment.topRight,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.5),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withOpacity(0.2)),
+                const Spacer(),
+
+                // Bottom guidance text
+                _buildBottomGuidance(),
+                const SizedBox(height: 24),
+
+                // Capture button
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 40),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _takePicture,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _busy ? Colors.white38 : Colors.white,
+                              width: 4,
                             ),
-                            child: const Icon(Icons.cloud_sync, color: Colors.white, size: 28),
                           ),
-                          if (widget.queueCount > 0)
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
-                              child: Text(
-                                '${widget.queueCount}',
-                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              ),
+                          child: Container(
+                            margin: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _busy ? Colors.white38 : Colors.white,
                             ),
-                        ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      const Text(
+                        'TAP TO CAPTURE',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                            fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          // Bottom Controls
+  Widget _buildBottomGuidance() {
+    if (_tiltAngle > 30) {
+      return Column(children: [
+        const Icon(Icons.screen_rotation, color: Colors.redAccent, size: 36),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.7),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+          ),
+          child: Text(
+            'TILT: ${_tiltAngle.toStringAsFixed(0)}° — HOLD STRAIGHT',
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ]);
+    }
+    if (_isFocusing) {
+      return const Column(children: [
+        CircularProgressIndicator(color: Colors.greenAccent, strokeWidth: 2.5),
+        SizedBox(height: 10),
+        Text('FOCUSING…',
+            style: TextStyle(
+                color: Colors.greenAccent,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                fontSize: 13)),
+      ]);
+    }
+    if (_isTakingPicture) {
+      return const Column(children: [
+        CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
+        SizedBox(height: 10),
+        Text('HOLD STEADY…',
+            style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                fontSize: 13)),
+      ]);
+    }
+    return Column(children: [
+      Text(
+        'FIT ${_selectedPaper.label.toUpperCase()} PAPER INSIDE THE FRAME',
+        style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Leave a gap between paper and frame edges',
+        style: TextStyle(color: Colors.white70, fontSize: 11),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Hold steady  •  Plain background  •  Good lighting',
+        style: TextStyle(
+            color: Colors.white.withOpacity(0.55), fontSize: 11),
+      ),
+    ]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Preview screen
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  Widget _buildPreviewScreen() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child:
+            Image.file(File(_capturedImagePath!), fit: BoxFit.contain),
+          ),
+
+          // Quality hint & Blur Warning
           SafeArea(
             child: Align(
-              alignment: Alignment.bottomCenter,
+              alignment: Alignment.topCenter,
               child: Padding(
-                padding: const EdgeInsets.only(bottom: 40.0),
+                padding: const EdgeInsets.only(top: 16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _isCheckingQuality ? AppColors.warning.withOpacity(0.8) : Colors.black.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_isCheckingQuality) ...[
-                                const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
-                                const SizedBox(width: 12),
-                              ],
-                              Text(
-                                _isCheckingQuality ? 'Validating Clarity...' : 'Align SS Form 2 in brackets',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    GestureDetector(
-                      onTap: _captureAndCheckQuality,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        width: _isCheckingQuality ? 76 : 88,
-                        height: _isCheckingQuality ? 76 : 88,
+                    if (_isCheckingBlur)
+                      _BlurStatusTag(
+                        icon: Icons.sync,
+                        label: 'ANALYZING SHARPNESS...',
+                        color: Colors.white.withOpacity(0.8),
+                        isSpinning: true,
+                      )
+                    else if (_isBlurry)
+                      _BlurStatusTag(
+                        icon: Icons.warning_amber_rounded,
+                        label: 'IMAGE APPEARS BLURRY',
+                        color: Colors.orangeAccent,
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.2),
-                          border: Border.all(color: Colors.white, width: 3),
+                          color: Colors.black.withOpacity(0.65),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: AppColors.primary.withOpacity(0.4)),
                         ),
-                        child: Center(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            width: _isCheckingQuality ? 32 : 70,
-                            height: _isCheckingQuality ? 32 : 70,
-                            decoration: BoxDecoration(
-                              color: _isCheckingQuality ? AppColors.primary : Colors.white,
-                              shape: BoxShape.rectangle,
-                              borderRadius: BorderRadius.circular(_isCheckingQuality ? 8 : 50),
-                            ),
-                          ),
+                        child: Text(
+                          '${_selectedPaper.label}  •  Check all 4 corners are visible & image is sharp',
+                          style:
+                          const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
+            ),
+          ),
+
+          // Retake / Use buttons
+          SafeArea(
+            child: Column(
+              children: [
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 50),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.95),
+                        Colors.transparent
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _retake,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                                color: Colors.white, width: 2),
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15)),
+                          ),
+                          child: const Text('RETAKE',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2)),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _acceptImage,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.black,
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15)),
+                            elevation: 0,
+                          ),
+                          child: const Text('USE PHOTO',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -474,59 +862,451 @@ class _GathererScannerViewState extends State<GathererScannerView> with SingleTi
   }
 }
 
-class _ScannerOverlayPainter extends CustomPainter {
-  final Rect scanRect;
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CustomPainter — dims outside guide frame, draws corner brackets + outline
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  _ScannerOverlayPainter({required this.scanRect});
+class _ScanOverlayPainter extends CustomPainter {
+  final Rect frameRect;
+  final Color dimColor;
+  final Color frameColor;
+
+  const _ScanOverlayPainter({
+    required this.frameRect,
+    required this.dimColor,
+    required this.frameColor,
+  });
+
+  static const _radius     = Radius.circular(12);
+  static const _bracketLen = 34.0;
+  static const _bracketW   = 3.5;
+  static const _borderW    = 1.5;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final backgroundPaint = Paint()..color = Colors.black.withOpacity(0.7);
-    final backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final rrect = RRect.fromRectAndRadius(frameRect, _radius);
 
-    final holePath = Path()..addRRect(RRect.fromRectAndRadius(scanRect, const Radius.circular(16)));
-    final finalPath = Path.combine(PathOperation.difference, backgroundPath, holePath);
+    // Dim overlay with transparent hole where the guide frame is
+    canvas.drawPath(
+      Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+        ..addRRect(rrect)
+        ..fillType = PathFillType.evenOdd,
+      Paint()..color = dimColor,
+    );
 
-    canvas.drawPath(finalPath, backgroundPaint);
+    // Faint full outline
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = frameColor.withOpacity(0.4)
+        ..strokeWidth = _borderW
+        ..style = PaintingStyle.stroke,
+    );
 
-    final borderPaint = Paint()
-      ..color = AppColors.primary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
+    // Bright corner brackets
+    final bp = Paint()
+      ..color = frameColor
+      ..strokeWidth = _bracketW
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
 
-    const double cornerLength = 45.0;
-    const double r = 16.0;
+    _bracket(canvas, bp, frameRect.topLeft,      1,  1);
+    _bracket(canvas, bp, frameRect.topRight,    -1,  1);
+    _bracket(canvas, bp, frameRect.bottomLeft,   1, -1);
+    _bracket(canvas, bp, frameRect.bottomRight, -1, -1);
+  }
 
-    // Top Left Corner
-    canvas.drawPath(Path()
-      ..moveTo(scanRect.left, scanRect.top + cornerLength)
-      ..lineTo(scanRect.left, scanRect.top + r)
-      ..quadraticBezierTo(scanRect.left, scanRect.top, scanRect.left + r, scanRect.top)
-      ..lineTo(scanRect.left + cornerLength, scanRect.top), borderPaint);
-
-    // Top Right Corner
-    canvas.drawPath(Path()
-      ..moveTo(scanRect.right - cornerLength, scanRect.top)
-      ..lineTo(scanRect.right - r, scanRect.top)
-      ..quadraticBezierTo(scanRect.right, scanRect.top, scanRect.right, scanRect.top + r)
-      ..lineTo(scanRect.right, scanRect.top + cornerLength), borderPaint);
-
-    // Bottom Left Corner
-    canvas.drawPath(Path()
-      ..moveTo(scanRect.left, scanRect.bottom - cornerLength)
-      ..lineTo(scanRect.left, scanRect.bottom - r)
-      ..quadraticBezierTo(scanRect.left, scanRect.bottom, scanRect.left + r, scanRect.bottom)
-      ..lineTo(scanRect.left + cornerLength, scanRect.bottom), borderPaint);
-
-    // Bottom Right Corner
-    canvas.drawPath(Path()
-      ..moveTo(scanRect.right - cornerLength, scanRect.bottom)
-      ..lineTo(scanRect.right - r, scanRect.bottom)
-      ..quadraticBezierTo(scanRect.right, scanRect.bottom, scanRect.right, scanRect.bottom - r)
-      ..lineTo(scanRect.right, scanRect.bottom - cornerLength), borderPaint);
+  void _bracket(Canvas c, Paint p, Offset corner, double dx, double dy) {
+    c.drawLine(corner, corner + Offset(dx * _bracketLen, 0), p);
+    c.drawLine(corner, corner + Offset(0, dy * _bracketLen), p);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(_ScanOverlayPainter old) =>
+      old.frameColor != frameColor ||
+          old.frameRect != frameRect ||
+          old.dimColor != dimColor;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Compact paper-size dropdown (sits next to the flash button in the top bar)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _PaperDropdown extends StatelessWidget {
+  final PaperSize selected;
+  final ValueChanged<PaperSize> onChanged;
+  const _PaperDropdown({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<PaperSize>(
+      onSelected: onChanged,
+      color: const Color(0xFF1E1E1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      offset: const Offset(0, 54),   // drops directly below the button
+      itemBuilder: (_) => PaperSize.values.map((p) {
+        final active = p == selected;
+        return PopupMenuItem<PaperSize>(
+          value: p,
+          padding: EdgeInsets.zero,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: active
+                ? BoxDecoration(
+              color: AppColors.primary.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+            )
+                : null,
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      p.label,
+                      style: TextStyle(
+                        color: active ? AppColors.primary : Colors.white,
+                        fontSize: 14,
+                        fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      p.dimensions,
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                if (active)
+                  const Icon(Icons.check_rounded,
+                      color: AppColors.primary, size: 18),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+      // The button itself
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              selected.label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.expand_more_rounded,
+                color: Colors.white70, size: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Paper size toggle — full-width 3-option segmented selector (kept for reference)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _PaperSizeToggle extends StatelessWidget {
+  final PaperSize selected;
+  final ValueChanged<PaperSize> onChanged;
+  const _PaperSizeToggle({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: PaperSize.values.map((p) {
+          final active = p == selected;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(p),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      p.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: active ? Colors.black : Colors.white,
+                        fontSize: 13,
+                        fontWeight: active
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      p.dimensions,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: active ? Colors.black54 : Colors.white38,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ── Small label shown inside the guide frame ──────────────────────────────────
+
+class _PaperLabel extends StatelessWidget {
+  final String label;
+  const _PaperLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.50),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            color: Colors.white60, fontSize: 11, letterSpacing: 1),
+      ),
+    );
+  }
+}
+
+class _BlurStatusTag extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isSpinning;
+
+  const _BlurStatusTag({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.isSpinning = false,
+  });
+
+  @override
+  State<_BlurStatusTag> createState() => _BlurStatusTagState();
+}
+
+class _BlurStatusTagState extends State<_BlurStatusTag>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2));
+    if (widget.isSpinning) _ctrl.repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.85),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: widget.color.withOpacity(0.5), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+              color: widget.color.withOpacity(0.2),
+              blurRadius: 12,
+              spreadRadius: 2)
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.isSpinning)
+            RotationTransition(
+              turns: _ctrl,
+              child: Icon(widget.icon, color: widget.color, size: 20),
+            )
+          else
+            Icon(widget.icon, color: widget.color, size: 20),
+          const SizedBox(width: 10),
+          Text(
+            widget.label,
+            style: TextStyle(
+              color: widget.color,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Existing helper widgets (unchanged public API)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? activeColor;
+  final int badge;
+
+  const _ActionButton({
+    required this.icon,
+    required this.onTap,
+    this.activeColor,
+    this.badge = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.10),
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color:
+                  activeColor?.withOpacity(0.4) ?? Colors.white24),
+            ),
+            child: Icon(icon, color: activeColor ?? Colors.white, size: 22),
+          ),
+          if (badge > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                    color: AppColors.error, shape: BoxShape.circle),
+                child: Text('$badge',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormLinkBottomSheet extends StatelessWidget {
+  final TextEditingController controller;
+  final Function(String) onSend;
+
+  const _FormLinkBottomSheet(
+      {required this.controller, required this.onSend});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding:
+      EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Process Online Form',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold)),
+            const SizedBox(height: 24),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Enter Google Form URL',
+                hintStyle: const TextStyle(color: Colors.white24),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(15),
+                    borderSide: BorderSide.none),
+                prefixIcon:
+                const Icon(Icons.link, color: AppColors.primary),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15)),
+                ),
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    onSend(controller.text);
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('Add to Queue',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+      ),
+    );
+  }
 }

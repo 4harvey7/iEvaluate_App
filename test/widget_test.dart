@@ -10,7 +10,7 @@ void main() {
     final provider = SubjectsProvider();
     await provider.load();
 
-    await tester.pumpWidget(MyApp(subjectsProvider: provider));
+    await tester.pumpWidget(const MyApp());
     await tester.pumpAndSettle();
 
     expect(find.text('iEvaluate Portal'), findsOneWidget);

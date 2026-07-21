@@ -39,6 +39,6 @@ class AppColors {
   // Convenience for hero gradients
   static List<Color> get heroGradient => [
         textPrimary,
-        textPrimary.withOpacity(0.85),
+        textPrimary.withValues(alpha: 0.85),
       ];
 }

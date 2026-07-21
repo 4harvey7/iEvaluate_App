@@ -1,332 +1,486 @@
-// lib/data_validation_screen.dart
+// lib/gatherer/data_validation_screen.dart
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-// Notice: We removed the gatherer_drawer.dart import because this screen doesn't need its own drawer anymore!
+import 'failed_scans_screen.dart';
 
 class DataValidationScreen extends StatefulWidget {
-  const DataValidationScreen({super.key});
+  final String userId;
+  const DataValidationScreen({super.key, required this.userId});
 
   @override
   State<DataValidationScreen> createState() => _DataValidationScreenState();
 }
 
-class _DataValidationScreenState extends State<DataValidationScreen> {
-  // --- UPDATED SS FORM 2 FLAGGED DATA ---
-  final List<Map<String, dynamic>> _flaggedForms = [
-    {
-      'id': 'FORM-2099',
-      'instructor': 'Kazuto Kirigaya',
-      'subject': 'CS202',
-      'remarks': 'Great class and very helpful.',
-      'confidence': 0.82,
-      'issue': 'Multiple selections detected on Question 2.',
-      'scores': [
-        {'q': 'Gives reasonable course / subject assignments.', 'val': '5'},
-        {'q': 'Earns appreciation and kind attention...', 'val': '?'},
-        {'q': 'Shows deep interest and concern...', 'val': '4'},
-      ]
-    },
-    {
-      'id': 'FORM-2100',
-      'instructor': 'Asuna Yuuki',
-      'subject': 'IT305',
-      'remarks': '',
-      'confidence': 0.75,
-      'issue': 'Missing Data: "Remarks and Suggestions" is required.',
-      'scores': [
-        {'q': 'Presents lesson clearly, methodically...', 'val': '5'},
-        {'q': 'Motivates the students to learn.', 'val': '5'},
-      ]
+class _DataValidationScreenState extends State<DataValidationScreen>
+    with SingleTickerProviderStateMixin {
+  final _supabase = Supabase.instance.client;
+  late TabController _tabController;
+
+  // ── Flagged records tab ────────────────────────────────────────────────────
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _flaggedForms = [];
+
+  // ── Failed scans badge count ───────────────────────────────────────────────
+  int _failedCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _fetchFlaggedData();
+    _loadFailedCount();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFailedCount() async {
+    final count = await FailedScansScreen.getPendingCount(widget.userId);
+    if (mounted) setState(() => _failedCount = count);
+  }
+
+  Future<void> _fetchFlaggedData() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await _supabase
+          .from('raw_GoogleSheet_data_result')
+          .select()
+          .isFilter('instructor_ID', null)
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          _flaggedForms = List<Map<String, dynamic>>.from(response);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching flagged data: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
-  ];
+  }
+
+  // ── Flagged record detail sheet ────────────────────────────────────────────
 
   void _showValidationSheet(Map<String, dynamic> form) {
-    final TextEditingController instructorController = TextEditingController(text: form['instructor']);
-    final TextEditingController subjectController = TextEditingController(text: form['subject']);
-    final TextEditingController remarksController = TextEditingController(text: form['remarks']);
+    final instructorCtrl =
+        TextEditingController(text: form['instructor'] ?? '');
+    final remarksCtrl =
+        TextEditingController(text: form['Remarks_and_Suggestions'] ?? '');
 
-    List<Map<String, dynamic>> scoreItems = List.from(form['scores']);
-    List<TextEditingController> scoreControllers = scoreItems.map((item) {
-      return TextEditingController(text: item['val']);
-    }).toList();
+    final Map<String, TextEditingController> scoreCtrl = {};
+    for (int i = 1; i <= 10; i++) {
+      scoreCtrl['m$i'] =
+          TextEditingController(text: form['m$i']?.toString() ?? '');
+      scoreCtrl['p$i'] =
+          TextEditingController(text: form['p$i']?.toString() ?? '');
+    }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, _) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Container(
-            height: MediaQuery.of(context).size.height * 0.90,
+            height: MediaQuery.of(ctx).size.height * 0.90,
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
               color: AppColors.background,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. HEADER & ALERT
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Itemized Data Validation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                    IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
+                    const Text('Edit Record',
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary)),
+                    IconButton(
+                        icon: const Icon(Icons.close,
+                            color: AppColors.textSecondary),
+                        onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.warning.withOpacity(0.5))),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text('System Flag: ${form['issue']}', style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold, fontSize: 13))),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 16),
-
-                // 2. SCROLLABLE MIDDLE SECTION
                 Expanded(
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Original Scanned Document', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Container(
-                          height: 120,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                              color: AppColors.textPrimary,
-                              borderRadius: BorderRadius.circular(12),
-                              image: const DecorationImage(image: AssetImage('assets/images/CTU_logo.png'), fit: BoxFit.cover, opacity: 0.3)
-                          ),
-                          child: const Center(child: Text('Tap to zoom to error zone', style: TextStyle(color: Colors.white54))),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // General Info
-                        const Text('Header Data', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                        const Text('Instructor & Remarks',
+                            style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(child: _buildValidationInput(label: 'Instructor', controller: instructorController, hasError: RegExp(r'[0-9]').hasMatch(form['instructor']))),
-                            const SizedBox(width: 12),
-                            Expanded(child: _buildValidationInput(label: 'Subject', controller: subjectController, hasError: false)),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Itemized Scores
-                        const Text('Itemized Evaluation Scores (1-5)', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                        _sheetField('Instructor Name (Raw)', instructorCtrl),
                         const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: scoreItems.length,
-                            separatorBuilder: (context, index) => const Divider(height: 16),
-                            itemBuilder: (context, index) {
-                              String qText = scoreItems[index]['q'];
-                              TextEditingController sCtrl = scoreControllers[index];
-                              bool isError = double.tryParse(sCtrl.text) == null || double.parse(sCtrl.text) > 5 || double.parse(sCtrl.text) < 1;
-
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    flex: 4,
-                                    child: Text(qText, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary)),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    flex: 1,
-                                    child: SizedBox(
-                                      height: 45,
-                                      child: TextField(
-                                        controller: sCtrl,
-                                        keyboardType: TextInputType.number,
-                                        textAlign: TextAlign.center,
-                                        decoration: InputDecoration(
-                                          filled: true,
-                                          fillColor: isError ? AppColors.error.withOpacity(0.1) : AppColors.background,
-                                          contentPadding: EdgeInsets.zero,
-                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? AppColors.error : Colors.transparent)),
-                                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: isError ? AppColors.error : Colors.transparent)),
-                                        ),
-                                        style: TextStyle(fontWeight: FontWeight.bold, color: isError ? AppColors.error : AppColors.textPrimary),
-                                      ),
-                                    ),
-                                  )
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Remarks Info
                         TextField(
-                          controller: remarksController,
-                          maxLines: 2,
+                          controller: remarksCtrl,
+                          maxLines: 3,
                           decoration: InputDecoration(
-                            labelText: 'Remarks & Suggestions (Required)',
+                            labelText: 'Remarks & Suggestions',
                             filled: true,
                             fillColor: AppColors.surface,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? AppColors.error : Colors.transparent)),
-                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: form['remarks'].trim().isEmpty ? AppColors.error : Colors.transparent)),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
+                        const SizedBox(height: 24),
+                        const Text('Management Scores (1–5)',
+                            style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        _scoreGrid(scoreCtrl, 'm'),
+                        const SizedBox(height: 24),
+                        const Text('Performance Scores (1–5)',
+                            style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        _scoreGrid(scoreCtrl, 'p'),
                         const SizedBox(height: 24),
                       ],
                     ),
                   ),
                 ),
-
-                // 3. ACTION BUTTONS
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.error), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Form rejected.')));
-                        },
-                        child: const Text('Reject', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            side: const BorderSide(color: AppColors.error),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12))),
+                        onPressed: () => _handleDelete(form['id']),
+                        child: const Text('Discard',
+                            style: TextStyle(
+                                color: AppColors.error,
+                                fontWeight: FontWeight.bold)),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2,
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: AppColors.success, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                        onPressed: () {
-                          setState(() => _flaggedForms.remove(form));
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data approved!'), backgroundColor: AppColors.success));
-                        },
-                        child: const Text('Approve & Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                            padding:
+                                const EdgeInsets.symmetric(vertical: 16),
+                            backgroundColor: AppColors.success,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12))),
+                        onPressed: () => _handleSave(form,
+                            instructorCtrl.text, remarksCtrl.text, scoreCtrl),
+                        child: const Text('Approve & Sync',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
                       ),
-                    ),
-                  ],
-                )
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildValidationInput({required String label, required TextEditingController controller, required bool hasError}) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? AppColors.error : Colors.transparent)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: hasError ? AppColors.error : Colors.transparent)),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 👈 NEW: Scaffold, AppBar, and Drawer are completely removed!
-    // This widget now simply returns a SafeArea so it fits perfectly inside the parent screen.
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Error Detection System', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text('The AI requires human verification for the following scanned documents before they can be added to the database.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(12)),
-                      child: Text('${_flaggedForms.length} Pending Verifications', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: _flaggedForms.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.verified, color: AppColors.success, size: 80),
-                  const SizedBox(height: 16),
-                  const Text('All Data Validated!', style: TextStyle(color: AppColors.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
-                  const Text('Database is clean and up to date.', style: TextStyle(color: AppColors.textSecondary)),
-                ],
-              ),
-            )
-                : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: _flaggedForms.length,
-              itemBuilder: (context, index) {
-                final form = _flaggedForms[index];
-                return Card(
-                  color: AppColors.surface,
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: AppColors.warning.withOpacity(0.5), width: 1.5)),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => _showValidationSheet(form),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(form['id'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                              Text('Confidence: ${(form['confidence'] * 100).toInt()}%', style: TextStyle(fontWeight: FontWeight.bold, color: form['confidence'] < 0.7 ? AppColors.error : AppColors.warning, fontSize: 12)),
-                            ],
-                          ),
-                          const Divider(),
-                          const SizedBox(height: 4),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Icon(Icons.error_outline, color: AppColors.warning, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(form['issue'], style: const TextStyle(color: AppColors.textPrimary, fontSize: 14))),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          const Align(
-                            alignment: Alignment.centerRight,
-                            child: Text('Tap to Resolve ➔', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12)),
-                          )
-                        ],
-                      ),
-                    ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetField(String label, TextEditingController ctrl) {
+    return TextField(
+      controller: ctrl,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: AppColors.surface,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _scoreGrid(
+      Map<String, TextEditingController> controllers, String prefix) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        childAspectRatio: 1.2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: 10,
+      itemBuilder: (_, i) {
+        final key = '$prefix${i + 1}';
+        return TextField(
+          controller: controllers[key],
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
+            labelText: key.toUpperCase(),
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: EdgeInsets.zero,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          style:
+              const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleSave(
+      Map<String, dynamic> form,
+      String instructorName,
+      String remarks,
+      Map<String, TextEditingController> scoreCtrl) async {
+    try {
+      final updates = <String, dynamic>{
+        'instructor': instructorName,
+        'Remarks_and_Suggestions': remarks,
+      };
+      for (final e in scoreCtrl.entries) {
+        updates[e.key] = int.tryParse(e.value.text) ?? 0;
+      }
+      await _supabase
+          .from('raw_GoogleSheet_data_result')
+          .update(updates)
+          .eq('id', form['id']);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Data updated and queued for processing.'),
+            backgroundColor: AppColors.success));
+        _fetchFlaggedData();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error saving: $e'),
+          backgroundColor: AppColors.error));
+    }
+  }
+
+  Future<void> _handleDelete(dynamic id) async {
+    try {
+      await _supabase
+          .from('raw_GoogleSheet_data_result')
+          .delete()
+          .eq('id', id);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Record discarded.')));
+        _fetchFlaggedData();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error deleting: $e'),
+          backgroundColor: AppColors.error));
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Data Validation',
+                    style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Review unlinked records and correct failed scans.',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+
+          // ── TabBar ────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: AppColors.primary,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: AppColors.textSecondary,
+              dividerColor: AppColors.borderSubtle,
+              tabs: [
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.fact_check_outlined, size: 16),
+                      const SizedBox(width: 6),
+                      const Text('Flagged Records',
+                          style: TextStyle(fontSize: 13)),
+                      if (_flaggedForms.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        _badge(_flaggedForms.length, AppColors.warning),
+                      ],
+                    ],
                   ),
-                );
-              },
+                ),
+                Tab(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 16),
+                      const SizedBox(width: 6),
+                      const Text('Failed Scans',
+                          style: TextStyle(fontSize: 13)),
+                      if (_failedCount > 0) ...[
+                        const SizedBox(width: 6),
+                        _badge(_failedCount, AppColors.error),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Tab content ───────────────────────────────────────────────────
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildFlaggedTab(),
+                FailedScansScreen(userId: widget.userId),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _badge(int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  // ── Flagged records tab ────────────────────────────────────────────────────
+
+  Widget _buildFlaggedTab() {
+    if (_isLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary));
+    }
+    if (_flaggedForms.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.verified,
+                color: AppColors.success.withValues(alpha: 0.5), size: 80),
+            const SizedBox(height: 16),
+            const Text('No pending verifications',
+                style: TextStyle(
+                    color: AppColors.textSecondary, fontSize: 16)),
+            const SizedBox(height: 6),
+            const Text('All records have been linked to an instructor.',
+                style: TextStyle(
+                    color: AppColors.textTertiary, fontSize: 12)),
+          ],
+        ),
+      );
+    }
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: _fetchFlaggedData,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        itemCount: _flaggedForms.length,
+        itemBuilder: (_, i) {
+          final form = _flaggedForms[i];
+          return Card(
+            color: AppColors.surface,
+            elevation: 0,
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                  color: AppColors.warning.withValues(alpha: 0.35),
+                  width: 1.2),
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_search,
+                    color: AppColors.warning, size: 20),
+              ),
+              title: Text(
+                  form['instructor'] ?? 'Unknown Instructor',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary)),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  Text('Student ID: ${form['student_id'] ?? 'N/A'}',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary)),
+                  Text('Date: ${form['submitted_date'] ?? 'N/A'}',
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary)),
+                ],
+              ),
+              trailing: const Icon(Icons.chevron_right,
+                  color: AppColors.primary),
+              onTap: () => _showValidationSheet(form),
+            ),
+          );
+        },
       ),
     );
   }
