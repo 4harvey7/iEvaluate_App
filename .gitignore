@@ -12,6 +12,12 @@
 .swiftpm/
 migrate_working_dir/
 
+# Environment / Secrets
+# .env is listed here but is ALSO excluded from pubspec.yaml assets.
+# .env.json is used with --dart-define-from-file at build time — never commit it.
+.env
+.env.json
+
 # IntelliJ related
 *.iml
 *.ipr

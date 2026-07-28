@@ -1,0 +1,862 @@
+// evaluation_service.dart
+// this is the big boy service. handles all the evaluation data fetching.
+// talks to supabase, crunches numbers, returns summaries. importente kaayo.
+import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// holds the summary stats for a whole department -- overall score, means, totals, etc.
+// murag the final report card of the department, but for deans to look at
+class EvaluationSummary {
+  final double averageScore;     // overall average score across all faculty in dept
+  final double managementMean;   // average management category score
+  final double performanceMean;  // average performance category score
+  final int totalEvaluations;    // total number of student responses collected
+  final double completionRate;   // how many students actually submitted, 0.0 to 1.0
+  final int facultyCount;        // how many instructors were counted (excludes dept head)
+
+  EvaluationSummary({
+    required this.averageScore,
+    required this.managementMean,
+    required this.performanceMean,
+    required this.totalEvaluations,
+    required this.completionRate,
+    required this.facultyCount,
+  });
+}
+
+// holds performance data for a single instructor -- name, dept, score, trend
+// this is what shows up in the top instructors leaderboard, basin they proud of it
+class InstructorPerformance {
+  final String id;             // instructor user id
+  final String name;           // full name of the instructor
+  final String department;     // what department they belong to
+  final double overallScore;   // their overall evaluation score
+  final int subjectCount;      // how many subjects they teaching this term
+  final String trend;          // "up", "down", or "stable" -- currently hardcoded to "up", bahala na
+
+  InstructorPerformance({
+    required this.id,
+    required this.name,
+    required this.department,
+    required this.overallScore,
+    required this.subjectCount,
+    required this.trend,
+  });
+}
+
+// holds analytics data for a specific subject -- avg score, dept avg, difficulty level, sentiment
+// also contains instructor breakdown so dean can see who teaching that subject and how good they are
+class SubjectAnalytic {
+  final String code;            // subject code like "CS101"
+  final String name;            // full subject name
+  final double avgScore;        // average score across all instructors teaching this subject
+  final double deptAvg;         // department-wide average for comparison
+  final String difficulty;      // "High", "Moderate", or "Low" difficulty based on score
+  final String sentiment;       // "Critical", "Neutral", or "Positive" based on score
+  final String trend;           // trend direction -- currently hardcoded "stable"
+  final int sections;           // how many sections this subject has
+  final String? aiNote;         // optional AI-generated note if score is significantly below dept avg
+  final List<SubjectInstructorPerformance> instructorBreakdown; // per-instructor performance for this subject
+
+  SubjectAnalytic({
+    required this.code,
+    required this.name,
+    required this.avgScore,
+    required this.deptAvg,
+    required this.difficulty,
+    required this.sentiment,
+    required this.trend,
+    required this.sections,
+    this.aiNote,
+    this.instructorBreakdown = const [],
+  });
+}
+
+// holds the performance of one instructor for one specific subject
+// used inside SubjectAnalytic as a breakdown list
+class SubjectInstructorPerformance {
+  final String instructorId;    // instructor user id
+  final String instructorName;  // instructor full name
+  final double avgScore;        // their average score for this subject
+  final int sections;           // number of sections they teach for this subject
+  final int totalResponses;     // total student responses they received
+
+  SubjectInstructorPerformance({
+    required this.instructorId,
+    required this.instructorName,
+    required this.avgScore,
+    required this.sections,
+    this.totalResponses = 0, // defaults to 0 if server give nothing
+  });
+}
+
+// an alert for when an instructor score is dangerously low
+// dean use this to know who need intervention asap, dili ta ignore these
+class ActionAlert {
+  final String type;            // alert type, currently always "Performance"
+  final String title;           // short title of the alert
+  final String desc;            // longer description with the actual score info
+  final String? instructorId;   // who the alert is about
+  final String? instructorName; // their name, for display
+  final String? subjectCode;    // related subject, if applicable
+  final DateTime dateFlagged;   // when this alert was generated
+
+  ActionAlert({
+    required this.type,
+    required this.title,
+    required this.desc,
+    this.instructorId,
+    this.instructorName,
+    this.subjectCode,
+    required this.dateFlagged,
+  });
+}
+
+// a formal intervention report created by a dean for an underperforming instructor
+// gets saved to the database and optionally triggers an email notification
+class InterventionReport {
+  final String id;              // unique ID of this report
+  final String instructorId;   // who the intervention is for
+  final String instructorName; // their name stored in the report
+  final String deanId;         // which dean created this report
+  final String actionType;     // what kind of action is being taken
+  final String notes;          // written notes from the dean
+  final String status;         // "Pending", "Resolved", etc.
+  final String termId;         // which academic term this belongs to
+  final DateTime createdAt;    // when the report was created
+
+  InterventionReport({
+    required this.id,
+    required this.instructorId,
+    required this.instructorName,
+    required this.deanId,
+    required this.actionType,
+    required this.notes,
+    required this.status,
+    required this.termId,
+    required this.createdAt,
+  });
+}
+
+// the main service class -- all database calls live here, not in the widgets
+// dili ta put fetch logic in the UI, importente kaayo to keep this separate
+class EvaluationService {
+  final _supabase = Supabase.instance.client; // the supabase client, our connection to the cloud
+
+  // fetch the currently active academic term ID from system_settings table.
+  // almost every other method need this, so it get called a lot. wala choice.
+  // returns null if no active term found or something go wrong
+  Future<String?> _getActiveTermId() async {
+    try {
+      final settings = await _supabase
+          .from('system_settings')
+          .select('current_term_id')
+          .maybeSingle(); // maybeSingle so it dont crash if no row found
+      
+      final termId = settings?['current_term_id'];
+      debugPrint('EvaluationService - Active Term ID: $termId');
+      return termId; // could be null if nobody set the active term yet
+    } catch (e) {
+      debugPrint('EvaluationService - Error fetching active term: $e');
+      return null; // something broke, return null, caller will handle it
+    }
+  }
+
+  // get the summary stats for the dean's department.
+  // finds the dept, gets all faculty IDs, fetches their scores from overall_total_survey,
+  // then calculates averages for display on the dashboard.
+  // returns empty summary (all zeros) if anything is missing, bahala na the UI show zeros
+  Future<EvaluationSummary> getDepartmentSummary(String userId) async {
+    try {
+      debugPrint('EvaluationService - Fetching summary for Dean: $userId');
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', userId)
+          .maybeSingle(); // find what department this dean belongs to
+
+      if (deptData == null) {
+        debugPrint('EvaluationService - No department found for Dean: $userId');
+        return _emptySummary(); // dean has no dept?? return zeros, dili ta crash
+      }
+      final deptId = deptData['Department_name_ID']; // the department ID we need
+      debugPrint('EvaluationService - Dean belongs to Dept ID: $deptId');
+
+      final termId = await _getActiveTermId(); // need active term for filtering
+      if (termId == null) {
+        debugPrint('EvaluationService - No active term ID found.');
+        return _emptySummary(); // no active term, nothing to show
+      }
+
+      // get all users in the dept, including the dean themselves
+      final facultyRows = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', deptId);
+      
+      // Exclude the dept head themselves -- only count instructor scores
+      // dean should not evaluate themselves, that would be bias, dili pwede
+      final facultyIds = (facultyRows as List)
+          .where((row) => row['user_id'] != null && row['user_id'] != userId)
+          .map((row) => row['user_id'] as String)
+          .toSet()
+          .toList();
+
+      debugPrint('EvaluationService - Found ${facultyIds.length} instructors (excl. dept head) for Dept $deptId');
+
+      if (facultyIds.isEmpty) return _emptySummary(); // no faculty found, show zeros
+
+      // fetch overall survey results for all faculty in this dept for the active term
+      final stats = await _supabase
+          .from('overall_total_survey')
+          .select('''
+            overall_mean, 
+            management_mean, 
+            performance_mean, 
+            total_responses,
+            instructor_id
+          ''')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', facultyIds); // only get rows for our faculty
+      
+      debugPrint('EvaluationService - Found ${stats?.length ?? 0} overall_total_survey records for faculty: $facultyIds');
+
+      if (stats == null || (stats as List).isEmpty) {
+        debugPrint('EvaluationService - No records in overall_total_survey for faculty in term $termId. Dashboard will show 0.0.');
+        return _emptySummary(); // no data found, zeros it is
+      }
+
+      final list = stats as List;
+      double totalOverall = 0;
+      double totalMgmt = 0;
+      double totalPerf = 0;
+      int totalResponses = 0;
+
+      // loop through each faculty record and accumulate the totals
+      for (var row in list) {
+        double mgmt = (row['management_mean'] as num?)?.toDouble() ?? 0.0;
+        double perf = (row['performance_mean'] as num?)?.toDouble() ?? 0.0;
+        double overall = (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+
+        // Fallback logic if the generated column is 0.0 but component means exist
+        // basin the overall_mean column is 0 but we have mgmt and perf, so compute it manually
+        if (overall == 0.0 && (mgmt > 0 || perf > 0)) {
+          overall = double.parse(((mgmt + perf) / 2).toStringAsFixed(2)); // average of two components
+        }
+
+        totalOverall += overall;
+        totalMgmt += mgmt;
+        totalPerf += perf;
+        totalResponses += (row['total_responses'] as int?) ?? 0;
+      }
+
+      final count = list.length;
+      // Calculate rough completion rate: avg responses per faculty / expected max (25 responses = 100%)
+      // 25 is the assumed max number of students per class, dili guarantee accurate
+      final avgResponses = count > 0 ? totalResponses / count : 0;
+      final calculatedRate = (avgResponses / 25.0).clamp(0.0, 1.0); // clamp so it never go above 1.0
+      return EvaluationSummary(
+        averageScore: double.parse((totalOverall / count).toStringAsFixed(2)),
+        managementMean: double.parse((totalMgmt / count).toStringAsFixed(2)),
+        performanceMean: double.parse((totalPerf / count).toStringAsFixed(2)),
+        totalEvaluations: totalResponses,
+        completionRate: double.parse(calculatedRate.toStringAsFixed(2)),
+        facultyCount: facultyIds.length,
+      );
+    } catch (e) {
+      debugPrint('Error fetching department summary: $e');
+      return _emptySummary(); // something broke badly, return zeros so app dont crash
+    }
+  }
+
+  // get school-wide global stats: overall avg score, total instructors, total responses.
+  // used by SAO/admin for the big picture view of the whole university
+  // optionally accepts a termId, otherwise uses the active term
+  Future<Map<String, dynamic>> getGlobalStats({String? termId}) async {
+    final resolvedTermId = termId ?? await _getActiveTermId(); // use provided or fetch active
+    if (resolvedTermId == null) return {}; // no term, no data, return empty map
+
+    final data = await _supabase
+        .from('overall_total_survey')
+        .select('overall_mean, total_responses')
+        .eq('term_id', resolvedTermId); // get all records for this term
+    
+    if (data == null || (data as List).isEmpty) return {}; // nothing in db, return empty
+
+    final list = data as List;
+    double sum = 0;
+    int totalResp = 0;
+    for (var row in list) {
+      sum += (row['overall_mean'] as num?)?.toDouble() ?? 0.0;    // accumulate score
+      totalResp += (row['total_responses'] as int?) ?? 0;          // accumulate responses
+    }
+
+    return {
+      'avgScore': sum / list.length,       // average score across all instructors
+      'totalInstructors': list.length,     // how many instructors have data
+      'totalResponses': totalResp,         // total student responses school-wide
+    };
+  }
+
+  // get average scores grouped by department name.
+  // used for charts that compare departments against each other, murag ranking
+  // returns list of maps with 'dept' and 'score' keys
+  Future<List<Map<String, dynamic>>> getDepartmentAverages({String? termId}) async {
+    final resolvedTermId = termId ?? await _getActiveTermId();
+    if (resolvedTermId == null) return []; // no term, return empty list
+
+    // big join query -- goes from survey results up to department name through multiple tables
+    final data = await _supabase
+        .from('overall_total_survey')
+        .select('''
+          overall_mean,
+          user_info!instructor_id(
+            department_table!user_id(
+              department_name!Department_name_ID(d_name)
+            )
+          )
+        ''')
+        .eq('term_id', resolvedTermId);
+    
+    if (data == null) return [];
+
+    final Map<String, List<double>> deptScores = {}; // accumulate scores per dept name
+    for (var row in (data as List)) {
+      final userInfo = row['user_info'];
+      if (userInfo == null) continue; // skip if no user info, bahala na
+      
+      // handle both List and Map response shapes from supabase joins
+      final List deptTables = userInfo['department_table'] is List 
+          ? userInfo['department_table'] 
+          : [userInfo['department_table']];
+      
+      if (deptTables.isEmpty || deptTables[0] == null) continue; // skip if dept data missing
+
+      final deptTable = deptTables[0];
+      final deptNameData = deptTable['department_name'];
+      
+      String deptName = 'Unknown'; // fallback if dept name missing, murag mystery dept
+      if (deptNameData != null) {
+        deptName = deptNameData['d_name'] ?? 'Unknown';
+      }
+      
+      final score = (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+      deptScores.putIfAbsent(deptName, () => []).add(score); // add score to that dept's list
+    }
+
+    // compute average for each dept and return as list of maps
+    return deptScores.entries.map((e) {
+      final avg = e.value.reduce((a, b) => a + b) / e.value.length;
+      return {
+        'dept': e.key,
+        'score': double.parse(avg.toStringAsFixed(2)), // round to 2 decimal places
+      };
+    }).toList();
+  }
+
+  // get the top 10 instructors by overall score for the active term.
+  // sorted descending so the best comes first. deans like to see who on top.
+  Future<List<InstructorPerformance>> getTopInstructors({String? termId}) async {
+    final resolvedTermId = termId ?? await _getActiveTermId();
+    if (resolvedTermId == null) return []; // no term, nobody on top today
+
+    // big join to get instructor name, dept, and subject count all in one query
+    final data = await _supabase
+        .from('overall_total_survey')
+        .select('''
+          instructor_id,
+          overall_mean,
+          user_info!instructor_id(
+            first_name, 
+            last_name,
+            department_table!user_id(
+              department_name!Department_name_ID(d_name)
+            ),
+            instructor_subjects!instructor_id(id)
+          )
+        ''')
+        .eq('term_id', resolvedTermId)
+        .order('overall_mean', ascending: false) // highest score first
+        .limit(10); // top 10 only, dili need all of them
+
+    if (data == null) return [];
+
+    return (data as List).map((row) {
+      final userInfo = row['user_info'];
+      if (userInfo == null) return null; // no user info, skip this row
+
+      // handle supabase returning dept as List or Map
+      final List deptTables = userInfo['department_table'] is List 
+          ? userInfo['department_table'] 
+          : [userInfo['department_table']];
+      
+      String deptName = 'Unknown'; // default if we cant find the dept name
+      if (deptTables.isNotEmpty && deptTables[0] != null) {
+        final deptNameData = deptTables[0]['department_name'];
+        if (deptNameData != null) {
+          deptName = deptNameData['d_name'] ?? 'Unknown';
+        }
+      }
+      
+      final subjects = userInfo['instructor_subjects'] as List? ?? []; // count their subjects
+
+      return InstructorPerformance(
+        id: row['instructor_id'],
+        name: '${userInfo['first_name']} ${userInfo['last_name']}', // combine first and last name
+        department: deptName,
+        overallScore: (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+        subjectCount: subjects.length, // number of subjects they have assigned
+        trend: 'up', // hardcoded for now, real trend calculation is future work, bahala na
+      );
+    }).whereType<InstructorPerformance>().toList(); // filter out the nulls we skipped
+  }
+
+  // get historical score data for a single instructor across all past terms.
+  // used for trend charts -- shows if instructor improving or declining over time
+  Future<List<Map<String, dynamic>>> getInstructorHistory(String instructorId) async {
+    final data = await _supabase
+        .from('overall_total_survey')
+        .select('overall_mean, academic_terms(semester, academic_year)') // join to get term label
+        .eq('instructor_id', instructorId)
+        .order('created_at', ascending: true); // oldest first so chart go left to right
+
+    if (data == null) return [];
+
+    return (data as List).map((row) {
+      final term = row['academic_terms'];
+      return {
+        'sem': '${term['semester']} ${term['academic_year']}', // combine semester and year for label
+        'score': (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+      };
+    }).toList();
+  }
+
+  // get the subjects taught by an instructor in the current active term with their scores.
+  // used in instructor detail views -- shows per-subject performance breakdown
+  Future<List<Map<String, dynamic>>> getInstructorSubjects(String instructorId) async {
+    final termId = await _getActiveTermId();
+    if (termId == null) return []; // no active term, nothing to show
+
+    final data = await _supabase
+        .from('management_results')
+        .select('overall_management_mean, subjects!subject_id(subject_code, subject_name)')
+        .eq('instructor_id', instructorId)
+        .eq('term_id', termId); // only get subjects for the active term
+
+    if (data == null) return [];
+
+    return (data as List).map((row) {
+      final subjectRaw = row['subjects'];
+      Map<String, dynamic>? subject;
+      // supabase sometimes return as List, sometimes as Map -- handle both, wala choice
+      if (subjectRaw is List && subjectRaw.isNotEmpty) {
+        subject = subjectRaw[0]; // take first element if it's a list
+      } else if (subjectRaw is Map<String, dynamic>) {
+        subject = subjectRaw; // already a map, use directly
+      }
+      
+      if (subject == null) return null; // no subject data, skip
+
+      return {
+        'name': '${subject['subject_code']} - ${subject['subject_name']}', // formatted subject label
+        'score': (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0,
+      };
+    }).whereType<Map<String, dynamic>>().toList(); // remove nulls
+  }
+
+  // get subject-level analytics for the dean's department.
+  // groups management_results by subject, computes scores per instructor per subject,
+  // and produces SubjectAnalytic objects for each subject. this method is the big one, pray lang it run fast.
+  Future<List<SubjectAnalytic>> getSubjectAnalyticsForDept(String userId) async {
+    try {
+      debugPrint('SubjectAnalytics - Start for user: $userId');
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', userId)
+          .maybeSingle(); // find the dean's dept
+
+      if (deptData == null) {
+        debugPrint('SubjectAnalytics - No department found for user.');
+        return []; // dean has no dept, return empty
+      }
+      final deptId = deptData['Department_name_ID'];
+      final termId = await _getActiveTermId();
+      if (termId == null) return []; // no active term, nothing to analyze
+
+      final summary = await getDepartmentSummary(userId); // get dept avg for comparison
+      final deptAvg = summary.averageScore; // will be used later to compute AI note
+
+      // get all faculty in the dept, excluding the dean
+      final facultyRows = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', deptId);
+      
+      // Exclude the dept head themselves -- only count instructor scores
+      final facultyIds = (facultyRows as List)
+          .where((row) => row['user_id'] != null && row['user_id'] != userId)
+          .map((row) => row['user_id'] as String)
+          .toSet()
+          .toList();
+
+      if (facultyIds.isEmpty) {
+        debugPrint('SubjectAnalytics - No faculty found.');
+        return []; // no instructors in dept, nothing to analyze
+      }
+
+      // fetch management results for all faculty -- includes subject and instructor info
+      final mgmtResults = await _supabase
+          .from('management_results')
+          .select('''
+            overall_management_mean,
+            total_responses,
+            instructor_id,
+            subject_id,
+            instructor:user_info!instructor_id(first_name, last_name),
+            subject:subjects!subject_id(subject_code, subject_name)
+          ''')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', facultyIds);
+
+      // also fetch performance results for the same faculty -- we combine mgmt + perf later
+      final perfResults = await _supabase
+          .from('performance_results')
+          .select('overall_performance_mean, instructor_id, subject_id')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', facultyIds);
+
+      if (mgmtResults == null || (mgmtResults as List).isEmpty) return []; // no data at all
+
+      // Create a map for quick performance lookup: "instructorId_subjectId" -> mean
+      // key combines instructor and subject so we can find it fast by two IDs
+      final Map<String, double> perfMap = {};
+      for (var p in (perfResults as List)) {
+        perfMap['${p['instructor_id']}_${p['subject_id']}'] = 
+            (p['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      final Map<String, List<Map<String, dynamic>>> groupedBySubject = {}; // group rows by subject code
+      final Map<String, String> subjectNames = {}; // subject code -> subject name
+
+      // loop through management results and group them by subject code
+      for (var row in (mgmtResults as List)) {
+        final subjectDataRaw = row['subject'];
+        Map<String, dynamic>? subjectData;
+        // handle both List and Map response from supabase join, same old story
+        if (subjectDataRaw is List && subjectDataRaw.isNotEmpty) {
+          subjectData = subjectDataRaw[0];
+        } else if (subjectDataRaw is Map<String, dynamic>) {
+          subjectData = subjectDataRaw;
+        }
+
+        if (subjectData == null) continue; // no subject info, skip this row
+        
+        final code = subjectData['subject_code'];
+        final name = subjectData['subject_name'];
+        subjectNames[code] = name; // store name for later use
+        
+        groupedBySubject.putIfAbsent(code, () => []).add(row); // group by subject code
+      }
+
+      List<SubjectAnalytic> analytics = []; // final output list
+
+      // now process each subject group
+      for (var entry in groupedBySubject.entries) {
+        final code = entry.key;
+        final rows = entry.value;
+        final name = subjectNames[code]!;
+
+        // per-instructor data containers for this subject
+        final Map<String, List<double>> instructorScores = {};
+        final Map<String, String> instructorNames = {};
+        final Map<String, Set<String>> instructorSections = {};
+        final Map<String, int> instructorResponses = {};
+
+        for (var row in rows) {
+          final instId = row['instructor_id'] as String;
+          final subId = row['subject_id'] as String;
+          
+          double mgmt = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+          double perf = perfMap['${instId}_${subId}'] ?? 0.0; // look up perf from our map
+
+          // combine mgmt and perf into one score; if no perf data just use mgmt alone
+          double combinedScore = double.parse(((mgmt + perf) / 2).toStringAsFixed(2));
+          if (perf == 0.0) combinedScore = mgmt; // fallback: no perf data so use mgmt only
+
+          // handle instructor name from join -- same List/Map handling, again
+          final userInfoRaw = row['instructor'];
+          Map<String, dynamic>? userInfo;
+          if (userInfoRaw is List && userInfoRaw.isNotEmpty) {
+            userInfo = userInfoRaw[0];
+          } else if (userInfoRaw is Map<String, dynamic>) {
+            userInfo = userInfoRaw;
+          }
+
+          final iName = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+          
+          // Accumulate student survey responses
+          final responses = (row['total_responses'] as int?) ?? 0;
+
+          instructorNames[instId] = iName; // store name for this instructor
+          instructorScores.putIfAbsent(instId, () => []).add(combinedScore);
+          instructorSections.putIfAbsent(instId, () => <String>{});
+          instructorResponses[instId] = (instructorResponses[instId] ?? 0) + responses;
+        }
+
+        // build the per-instructor breakdown objects for this subject
+        final List<SubjectInstructorPerformance> breakdowns = instructorScores.entries.map((e) {
+          final avg = e.value.reduce((a, b) => a + b) / e.value.length; // average scores for this instructor
+          final distinctSections = instructorSections[e.key]?.length ?? 0;
+          final sectionCount = distinctSections > 0 ? distinctSections : e.value.length; // fallback to row count if sections unknown
+          return SubjectInstructorPerformance(
+            instructorId: e.key,
+            instructorName: instructorNames[e.key]!,
+            avgScore: double.parse(avg.toStringAsFixed(2)),
+            sections: sectionCount,
+            totalResponses: instructorResponses[e.key] ?? 0,
+          );
+        }).toList();
+
+        // compute average score for the whole subject across all instructors
+        final totalScore = breakdowns.map((b) => b.avgScore).reduce((a, b) => a + b);
+        final avgScore = totalScore / breakdowns.length;
+
+        analytics.add(SubjectAnalytic(
+          code: code,
+          name: name,
+          avgScore: double.parse(avgScore.toStringAsFixed(2)),
+          deptAvg: double.parse(deptAvg.toStringAsFixed(2)),
+          difficulty: avgScore < 3.5 ? 'High' : (avgScore < 4.5 ? 'Moderate' : 'Low'), // lower score = harder to do well
+          sentiment: avgScore < 3.0 ? 'Critical' : (avgScore < 4.0 ? 'Neutral' : 'Positive'), // sentiment based on score range
+          trend: 'stable', // hardcoded for now, future work to compute real trend
+          sections: rows.length,
+          instructorBreakdown: breakdowns,
+          aiNote: (deptAvg - avgScore) > 0.5 ? "AI Note: Significant performance gap vs. department average." : null, // flag if subject is notably below dept avg
+        ));
+      }
+
+      return analytics;
+    } catch (e) {
+      debugPrint('Error fetching subject analytics: $e');
+      return []; // something went wrong, return empty list, bahala na
+    }
+  }
+
+  // get all instructors in the dean's dept whose overall score is below the threshold.
+  // threshold default is 3.0 -- below that is considered low performance.
+  // returns a list of ActionAlert objects, one per underperforming instructor
+  Future<List<ActionAlert>> getDepartmentAlerts(String userId, {double threshold = 3.0}) async {
+    try {
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (deptData == null) return []; // no dept found, no alerts possible
+      final deptId = deptData['Department_name_ID'];
+      final termId = await _getActiveTermId();
+      if (termId == null) return []; // no active term, no alerts
+
+      final facultyRows = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', deptId);
+      
+      // Exclude the dept head themselves -- only flag instructors
+      // dean flagging themselves would be awkward, dili pwede
+      final facultyIds = (facultyRows as List)
+          .where((row) => row['user_id'] != null && row['user_id'] != userId)
+          .map((row) => row['user_id'] as String)
+          .toSet()
+          .toList();
+
+      if (facultyIds.isEmpty) {
+        debugPrint('Subject Analytics - No faculty found in department $deptId');
+        return []; // no faculty, no alerts
+      }
+
+      // fetch only records where overall_mean is below the threshold -- these are the problem ones
+      final stats = await _supabase
+          .from('overall_total_survey')
+          .select('''
+            overall_mean,
+            instructor_id,
+            user_info!instructor_id(first_name, last_name)
+          ''')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', facultyIds)
+          .lt('overall_mean', threshold); // only get rows below the threshold score
+      
+      if (stats == null) return [];
+
+      final List<ActionAlert> alerts = [];
+      for (var row in (stats as List)) {
+        final userInfo = row['user_info'];
+        final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown'; // fallback name
+        
+        // create one alert per underperforming instructor
+        alerts.add(ActionAlert(
+          type: 'Performance',
+          title: 'Low Performance Alert',
+          desc: "Score (${(row['overall_mean'] as num?)?.toStringAsFixed(2) ?? '?'}) is below the department average of ${threshold.toStringAsFixed(2)}.",
+          instructorId: row['instructor_id'],
+          instructorName: name,
+          dateFlagged: DateTime.now(), // flag date is now, murag fresh alert
+        ));
+      }
+
+      return alerts;
+    } catch (e) {
+      debugPrint('Error fetching alerts: $e');
+      return []; // error occurred, return empty list
+    }
+  }
+
+  // fetch all intervention reports created by this dean, sorted newest first.
+  // shows the dean's action history -- who they flagged and what they did about it
+  Future<List<InterventionReport>> getInterventionLog(String userId) async {
+    try {
+      final data = await _supabase
+          .from('intervention_reports')
+          .select('*, user_info!instructor_id(first_name, last_name)') // join to get instructor name
+          .eq('dean_id', userId) // only get this dean's reports
+          .order('created_at', ascending: false); // newest first
+      
+      if (data == null) return [];
+
+      return (data as List).map((row) {
+        // Prefer stored name; fall back to joined user_info
+        // stored name is more reliable in case user info changes later
+        String instructorName = row['instructor_name'] ?? '';
+        if (instructorName.isEmpty) {
+          final ui = row['user_info'];
+          if (ui is Map) {
+            instructorName = '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim(); // combine from join
+          }
+        }
+        return InterventionReport(
+          id: row['id'].toString(),
+          instructorId: row['instructor_id'],
+          instructorName: instructorName.isEmpty ? 'Unknown Instructor' : instructorName, // fallback if both sources empty
+          deanId: row['dean_id'],
+          actionType: row['action_type'],
+          notes: row['notes'] ?? '', // empty string if notes column is null
+          status: row['status'] ?? 'Active Tracking', // default status if missing
+          termId: row['term_id'] ?? '',
+          createdAt: DateTime.parse(row['created_at']), // parse the datetime string
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching intervention log: $e');
+      return []; // something went wrong, return empty, dili ta crash the screen
+    }
+  }
+
+  // create a new intervention report for an underperforming instructor.
+  // saves to db then tries to send an email notification to the instructor.
+  // email failure is non-critical -- the report still save even if email fail, wala choice
+  Future<void> createIntervention({
+    required String instructorId,
+    required String deanId,
+    required String actionType,
+    required String notes,
+  }) async {
+    final termId = await _getActiveTermId();
+    if (termId == null) return; // no active term, cannot create report, ayaw proceed
+
+    // fetch instructor name so we can store it in the report denormalized
+    final instructorData = await _supabase
+        .from('user_info')
+        .select('first_name, last_name')
+        .eq('id', instructorId)
+        .single(); // must exist, crash if not found
+    
+    final instructorName = '${instructorData['first_name']} ${instructorData['last_name']}'; // combine names
+
+    // insert the intervention report into the database
+    await _supabase.from('intervention_reports').insert({
+      'instructor_id': instructorId,
+      'instructor_name': instructorName,  // store name denormalized so it persist even if user renamed
+      'dean_id': deanId,
+      'action_type': actionType,
+      'notes': notes,
+      'status': 'Pending', // starts as Pending, dean can resolve later
+      'term_id': termId,
+    });
+
+    // Trigger email notification to the instructor via the Edge Function.
+    // Non-critical: wrapped in try/catch so a failed email does not block the report.
+    // basin email server down, dili ta let it ruin the whole thing
+    try {
+      await _supabase.functions.invoke(
+        'send-intervention-email',
+        body: {
+          'record': {
+            'instructor_id': instructorId,
+            'dean_id': deanId,
+            'action_type': actionType,
+            'notes': notes,
+            'status': 'Pending',
+          },
+        },
+      );
+      debugPrint('[createIntervention] Email notification sent to instructor.');
+    } catch (e) {
+      debugPrint('[createIntervention] Email notification failed (non-critical): $e'); // log it but dont crash
+    }
+  }
+
+  // mark an intervention report as resolved. simple update, no email needed.
+  // called when the dean decide the problem is fixed, good job everyone
+  Future<void> resolveIntervention(String id) async {
+    await _supabase
+        .from('intervention_reports')
+        .update({'status': 'Resolved'}) // flip status to Resolved
+        .eq('id', id); // only update the one with this specific id
+  }
+
+  /// Fetches aggregated word cloud data for the dept head's department
+  /// using the dept_word_cloud view created in Supabase.
+  /// returns top 60 words sorted by frequency -- most common first.
+  /// used to show what students say most often in their text feedback
+  Future<List<Map<String, dynamic>>> getDeptWordCloud(String userId) async {
+    try {
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', userId)
+          .maybeSingle(); // find the dept for this dean
+      if (deptData == null) return []; // no dept, no word cloud
+      final deptId = deptData['Department_name_ID'];
+
+      final termId = await _getActiveTermId();
+      if (termId == null) return []; // no active term, no words to show
+
+      // query the word cloud view -- already aggregated in supabase, we just fetch
+      final words = await _supabase
+          .from('dept_word_cloud')
+          .select('word, total_count')
+          .eq('department_id', deptId)
+          .eq('term_id', termId)
+          .order('total_count', ascending: false) // most used words first
+          .limit(60); // limit to 60 so the cloud dont get too crowded, enough na
+
+      return (words as List).cast<Map<String, dynamic>>();
+    } catch (e) {
+      debugPrint('getDeptWordCloud error: $e');
+      return []; // word cloud failed, return empty list
+    }
+  }
+
+  // return an EvaluationSummary with all fields set to zero.
+  // used as a safe fallback when data is missing or something went wrong.
+  // better to show zeros than crash the app, bahala na the numbers look sad
+  EvaluationSummary _emptySummary() {
+    return EvaluationSummary(
+      averageScore: 0, managementMean: 0, performanceMean: 0,
+      totalEvaluations: 0, completionRate: 0, facultyCount: 0,
+    );
+  }
+}

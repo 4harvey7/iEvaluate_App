@@ -1,247 +1,767 @@
 // lib/instructor/instructor_dashboard.dart
+// The BIG screen. This is the main thing every instructor see after login.
+// If this break, everybody panic. So pray lang that the Supabase is up.
+import 'dart:async';
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
-import '../login_screen.dart';
-import 'past_semesters_screen.dart';
-import 'student_feedback_screen.dart';
-import 'instructor_settings_screen.dart';
-//import 'ai_sentiment_analysis.dark';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../login_screen.dart';
+import '../theme/app_colors.dart';
+import '../core/services/auth_service.dart';
+import '../core/services/system_settings_service.dart';
+import 'instructor_settings_screen.dart';
+import 'models/subject.dart';
+import 'my_subjects_screen.dart';
+import 'past_semesters_screen.dart';
+import 'providers/subjects_provider.dart';
+import 'student_feedback_screen.dart';
+import 'detailed_report_screen.dart';
+import 'subject_detail_screen.dart';
+
+// The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
 class InstructorDashboardScreen extends StatefulWidget {
-  const InstructorDashboardScreen({super.key});
+  final String userId;
+  const InstructorDashboardScreen({super.key, required this.userId});
 
   @override
   State<InstructorDashboardScreen> createState() => _InstructorDashboardScreenState();
 }
 
 class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
-  // --- DUMMY INSTRUCTOR DATA ---
-  final Map<String, dynamic> _myProfile = {
-    'name': 'Kazuto Kirigaya',
-    'title': 'Senior Instructor',
-    'dept': 'Computer Studies',
-    'overallScore': 4.85,
-    'totalEvaluations': 142,
-    'trend': 'up',
+  // Services — the helpers that do the heavy lifting so we dont have to
+  final _authService = AuthService();
+  final _settingsService = SystemSettingsService();
+  final _supabase = Supabase.instance.client;
+  
+  // Term and instructor info — all start as "..." because we dont know yet
+  String _currentTermId = '';
+  String _currentSemester = '...';
+  String _currentYear = '...';
+  String _instructorName = '...';
+  String _instructorTitle = '...';
+  String _instructorDept = '...';
+  // Flag to prevent the sync button from being smashed repeatedly
+  bool _isSyncing = false;
+  // Recent feedback from students — could be nice, could be brutal, bahala na
+  List<String> _recentFeedback = [];
+
+  // Subscription to settings stream — listens for changes from the admin side
+  StreamSubscription<SystemSettings>? _settingsSubscription;
+
+  // Live intervention reports from dept head (read-only for instructor, ayaw remove)
+  List<Map<String, dynamic>> _interventionReports = [];
+  bool _interventionChannelActive = false; // make sure we dont subscribe twice
+  RealtimeChannel? _interventionChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToSettings(); // start listening to system settings changes
+    _subscribeToInterventions(); // also listen if the dept head is mad at you
+    // Wait for first frame, then sync everything so the UI is ready first
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _refreshDashboardData(isInitial: true);
+    });
+    debugPrint('[INSTRUCTOR] 📥 Received User ID: ${widget.userId}');
+  }
+
+  // Listen to system settings in real time — so if the admin change the semester,
+  // this screen also update without needing to manually refresh. importente kaayo.
+  void _subscribeToSettings() {
+    _settingsSubscription = _settingsService.streamSettings().listen((settings) {
+      if (mounted) {
+        final newTermId = settings.termId ?? '';
+        // Only reload data if the term actually changed — no need drama if same term
+        final shouldReload = _currentTermId != newTermId;
+        
+        setState(() {
+          _currentTermId = newTermId;
+          _currentSemester = settings.semester;
+          _currentYear = settings.academicYear;
+        });
+
+        if (shouldReload) {
+          // Term changed! Reload everything. Wala choice.
+          _refreshDashboardData(isInitial: true);
+        }
+      }
+    });
+  }
+
+  // Big refresh function — calls everything at once and shows snackbar when done.
+  // isInitial = true means quiet mode (no snackbar on load, dili spam).
+  Future<void> _refreshDashboardData({bool isInitial = false}) async {
+    if (_isSyncing) return; // already syncing, ayaw double trigger
+    setState(() => _isSyncing = true);
+    
+    try {
+      // Make sure we have a Term ID before we try to fetch anything useful
+      if (_currentTermId.isEmpty) {
+        final settings = await _settingsService.getSettings();
+        if (mounted) {
+          setState(() {
+            _currentTermId = settings.termId ?? '';
+            _currentSemester = settings.semester;
+            _currentYear = settings.academicYear;
+          });
+        }
+      }
+
+      // Run profile fetch and subject load at the same time — faster, murag paralel universe
+      await Future.wait([
+        _fetchInstructorProfile(),
+        context.read<SubjectsProvider>().load(termId: _currentTermId),
+        if (!isInitial) Future.delayed(const Duration(milliseconds: 500)), // small wait for non-initial
+      ]);
+      
+      // Show success snackbar only on manual sync, not on initial load
+      if (mounted && !isInitial) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Dashboard and local results synced successfully'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Sync failed: $e');
+      if (mounted && !isInitial) {
+        // Tell the user something went wrong. At least be honest.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      // Always turn off the loading spinner, even if things go bad
+      if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  // Fetch the instructor's profile data AND analytics for the current term.
+  // This does a LOT of things. Take a deep breath before reading.
+  Future<void> _fetchInstructorProfile() async {
+    try {
+      // 1. Fetch Identity Info (Always load this regardless of term)
+      // Get name from user_info — the basic "who are you" query
+      final user = await _supabase.from('user_info').select('first_name, last_name').eq('id', widget.userId).maybeSingle();
+      
+      // Get department and role — title like "Instructor" or "Professor" and which dept
+      final deptData = await _supabase
+          .from('department_table')
+          .select('department_name:Department_name_ID(d_name), roles:roles(Roles)')
+          .eq('user_id', widget.userId)
+          .maybeSingle();
+
+      // 2. Ensure we have a Term ID to fetch analytics — wala term ID, wala data
+      if (_currentTermId.isEmpty) {
+        final settings = await _settingsService.getSettings();
+        _currentTermId = settings.termId ?? '';
+      }
+
+      // Reset all analytics to 0 first, to prevent old data from ghosting into new term
+      double overallScore = 0.0;
+      double managementScore = 0.0;
+      double performanceScore = 0.0;
+      int totalEvaluations = 0;
+      List<String> feedback = [];
+
+      // 3. Fetch Analytics for SPECIFIC TERM (Only if term ID exists)
+      if (_currentTermId.isNotEmpty) {
+        // Find all subjects assigned to this instructor for this term via junction table
+        final subjectsResponse = await _supabase
+            .from('instructor_subjects')
+            .select('subject_id')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', _currentTermId);
+        
+        // Convert the list of rows into a simple list of subject ID strings
+        final subjectIds = (subjectsResponse as List).map((s) => s['subject_id'].toString()).toList();
+        debugPrint('[InstructorDashboard] Found Subject IDs for term $_currentTermId: $subjectIds');
+
+        // Try the pre-computed summary table first — fastest path, best case scenario
+        final analytics = await _supabase
+            .from('overall_total_survey')
+            .select()
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', _currentTermId)
+            .maybeSingle();
+
+        if (analytics != null) {
+          debugPrint('[InstructorDashboard] Found data in overall_total_survey');
+          overallScore = (analytics['overall_mean'] as num?)?.toDouble() ?? 0.0;
+          managementScore = (analytics['management_mean'] as num?)?.toDouble() ?? 0.0;
+          performanceScore = (analytics['performance_mean'] as num?)?.toDouble() ?? 0.0;
+          totalEvaluations = analytics['total_responses'] ?? 0;
+        } else {
+          // FALLBACK 1: Aggregate from individual subject results (Matches SubjectDetailScreen logic)
+          // The pre-computed table is empty, so we compute it manually. A bit extra, but wala choice.
+          debugPrint('[InstructorDashboard] overall_total_survey empty or null. Checking subject results fallback...');
+          
+          var mgmtQuery = _supabase.from('management_results').select('overall_management_mean, total_responses').eq('term_id', _currentTermId);
+          var perfQuery = _supabase.from('performance_results').select('overall_performance_mean, total_responses').eq('term_id', _currentTermId);
+
+          // Filter by subject IDs if we have them, else fall back to instructor ID filter
+          if (subjectIds.isNotEmpty) {
+            mgmtQuery = mgmtQuery.filter('subject_id', 'in', subjectIds);
+            perfQuery = perfQuery.filter('subject_id', 'in', subjectIds);
+          } else {
+            mgmtQuery = mgmtQuery.eq('instructor_id', widget.userId);
+            perfQuery = perfQuery.eq('instructor_id', widget.userId);
+          }
+
+          // Run both queries at the same time para mas bilis
+          final results = await Future.wait([mgmtQuery, perfQuery]);
+          final mList = results[0] as List;
+          final pList = results[1] as List;
+
+          if (mList.isNotEmpty || pList.isNotEmpty) {
+            double mSum = 0, pSum = 0;
+            int mCount = 0, pCount = 0;
+            int mTotal = 0, pTotal = 0;
+
+            // Sum up all management subject scores
+            for (var row in mList) {
+              mSum += (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+              mTotal += (row['total_responses'] as int?) ?? 0;
+              mCount++;
+            }
+            // Sum up all performance subject scores
+            for (var row in pList) {
+              pSum += (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+              pTotal += (row['total_responses'] as int?) ?? 0;
+              pCount++;
+            }
+
+            // Calculate weighted averages — simple average across subjects
+            managementScore = mCount > 0 ? mSum / mCount : 0.0;
+            performanceScore = pCount > 0 ? pSum / pCount : 0.0;
+            overallScore = (managementScore + performanceScore) / 2;
+            // Use the higher response count as the base — more generous, murag
+            totalEvaluations = mTotal > pTotal ? mTotal : pTotal;
+            
+            debugPrint('[InstructorDashboard] Aggregated: mgmt=$managementScore, perf=$performanceScore, evals=$totalEvaluations');
+          } 
+          
+          // FALLBACK 2: Raw data — if even subject results are empty, dig into the raw spreadsheet data
+          if (totalEvaluations == 0) {
+            debugPrint('[InstructorDashboard] Subject results empty. Checking raw data...');
+            var rawQuery = _supabase.from('raw_GoogleSheet_data_result').select().eq('term_id', _currentTermId);
+            
+            if (subjectIds.isNotEmpty) {
+              rawQuery = rawQuery.filter('subject_id', 'in', subjectIds);
+            } else {
+              rawQuery = rawQuery.eq('instructor_ID', widget.userId);
+            }
+
+            final rawData = await rawQuery;
+            if (rawData.isNotEmpty) {
+              int count = rawData.length;
+              double mSum = 0, pSum = 0;
+              // Loop through each row and sum up m1-m10 and p1-p10 columns
+              for (var row in rawData) {
+                for (int i = 1; i <= 10; i++) {
+                  mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
+                  pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
+                }
+              }
+              // Divide by (count * 10) because 10 questions each — do the math
+              managementScore = mSum / (count * 10);
+              performanceScore = pSum / (count * 10);
+              overallScore = (managementScore + performanceScore) / 2;
+              totalEvaluations = count;
+            }
+          }
+        }
+
+        // 4. Fetch Recent Feedback — the actual words students wrote about you
+        var feedbackQuery = _supabase.from('student_remarks').select('remark').eq('term_id', _currentTermId);
+        
+        if (subjectIds.isNotEmpty) {
+          feedbackQuery = feedbackQuery.filter('subject_id', 'in', subjectIds);
+        } else {
+          feedbackQuery = feedbackQuery.eq('instructor_id', widget.userId);
+        }
+
+        // Only get 5 most recent — we dont need all of them, just the freshest ones
+        final feedbackData = await feedbackQuery.order('created_at', ascending: false).limit(5);
+        
+        feedback = (feedbackData as List).map((f) => f['remark'] as String).toList();
+      }
+
+      // 5. Fetch Historical Performance (All terms) — the "glow up" chart data
+      final historyData = await _supabase
+          .from('overall_total_survey')
+          .select('overall_mean, academic_terms(semester, academic_year)')
+          .eq('instructor_id', widget.userId)
+          .order('created_at', ascending: true); // oldest first, so chart goes left to right
+
+      // Apply all fetched data to state if widget is still alive
+      if (mounted) {
+        setState(() {
+          // Set the instructor's display name
+          if (user != null) {
+            _instructorName = '${user['first_name']} ${user['last_name']}';
+          }
+          
+          // Set department name and role/title
+          if (deptData != null) {
+            final dept = deptData['department_name'];
+            _instructorDept = dept is Map ? dept['d_name'] ?? 'General' : 'General';
+            
+            final role = deptData['roles'];
+            _instructorTitle = role is Map ? role['Roles'] ?? 'Instructor' : 'Instructor';
+          }
+
+          // Apply term-specific scores to the performance map
+          _myPerformance['overallScore'] = overallScore;
+          _myPerformance['managementScore'] = managementScore;
+          _myPerformance['performanceScore'] = performanceScore;
+          _myPerformance['totalEvaluations'] = totalEvaluations;
+
+          debugPrint('[InstructorDashboard] Applied Stats: '
+                'overall=$overallScore, '
+                'mgmt=$managementScore, '
+                'perf=$performanceScore, '
+                'evals=$totalEvaluations');
+
+          _recentFeedback = feedback; // update the recent feedback list
+
+          // Build the history chart from the last 4 terms only — fit in the bar chart
+          if ((historyData as List).isNotEmpty) {
+            _myHistory.clear();
+            final recentHistory = (historyData as List).reversed.take(4).toList().reversed;
+            for (var item in recentHistory) {
+              final term = item['academic_terms'];
+              String label = 'Sem'; // default label if term data missing
+              if (term != null) {
+                String year = term['academic_year'].toString();
+                if (year.length >= 4) year = year.substring(2); // shorten year e.g. 2024 -> 24
+                label = '${term['semester'].toString().substring(0, 3)} $year';
+              }
+              _myHistory.add({
+                'sem': label,
+                'score': (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
+              });
+            }
+          }
+
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching instructor profile: $e');
+      if (mounted) setState(() {}); // refresh even on error so UI dont get stuck
+    }
+  }
+
+  // Manual sync handler — what happens when the instructor taps the sync button
+  Future<void> _handleManualSync() async {
+    await _refreshDashboardData(isInitial: false); // isInitial false = show the snackbar
+  }
+
+  @override
+  void dispose() {
+    // Clean up subscriptions or the memory will cry. Importente ni.
+    _settingsSubscription?.cancel();
+    _interventionChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  // Subscribes to real-time changes on intervention_reports for this instructor.
+  // The dept head can send intervention notices — this listens and reacts in real time.
+  void _subscribeToInterventions() {
+    if (_interventionChannelActive) return; // already subscribed, ayaw double subscribe
+    _interventionChannelActive = true;
+
+    // Create a Supabase realtime channel scoped to this instructor's reports
+    _interventionChannel = _supabase
+        .channel('instructor_interventions_${widget.userId}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all, // listen for INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'intervention_reports',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'instructor_id',
+            value: widget.userId, // only care about notices for THIS instructor
+          ),
+          callback: (payload) {
+            // Whenever something changes, reload the intervention list
+            if (mounted) _fetchInterventionReports();
+          },
+        )
+        .subscribe();
+
+    // Also do an immediate fetch — dont wait for a change event to know whats there
+    _fetchInterventionReports();
+  }
+
+  // Fetches unresolved intervention reports from the dept head.
+  // These are the "you are in trouble" notices the instructor can see but NOT dismiss.
+  Future<void> _fetchInterventionReports() async {
+    try {
+      final data = await _supabase
+          .from('intervention_reports')
+          .select('id, action_type, notes, status, created_at, dean_id, user_info!dean_id(first_name, last_name)')
+          .eq('instructor_id', widget.userId)
+          .neq('status', 'Resolved') // only get active ones, not already resolved
+          .order('created_at', ascending: false); // newest problem first
+
+      if (mounted) {
+        setState(() {
+          _interventionReports = (data as List).cast<Map<String, dynamic>>();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching intervention reports: $e');
+    }
+  }
+  
+  // Performance data map — starts all zero, gets filled after fetch
+  final Map<String, dynamic> _myPerformance = {
+    'overallScore': 0.0,
+    'managementScore': 0.0,
+    'performanceScore': 0.0,
+    'totalEvaluations': 0,
+    'trend': 'neutral', // reserved for future use — bahala na
   };
 
-  // 👈 NEW: DUMMY NOTICES FROM THE DEAN
-  final List<Map<String, dynamic>> _officialNotices = [
-    {
-      'title': 'Mandated Action Required',
-      'message': 'Please schedule a Curriculum Review Meeting regarding the recent feedback in CS202. - Dr. Yuuki (Dean)',
-      'date': 'Oct 24, 2026',
-      'type': 'urgent',
-    }
-  ];
-
-  final List<Map<String, dynamic>> _mySubjects = [
-    {'code': 'CS101', 'name': 'Intro to Programming', 'score': 4.90, 'students': 45},
-    {'code': 'CS202', 'name': 'Data Structures & Algorithms', 'score': 4.80, 'students': 38},
-    {'code': 'IT305', 'name': 'Web Development', 'score': 4.85, 'students': 59},
-  ];
-
-  final List<Map<String, dynamic>> _myHistory = [
-    {'sem': '1st Sem 25', 'score': 4.20},
-    {'sem': '2nd Sem 25', 'score': 4.65},
-    {'sem': '1st Sem 26', 'score': 4.85},
-  ];
-
-  final List<String> _recentFeedback = [
-    "The examples used in class are really helpful for understanding the code.",
-    "Pacing is a bit fast during the Data Structures lectures, but very engaging.",
-    "Always willing to answer questions after class. Great instructor!",
-    "Clear grading rubrics and fair exams."
-  ];
+  // History list for the bar chart — max 4 items, older to newer
+  final List<Map<String, dynamic>> _myHistory = [];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('My Dashboard', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('My Dashboard', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
-          // 👈 UPDATED: Notification Bell now has a red badge if there are notices!
+          // Sync button — shows spinner when syncing, shows icon when idle
+          IconButton(
+            tooltip: 'Manual Sync',
+            icon: _isSyncing 
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.surface))
+              : const Icon(Icons.sync_rounded, color: AppColors.surface),
+            onPressed: _isSyncing ? null : _handleManualSync, // disabled while already syncing
+          ),
+          // Notification bell — shows badge count if there are active intervention notices
           Stack(
             alignment: Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications, color: AppColors.white),
-                onPressed: () {},
+                icon: const Icon(Icons.notifications, color: AppColors.surface),
+                tooltip: _interventionReports.isEmpty ? 'No active notices' : '${_interventionReports.length} active notice(s)',
+                onPressed: () {
+                  if (_interventionReports.isEmpty) {
+                    // Good news — no trouble today
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ No active intervention notices from your department head.'),
+                        backgroundColor: AppColors.success,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  } else {
+                    // Uh oh — the dept head has words for you
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('⚠️ You have ${_interventionReports.length} active notice(s) from your department head.'),
+                        backgroundColor: AppColors.error,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
               ),
-              if (_officialNotices.isNotEmpty)
+              // Red badge bubble showing the count of active notices — hard to ignore
+              if (_interventionReports.isNotEmpty)
                 Positioned(
-                  right: 12,
-                  top: 12,
+                  right: 8,
+                  top: 8,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
-                    constraints: const BoxConstraints(minWidth: 10, minHeight: 10),
+                    decoration: const BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      '${_interventionReports.length}',
+                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
-                )
+                ),
             ],
           ),
         ],
       ),
 
+      // Side drawer — navigation menu, the instructor's main way to go around
       drawer: Drawer(
-        backgroundColor: AppColors.white,
+        backgroundColor: AppColors.surface,
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
+            // Drawer header with instructor name and avatar — fancy lol
             DrawerHeader(
-              decoration: const BoxDecoration(color: AppColors.deepBlue),
+              decoration: const BoxDecoration(color: AppColors.textPrimary),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.royalBlue.withOpacity(0.3),
-                    child: Text(_myProfile['name'][0], style: const TextStyle(color: AppColors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.3),
+                    // Show first letter of name as avatar, or '?' if name not loaded yet
+                    child: Text(_instructorName.isNotEmpty ? _instructorName[0] : '?', style: const TextStyle(color: AppColors.surface, fontSize: 24, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 12),
-                  Text(_myProfile['name'], style: const TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text('${_myProfile['title']} • ${_myProfile['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  Text(_instructorName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+                  Text('$_instructorTitle • $_instructorDept', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12, overflow: TextOverflow.ellipsis)),
                 ],
               ),
             ),
-            _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true),
+            // Dashboard item — currently active, so it's highlighted
+            _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true, onTap: () {
+              Navigator.pop(context); // close the drawer, we already here
+            }),
+            // Go to past semesters screen — for reminiscing about old scores
             _buildDrawerItem(context, Icons.history, 'Past Semesters', false, onTap: () {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const PastSemestersScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => PastSemestersScreen(userId: widget.userId)));
             }),
+            // Go to subjects screen — see what subjects are assigned this term
+            _buildDrawerItem(context, Icons.menu_book_rounded, 'My Subjects', false, onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (_) => MySubjectsScreen(userId: widget.userId)));
+            }),
+            // Go to student feedback — see what the students wrote about you
             _buildDrawerItem(context, Icons.forum, 'Student Feedback', false, onTap: () {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const StudentFeedbackScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (context) => StudentFeedbackScreen(userId: widget.userId, termId: _currentTermId)));
             }),
+            // Account settings — profile edit, password change, danger zone
             _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () {
               Navigator.pop(context);
               Navigator.push(context, MaterialPageRoute(builder: (context) => const InstructorSettingsScreen()));
             }),
             const Divider(),
-            _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () {
-              Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+            // Log out — signs out and boots back to login. wala na siya.
+            _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
+              final navigator = Navigator.of(context);
+              await _authService.signOut(); // terminate session
+              navigator.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false, // remove all previous routes — no going back
+              );
             }),
           ],
         ),
       ),
 
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+      // Main body — scrollable dashboard content, pull to refresh also works
+      body: RefreshIndicator(
+        onRefresh: _handleManualSync, // pull down to trigger manual sync
+        color: AppColors.primary,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(), // always scrollable for pull-to-refresh
+            padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ==========================================
-              // 👈 NEW: OFFICIAL NOTICES BANNER
-              // ==========================================
-              if (_officialNotices.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red.withOpacity(0.5), width: 1.5),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              // --- INTERVENTION NOTICES (read-only, from dept head) ---
+              // Show these warning cards if there are active notices. Cannot dismiss.
+              if (_interventionReports.isNotEmpty) ...[
+                ..._interventionReports.map((report) {
+                  final deanInfo = report['user_info'];
+                  // Get the dept head's name, or use generic label if data missing
+                  final deanName = deanInfo is Map
+                      ? '${deanInfo['first_name'] ?? ''} ${deanInfo['last_name'] ?? ''}'.trim()
+                      : 'Your Department Head';
+                  final date = report['created_at'] != null
+                      ? DateTime.tryParse(report['created_at'])?.toLocal()
+                      : null;
+                  final dateStr = date != null
+                      ? '${date.month}/${date.day}/${date.year}'
+                      : 'Recently';
+
+                  // Render the intervention notice card — red and scary on purpose
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.error.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.error.withValues(alpha: 0.5), width: 1.5),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            Text(_officialNotices[0]['title'], style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16)),
-                            const SizedBox(height: 4),
-                            Text(_officialNotices[0]['message'], style: const TextStyle(color: AppColors.darkGray, fontSize: 13, height: 1.4)),
-                            const SizedBox(height: 8),
-                            Text(_officialNotices[0]['date'], style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold)),
+                            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 22),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Text(
+                                'Official Notice — Action Required',
+                                style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 15),
+                              ),
+                            ),
+                            // Read-only lock icon — instructor cannot dismiss this. Only dept head can.
+                            Tooltip(
+                              message: 'Only your department head can remove this notice',
+                              child: Icon(Icons.lock_outline, color: AppColors.error.withValues(alpha: 0.6), size: 16),
+                            ),
                           ],
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline, color: Colors.red),
-                        tooltip: 'Acknowledge Receipt',
-                        onPressed: () {
-                          // In a real app, this would tell the Dean the instructor saw it!
-                          setState(() {
-                            _officialNotices.clear();
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Notice acknowledged. Dean notified.')));
-                        },
-                      )
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
+                        const SizedBox(height: 10),
+                        _buildNoticeRow('From', deanName),
+                        const SizedBox(height: 4),
+                        _buildNoticeRow('Action', report['action_type'] ?? 'N/A'),
+                        if ((report['notes'] as String?)?.isNotEmpty == true) ...[
+                          const SizedBox(height: 4),
+                          _buildNoticeRow('Notes', report['notes']),
+                        ],
+                        const SizedBox(height: 8),
+                        Text(dateStr, style: const TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 12),
               ],
 
               // --- WELCOME CARD ---
+              // The big gradient hero card at the top — shows overall score and greetings
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.deepBlue, AppColors.royalBlue],
+                  gradient: LinearGradient(
+                    colors: AppColors.heroGradient,
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.royalBlue.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Welcome back, ${_myProfile['name'].split(' ')[0]}!', style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                    // Greeting with first name only — "Welcome back, Juan!" type energy
+                    Text('Welcome back, ${_instructorName.split(' ')[0]}!', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 16, overflow: TextOverflow.ellipsis)),
                     const SizedBox(height: 8),
-                    const Text('Your Performance Overview', style: TextStyle(color: AppColors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 24),
+                    const Text('Your Performance Overview', style: TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    // Show the current active semester and year
+                    Text('Active Term: $_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13, fontWeight: FontWeight.w500, overflow: TextOverflow.ellipsis)),
+                    const SizedBox(height: 20),
+
+                    // The big score number — the main attraction of this whole card
+                    Builder(builder: (context) {
+                      final overall = (_myPerformance['overallScore'] as num?)?.toDouble() ?? 0.0;
+                      final hasData = overall > 0; // no data = show N/A, not 0.00
+                      final vd = Subject.getVerbalDescription(overall); // e.g. "Outstanding"
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hasData ? overall.toStringAsFixed(2) : 'N/A',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 52, // big number = big ego boost
+                                    fontWeight: FontWeight.bold,
+                                    height: 1.0,
+                                    letterSpacing: -1,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Overall Weighted Mean',
+                                  style: TextStyle(color: AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w500),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Verbal description badge — only show if there is actual data
+                          if (hasData)
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                vd,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    }),
+
+                    const SizedBox(height: 16),
+                    Divider(color: Colors.white.withValues(alpha: 0.15), thickness: 1, height: 1),
+                    const SizedBox(height: 16),
+
+                    // Three stats side by side: Management, Performance, Evaluations
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Overall Rating', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.baseline,
-                              textBaseline: TextBaseline.alphabetic,
-                              children: [
-                                Text('${_myProfile['overallScore']}', style: const TextStyle(color: AppColors.gold, fontSize: 36, fontWeight: FontWeight.bold)),
-                                const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Container(width: 1, height: 50, color: Colors.white24),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Total Evaluations', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                            const SizedBox(height: 4),
-                            Text('${_myProfile['totalEvaluations']}', style: const TextStyle(color: AppColors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        Container(width: 1, height: 50, color: Colors.white24),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            const Text('Trend', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                            const SizedBox(height: 8),
-                            Icon(
-                              _myProfile['trend'] == 'up' ? Icons.trending_up : Icons.trending_flat,
-                              color: _myProfile['trend'] == 'up' ? Colors.greenAccent : Colors.orangeAccent,
-                              size: 28,
-                            ),
-                          ],
-                        ),
+                        _buildStat('Management', _myPerformance['managementScore'].toStringAsFixed(1)),
+                        Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // divider line
+                        _buildStat('Performance', _myPerformance['performanceScore'].toStringAsFixed(1)),
+                        Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // another divider
+                        _buildStat('Evaluations', _myPerformance['totalEvaluations'].toString()),
                       ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Button to open the full official SAST report — the formal paperwork
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DetailedReportScreen(
+                              userId: widget.userId,
+                              instructorName: _instructorName,
+                              department: _instructorDept,
+                              termId: _currentTermId,
+                              term: _currentSemester,
+                              academicYear: _currentYear,
+                              managementScore: (_myPerformance['managementScore'] as num).toDouble(),
+                              performanceScore: (_myPerformance['performanceScore'] as num).toDouble(),
+                              overallScore: (_myPerformance['overallScore'] as num).toDouble(),
+                              totalEvaluations: _myPerformance['totalEvaluations'],
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.description_outlined, size: 18),
+                        label: const Text('View Official SAST Report'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -249,82 +769,60 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               const SizedBox(height: 32),
 
               // --- SUBJECT BREAKDOWN ---
-              const Text('Current Classes', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
+              // Shows list of current subjects — each tappable for detail
+              const Text('Current Classes', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              Column(
-                children: _mySubjects.map((subject) {
-                  return Card(
-                    color: AppColors.white,
-                    elevation: 1,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(8)),
-                            child: const Icon(Icons.class_, color: AppColors.royalBlue),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(subject['code'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.royalBlue, fontSize: 12)),
-                                Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 15), overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 4),
-                                Text('${subject['students']} evals submitted', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                            child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 16)),
-                          ),
-                        ],
-                      ),
-                    ),
+              Consumer<SubjectsProvider>(
+                builder: (context, provider, _) {
+                  final subjects = provider.subjects;
+                  if (subjects.isEmpty) {
+                    // No subjects? Show a nice empty state card instead
+                    return _buildEmptySubjectsCard(context);
+                  }
+                  // Map each subject into a card widget
+                  return Column(
+                    children: subjects.map((subject) => _buildSubjectCard(subject)).toList(),
                   );
-                }).toList(),
+                },
               ),
               const SizedBox(height: 32),
 
               // --- TWO-COLUMN LAYOUT: HISTORY & FEEDBACK ---
+              // Growth chart on the left, recent feedback on the right
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Left side — bar chart showing score trend across past terms
                   Expanded(
                     flex: 1,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Growth', style: TextStyle(color: AppColors.deepBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const Text('Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         Container(
                           height: 180,
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: _myHistory.map<Widget>((data) {
+                              // Bar height is proportional to score out of 5.0
                               double barHeight = (data['score'] / 5.0) * 100;
                               return Column(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 12)),
+                                  Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 12)),
                                   const SizedBox(height: 4),
                                   Container(
                                     width: 24,
                                     height: barHeight,
-                                    decoration: BoxDecoration(color: AppColors.royalBlue, borderRadius: BorderRadius.circular(4)),
+                                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(4)),
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(data['sem'].split(' ')[0], style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                  // Short semester label below each bar
+                                  Text(data['sem'].split(' ')[0], style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                                 ],
                               );
                             }).toList(),
@@ -334,30 +832,34 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     ),
                   ),
                   const SizedBox(width: 16),
+                  // Right side — scrollable list of recent student remarks
                   Expanded(
                     flex: 1,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Recent Feedback', style: TextStyle(color: AppColors.deepBlue, fontSize: 16, fontWeight: FontWeight.bold)),
+                        const Text('Recent Feedback', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         Container(
                           height: 180,
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-                          child: ListView.separated(
+                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+                          // Show placeholder if no feedback, else show the scrollable list
+                          child: _recentFeedback.isEmpty 
+                            ? const Center(child: Text('No feedback yet', style: TextStyle(color: AppColors.textTertiary, fontSize: 12)))
+                            : ListView.separated(
                             itemCount: _recentFeedback.length,
                             separatorBuilder: (context, index) => const Divider(height: 16),
                             itemBuilder: (context, index) {
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.format_quote, color: AppColors.gold, size: 16),
+                                  const Icon(Icons.format_quote, color: AppColors.primary, size: 16),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       _recentFeedback[index],
-                                      style: const TextStyle(fontSize: 12, color: AppColors.darkGray, fontStyle: FontStyle.italic),
+                                      style: const TextStyle(fontSize: 12, color: AppColors.textPrimary, fontStyle: FontStyle.italic),
                                     ),
                                   ),
                                 ],
@@ -375,20 +877,188 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
+  // Builds one row in the intervention notice card — label on left, value on right
+  Widget _buildNoticeRow(String label, String? value) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text('$label:', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+        Expanded(
+          child: Text(value ?? 'N/A', style: const TextStyle(color: AppColors.textPrimary, fontSize: 12, height: 1.4)),
+        ),
+      ],
+    );
+  }
+
+  // Builds a single stat label+value pair used in the hero card bottom row
+  Widget _buildStat(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
+        const SizedBox(height: 4),
+        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  // Empty state card when no subjects are assigned yet — tap it to go to subjects screen
+  Widget _buildEmptySubjectsCard(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => MySubjectsScreen(userId: widget.userId)),
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderHairline, width: 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryTint,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.menu_book_rounded, color: AppColors.primary),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No subjects assigned',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Your assigned subjects will appear here.',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              color: AppColors.textTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Subject card shown in the dashboard's "Current Classes" section — tap to see details
+  Widget _buildSubjectCard(Subject subject) {
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SubjectDetailScreen(
+            subject: subject, 
+            userId: widget.userId,
+            termId: _currentTermId,
+          ),
+        ),
+      ),
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        color: AppColors.surface,
+        elevation: 1,
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              // Icon container on the left side
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.class_, color: AppColors.primary),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          // Subject code in small text, like "CS101"
+                          child: Text(
+                            subject.code,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                              fontSize: 12,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Full subject name in bigger text
+                    Text(
+                      subject.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                        fontSize: 15,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              // Arrow icon on the right — signals it's tappable
+              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Builds one item in the side drawer navigation list.
+  // isLogout = true makes it red and scary. isSelected = highlights in primary color.
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
     return ListTile(
-      leading: Icon(icon, color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray)),
+      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? Colors.red : (isSelected ? AppColors.royalBlue : AppColors.darkGray),
+          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       selected: isSelected,
+      // Use provided onTap or fallback to a "coming soon" snackbar — bahala na
       onTap: onTap ?? () {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title coming soon!")));
