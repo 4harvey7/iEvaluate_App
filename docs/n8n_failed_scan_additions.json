@@ -1,0 +1,120 @@
+{
+  "_comment": "=======================================================================",
+  "_comment2": "ADD THESE NODES + CONNECTIONS to your existing n8n workflow.",
+  "_comment3": "These nodes form the parallel 'Failed Scan' branch that fires whenever",
+  "_comment4": "table_found === false OR grid_source === 'fallback'.",
+  "_comment5": "=======================================================================",
+
+  "nodes_to_add": [
+
+    {
+      "_step": "STEP 1 — Modify your existing 'image to ocr and omr python' HTTP Request node",
+      "_instruction": "In the existing node, under Body Parameters, add TWO new text form fields:",
+      "_fields_to_add": [
+        { "parameterType": "formData", "name": "task_id",  "value": "={{ $json.task_id }}"  },
+        { "parameterType": "formData", "name": "user_id",  "value": "={{ $json.user_id }}"  }
+      ],
+      "_why": "So Python echoes task_id and user_id back in the response JSON, making them available downstream."
+    },
+
+    {
+      "id": "fsq-if-001",
+      "name": "IF: Detection Failed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-2432, 900],
+      "_connect_from": "1. Clean  API Output",
+      "_connect_to_true":  "FSQ: Format Record",
+      "_connect_to_false": "(nothing — false path is a dead end; successful scans continue via existing 2. Format Final Results)",
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "cond-table-found",
+              "leftValue":  "={{ $json.table_found }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "or"
+        }
+      },
+      "_note": "This fires when table_found is false (corners not detected) OR you can add a second OR condition for grid_source === 'fallback' if you also want to catch grid-only failures."
+    },
+
+    {
+      "id": "fsq-code-001",
+      "name": "FSQ: Format Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2208, 900],
+      "_connect_from": "IF: Detection Failed? [true output]",
+      "_connect_to": "FSQ: Insert to Supabase",
+      "parameters": {
+        "jsCode": "// Build the record to insert into failed_scan_queue\nconst item = $input.first().json;\n\nconst partialData = {\n  instructor:  item.instructor  ?? '',\n  subject:     item.subject     ?? '',\n  ay_semester: item.ay_semester ?? '',\n  remarks:     item.remarks     ?? '',\n  date:        item.date        ?? '',\n  student_id:  item.student_id  ?? '',\n  ratings:     item.ratings     ?? null,\n  summary:     item.summary     ?? null,\n};\n\nreturn [{\n  json: {\n    task_id:       item.task_id       ?? null,\n    user_id:       item.user_id       ?? null,\n    term_id:       item.term_id       ?? null,\n    table_found:   item.table_found   ?? false,\n    grid_source:   item.grid_source   ?? 'fallback',\n    n8n_ocr_image: item.n8n_ocr_image ?? null,\n    status:        'pending',\n    partial_data:  partialData,\n  }\n}];"
+      }
+    },
+
+    {
+      "id": "fsq-http-001",
+      "name": "FSQ: Insert to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [-1984, 900],
+      "_connect_from": "FSQ: Format Record",
+      "parameters": {
+        "method": "POST",
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/failed_scan_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "_note": "Replace YOUR_SUPABASE_SERVICE_ROLE_KEY with your actual service role key from Supabase > Settings > API."
+    }
+
+  ],
+
+  "connections_to_add": {
+    "1. Clean  API Output": {
+      "_existing_connection": "already goes to '2. Format Final Results'",
+      "_new_connection": "ALSO connect output[0] → 'IF: Detection Failed?' input[0]",
+      "_how": "In the n8n canvas, drag a new wire from '1. Clean API Output' output to 'IF: Detection Failed?' input. Both connections coexist."
+    },
+    "IF: Detection Failed?": {
+      "main": [
+        [{ "node": "FSQ: Format Record",  "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "FSQ: Format Record": {
+      "main": [
+        [{ "node": "FSQ: Insert to Supabase", "type": "main", "index": 0 }]
+      ]
+    },
+    "FSQ: Insert to Supabase": {
+      "main": [ [] ]
+    }
+  },
+
+  "summary": {
+    "what_this_does": [
+      "1. After '1. Clean API Output', a new parallel branch checks if table_found === false.",
+      "2. If true → formats a record and inserts it into Supabase failed_scan_queue with status='pending'.",
+      "3. The existing flow (2. Format Final Results → Merge4 → Supabase raw_GoogleSheet_data_result) is UNCHANGED.",
+      "4. The Flutter app's FailedScansScreen polls failed_scan_queue for pending records.",
+      "5. Staff corrects via Option A (text) or Option B (crop tool), then submits.",
+      "6. On submit, Flutter sets status='validated' in failed_scan_queue AND inserts the corrected record into raw_GoogleSheet_data_result."
+    ]
+  }
+}

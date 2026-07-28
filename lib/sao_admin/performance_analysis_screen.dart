@@ -1,7 +1,14 @@
 // lib/sao_admin/performance_analysis_screen.dart
+// The screen where admin can see how instructors perform — like a report card, but fancier.
+// Has charts, term selector, department averages, and a leaderboard. Very prestige.
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/services/evaluation_service.dart';
+import '../core/services/pdf/pdf_service.dart';
+import '../theme/app_colors.dart';
+import '../widgets/safe_button.dart';
 
+// outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
   const PerformanceAnalysisScreen({super.key});
 
@@ -10,206 +17,395 @@ class PerformanceAnalysisScreen extends StatefulWidget {
 }
 
 class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
-  String _selectedSemester = '1st Semester 2026';
-  final List<String> _semesters = ['1st Semester 2026', '2nd Semester 2025', '1st Semester 2025'];
+  final _evaluationService = EvaluationService(); // service that knows how to crunch eval numbers
+  final _pdfService = PdfService(); // service that generates the PDF report for download
+  final _supabase = Supabase.instance.client; // the database connection
+  
+  // Term selector — each entry: {id, label}
+  // list of all academic terms for the dropdown
+  List<Map<String, String>> _terms = [];
+  String? _selectedTermId;   // actual UUID used for queries
+  String _selectedLabel = 'Loading...'; // human-readable term label shown in UI
+  bool _isInitialLoading = true; // true on first load, shows full-screen spinner
+  bool _isRefreshing = false; // true when switching terms, shows spinner in dropdown
 
-  // --- DUMMY ANALYTICS DATA ---
-  final Map<String, String> _overviewStats = {
-    'overall': '4.68',
-    'totalEvals': '1,248',
-    'completion': '94%',
+  // overview stats shown at the top of the dashboard
+  Map<String, dynamic> _overviewStats = {
+    'overall': '0.0', // university-wide average score
+    'totalEvals': '0', // total evaluation responses this term
+    'completion': '0%', // how many subjects have been evaluated
   };
 
-  final List<Map<String, dynamic>> _departmentAverages = [
-    {'dept': 'Computer Studies', 'score': 4.82, 'color': AppColors.royalBlue},
-    {'dept': 'Engineering', 'score': 4.65, 'color': AppColors.gold},
-    {'dept': 'Education', 'score': 4.51, 'color': Colors.green},
-    {'dept': 'Arts and Sciences', 'score': 4.30, 'color': Colors.orange},
-    {'dept': 'Business', 'score': 4.15, 'color': Colors.purple},
-  ];
+  List<Map<String, dynamic>> _departmentAverages = []; // dept scores for the bar chart section
+  List<InstructorPerformance> _topInstructors = []; // ranked list of instructors by score
 
-  final List<Map<String, dynamic>> _topInstructors = [
-    {
-      'name': 'Kirito (Kazuto Kirigaya)',
-      'dept': 'Computer Studies',
-      'overallScore': 4.85,
-      'trend': 'up',
-      'subjects': [
-        {'name': 'CS101 - Intro to Programming', 'score': 4.90},
-        {'name': 'CS202 - Data Structures', 'score': 4.80},
-      ],
-      'history': [
-        {'sem': '1st Sem 25', 'score': 4.20},
-        {'sem': '2nd Sem 25', 'score': 4.65},
-        {'sem': '1st Sem 26', 'score': 4.85},
-      ]
-    },
-    {
-      'name': 'Asuna Yuuki',
-      'dept': 'Arts and Sciences',
-      'overallScore': 4.88,
-      'trend': 'up',
-      'subjects': [
-        {'name': 'ENG201 - Advanced Physics', 'score': 4.88},
-      ],
-      'history': [
-        {'sem': '1st Sem 25', 'score': 4.70},
-        {'sem': '2nd Sem 25', 'score': 4.80},
-        {'sem': '1st Sem 26', 'score': 4.88},
-      ]
-    },
-    {
-      'name': 'Klein (Ryotaro Tsuboi)',
-      'dept': 'Engineering',
-      'overallScore': 4.45,
-      'trend': 'same',
-      'subjects': [
-        {'name': 'GE101 - Ethics', 'score': 4.20},
-        {'name': 'ENG105 - Thermodynamics', 'score': 4.60},
-        {'name': 'ENG106 - Fluid Dynamics', 'score': 4.55},
-      ],
-      'history': [
-        {'sem': '1st Sem 25', 'score': 4.45},
-        {'sem': '2nd Sem 25', 'score': 4.40},
-        {'sem': '1st Sem 26', 'score': 4.45},
-      ]
-    },
-  ];
+  // called once when screen opens — load everything
+  @override
+  void initState() {
+    super.initState();
+    _loadAllData(); // pray lang it loads fast
+  }
+
+  // loads terms first, then fetches analytics — order matters here
+  Future<void> _loadAllData() async {
+    setState(() => _isInitialLoading = true);
+    await _loadTerms(); // fetch available terms from DB
+    await _fetchRealAnalytics(); // fetch actual performance data for selected term
+    if (mounted) setState(() => _isInitialLoading = false); // done, hide spinner
+  }
+
+  /// Loads all academic terms from Supabase and selects the active one
+  /// If the active term is not found in the list, falls back to the first term
+  Future<void> _loadTerms() async {
+    try {
+      // Get active term from system_settings — this is the current semester
+      final settings = await _supabase
+          .from('system_settings')
+          .select('current_term_id')
+          .limit(1)
+          .maybeSingle();
+      final activeTermId = settings?['current_term_id'] as String?;
+
+      // Fetch all terms sorted newest first — admin wants to see latest first
+      final rows = await _supabase
+          .from('academic_terms')
+          .select('id, semester, academic_year')
+          .order('created_at', ascending: false);
+
+      if (mounted) {
+        setState(() {
+          // convert raw rows into id+label maps for the dropdown
+          _terms = (rows as List).map((r) => {
+            'id': r['id'] as String,
+            'label': '${r['semester']} ${r['academic_year']}',
+          }).toList();
+
+          // Select active term, or first if not found
+          // basin wala active term set, so fallback to first available
+          if (_terms.isNotEmpty) {
+            final active = _terms.firstWhere(
+              (t) => t['id'] == activeTermId,
+              orElse: () => _terms.first, // fallback to first term in list
+            );
+            _selectedTermId = active['id'];
+            _selectedLabel = active['label']!;
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('loadTerms error: $e'); // log and move on, bahala na
+    }
+  }
+
+  /// Called when the user picks a different term from the dropdown
+  /// Re-fetches analytics for the newly selected term — dili ta keep old data
+  Future<void> _onTermChanged(String termId) async {
+    final label = _terms.firstWhere((t) => t['id'] == termId)['label']!;
+    setState(() {
+      _selectedTermId = termId; // update the selected term UUID
+      _selectedLabel = label; // update the display label
+      _isRefreshing = true; // show spinner in the dropdown while loading
+    });
+    await _fetchRealAnalytics(); // reload analytics for new term
+    if (mounted) setState(() => _isRefreshing = false); // done refreshing
+  }
+
+  // fetch all analytics data from the evaluation service for the current term
+  // this calls multiple service methods and stitches together the results
+  Future<void> _fetchRealAnalytics() async {
+    try {
+      // these three fetch in parallel inside the service
+      final globalStats = await _evaluationService.getGlobalStats(termId: _selectedTermId);
+      final deptAverages = await _evaluationService.getDepartmentAverages(termId: _selectedTermId);
+      final topInstructors = await _evaluationService.getTopInstructors(termId: _selectedTermId);
+
+      // Compute data extraction rate: instructors with evaluations / total instructors enrolled
+      // this is how we know if staff been doing their job — importente number
+      String completionRate = 'N/A';
+      try {
+        final resolvedTermId = _selectedTermId;
+        if (resolvedTermId != null) {
+          // get total subjects assigned this term
+          final totalSubjectsRes = await _supabase
+              .from('instructor_subjects')
+              .select('subject_id')
+              .eq('term_id', resolvedTermId);
+          final totalSubjects = (totalSubjectsRes as List).length;
+          final evaluatedInstructors = (globalStats['totalInstructors'] as int?) ?? 0;
+          if (totalSubjects > 0) {
+            // calculate percentage and clamp between 0-100
+            final pct = ((evaluatedInstructors / totalSubjects) * 100).clamp(0, 100).round();
+            completionRate = '$pct%';
+          }
+        }
+      } catch (_) {} // if this calculation fails, just keep 'N/A' — bahala na
+
+      if (mounted) {
+        setState(() {
+          // getGlobalStats() returns {avgScore, totalInstructors, totalResponses}
+          _overviewStats = {
+            'overall': (globalStats['avgScore'] as double? ?? 0.0).toStringAsFixed(2), // round to 2 decimals
+            'totalEvals': '${globalStats['totalResponses'] ?? 0}', // total survey responses
+            'completion': completionRate, // our computed rate
+          };
+          // map department averages and decide color based on score threshold
+          _departmentAverages = deptAverages.map((d) => {
+            'dept': d['dept'],
+            'score': d['score'],
+            'color': d['score'] >= 4.0 ? AppColors.primary : AppColors.warning, // green if good, yellow if murag okay
+          }).toList();
+          _topInstructors = topInstructors; // sorted list of instructor performances
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching performance analytics: $e'); // log it, dili crash the screen
+    }
+  }
+
+  // ==========================================
+  // VIEW ALL INSTRUCTORS BOTTOM SHEET
+  // shows a searchable list of all instructors with their scores
+  // ==========================================
+  void _showAllInstructors() {
+    final searchController = TextEditingController();
+    List<InstructorPerformance> filtered = List.from(_topInstructors); // start with all
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          // DraggableScrollableSheet — can be pulled up or down by the user
+          return DraggableScrollableSheet(
+            initialChildSize: 0.85, // starts at 85% of screen height
+            minChildSize: 0.5, // can be dragged down to 50%
+            maxChildSize: 0.95, // can be stretched to 95%
+            expand: false,
+            builder: (_, scrollCtrl) => Container(
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(children: [
+                // Handle bar at top — visual hint that you can drag this thing
+                Container(width: 40, height: 4,
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    decoration: BoxDecoration(color: AppColors.borderHairline, borderRadius: BorderRadius.circular(2))),
+                // Header row with title and close button
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(children: [
+                    const Icon(Icons.leaderboard, color: AppColors.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text('All Instructors (${filtered.length})', // shows count including search results
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                    ),
+                    IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(ctx)),
+                  ]),
+                ),
+                // Search bar — filter instructors by name or department
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                  child: TextField(
+                    controller: searchController,
+                    onChanged: (q) => setSheetState(() {
+                      // filter locally, no new DB call needed
+                      filtered = _topInstructors.where((i) =>
+                          i.name.toLowerCase().contains(q.toLowerCase()) ||
+                          i.department.toLowerCase().contains(q.toLowerCase())).toList();
+                    }),
+                    decoration: InputDecoration(
+                      hintText: 'Search by name or department...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // List of instructors — each card shows name, dept, and score
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filtered.length,
+                    itemBuilder: (_, i) {
+                      final inst = filtered[i];
+                      final score = inst.overallScore;
+                      // color based on score: green=great, yellow=okay, red=low, gray=no data
+                      final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textTertiary;
+                      return Card(
+                        color: AppColors.surface,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: ListTile(
+                          onTap: () {
+                            Navigator.pop(ctx); // close this sheet first
+                            _showInstructorDetailsSheet(inst); // then show details for this instructor
+                          },
+                          leading: CircleAvatar(
+                            backgroundColor: color.withValues(alpha: 0.12),
+                            child: Text(inst.name.isNotEmpty ? inst.name[0] : '?',
+                                style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+                          ),
+                          title: Text(inst.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), overflow: TextOverflow.ellipsis),
+                          subtitle: Text(inst.department, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                          trailing: Text(
+                            score > 0 ? score.toStringAsFixed(2) : '—', // show score or dash if no data
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   // ==========================================
   // INSTRUCTOR DETAILS POP-UP (WITH ZOOMABLE CHART)
+  // shows historical score chart and current term subject breakdown
   // ==========================================
-  void _showInstructorDetailsSheet(Map<String, dynamic> instructor) {
+  Future<void> _showInstructorDetailsSheet(InstructorPerformance instructor) async {
+    // Fetch detailed info on demand — ayaw fetch this for all instructors at once
+    final history = await _evaluationService.getInstructorHistory(instructor.id); // past term scores
+    final subjects = await _evaluationService.getInstructorSubjects(instructor.id); // current term subjects
+
+    if (!mounted) return;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
-
-        double chartScale = 1.0;
+        double chartScale = 1.0; // current zoom level of the bar chart
 
         return StatefulBuilder(
-            builder: (BuildContext context, StateSetter setSheetState) {
-              final List subjects = instructor['subjects'];
-              final List history = instructor['history'];
-
-              return Container(
-                height: MediaQuery.of(context).size.height * 0.85,
-                decoration: const BoxDecoration(
-                  color: AppColors.lightGray,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Sticky Header
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: const BoxDecoration(
-                        color: AppColors.white,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                      ),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 30,
-                            backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                            child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 24)),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.darkGray)),
-                                Text(instructor['dept'], style: const TextStyle(color: Colors.grey, fontSize: 14)),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.close, color: Colors.grey),
-                            onPressed: () => Navigator.pop(context),
-                          )
-                        ],
-                      ),
+          builder: (BuildContext context, StateSetter setSheetState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.85, // takes 85% of screen
+              decoration: const BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Sticky Header — name, dept, and close button
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                     ),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                          child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24)),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                              Text(instructor.department, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                          onPressed: () => Navigator.pop(context), // close the sheet
+                        )
+                      ],
+                    ),
+                  ),
 
-                    // Scrollable Content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // --- HISTORICAL CHART SECTION WITH ZOOM CONTROLS ---
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                // 👈 FIX 1: Wrapped in Expanded to prevent horizontal overflow
-                                const Expanded(
-                                  child: Text('Historical Performance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                                ),
-
-                                // Zoom Controls
-                                Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.zoom_out, color: AppColors.royalBlue),
-                                      onPressed: () {
-                                        if (chartScale > 0.6) setSheetState(() => chartScale -= 0.2);
-                                      },
-                                    ),
-                                    Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                                    IconButton(
-                                      icon: const Icon(Icons.zoom_in, color: AppColors.royalBlue),
-                                      onPressed: () {
-                                        if (chartScale < 2.5) setSheetState(() => chartScale += 0.2);
-                                      },
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-
-                            // 👈 FIX 2: Fixed height for chart area to prevent vertical 0.4px overflow
-                            Container(
-                              height: 220, // Safe height limit
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal, // Swipe left/right if zoomed in!
+                  // Scrollable Content — the chart and subject breakdown below
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Expanded(
+                                child: Text('Historical Performance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              ),
+                              // zoom controls for the bar chart
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.zoom_out, color: AppColors.primary),
+                                    onPressed: () {
+                                      // don't zoom out past 60% or the bars become invisible
+                                      if (chartScale > 0.6) setSheetState(() => chartScale -= 0.2);
+                                    },
+                                  ),
+                                  Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // current zoom %
+                                  IconButton(
+                                    icon: const Icon(Icons.zoom_in, color: AppColors.primary),
+                                    onPressed: () {
+                                      // max zoom is 250%, don't let them go nuts
+                                      if (chartScale < 2.5) setSheetState(() => chartScale += 0.2);
+                                    },
+                                  ),
+                                ],
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          // the bar chart container — scrollable horizontally if many terms
+                          Container(
+                            height: 220,
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+                            child: history.isEmpty 
+                              ? const Center(child: Text("No historical data available", style: TextStyle(color: AppColors.textSecondary)))
+                              : SingleChildScrollView(
+                                scrollDirection: Axis.horizontal, // horizontal scroll if many bars
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 80),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    crossAxisAlignment: CrossAxisAlignment.end, // bars grow from bottom
                                     children: history.map<Widget>((data) {
-
-                                      // 👈 FIX 3: Height is constant, only Width and Padding scale for zooming!
-                                      double barHeight = (data['score'] / 5.0) * 120; // Max height is 120
-                                      double barWidth = 40 * chartScale;
+                                      double barHeight = (data['score'] / 5.0) * 120; // scale bar to max 120px height
+                                      double barWidth = 40 * chartScale; // bar width scales with zoom
 
                                       return Padding(
                                         padding: EdgeInsets.symmetric(horizontal: 12.0 * chartScale),
                                         child: Column(
                                           mainAxisAlignment: MainAxisAlignment.end,
-                                          mainAxisSize: MainAxisSize.min, // Hugs the contents tightly
+                                          mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
+                                            Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar
                                             const SizedBox(height: 8),
                                             Container(
                                               width: barWidth,
-                                              height: barHeight,
+                                              height: barHeight, // height proportional to score
                                               decoration: BoxDecoration(
-                                                color: AppColors.royalBlue,
-                                                borderRadius: BorderRadius.circular(6),
+                                                color: AppColors.primary,
+                                                borderRadius: BorderRadius.circular(6), // rounded tops look nice
                                               ),
                                             ),
                                             const SizedBox(height: 8),
-                                            Text(data['sem'], style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                            Text(data['sem'], style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)), // semester label below bar
                                           ],
                                         ),
                                       );
@@ -217,250 +413,286 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                   ),
                                 ),
                               ),
-                            ),
-
-                            const SizedBox(height: 32),
-
-                            // --- CURRENT SUBJECT BREAKDOWN ---
-                            const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.deepBlue)),
-                            const SizedBox(height: 16),
-                            Column(
-                              children: subjects.map<Widget>((subject) {
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(12)),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray))),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                                        child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightGray,
-      appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf, color: AppColors.gold),
-            tooltip: 'Export Report',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating PDF Report...')));
-            },
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ==========================================
-              // HEADER & FILTER
-              // ==========================================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Dashboard', style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedSemester,
-                        icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.royalBlue),
-                        style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold, fontSize: 14),
-                        items: _semesters.map((String value) {
-                          return DropdownMenuItem<String>(value: value, child: Text(value));
-                        }).toList(),
-                        onChanged: (newValue) => setState(() => _selectedSemester = newValue!),
+                          ),
+                          const SizedBox(height: 32),
+                          // subject breakdown for the current term
+                          const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          const SizedBox(height: 16),
+                          // show each subject with its score — or empty message if none
+                          subjects.isEmpty
+                            ? const Text("No subjects found for this term", style: TextStyle(color: AppColors.textSecondary))
+                            : Column(
+                                children: subjects.map<Widget>((subject) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)), // subject name
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
+                                          child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)), // score badge
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+            );
+          }
+        );
+      },
+    );
+  }
 
-              // ==========================================
-              // OVERVIEW CARDS
-              // ==========================================
-              Row(
-                children: [
-                  Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.gold)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _buildStatCard('Total Evals', _overviewStats['totalEvals']!, Icons.library_books, AppColors.royalBlue)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.deepBlue, AppColors.royalBlue]),
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: AppColors.royalBlue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4))],
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // the main build — full-screen spinner on first load, dashboard after
+  @override
+  Widget build(BuildContext context) {
+    if (_isInitialLoading) {
+      // initial load spinner — shows while terms and analytics are being fetched
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.textPrimary,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        actions: [
+          // PDF export button — generates and downloads a performance report
+          SafeIconButton(
+            icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
+            tooltip: 'Export Report',
+            onPressed: () async {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating PDF Report...')));
+              // generate the PDF with all current data — may take a moment
+              await _pdfService.generatePerformanceReport(
+                title: 'University Performance Report - $_selectedLabel',
+                overviewStats: _overviewStats,
+                departmentAverages: _departmentAverages,
+                topInstructors: _topInstructors,
+              );
+            },
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadAllData, // pull down to reload everything
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // header area with term selector dropdown
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Data Extraction Rate', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                        SizedBox(height: 4),
-                        Text('System performing optimally', style: TextStyle(color: AppColors.white, fontSize: 12)),
-                      ],
-                    ),
-                    Text(_overviewStats['completion']!, style: const TextStyle(color: AppColors.gold, fontSize: 28, fontWeight: FontWeight.bold)),
+                    const Text('Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                    if (_terms.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      // the term dropdown — pick any semester to view its data
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.borderHairline),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _selectedTermId,
+                            isExpanded: true,
+                            // show spinner in dropdown while data loads, else arrow icon
+                            icon: _isRefreshing
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                                : const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                            style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                            items: _terms.map((t) => DropdownMenuItem<String>(
+                              value: t['id'],
+                              child: Text(t['label']!, overflow: TextOverflow.ellipsis),
+                            )).toList(),
+                            // disabled while refreshing so admin no double-change
+                            onChanged: _isRefreshing ? null : (val) { if (val != null) _onTermChanged(val); },
+                          ),
+                        ),
+                      ),
+                    ] else
+                      Text(_selectedLabel, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis), // fallback if no terms loaded
                   ],
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              // ==========================================
-              // DEPARTMENT PERFORMANCE CHART
-              // ==========================================
-              const Text('Department Averages', style: TextStyle(color: AppColors.darkGray, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
-                child: Column(
-                  children: _departmentAverages.map((dept) {
-                    double percentage = (dept['score'] / 5.0);
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Column(
+                const SizedBox(height: 24),
+                // two stat cards: university average and total evaluations
+                Row(
+                  children: [
+                    Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primary)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primary)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // the "data extraction rate" card — shows how many subjects have been scanned
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: AppColors.heroGradient), // fancy gradient background
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(dept['dept'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                              Text('${dept['score']}', style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'])),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Stack(
-                            children: [
-                              Container(height: 8, decoration: BoxDecoration(color: AppColors.lightGray, borderRadius: BorderRadius.circular(4))),
-                              FractionallySizedBox(
-                                widthFactor: percentage,
-                                child: Container(height: 8, decoration: BoxDecoration(color: dept['color'], borderRadius: BorderRadius.circular(4))),
-                              ),
-                            ],
-                          ),
+                          Text('Data Extraction Rate', style: TextStyle(color: Colors.white70, fontSize: 14)), // what we call scan completion rate
+                          SizedBox(height: 4),
+                          Text('System performing optimally', style: TextStyle(color: AppColors.surface, fontSize: 12)), // motivational text
                         ],
                       ),
-                    );
-                  }).toList(),
+                      // big percentage number on the right side
+                      Text(_overviewStats['completion'] ?? 'N/A', style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 32),
-
-              // ==========================================
-              // TOP INSTRUCTORS LEADERBOARD
-              // ==========================================
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.darkGray, fontSize: 18, fontWeight: FontWeight.bold)),
-                  TextButton(onPressed: () {}, child: const Text('View All', style: TextStyle(color: AppColors.royalBlue))),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              Column(
-                children: _topInstructors.map((instructor) {
-                  final List subjects = instructor['subjects'];
-
-                  return Card(
-                    color: AppColors.white,
-                    elevation: 2,
-                    margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => _showInstructorDetailsSheet(instructor),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        leading: CircleAvatar(
-                          backgroundColor: AppColors.royalBlue.withOpacity(0.1),
-                          child: Text(instructor['name'][0], style: const TextStyle(color: AppColors.deepBlue, fontWeight: FontWeight.bold)),
-                        ),
-                        title: Text(instructor['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                        subtitle: Text('${subjects.length} Subject(s) • ${instructor['dept']}', style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              instructor['trend'] == 'up' ? Icons.trending_up : Icons.trending_flat,
-                              color: instructor['trend'] == 'up' ? Colors.green : Colors.orange,
-                              size: 20,
+                const SizedBox(height: 32),
+                const Text('Department Averages', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 16),
+                // department progress bars — each dept gets a bar showing their average
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10)]),
+                  child: _departmentAverages.isEmpty 
+                    ? const Center(child: Text("No department data found"))
+                    : Column(
+                        children: _departmentAverages.map((dept) {
+                          double percentage = (dept['score'] / 5.0); // fraction of max score (5.0)
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        dept['dept'], // department name
+                                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text('${dept['score']}', style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'])), // score with color
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                // the actual progress bar — gray background, colored fill
+                                Stack(
+                                  children: [
+                                    Container(height: 8, decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(4))), // gray track
+                                    FractionallySizedBox(
+                                      widthFactor: percentage, // fill width based on score fraction
+                                      child: Container(height: 8, decoration: BoxDecoration(color: dept['color'], borderRadius: BorderRadius.circular(4))), // colored fill
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text('${instructor['overallScore']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.deepBlue)),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       ),
+                ),
+                const SizedBox(height: 32),
+                // instructor leaderboard section header with "View All" button
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                    TextButton(
+                      onPressed: () => _showAllInstructors(), // open the full list
+                      child: const Text('View All', style: TextStyle(color: AppColors.primary)),
                     ),
-                  );
-                }).toList(),
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // the actual leaderboard cards — top instructors by score
+                Column(
+                  children: _topInstructors.isEmpty
+                    ? [const Center(child: Text("No instructors found"))]
+                    : _topInstructors.map((instructor) {
+                        return Card(
+                          color: AppColors.surface,
+                          elevation: 2,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => _showInstructorDetailsSheet(instructor), // tap for details
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              leading: CircleAvatar(
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                                child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                              ),
+                              title: Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                              subtitle: Text('${instructor.subjectCount} Subject(s) • ${instructor.department}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    // trending up arrow if improving, flat arrow if not
+                                    instructor.trend == 'up' ? Icons.trending_up : Icons.trending_flat,
+                                    color: instructor.trend == 'up' ? AppColors.success : AppColors.warning,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text('${instructor.overallScore}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)), // the score number
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  // a small colored stat card with icon, big value, and label
+  // reused for 'University Avg' and 'Total Evals' cards at the top
   Widget _buildStatCard(String title, String value, IconData icon, Color iconColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 28),
+          Icon(icon, color: iconColor, size: 28), // icon at top
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.darkGray, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)), // the big number/value
           const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)), // label below
         ],
       ),
     );

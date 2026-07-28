@@ -1,6 +1,11 @@
 // lib/sao_admin/system_audit_screen.dart
+// The "who did what and when" screen — basically the security camera of the app
+// Every suspicious action is logged here. Importente kaayo ni for accountability.
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
+import '../theme/app_colors.dart';
+import '../widgets/safe_button.dart';
 
 class SystemAuditScreen extends StatefulWidget {
   const SystemAuditScreen({super.key});
@@ -10,257 +15,179 @@ class SystemAuditScreen extends StatefulWidget {
 }
 
 class _SystemAuditScreenState extends State<SystemAuditScreen> {
-  // --- 1. DATA GATHERER PRODUCTIVITY ---
-  final List<Map<String, dynamic>> _gathererProductivity = [
-    {'name': 'John (Terminal 1)', 'scanned': 450, 'target': 500, 'color': AppColors.royalBlue},
-    {'name': 'Maria (Terminal 2)', 'scanned': 320, 'target': 500, 'color': AppColors.gold},
-  ];
+  // our trusty supabase client — never leaves our side
+  final _supabase = Supabase.instance.client;
+  bool _isLoading = true; // spinning while fetching the receipts
+  bool _isAscending = false; // Toggle for sorting — false means newest first (default, murag news feed)
+  List<Map<String, dynamic>> _logs = []; // all the audit log entries, each is a Map of crime scene data
 
-  // --- 3. DATA GATHERER SYNC STATUS (Updated) ---
-  final List<Map<String, dynamic>> _gathererSyncStatus = [
-    {'name': 'John (Terminal 1)', 'status': 'Fully Synced', 'pending': 0, 'isOnline': true},
-    {'name': 'Maria (Terminal 2)', 'status': 'Cached Locally', 'pending': 50, 'isOnline': false},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // fetch logs as soon as screen opens — no delay, we need the evidence
+    _fetchLogs();
+  }
 
-  // --- 4. OVERALL EVALUATION PROGRESS ---
-  final List<Map<String, dynamic>> _collegeProgress = [
-    {'college': 'College of Technology', 'progress': 1.0, 'percentage': '100%'},
-    {'college': 'College of Education', 'progress': 0.4, 'percentage': '40%'},
-    {'college': 'College of Engineering', 'progress': 0.75, 'percentage': '75%'},
-  ];
+  // pulls up to 100 audit log entries from supabase
+  // joins user_info so we know WHO did the action, not just some random UUID
+  Future<void> _fetchLogs() async {
+    setState(() => _isLoading = true); // start spinner
+    try {
+      final response = await _supabase
+          .from('audit_logs')
+          .select('''
+            *,
+            user_info:user_id ( first_name, last_name, email )
+          ''') // join user info — murag cross-referencing a suspect's identity
+          .order('created_at', ascending: _isAscending) // sort by time based on toggle
+          .limit(100); // cap at 100 — more than enough to catch someone doing bad things
+
+      setState(() {
+        _logs = List<Map<String, dynamic>>.from(response); // cast from dynamic
+        _isLoading = false;
+      });
+    } catch (e) {
+      // fetch failed — at least log it, wala choice
+      debugPrint('Error fetching logs: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // flips the sort order between oldest-first and newest-first, then refetches
+  // pressing this twice brings you back to where you started, so dili mag-confuse
+  Future<void> _toggleSort() async {
+    setState(() {
+      _isAscending = !_isAscending; // flip the flag
+    });
+    await _fetchLogs(); // reload with new sort order
+  }
+
+  // returns a color based on what kind of action happened
+  // green for creates, yellow for updates, blue for OTP stuff, red for deletes
+  // like a traffic light but for admin actions — murag color-coding ang receipts
+  Color _getActionColor(String action) {
+    action = action.toUpperCase(); // normalize to upper so matching works
+    if (action.contains('CREATE')) return AppColors.success; // green — good, someone added something
+    if (action.contains('UPDATE') || action.contains('ROLE')) return AppColors.warning; // yellow — changed something
+    if (action.contains('OTP')) return AppColors.primary; // blue — identity verification stuff
+    if (action.contains('DELETE') || action.contains('REJECT')) return AppColors.error; // red — uh oh
+    return AppColors.textSecondary; // gray for anything else we didnt think of
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.lightGray,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.deepBlue,
+        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.white),
-        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: const Text('Security Audit Logs', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        actions: [
+          // Sort Toggle Button — switches between newest/oldest first
+          SafeIconButton(
+            icon: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward), // arrow shows current direction
+            tooltip: _isAscending ? 'Showing Oldest First' : 'Showing Newest First',
+            onPressed: _toggleSort, // flip and reload
+          ),
+          // manual refresh button — for when you just KNOW something new happened
+          SafeIconButton(icon: const Icon(Icons.refresh), onPressed: _fetchLogs),
+        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Live System Metrics',
-                style: TextStyle(color: AppColors.darkGray, fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Real-time tracking for AI processing, staff productivity, and device synchronization.',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator()) // spinning — evidence still loading
+          : _logs.isEmpty
+              ? _buildEmptyState() // no logs found — either clean system or logs got purged
+              : RefreshIndicator(
+                  onRefresh: _fetchLogs, // pull down to refresh, like a news feed
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _logs.length,
+                    itemBuilder: (context, index) {
+                      final log = _logs[index];
+                      final action = (log['action'] ?? 'UNKNOWN').toString().toUpperCase(); // action type, uppercased
+                      final createdAt = DateTime.parse(log['created_at']).toLocal(); // convert UTC to local time
+                      final userInfo = log['user_info']; // joined user data (may be null if system action)
+                      // show name if user found, otherwise say "System" — bahala na kung wala
+                      final userName = userInfo != null
+                          ? '${userInfo['first_name']} ${userInfo['last_name']}'
+                          : 'System';
 
-              // ==========================================
-              // 2. AI PROCESSING & ERROR METRICS
-              // ==========================================
-              const Text('AI Processing Accuracy', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.check_circle, color: Colors.green, size: 20),
-                                  SizedBox(width: 8),
-                                  Expanded(child: Text('Perfect Extraction', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 13), overflow: TextOverflow.ellipsis)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text('85%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                              Text('Processed perfectly', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                            ],
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        // expandable card — tap to reveal the JSON metadata inside
+                        child: ExpansionTile(
+                          leading: CircleAvatar(
+                            backgroundColor: _getActionColor(action).withValues(alpha: 0.1), // tinted circle
+                            child: Icon(Icons.history, color: _getActionColor(action), size: 20),
                           ),
-                        ),
-                        Container(width: 1, height: 80, color: Colors.grey.shade300),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.warning, color: Colors.orange, size: 20),
-                                  SizedBox(width: 8),
-                                  Expanded(child: Text('Manual Validated', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 13), overflow: TextOverflow.ellipsis)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              const Text('15%', style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                              Text('Messy handwriting', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                            ],
+                          title: Text(
+                            action.replaceAll('_', ' '), // underscores look ugly — replace with spaces
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Row(
-                        children: [
-                          Expanded(flex: 85, child: Container(height: 12, color: Colors.green)),
-                          Expanded(flex: 15, child: Container(height: 12, color: Colors.orange)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // ==========================================
-              // 1. DATA GATHERER PRODUCTIVITY (AUDIT LOGS)
-              // ==========================================
-              const Text('Data Gatherer Productivity', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              ..._gathererProductivity.map((staff) {
-                double progress = staff['scanned'] / staff['target'];
-                return Card(
-                  color: AppColors.white,
-                  elevation: 1,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          // subtitle shows who did it and when — the important stuff
+                          subtitle: Text(
+                            'By $userName • ${DateFormat('MMM d, h:mm a').format(createdAt)}',
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          // expanded section shows the raw JSON metadata for the action
                           children: [
-                            Expanded(
-                              child: Row(
+                            Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor: staff['color'].withOpacity(0.1),
-                                    child: Icon(Icons.person, color: staff['color'], size: 18),
+                                  const Divider(),
+                                  // label for the raw JSON block below
+                                  const Text('METADATA (JSON):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.textSecondary)),
+                                  const SizedBox(height: 8),
+                                  // monospaced container showing raw metadata — looks like a terminal
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.2)),
+                                    ),
+                                    child: Text(
+                                      log['metadata'].toString(), // raw dump of the metadata map
+                                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppColors.textPrimary),
+                                    ),
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: Text(staff['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray, fontSize: 15), overflow: TextOverflow.ellipsis)),
+                                  // show admin email below JSON if it exists — extra accountability
+                                  if (userInfo?['email'] != null) ...[
+                                    const SizedBox(height: 12),
+                                    Text('Admin Email: ${userInfo['email']}',
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic)),
+                                  ]
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text('${staff['scanned']} forms', style: TextStyle(color: staff['color'], fontWeight: FontWeight.bold)),
+                            )
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            backgroundColor: AppColors.lightGray,
-                            color: staff['color'],
-                            minHeight: 8,
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                );
-              }),
-              const SizedBox(height: 20),
-
-              // ==========================================
-              // 3. DATA GATHERER SYNC STATUS (UPDATED)
-              // ==========================================
-              const Text('Data Gatherer Sync Status', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              ..._gathererSyncStatus.map((gatherer) {
-                return Card(
-                  color: AppColors.white,
-                  elevation: 1,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: gatherer['isOnline'] ? Colors.green.withOpacity(0.3) : Colors.orange.withOpacity(0.3))),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: Icon(
-                      gatherer['isOnline'] ? Icons.cloud_done : Icons.cloud_off,
-                      color: gatherer['isOnline'] ? Colors.green : Colors.orange,
-                      size: 32,
-                    ),
-                    title: Text(gatherer['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray)),
-                    subtitle: Text(
-                      gatherer['isOnline'] ? 'Fully Synced to Server' : '${gatherer['pending']} forms waiting',
-                      style: TextStyle(color: gatherer['isOnline'] ? Colors.grey : Colors.orange.shade800, fontWeight: gatherer['isOnline'] ? FontWeight.normal : FontWeight.bold),
-                    ),
-                    trailing: gatherer['isOnline']
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : IconButton(
-                      icon: const Icon(Icons.sync, color: Colors.orange),
-                      tooltip: 'Force Sync',
-                      onPressed: () {},
-                    ),
-                  ),
-                );
-              }),
-              const SizedBox(height: 20),
-
-              // ==========================================
-              // 4. OVERALL EVALUATION PROGRESS
-              // ==========================================
-              const Text('Campus Evaluation Progress', style: TextStyle(color: AppColors.deepBlue, fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppColors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
                 ),
-                child: Column(
-                  children: _collegeProgress.map((college) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(child: Text(college['college'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkGray), overflow: TextOverflow.ellipsis)),
-                              const SizedBox(width: 8),
-                              Text(college['percentage'], style: TextStyle(fontWeight: FontWeight.bold, color: college['progress'] == 1.0 ? Colors.green : AppColors.royalBlue)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: college['progress'],
-                              backgroundColor: AppColors.lightGray,
-                              color: college['progress'] == 1.0 ? Colors.green : AppColors.royalBlue,
-                              minHeight: 8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
+    );
+  }
+
+  // shown when there are no logs at all
+  // either the system is clean OR someone deleted the evidence — basin dili ta mahibaw-an
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.shield_outlined, size: 64, color: AppColors.textTertiary), // big shield — nothing to see here
+          const SizedBox(height: 16),
+          const Text('No security logs found', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+        ],
       ),
     );
   }
