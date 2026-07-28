@@ -1,10 +1,15 @@
 // lib/instructor/instructor_settings_screen.dart
+// The account settings page. This is where the instructor can edit their name,
+// change password, or do the extreme action of deleting their whole account.
+// Proceed with caution. Especially the delete part. Dili pwede undo.
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
+import '../widgets/safe_button.dart';
 
+// Simple StatefulWidget — needs state because profile data loads after build
 class InstructorSettingsScreen extends StatefulWidget {
   const InstructorSettingsScreen({super.key});
 
@@ -13,26 +18,31 @@ class InstructorSettingsScreen extends StatefulWidget {
 }
 
 class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
+  // Supabase client and auth service — our connection to the backend gods
   final _supabase = Supabase.instance.client;
   final _authService = AuthService();
 
   // --- INTERACTIVE PROFILE STATE ---
+  // These hold the current profile values — start empty, filled after load
   String _firstName = '';
   String _lastName = '';
-  String _userTitle = 'Instructor';
-  String _userDept = 'Computer Studies';
-  bool _isLoading = true;
+  String _userTitle = 'Instructor'; // default title if fetch fails
+  String _userDept = 'Computer Studies'; // default dept — pray it matches actual one
+  bool _isLoading = true; // show spinner until data arrives
 
   @override
   void initState() {
     super.initState();
-    _loadUserProfile();
+    _loadUserProfile(); // kick off the profile fetch immediately
   }
 
+  // Loads instructor profile from Supabase.
+  // Does two queries at once (in parallel) to save time — smart, not lazy.
   Future<void> _loadUserProfile() async {
     try {
       final user = _supabase.auth.currentUser;
       if (user == null) {
+        // No logged-in user? Just stop loading and show whatever we have
         setState(() => _isLoading = false);
         return;
       }
@@ -51,8 +61,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
             .maybeSingle(),
       ]);
 
-      final data = results[0];
-      final deptData = results[1];
+      final data = results[0]; // first_name, last_name
+      final deptData = results[1]; // department and role
 
       if (mounted) {
         setState(() {
@@ -69,11 +79,12 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
             _userTitle = role is Map ? role['Roles'] ?? 'Instructor' : 'Instructor';
           }
           
-          _isLoading = false;
+          _isLoading = false; // done loading, time to show the goods
         });
       }
     } catch (e) {
       debugPrint('Error loading profile: $e');
+      // Even on error, stop the spinner so user is not stuck forever staring at it
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -81,19 +92,22 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   // ==========================================
   // INTERACTIVE: EDIT PROFILE BOTTOM SHEET
   // ==========================================
+  // Shows a bottom sheet where the instructor can edit their first and last name.
+  // Has its own save button that hits Supabase and updates state on success.
   void _showEditProfileSheet() {
     final TextEditingController firstController = TextEditingController(text: _firstName);
     final TextEditingController lastController = TextEditingController(text: _lastName);
-    bool isSaving = false;
+    bool isSaving = false; // prevent double-tap spam while saving
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true,
+      isScrollControlled: true, // allows sheet to resize when keyboard appears
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
               return Padding(
+                // Push sheet up when keyboard is open so the fields are visible
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
                   padding: const EdgeInsets.all(24),
@@ -109,6 +123,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          // Close button — for when the user change their mind
                           IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
@@ -125,15 +140,18 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                             backgroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
+                          // Disable button while saving to avoid double-click disaster
                           onPressed: isSaving ? null : () async {
                             setSheetState(() => isSaving = true);
                             try {
+                              // Call auth service to update name in the database
                               final result = await _authService.updateProfile(
                                 firstName: firstController.text.trim(),
                                 lastName: lastController.text.trim(),
                               );
                               
                               if (result.success) {
+                                // Update local state immediately so UI reflects the change
                                 setState(() {
                                   _firstName = firstController.text.trim();
                                   _lastName = lastController.text.trim();
@@ -148,6 +166,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },
+                          // Show spinner while saving, text when idle
                           child: isSaving 
                             ? const CircularProgressIndicator(color: Colors.white)
                             : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
@@ -166,6 +185,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   // ==========================================
   // INTERACTIVE: DELETE ACCOUNT
   // ==========================================
+  // Shows a confirmation dialog before deleting the account.
+  // This is the danger zone. No undo. Wala gyud. Think before tapping.
   void _showDeleteAccountDialog() {
     showDialog(
       context: context,
@@ -181,14 +202,16 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           ),
           content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
           actions: [
+            // Cancel button — the safe exit when the user realizes it was a bad idea
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            ElevatedButton(
+            SafeElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
-                Navigator.pop(context);
-                final result = await _authService.deleteAccount();
+                Navigator.pop(context); // close dialog first
+                final result = await _authService.deleteAccount(); // the point of no return
                 if (result.success) {
+                  // Account deleted — kick back to login screen, no route history left
                    if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                 } else {
                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
@@ -204,11 +227,13 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   // ==========================================
   // INTERACTIVE: CHANGE PASSWORD DIALOG
   // ==========================================
+  // Three-step password change: verify current, enter new, confirm new.
+  // Must match, must be at least 6 chars, then logs out automatically after success.
   void _showChangePasswordDialog() {
     final TextEditingController currentPasswordController = TextEditingController();
     final TextEditingController newPasswordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
-    bool isUpdating = false;
+    bool isUpdating = false; // prevent double submit
 
     showDialog(
       context: context,
@@ -244,29 +269,33 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   final newPw = newPasswordController.text.trim();
                   final confirmPw = confirmPasswordController.text.trim();
 
+                  // Validation 1: Cannot leave fields empty, ayaw!
                   if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                     return;
                   }
 
+                  // Validation 2: New and confirm passwords must match exactly
                   if (newPw != confirmPw) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                     return;
                   }
 
+                  // Validation 3: Password must be at least 6 characters long
                   if (newPw.length < 6) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                     return;
                   }
 
-                  setDialogState(() => isUpdating = true);
+                  setDialogState(() => isUpdating = true); // show spinner
                   
                   try {
-                    // Step 1: Verify current password by re-signing in
+                    // Step 1: Verify current password by re-signing in — must confirm identity first
                     final email = _supabase.auth.currentUser?.email ?? '';
                     final verifyResp = await _supabase.auth.signInWithPassword(
                         email: email, password: currentPw);
                     if (verifyResp.user == null) {
+                      // Wrong current password — balik ka
                       setDialogState(() => isUpdating = false);
                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                           content: Text('Current password is incorrect.'),
@@ -274,23 +303,24 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       return;
                     }
 
-                    // Step 2: Update to new password
+                    // Step 2: Update to new password using auth service
                     final result = await _authService.updatePassword(newPw);
                     if (!mounted) return;
                     if (result.success) {
                       final outerCtx = context;
-                      Navigator.pop(context);
+                      Navigator.pop(context); // close dialog first
                       ScaffoldMessenger.of(outerCtx).showSnackBar(const SnackBar(
                         content: Text('Password updated. Please log in again.'),
                         backgroundColor: AppColors.success,
                       ));
+                      // Small delay so the user can see the success message before logout
                       await Future.delayed(const Duration(seconds: 2));
-                      await _authService.signOut();
+                      await _authService.signOut(); // force re-login for security
                       if (mounted) {
                         Navigator.pushAndRemoveUntil(
                           outerCtx,
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
-                          (route) => false,
+                          (route) => false, // clear all routes — fresh start
                         );
                       }
                     } else {
@@ -308,6 +338,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     }
                   }
                 },
+                  // Spinner when updating, text when idle — basin ma confuse user
                   child: isUpdating 
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                     : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
@@ -320,10 +351,11 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     );
   }
 
+  // Reusable text field widget for forms — handles labels, icons, and password masking
   Widget _buildInput({required String label, IconData? icon, TextEditingController? controller, bool isPassword = false}) {
     return TextField(
       controller: controller,
-      obscureText: isPassword,
+      obscureText: isPassword, // hide text if password field, importente for security
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
@@ -337,14 +369,16 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    String initials = "U";
+    // Calculate initials from name — e.g. "Juan dela Cruz" → "JD"
+    String initials = "U"; // "U" for Unknown if name not loaded
     if (_firstName.isNotEmpty) {
       initials = _firstName[0];
       if (_lastName.isNotEmpty) {
-        initials += _lastName[0];
+        initials += _lastName[0]; // combine first letters
       }
     }
 
+    // Show loading spinner while fetching profile data — dili blank ang screen
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
@@ -361,6 +395,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Section: Profile — shows avatar, name, title, and edit link
               const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
@@ -371,6 +406,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
+                      // Circle avatar with initials — no photo upload yet, bahala na
                       CircleAvatar(
                         radius: 32,
                         backgroundColor: AppColors.primary.withValues(alpha: 0.1),
@@ -381,10 +417,13 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Full name display
                             Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
+                            // Title and dept on the same line
                             Text('$_userTitle • $_userDept', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 8),
+                            // Tap this to open the edit profile bottom sheet
                             GestureDetector(
                               onTap: _showEditProfileSheet,
                               child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
@@ -398,6 +437,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
+              // Section: Notifications — placeholder for future notification settings
               const Text('Notifications', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
@@ -406,6 +446,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
+                    // Email alerts — not yet implemented, "Coming Soon" badge for now
                     ListTile(
                       leading: const Icon(Icons.email, color: AppColors.textSecondary),
                       title: const Text('Email Alerts', style: TextStyle(color: AppColors.textSecondary)),
@@ -421,6 +462,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       ),
                     ),
                     const Divider(height: 1, indent: 56),
+                    // Push notifications — also not yet implemented. Future plans lang.
                     ListTile(
                       leading: const Icon(Icons.notifications_active, color: AppColors.textSecondary),
                       title: const Text('Push Notifications', style: TextStyle(color: AppColors.textSecondary)),
@@ -440,6 +482,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
+              // Section: Security & Danger Zone — where the brave (and reckless) go
               const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
@@ -448,6 +491,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
+                    // Change password tile — opens the 3-field password dialog
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
@@ -460,6 +504,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       onTap: _showChangePasswordDialog,
                     ),
                     const Divider(height: 1, indent: 56),
+                    // Delete account tile — the red one. Handle with care. Wala undo.
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
@@ -476,13 +521,15 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
+              // Big red sign-out button at the bottom — clear and hard to miss
               SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: OutlinedButton.icon(
+                child: SafeOutlinedButton(
                   onPressed: () async {
-                    await _authService.signOut();
+                    await _authService.signOut(); // clear session from Supabase
                     if (mounted) {
+                      // Send to login screen, remove all previous routes so user cant go back
                       Navigator.pushAndRemoveUntil(
                         context,
                         MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -490,16 +537,23 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       );
                     }
                   },
-                  icon: const Icon(Icons.logout, color: AppColors.error),
-                  label: const Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.error, width: 2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.logout, color: AppColors.error),
+                      SizedBox(width: 8),
+                      Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
                   ),
                 ),
               ),
               const SizedBox(height: 32),
 
+              // Version label — just the prototype badge at the very bottom
               const Center(
                 child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),

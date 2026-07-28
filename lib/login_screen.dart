@@ -1,4 +1,6 @@
 // lib/login_screen.dart
+// this is the login screen, the front door of the app
+// if this screen have problem, nobody can get in, importente kaayo ni
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +9,7 @@ import 'core/services/auth_service.dart';
 import 'main.dart' show screenForRole;
 import 'signup_screen.dart';
 import 'theme/app_colors.dart';
+import 'widgets/safe_button.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,20 +18,29 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  // auth service handle all the login logic, we just call it and pray
   final _authService = AuthService();
   final TextEditingController _idController       = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  bool _obscurePassword = true;
+  bool _obscurePassword = true; // hide the password by default, dili ta show-off
   bool _isLoading       = false;
-  String? _errorMessage;
+  String? _errorMessage; // null means no error, something means user did something wrong
   late final StreamSubscription<AuthState> _authSubscription;
+
+  // rate limiting to stop people from guessing password all day, 5 tries then lockout
+  int _failedLoginAttempts = 0;
+  DateTime? _lastFailedAttempt;
+  static const _maxAttempts = 5;
+  static const _lockoutDuration = Duration(minutes: 5); // 5 minutes timeout, take a break
 
   @override
   void initState() {
     super.initState();
+    // we listen to auth state changes here so we know when user click the password reset link
     _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       final AuthChangeEvent event = data.event;
+      // if the event is password recovery, we show the update password dialog immediately
       if (event == AuthChangeEvent.passwordRecovery) {
         _showUpdatePasswordDialog();
       }
@@ -37,6 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    // clean up everything when this screen is gone, very important so we dont leak memory
     _authSubscription.cancel();
     _idController.dispose();
     _passwordController.dispose();
@@ -44,33 +57,61 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    // grab what the user typed, trim the spaces so they dont fail because of accident whitespace
     final input    = _idController.text.trim();
     final password = _passwordController.text;
 
+    // if either field is empty we yell at the user nicely before even trying
     if (input.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter your ID/email and password.');
       return;
     }
 
+    // check if user already fail too many times and is currently locked out
+    if (_failedLoginAttempts >= _maxAttempts && _lastFailedAttempt != null) {
+      final elapsed = DateTime.now().difference(_lastFailedAttempt!);
+      if (elapsed < _lockoutDuration) {
+        // calculate how much time is left in the lockout so user know how long to wait
+        final remaining = _lockoutDuration - elapsed;
+        final mins = remaining.inMinutes;
+        final secs = remaining.inSeconds % 60;
+        setState(() => _errorMessage =
+            'Too many failed attempts. Please wait ${mins}m ${secs}s before trying again.');
+        return;
+      } else {
+        // lockout already expired so we reset the counter, fresh start for the user
+        _failedLoginAttempts = 0;
+        _lastFailedAttempt = null;
+      }
+    }
+
+    // show loading spinner and clear any old error message before we send the request
     setState(() { _isLoading = true; _errorMessage = null; });
 
-    // TODO: signIn() logic lives in AuthService. Add Supabase code there, not here.
+    // this is where we actually call the auth service to do the login, pray lang
     final result = await _authService.signIn(idOrEmail: input, password: password);
 
-    if (!mounted) return;
+    if (!mounted) return; // safety check in case screen was closed while loading
     setState(() => _isLoading = false);
 
     if (result.success) {
+      // login success, reset the failed counter and send user to their dashboard
+      _failedLoginAttempts = 0;
+      _lastFailedAttempt = null;
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => screenForRole(result.role!, result.userId!)),
       );
     } else {
+      // login fail, increment the failed counter and show the error message
+      _failedLoginAttempts++;
+      _lastFailedAttempt = DateTime.now();
       setState(() => _errorMessage = result.error);
     }
   }
 
+  // show the forgot password dialog so user can request a reset link via email
   void _showForgotPasswordDialog() {
     final emailController = TextEditingController();
     showDialog(
@@ -93,18 +134,20 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
+          SafeElevatedButton(
             onPressed: () async {
               final email = emailController.text.trim();
-              if (email.isEmpty) return;
+              if (email.isEmpty) return; // dont send anything if the field is blank
               
-              // Store navigator before async gap if needed, or check mounted
+              // we store navigator and scaffold messenger before the async call
+              // this is important so we dont use context after it might be gone
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               final navigator = Navigator.of(context);
               
-              navigator.pop();
+              navigator.pop(); // close dialog first, then send the request
               final result = await _authService.sendPasswordResetEmail(email);
               
+              // show snackbar to tell user if the reset email was sent or not
               scaffoldMessenger.showSnackBar(
                 SnackBar(
                   content: Text(result.success
@@ -121,6 +164,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // show the update password dialog when user click the reset link from their email
+  // this pop up automatically when supabase detect the password recovery event
   void _showUpdatePasswordDialog() {
     final passwordController = TextEditingController();
     bool isUpdating = false;
@@ -152,8 +197,21 @@ class _LoginScreenState extends State<LoginScreen> {
             ElevatedButton(
               onPressed: isUpdating ? null : () async {
                 final newPass = passwordController.text.trim();
-                if (newPass.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.')));
+
+                // validate password strength, must meet all requirements or we reject it
+                // same rules as signup so its consistent, dili ta puwede mag-cheat diri
+                final hasLength  = newPass.length >= 8;
+                final hasUpper   = newPass.contains(RegExp(r'[A-Z]'));
+                final hasNumber  = newPass.contains(RegExp(r'[0-9]'));
+                final hasSpecial = newPass.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
+
+                if (!hasLength || !hasUpper || !hasNumber || !hasSpecial) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text(
+                      'Password must be at least 8 characters and include '
+                      'an uppercase letter, a number, and a special character.',
+                    ),
+                  ));
                   return;
                 }
 
@@ -302,6 +360,8 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // reusable text field builder so we dont repeat the same decoration code twice
+  // one for the ID field, one for password, same look but different behavior
   Widget _buildTextField({
     required TextEditingController controller,
     required String hintText,

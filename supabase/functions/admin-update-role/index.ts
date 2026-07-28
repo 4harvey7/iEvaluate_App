@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -13,35 +13,65 @@ async function hashString(str: string) {
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// ── H-1 FIX: OTP attempt limit ────────────────────────────────────────────────
+const MAX_OTP_ATTEMPTS = 5
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const supabaseAdmin = createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '')
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
     const { targetUserId, firstName, lastName, roleId, roleName, verificationCode, isAcademic } = await req.json()
 
+    // ── Authenticate caller ───────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
-    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(authHeader!.replace('Bearer ', ''))
+    if (!authHeader) throw new Error('Unauthorized')
 
-    // 🛡️ OTP Protection Logic
+    const { data: { user: caller }, error: userError } =
+      await supabaseAdmin.auth.getUser(authHeader.replace('Bearer ', ''))
+    if (userError || !caller) throw new Error('Unauthorized')
+
+    // ── H-7 FIX: Verify caller is SAO_ADMIN before ANY operation ─────────────
+    const { data: adminCheck, error: adminError } = await supabaseAdmin
+      .from('Sao_users').select('roles!inner(Roles)').eq('user_id', caller.id).single()
+    if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
+      throw new Error('Forbidden: Admin access required')
+    }
+
+    // ── OTP Protection Logic ──────────────────────────────────────────────────
     // Required if: Target is SAO Personnel OR Target is a Department Head
     const needsOTP = !isAcademic || roleName === 'DEPARTMENT_HEAD'
 
     if (needsOTP) {
-      const { data: verifyData } = await supabaseAdmin.from('admin_verifications').select('code, expires_at, attempts').eq('admin_id', caller!.id).single()
-      if (!verifyData || new Date(verifyData.expires_at) < new Date()) throw new Error("Verification code expired.")
+      const { data: verifyData } = await supabaseAdmin
+        .from('admin_verifications')
+        .select('code, expires_at, attempts')
+        .eq('admin_id', caller.id)
+        .single()
+
+      if (!verifyData || new Date(verifyData.expires_at) < new Date()) {
+        throw new Error('Verification code expired. Please request a new one.')
+      }
+
+      // H-1 FIX: Enforce attempt limit
+      if (verifyData.attempts >= MAX_OTP_ATTEMPTS) {
+        await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
+        throw new Error('Too many failed attempts. OTP invalidated. Please request a new code.')
+      }
 
       const inputHash = await hashString(verificationCode)
       if (verifyData.code !== inputHash) {
-        await supabaseAdmin.from('admin_verifications').update({ attempts: verifyData.attempts + 1 }).eq('admin_id', caller!.id)
-        throw new Error("Invalid verification code.")
+        await supabaseAdmin.from('admin_verifications')
+          .update({ attempts: verifyData.attempts + 1 }).eq('admin_id', caller.id)
+        throw new Error(`Invalid verification code. ${MAX_OTP_ATTEMPTS - verifyData.attempts - 1} attempts remaining.`)
       }
-      await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller!.id)
+      await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
     }
 
-    // Perform Updates
-    const { data: oldData } = await supabaseAdmin.from('user_info').select('account_status').eq('id', targetUserId).single()
-
+    // ── Perform Updates ───────────────────────────────────────────────────────
     await supabaseAdmin.from('user_info').update({
       first_name: firstName,
       last_name: lastName
@@ -53,15 +83,19 @@ serve(async (req) => {
       await supabaseAdmin.from('Sao_users').update({ role_id: roleId }).eq('user_id', targetUserId)
     }
 
-    // 📧 Notify the User with a more detailed email
-    const { data: userData } = await supabaseAdmin.from('user_info').select('email, account_status').eq('id', targetUserId).single()
+    // ── Notify User ───────────────────────────────────────────────────────────
+    const { data: userData } = await supabaseAdmin
+      .from('user_info').select('email, account_status').eq('id', targetUserId).single()
+
     const BREVO_KEY = Deno.env.get('BREVO_API_KEY')
+    const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')
+    if (!SENDER_EMAIL) throw new Error('BREVO_SENDER_EMAIL is not configured')
 
     await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: { 'api-key': BREVO_KEY!, 'content-type': 'application/json' },
       body: JSON.stringify({
-        sender: { name: 'SAO Management', email: Deno.env.get('BREVO_SENDER_EMAIL') },
+        sender: { name: 'SAO Management', email: SENDER_EMAIL },
         to: [{ email: userData!.email }],
         subject: 'Account Information Updated',
         htmlContent: `
@@ -79,10 +113,24 @@ serve(async (req) => {
       })
     })
 
-    await supabaseAdmin.from('audit_logs').insert({ user_id: caller!.id, action: 'ROLE_UPDATED', metadata: { target: targetUserId, new_role: roleName } })
+    await supabaseAdmin.from('audit_logs').insert({
+      user_id: caller.id,
+      action: 'ROLE_UPDATED',
+      metadata: { target: targetUserId, new_role: roleName }
+    })
 
-    return new Response(JSON.stringify({ message: 'Update successful' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+    return new Response(JSON.stringify({ message: 'Update successful' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Too many failed', 'Invalid verification', 'BREVO_']
+    const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
+      ? error.message
+      : 'Operation failed. Please try again.'
+    return new Response(JSON.stringify({ error: safeMessage }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: error.message?.startsWith('Unauthorized') ? 401 : 400,
+    })
   }
 })

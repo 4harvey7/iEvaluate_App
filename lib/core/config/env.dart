@@ -1,79 +1,109 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// Single source of truth for all environment variables.
-// To change server IP or any URL: edit .env only — nothing else.
+// lib/core/config/env.dart
 //
-// ── Test vs Production mode ────────────────────────────────────────────────
-// In .env set USE_N8N_TEST=true  → all webhooks use "webhook-test/" prefix
-//                      =false → all webhooks use "webhook/"        prefix
+// ── How secrets are injected ──────────────────────────────────────────────────
+// Secrets are NO LONGER bundled as a .env asset file inside the APK/IPA.
+// They are compiled in as Dart constants via:
+//
+//   flutter run  --dart-define-from-file=.env.json
+//   flutter build apk --dart-define-from-file=.env.json
+//   flutter build ios --dart-define-from-file=.env.json
+//
+// Create a local `.env.json` file (already git-ignored) with this structure:
+// {
+//   "SUPABASE_URL": "https://xxxx.supabase.co",
+//   "SUPABASE_ANON_KEY": "eyJ...",
+//   "N8N_BASE_URL": "http://192.168.x.x:5678",
+//   "PYTHON_API_BASE_URL": "http://192.168.x.x:5000",
+//   "USE_N8N_TEST": "true",
+//   "N8N_WEBHOOK_HEALTH": "webhook/health-check",
+//   "N8N_WEBHOOK_SCAN_UPLOAD": "webhook/sast-scan-upload",
+//   "N8N_WEBHOOK_LINK_UPLOAD": "webhook/sast-link-upload",
+//   "N8N_WEBHOOK_CROP_OCR": "webhook/sast-crop-ocr",
+//   "N8N_WEBHOOK_MANUAL_CORRECTION": "webhook/sast-manual-correction",
+//   "N8N_WEBHOOK_SUBJECT_BULK_IMPORT": "webhook/subject-bulk-import",
+//   "N8N_WEBHOOK_IMPORT_ERROR_CORRECTION": "webhook/import-error-correction",
+//   "PYTHON_PROCESS_CROP": "process-crop"
+// }
+//
+// The .env.json file is listed in .gitignore and is NEVER committed.
+// ─────────────────────────────────────────────────────────────────────────────
+
 class Env {
-  // ── Test mode flag ────────────────────────────────────────────────────────
+  // ── Test mode flag ─────────────────────────────────────────────────────────
   /// true  = n8n webhook-test URLs  (click "Test Webhook" in n8n first)
   /// false = n8n production webhook  (workflow must be Active in n8n)
-  static bool get useN8nTest =>
-      (dotenv.env['USE_N8N_TEST'] ?? 'false').toLowerCase() == 'true';
+  static const bool useN8nTest =
+      String.fromEnvironment('USE_N8N_TEST', defaultValue: 'false') == 'true';
 
   /// Automatically returns 'webhook-test' or 'webhook' based on the flag.
   static String get _webhookPrefix =>
       useN8nTest ? 'webhook-test' : 'webhook';
 
-  // ── Supabase ──────────────────────────────────────────────────────────────
-  static String get supabaseUrl =>
-      dotenv.env['SUPABASE_URL'] ?? _error('SUPABASE_URL');
+  // ── Supabase ───────────────────────────────────────────────────────────────
+  static const String supabaseUrl =
+      String.fromEnvironment('SUPABASE_URL', defaultValue: '');
 
-  static String get supabaseAnonKey =>
-      dotenv.env['SUPABASE_ANON_KEY'] ?? _error('SUPABASE_ANON_KEY');
+  static const String supabaseAnonKey =
+      String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
 
-  // ── Base URLs ─────────────────────────────────────────────────────────────
-  static String get n8nBaseUrl =>
-      dotenv.env['N8N_BASE_URL'] ?? _error('N8N_BASE_URL');
+  // ── Base URLs ──────────────────────────────────────────────────────────────
+  static const String n8nBaseUrl =
+      String.fromEnvironment('N8N_BASE_URL', defaultValue: '');
 
-  static String get pythonApiBaseUrl =>
-      dotenv.env['PYTHON_API_BASE_URL'] ?? _error('PYTHON_API_BASE_URL');
+  static const String pythonApiBaseUrl =
+      String.fromEnvironment('PYTHON_API_BASE_URL', defaultValue: '');
 
-  // ── Full n8n Webhook URLs ─────────────────────────────────────────────────
-  // Paths come from .env but the prefix (webhook vs webhook-test) is
-  // swapped automatically by the USE_N8N_TEST flag.
-
+  // ── Full n8n Webhook URLs ──────────────────────────────────────────────────
   static String get n8nHealthUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_HEALTH')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_HEALTH')}';
 
   static String get n8nScanUploadUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_SCAN_UPLOAD')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_SCAN_UPLOAD')}';
 
   static String get n8nLinkUploadUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_LINK_UPLOAD')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_LINK_UPLOAD')}';
 
   static String get n8nCropOcrUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_CROP_OCR')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_CROP_OCR')}';
 
   static String get n8nManualCorrectionUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_MANUAL_CORRECTION')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_MANUAL_CORRECTION')}';
 
   static String get n8nSubjectBulkImportUrl =>
-      '$n8nBaseUrl/$_webhookPrefix/'
-      '${_path('N8N_WEBHOOK_SUBJECT_BULK_IMPORT')}';
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_SUBJECT_BULK_IMPORT')}';
 
-  // ── Full Python API URLs ──────────────────────────────────────────────────
+  static String get n8nImportErrorCorrectionUrl =>
+      '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_IMPORT_ERROR_CORRECTION')}';
+
+  // ── Full Python API URLs ───────────────────────────────────────────────────
   static String get pythonProcessCropUrl =>
       '$pythonApiBaseUrl/${_path('PYTHON_PROCESS_CROP')}';
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
-  /// Extracts just the path segment (everything after "webhook/") from .env.
-  /// e.g. "webhook/sast-scan-upload" → "sast-scan-upload"
+  static const _rawWebhookPaths = <String, String>{
+    'N8N_WEBHOOK_HEALTH':
+        String.fromEnvironment('N8N_WEBHOOK_HEALTH', defaultValue: 'webhook/health-check'),
+    'N8N_WEBHOOK_SCAN_UPLOAD':
+        String.fromEnvironment('N8N_WEBHOOK_SCAN_UPLOAD', defaultValue: 'webhook/sast-scan-upload'),
+    'N8N_WEBHOOK_LINK_UPLOAD':
+        String.fromEnvironment('N8N_WEBHOOK_LINK_UPLOAD', defaultValue: 'webhook/sast-link-upload'),
+    'N8N_WEBHOOK_CROP_OCR':
+        String.fromEnvironment('N8N_WEBHOOK_CROP_OCR', defaultValue: 'webhook/sast-crop-ocr'),
+    'N8N_WEBHOOK_MANUAL_CORRECTION':
+        String.fromEnvironment('N8N_WEBHOOK_MANUAL_CORRECTION', defaultValue: 'webhook/sast-manual-correction'),
+    'N8N_WEBHOOK_SUBJECT_BULK_IMPORT':
+        String.fromEnvironment('N8N_WEBHOOK_SUBJECT_BULK_IMPORT', defaultValue: 'webhook/subject-bulk-import'),
+    'N8N_WEBHOOK_IMPORT_ERROR_CORRECTION':
+        String.fromEnvironment('N8N_WEBHOOK_IMPORT_ERROR_CORRECTION', defaultValue: 'webhook/import-error-correction'),
+    'PYTHON_PROCESS_CROP':
+        String.fromEnvironment('PYTHON_PROCESS_CROP', defaultValue: 'process-crop'),
+  };
+
+  /// Strips any leading "webhook/" or "webhook-test/" prefix so the
+  /// correct prefix is always injected fresh via [_webhookPrefix].
   static String _path(String key) {
-    final raw = dotenv.env[key] ?? _error(key);
-    // Strip leading "webhook/" or "webhook-test/" if present so the
-    // prefix is always applied fresh from _webhookPrefix.
+    final raw = _rawWebhookPaths[key] ?? '';
     return raw.replaceFirst(RegExp(r'^webhook(-test)?/'), '');
   }
-
-  static String _error(String key) =>
-      throw Exception('Environment variable $key not found in .env file');
 }

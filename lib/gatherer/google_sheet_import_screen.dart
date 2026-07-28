@@ -55,13 +55,16 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.warning, width: 2),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.drive_file_rename_outline, color: AppColors.warning),
-                  SizedBox(width: 12),
-                  Text(
-                    'SAST Survey Data',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
+                  const Icon(Icons.drive_file_rename_outline, color: AppColors.warning),
+                  const SizedBox(width: 12),
+                  const Flexible(
+                    child: Text(
+                      'SAST Survey Data',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

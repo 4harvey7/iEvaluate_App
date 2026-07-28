@@ -36,68 +36,75 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
     try {
       setState(() => _isLoading = true);
 
-      // Discovery across all sources for this specific term
-      final responses = await Future.wait<dynamic>([
-        _supabase.from('subjects').select().eq('instructor_id', widget.userId).eq('term_id', widget.termId),
-        _supabase.from('management_results').select('subject_id, overall_management_mean, subjects(*)').eq('instructor_id', widget.userId).eq('term_id', widget.termId),
-        _supabase.from('performance_results').select('subject_id, overall_performance_mean, subjects(*)').eq('instructor_id', widget.userId).eq('term_id', widget.termId),
-        _supabase.from('raw_GoogleSheet_data_result').select('subject_id').eq('instructor_ID', widget.userId).eq('term_id', widget.termId),
+      // 1. Get subjects for this instructor+term via instructor_subjects junction table
+      final assignmentRows = await _supabase
+          .from('instructor_subjects')
+          .select('subject_id, subjects(id, subject_code, subject_name, created_at, department_id)')
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', widget.termId);
+
+      // Build unique subject map by subject_id
+      final Map<String, Map<String, dynamic>> subjectById = {};
+      for (var row in (assignmentRows as List)) {
+        final subjectData = row['subjects'];
+        if (subjectData == null) continue;
+        final meta = Map<String, dynamic>.from(
+          subjectData is List ? subjectData[0] : subjectData,
+        );
+        final id = meta['id']?.toString();
+        if (id == null) continue;
+        subjectById.putIfAbsent(id, () => meta);
+      }
+
+      if (subjectById.isEmpty) {
+        if (mounted) setState(() { _subjects = []; _isLoading = false; });
+        return;
+      }
+
+      final validSubjectIds = subjectById.keys.toList();
+
+      // 2. Fetch pre-computed results
+      final results = await Future.wait<dynamic>([
+        _supabase.from('management_results')
+            .select('subject_id, overall_management_mean')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', widget.termId)
+            .filter('subject_id', 'in', validSubjectIds),
+        _supabase.from('performance_results')
+            .select('subject_id, overall_performance_mean')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', widget.termId)
+            .filter('subject_id', 'in', validSubjectIds),
       ]);
 
-      // Group by Code and Section
-      Map<String, Map<String, dynamic>> uniqueSubjects = {};
-
-      void register(dynamic item) {
-        if (item == null) return;
-        final metadata = item['subjects'] != null ? Map<String, dynamic>.from(item['subjects']) : Map<String, dynamic>.from(item);
-        final code = metadata['subject_code']?.toString();
-        if (code == null) return;
-        
-        final section = metadata['section']?.toString() ?? '';
-        final key = '${code}_$section'.toUpperCase();
-        final sid = (metadata['id'] ?? item['subject_id'])?.toString();
-        if (sid == null) return;
-
-        if (!uniqueSubjects.containsKey(key)) {
-          uniqueSubjects[key] = metadata;
-          uniqueSubjects[key]!['all_ids'] = <String>{sid};
-        } else {
-          if (item.containsKey('instructor_id')) uniqueSubjects[key] = metadata;
-          (uniqueSubjects[key]!['all_ids'] as Set<String>).add(sid);
-        }
+      final Map<String, double> mgmtMap = {};
+      for (var row in (results[0] as List)) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null) mgmtMap[sid] = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+      }
+      final Map<String, double> perfMap = {};
+      for (var row in (results[1] as List)) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null) perfMap[sid] = (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
       }
 
-      for (var response in responses) {
-        if (response is List) {
-          for (var item in response) register(item);
-        }
-      }
-
+      // 3. Build subject list
       List<Subject> processedSubjects = [];
-      for (var entry in uniqueSubjects.values) {
-        final allRelatedIds = entry['all_ids'] as Set<String>;
-        double mMean = 0.0, pMean = 0.0;
-        
-        for (var response in responses) {
-          if (response is List) {
-            for (var item in response) {
-              final itemSid = (item['subject_id'] ?? item['id'])?.toString();
-              if (itemSid != null && allRelatedIds.contains(itemSid)) {
-                if (item.containsKey('overall_management_mean')) mMean = (item['overall_management_mean'] as num?)?.toDouble() ?? mMean;
-                if (item.containsKey('overall_performance_mean')) pMean = (item['overall_performance_mean'] as num?)?.toDouble() ?? pMean;
-              }
-            }
-          }
-        }
+      for (var entry in subjectById.entries) {
+        final id = entry.key;
+        final meta = entry.value;
+        double mMean = mgmtMap[id] ?? 0.0;
+        double pMean = perfMap[id] ?? 0.0;
 
-        if (mMean == 0.0 || pMean == 0.0) {
+        // Fallback to raw if no pre-computed
+        if (mMean == 0.0 && pMean == 0.0) {
           final rawData = await _supabase.from('raw_GoogleSheet_data_result')
               .select()
-              .filter('subject_id', 'in', allRelatedIds.toList())
+              .eq('subject_id', id)
               .eq('instructor_ID', widget.userId)
               .eq('term_id', widget.termId);
 
-          if (rawData.isNotEmpty) {
+          if ((rawData as List).isNotEmpty) {
             double mSum = 0, pSum = 0;
             for (var row in rawData) {
               for (int i = 1; i <= 10; i++) {
@@ -105,17 +112,20 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
                 pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
               }
             }
-            if (mMean == 0.0) mMean = mSum / (rawData.length * 10);
-            if (pMean == 0.0) pMean = pSum / (rawData.length * 10);
+            mMean = mSum / (rawData.length * 10);
+            pMean = pSum / (rawData.length * 10);
           }
         }
 
         processedSubjects.add(Subject.fromJson({
-          ...entry,
+          ...meta,
           'management_mean': mMean,
           'performance_mean': pMean,
+          'all_ids': <String>{id},
         }));
       }
+
+      processedSubjects.sort((a, b) => a.code.compareTo(b.code));
 
       if (mounted) {
         setState(() {
@@ -141,31 +151,46 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
           widget.termName,
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
+            onPressed: _fetchTermSubjects,
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : _subjects.isEmpty
-              ? _buildEmptyState()
-              : ListView.builder(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: _subjects.length,
-                  itemBuilder: (context, index) {
-                    final subject = _subjects[index];
-                    return SubjectCard(
-                      subject: subject,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SubjectDetailScreen(
-                            subject: subject,
-                            userId: widget.userId,
-                            termId: widget.termId,
+          : RefreshIndicator(
+              onRefresh: _fetchTermSubjects,
+              color: AppColors.primary,
+              child: _subjects.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [_buildEmptyState()],
+                    )
+                  : ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(24),
+                      itemCount: _subjects.length,
+                      itemBuilder: (context, index) {
+                        final subject = _subjects[index];
+                        return SubjectCard(
+                          subject: subject,
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => SubjectDetailScreen(
+                                subject: subject,
+                                userId: widget.userId,
+                                termId: widget.termId,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                        );
+                      },
+                    ),
+            ),
     );
   }
 

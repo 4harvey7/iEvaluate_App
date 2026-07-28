@@ -1,3 +1,6 @@
+// The screen that shows all subjects assigned to this instructor for the current term.
+// If this list is empty, either the admin forgot to assign, or it is still early in the sem.
+// Basin both. Wala ta kabalo.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +11,7 @@ import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
 
+// StatefulWidget because it needs to load term data before showing anything useful
 class MySubjectsScreen extends StatefulWidget {
   final String userId;
   const MySubjectsScreen({super.key, required this.userId});
@@ -17,24 +21,30 @@ class MySubjectsScreen extends StatefulWidget {
 }
 
 class _MySubjectsScreenState extends State<MySubjectsScreen> {
+  // Service for getting system-wide settings like current term
   final _settingsService = SystemSettingsService();
   final _supabase = Supabase.instance.client;
+
+  // Current term ID and display name — starts null/generic until loaded
   String? _currentTermId;
-  String _termName = 'Current Semester';
+  String _termName = 'Current Semester'; // placeholder until real term is fetched
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadData(); // fetch term info and trigger subject loading
   }
 
+  // Load the current term settings, then fetch term display name, then load subjects.
+  // Order matters here — need term ID before we can do anything else.
   Future<void> _loadData() async {
     try {
       final settings = await _settingsService.getSettings();
-      if (!mounted) return;
+      if (!mounted) return; // widget might be gone by the time this completes
       
-      setState(() => _currentTermId = settings.termId);
+      setState(() => _currentTermId = settings.termId); // save term ID to state
       
+      // If we have a term ID, also fetch its human-readable name
       if (_currentTermId != null) {
         final termData = await _supabase
             .from('academic_terms')
@@ -44,11 +54,13 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
         
         if (termData != null && mounted) {
           setState(() {
+            // Combine semester and year into a nice display name
             _termName = '${termData['semester']} ${termData['academic_year']}';
           });
         }
       }
       
+      // Tell the subjects provider to load subjects for this term
       context.read<SubjectsProvider>().load(termId: _currentTermId);
     } catch (e) {
       debugPrint('Error loading term data: $e');
@@ -73,35 +85,41 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
           ),
         ),
       ),
+      // Consumer rebuilds whenever SubjectsProvider changes — reactive, like a students feelings
       body: Consumer<SubjectsProvider>(
         builder: (context, provider, child) {
           final subjects = provider.subjects;
 
           if (subjects.isEmpty) {
+            // Nothing assigned — show the empty state screen
             return _buildEmptyState();
           }
 
-          // Calculate term average
+          // Calculate average score across all subjects that have data
           double totalMean = 0;
           int count = 0;
           for (var s in subjects) {
-            if (s.overallMean > 0) {
+            if (s.overallMean > 0) { // skip subjects with no score yet
               totalMean += s.overallMean;
               count++;
             }
           }
+          // If no subject has a score yet, average is 0 — murag ghost town
           final termAverage = count > 0 ? totalMean / count : 0.0;
 
           return RefreshIndicator(
-            onRefresh: () => provider.load(termId: _currentTermId),
+            onRefresh: () => provider.load(termId: _currentTermId), // pull to reload subjects
             color: AppColors.primary,
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              // +1 for the summary header row at the top
               itemCount: subjects.length + 1,
               itemBuilder: (context, index) {
                 if (index == 0) {
+                  // First item is always the summary header card — not a subject card
                   return _buildSummaryHeader(termAverage, subjects.length);
                 }
+                // The rest are subject cards (offset by 1 because of the header)
                 final subject = subjects[index - 1];
                 return SubjectCard(
                   subject: subject,
@@ -124,8 +142,10 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     );
   }
 
+  // Builds the summary header card at the top of the list — shows term average and subject count.
+  // The color of the verbal description badge changes based on the average score.
   Widget _buildSummaryHeader(double average, int totalSubjects) {
-    final color = Subject.getScoreColor(average);
+    final color = Subject.getScoreColor(average); // green = good, red = time to reflect
     
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
@@ -150,6 +170,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Term name in small uppercase label — like a badge
                     Text(
                       _termName.toUpperCase(),
                       style: const TextStyle(
@@ -157,6 +178,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -172,6 +194,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                 ),
               ),
               const SizedBox(width: 8),
+              // Verbal description badge — "Outstanding", "Satisfactory", etc.
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -198,6 +221,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Big average number — the main KPI of this screen
                     Text(
                       average > 0 ? average.toStringAsFixed(2) : 'N/A',
                       style: const TextStyle(
@@ -213,6 +237,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                   ],
                 ),
               ),
+              // Thin vertical divider between the two numbers
               Container(
                 width: 1,
                 height: 40,
@@ -222,6 +247,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
+                    // Total number of assigned subjects
                     Text(
                       '$totalSubjects',
                       style: const TextStyle(
@@ -244,6 +270,8 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     );
   }
 
+  // Shows when no subjects are assigned — center-aligned sad icon and message.
+  // Dili ta makabuhat ug subject card kung wala subjects, so show this instead.
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -252,7 +280,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
           Icon(
             Icons.subject_rounded,
             size: 80,
-            color: AppColors.textPrimary.withValues(alpha: 0.1),
+            color: AppColors.textPrimary.withValues(alpha: 0.1), // very faded, murag ghost
           ),
           const SizedBox(height: 16),
           Text(

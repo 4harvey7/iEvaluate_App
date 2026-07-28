@@ -567,15 +567,15 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   }
 
   static const List<String> _managementCriteria = [
-    'gives reasonable course/subject assignments',
+    'gives reasonable course / subject assignments',
     'earns appreciation and kind attention from the students',
     'gives orientation about the subject and how the students are evaluated',
     'gives tests and/or projects which are within the objectives of the course',
-    'shows concern in assisting the students',
-    'shows sympathetic insight into students\' feelings',
-    'checks and records test papers/term papers promptly',
+    'shows deep interest and concern in assisting the students',
+    'manifests sympathetic insight into students\' feelings',
+    'checks and records test papers/term papers',
     'is on time and regular in meeting the class',
-    'assigns fair subjects/course requirements',
+    'apportions fair subject/course assignments',
     'sustains the attention of the class for the whole period',
   ];
 
@@ -584,9 +584,9 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     'motivates the students to learn',
     'facilitates learning with the application of appropriate educational methods and techniques',
     'shows mastery of the lesson',
-    'is prepared for the class',
+    'is ready for the class',
     'inspires students\' self-reliance in their quest for knowledge',
-    'knows when the students have difficulty understanding the lesson and finds ways to make it easy',
+    'knows when the students have difficulty understanding the lesson and find ways to make it easy',
     'integrates values into the lesson',
     'speaks the language of instruction (English or Filipino) clearly and fluently',
     'delivers thought provoking questions',

@@ -21,42 +21,44 @@ class SubjectDetailScreen extends StatefulWidget {
 
 class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   final _supabase = Supabase.instance.client;
+
   bool _isLoading = true;
-  String _selectedFilter = 'All'; // ← filter state
+  double _mgmtScore = 0;
+  double _perfScore = 0;
+  double _overallScore = 0;
+  int _totalResponses = 0;
   List<Map<String, dynamic>> _questionMeans = [];
   List<Map<String, dynamic>> _subjectRemarks = [];
-  int _totalResponses = 0;
-  
   Map<String, dynamic>? _mgmtData;
   Map<String, dynamic>? _perfData;
-  double _mgmtScore = 0.0;
-  double _perfScore = 0.0;
-  double _overallScore = 0.0;
+  String _selectedFilter = 'All';
 
+  // Management criteria — SS Form 2 (Feb 4, 2009, Revision 3)
   static const List<String> _managementCriteria = [
-    'gives reasonable course/subject assignments',
-    'earns appreciation and kind attention from the students',
-    'gives orientation about the subject and how the students are evaluated',
-    'gives tests and/or projects which are within the objectives of the course',
-    'shows concern in assisting the students',
-    'shows sympathetic insight into students\' feelings',
-    'checks and records test papers/term papers promptly',
-    'is on time and regular in meeting the class',
-    'assigns fair subjects/course requirements',
-    'sustains the attention of the class for the whole period',
+    'Gives reasonable course / subject assignments',
+    'Earns appreciation and kind attention from the students',
+    'Gives orientation about the subject and how the students are evaluated',
+    'Gives tests and/or projects which are within the objectives of the course',
+    'Shows deep interest and concern in assisting the students',
+    'Manifests sympathetic insight into students\' feelings',
+    'Checks and records test papers/term papers',
+    'Is on time and regular in meeting the class',
+    'Apportions fair subject/course assignments',
+    'Sustains the attention of the class for the whole period',
   ];
 
+  // Performance criteria — SS Form 2 (Feb 4, 2009, Revision 3)
   static const List<String> _performanceCriteria = [
-    'presents lesson clearly, methodically, and substantially',
-    'motivates the students to learn',
-    'facilitates learning with the application of appropriate educational methods and techniques',
-    'shows mastery of the lesson',
-    'is prepared for the class',
-    'inspires students\' self-reliance in their quest for knowledge',
-    'knows when the students have difficulty understanding the lesson and finds ways to make it easy',
-    'integrates values into the lesson',
-    'speaks the language of instruction (English or Filipino) clearly and fluently',
-    'delivers thought provoking questions',
+    'Presents lesson clearly, methodically, and substantially',
+    'Motivates the students to learn',
+    'Facilitates learning with the application of appropriate educational methods and techniques',
+    'Shows mastery of the lesson',
+    'Is ready for the class',
+    'Inspires students\' self-reliance in their quest for knowledge',
+    'Knows when the students have difficulty understanding the lesson and find ways to make it easy',
+    'Integrates values into the lesson',
+    'Speaks the language of instruction (English or Filipino) clearly and fluently',
+    'Delivers thought provoking questions',
   ];
 
   @override
@@ -67,217 +69,268 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   Future<void> _fetchSubjectDetails() async {
     try {
-      // 1. Resolve IDs and Terms
+      // 1. Resolve active term
       String? activeTermId = widget.termId;
       if (activeTermId == null || activeTermId.isEmpty) {
-        final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
+        final settings = await _supabase
+            .from('system_settings')
+            .select('current_term_id')
+            .maybeSingle();
         activeTermId = settings?['current_term_id'];
       }
 
       if (activeTermId == null || activeTermId.isEmpty) {
-        debugPrint('SubjectDetailScreen: No active term ID found, aborting fetch.');
+        debugPrint('[SubjectDetailScreen] No active term ID, aborting.');
         if (mounted) setState(() => _isLoading = false);
         return;
       }
 
-      // Use the pre-resolved IDs from the Subject object if available.
-      // These were already filtered to the correct term by SubjectsProvider,
-      // so we never risk pulling in cross-term subject IDs.
-      List<String> allIds;
-      if (widget.subject.allRelatedIds.isNotEmpty) {
-        allIds = widget.subject.allRelatedIds.toList();
-        debugPrint('[SubjectDetailScreen] Using allRelatedIds from Subject: $allIds');
-      } else {
-        // Fallback: query subjects table filtered to the active term only
-        allIds = widget.subject.id != null ? [widget.subject.id!] : [];
-        final relatedSubjects = await _supabase
-            .from('subjects')
-            .select('id')
-            .eq('subject_code', widget.subject.code)
-            .eq('instructor_id', widget.userId)
-            .eq('term_id', activeTermId);
-        if (relatedSubjects is List && relatedSubjects.isNotEmpty) {
-          allIds = (relatedSubjects as List).map((s) => s['id'].toString()).toSet().toList();
-        }
-        debugPrint('[SubjectDetailScreen] Fallback subject IDs from DB: $allIds');
+      final subjectCode = widget.subject.code;
+      debugPrint('[SubjectDetailScreen] Fetching "$subjectCode" in term "$activeTermId"');
+
+      // 2. Get exact subject IDs for this code+instructor+term via instructor_subjects junction table.
+      final subjectRows = await _supabase
+          .from('instructor_subjects')
+          .select('subject_id')
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', activeTermId)
+          .filter('subject_id', 'in',
+              // Only rows whose subject matches the code
+              (await _supabase
+                      .from('subjects')
+                      .select('id')
+                      .eq('subject_code', subjectCode))
+                  .map<String>((s) => s['id'].toString())
+                  .toList());
+
+      final subjectIds = (subjectRows as List).map((s) => s['subject_id'].toString()).toList();
+
+      debugPrint('[SubjectDetailScreen] Subject IDs: $subjectIds');
+
+      if (subjectIds.isEmpty) {
+        debugPrint('[SubjectDetailScreen] No subjects found for this code+term.');
+        if (mounted) setState(() => _isLoading = false);
+        return;
       }
 
-      debugPrint('[SubjectDetailScreen] Effective Subject IDs for query: $allIds');
-
-      // 2. Prepare queries
-      final mgmtQuery = _supabase
-          .from('management_results')
-          .select('*')
-          .filter('subject_id', 'in', allIds)
-          .eq('instructor_id', widget.userId)
-          .eq('term_id', activeTermId);
-
-      final perfQuery = _supabase
-          .from('performance_results')
-          .select('*')
-          .filter('subject_id', 'in', allIds)
-          .eq('instructor_id', widget.userId)
-          .eq('term_id', activeTermId);
-
-      final remarksQuery = _supabase
-          .from('student_remarks')
-          .select('remark, tone, created_at')
-          .filter('subject_id', 'in', allIds)
-          .eq('term_id', activeTermId);
-
-      final responses = await Future.wait([
-        mgmtQuery,
-        perfQuery,
-        remarksQuery.order('created_at', ascending: false),
+      // 3. Fetch pre-computed management_results and performance_results.
+      //    These are the preferred source per schema design.
+      //    Order by created_at DESC so the most recent (corrected) row comes first.
+      final precomputed = await Future.wait([
+        _supabase
+            .from('management_results')
+            .select('subject_id, m1_mean, m2_mean, m3_mean, m4_mean, m5_mean, '
+                'm6_mean, m7_mean, m8_mean, m9_mean, m10_mean, '
+                'overall_management_mean, total_responses, created_at')
+            .filter('subject_id', 'in', subjectIds)
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', activeTermId)
+            .order('created_at', ascending: false),
+        _supabase
+            .from('performance_results')
+            .select('subject_id, p1_mean, p2_mean, p3_mean, p4_mean, p5_mean, '
+                'p6_mean, p7_mean, p8_mean, p9_mean, p10_mean, '
+                'overall_performance_mean, total_responses, created_at')
+            .filter('subject_id', 'in', subjectIds)
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', activeTermId)
+            .order('created_at', ascending: false),
+        _supabase
+            .from('student_remarks')
+            .select('remark, tone, created_at')
+            .filter('subject_id', 'in', subjectIds)
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', activeTermId)
+            .order('created_at', ascending: false),
       ]);
 
-      final mgmtList = (responses[0] as List<dynamic>?) ?? [];
-      final perfList = (responses[1] as List<dynamic>?) ?? [];
-      final remarks = (responses[2] as List<dynamic>?) ?? [];
+      final mgmtRows = precomputed[0] as List;
+      final perfRows = precomputed[1] as List;
+      final remarkRows = precomputed[2] as List;
 
-      debugPrint('[SubjectDetailScreen] mgmtList.length: ${mgmtList.length}');
-      debugPrint('[SubjectDetailScreen] perfList.length: ${perfList.length}');
+      debugPrint('[SubjectDetailScreen] mgmtRows=${mgmtRows.length}, '
+          'perfRows=${perfRows.length}, remarks=${remarkRows.length}');
 
-      // Merge results if multiple IDs exist
-      Map<String, dynamic>? mgmt;
-      Map<String, dynamic>? perf;
-
-      if (mgmtList.isNotEmpty) {
-        mgmt = Map<String, dynamic>.from(mgmtList.first);
-        _totalResponses = (mgmt['total_responses'] as int?) ?? 0;
-        debugPrint('[SubjectDetailScreen] Initial _totalResponses from mgmt: $_totalResponses');
-        // If there are more, we technically should average them, but usually only one has summary data
-        // For simplicity, we take the one with the most responses if multiple exist
-        for (var m in mgmtList) {
-           if ((m['total_responses'] ?? 0) > (mgmt!['total_responses'] ?? 0)) {
-             mgmt = Map<String, dynamic>.from(m);
-             _totalResponses = m['total_responses'];
-           }
+      // 4. Pick the best (most recent) row per subject ID, then aggregate.
+      //    "Most recent" = first row since we ORDER BY created_at DESC.
+      final Map<String, Map<String, dynamic>> bestMgmt = {};
+      for (var row in mgmtRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !bestMgmt.containsKey(sid)) {
+          bestMgmt[sid] = Map<String, dynamic>.from(row);
         }
       }
 
-      if (perfList.isNotEmpty) {
-        perf = Map<String, dynamic>.from(perfList.first);
-        if (_totalResponses == 0) _totalResponses = (perf['total_responses'] as int?) ?? 0;
-        debugPrint('[SubjectDetailScreen] _totalResponses after perf check: $_totalResponses');
-        for (var p in perfList) {
-           if ((p['total_responses'] ?? 0) > (perf!['total_responses'] ?? 0)) {
-             perf = Map<String, dynamic>.from(p);
-             _totalResponses = p['total_responses'];
-           }
+      final Map<String, Map<String, dynamic>> bestPerf = {};
+      for (var row in perfRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !bestPerf.containsKey(sid)) {
+          bestPerf[sid] = Map<String, dynamic>.from(row);
         }
       }
 
-      // FALLBACK: If summary tables are empty for all linked IDs, calculate from RAW data
-      if (mgmt == null && perf == null) {
-        debugPrint('Subject summaries empty for term $activeTermId. Calculating from raw data fallback...');
-        try {
-          var query = _supabase
-              .from('raw_GoogleSheet_data_result')
-              .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,remark,student_ID')
-              .filter('subject_id', 'in', allIds)
-              .eq('instructor_ID', widget.userId);
+      // Aggregate across sections (weighted by total_responses)
+      double mWeightedSum = 0, pWeightedSum = 0;
+      int mTotal = 0, pTotal = 0;
+      final Map<String, double> mCriteriaSum = {};
+      final Map<String, double> pCriteriaSum = {};
+      final Map<String, int> mCriteriaCount = {};
+      final Map<String, int> pCriteriaCount = {};
 
-          // Apply term filter if available — critical to show current-term scores only
-          if (activeTermId != null && activeTermId.isNotEmpty) {
-            query = query.eq('term_id', activeTermId);
+      for (var id in subjectIds) {
+        final mgmt = bestMgmt[id];
+        if (mgmt != null) {
+          final n = (mgmt['total_responses'] as num?)?.toInt() ?? 0;
+          final overall = (mgmt['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+          mWeightedSum += overall * n;
+          mTotal += n;
+          for (int i = 1; i <= 10; i++) {
+            final key = 'm${i}_mean';
+            final val = (mgmt[key] as num?)?.toDouble() ?? 0.0;
+            mCriteriaSum[key] = (mCriteriaSum[key] ?? 0) + val * n;
+            mCriteriaCount[key] = (mCriteriaCount[key] ?? 0) + n;
           }
+        }
 
-          final rawResults = await query;
-          
-          debugPrint('[SubjectDetailScreen] rawResults.length: ${rawResults.length}');
-          
-          if (rawResults.isNotEmpty) {
-            int total = rawResults.length;
-            _totalResponses = total;
-            
-            // Reconstruct a pseudo-mgmt object
-            Map<String, dynamic> fallbackMgmt = {'total_responses': total};
-            for (int i = 1; i <= 10; i++) {
-              double sum = 0;
-              for (var r in rawResults) {
-                var val = r['m$i'];
-                sum += (val is num) ? val.toDouble() : double.tryParse(val?.toString() ?? '0') ?? 0;
-              }
-              fallbackMgmt['m${i}_mean'] = sum / total;
-              debugPrint('[SubjectDetailScreen] m$i mean: ${fallbackMgmt['m${i}_mean']}');
-            }
-            mgmt = fallbackMgmt;
-
-            // Reconstruct a pseudo-perf object
-            Map<String, dynamic> fallbackPerf = {'total_responses': total};
-            for (int i = 1; i <= 10; i++) {
-              double sum = 0;
-              for (var r in rawResults) {
-                var val = r['p$i'];
-                sum += (val is num) ? val.toDouble() : double.tryParse(val?.toString() ?? '0') ?? 0;
-              }
-              fallbackPerf['p${i}_mean'] = sum / total;
-              debugPrint('[SubjectDetailScreen] p$i mean: ${fallbackPerf['p${i}_mean']}');
-            }
-            perf = fallbackPerf;
+        final perf = bestPerf[id];
+        if (perf != null) {
+          final n = (perf['total_responses'] as num?)?.toInt() ?? 0;
+          final overall = (perf['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+          pWeightedSum += overall * n;
+          pTotal += n;
+          for (int i = 1; i <= 10; i++) {
+            final key = 'p${i}_mean';
+            final val = (perf[key] as num?)?.toDouble() ?? 0.0;
+            pCriteriaSum[key] = (pCriteriaSum[key] ?? 0) + val * n;
+            pCriteriaCount[key] = (pCriteriaCount[key] ?? 0) + n;
           }
-        } catch (e) {
-          debugPrint('Subject raw fallback failed: $e');
         }
       }
 
       List<Map<String, dynamic>> means = [];
-      
-      if (mgmt != null) {
-        _mgmtData = mgmt;
-        _totalResponses = mgmt['total_responses'] ?? 0;
-        double mgmtSum = 0;
+      bool hasPrecomputed = mTotal > 0 || pTotal > 0;
+
+      if (hasPrecomputed) {
+        _totalResponses = mTotal > 0 ? mTotal : pTotal;
+
+        final Map<String, dynamic> mgmtData = {'total_responses': mTotal};
+        double mgmtOverallSum = 0;
         for (int i = 1; i <= 10; i++) {
-          double score = (mgmt['m${i}_mean'] as num?)?.toDouble() ?? 0.0;
-          mgmtSum += score;
-          means.add({
-            'label': 'M$i',
-            'score': score,
-            'category': 'Management'
-          });
+          final key = 'm${i}_mean';
+          final n = mCriteriaCount[key] ?? 1;
+          final mean = n > 0 ? (mCriteriaSum[key] ?? 0) / n : 0.0;
+          mgmtData[key] = mean;
+          mgmtOverallSum += mean;
+          means.add({'label': 'M$i', 'score': mean, 'category': 'Management'});
         }
-        _mgmtScore = mgmtSum / 10;
+        _mgmtScore = mTotal > 0 ? mWeightedSum / mTotal : mgmtOverallSum / 10;
+        _mgmtData = mgmtData;
+
+        final Map<String, dynamic> perfData = {'total_responses': pTotal};
+        double perfOverallSum = 0;
+        for (int i = 1; i <= 10; i++) {
+          final key = 'p${i}_mean';
+          final n = pCriteriaCount[key] ?? 1;
+          final mean = n > 0 ? (pCriteriaSum[key] ?? 0) / n : 0.0;
+          perfData[key] = mean;
+          perfOverallSum += mean;
+          means.add({'label': 'P$i', 'score': mean, 'category': 'Performance'});
+        }
+        _perfScore = pTotal > 0 ? pWeightedSum / pTotal : perfOverallSum / 10;
+        _perfData = perfData;
+      } else {
+        // Fallback to raw data if no pre-computed results exist
+        debugPrint('[SubjectDetailScreen] No pre-computed results, falling back to raw data...');
+        final rawRows = await _supabase
+            .from('raw_GoogleSheet_data_result')
+            .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
+            .filter('subject_id', 'in', subjectIds)
+            .eq('instructor_ID', widget.userId)
+            .eq('term_id', activeTermId);
+
+        if ((rawRows as List).isNotEmpty) {
+          final int total = rawRows.length;
+          _totalResponses = total;
+          final Map<String, dynamic> mgmtData = {'total_responses': total};
+          double mgmtSum = 0;
+          for (int i = 1; i <= 10; i++) {
+            double colSum = 0;
+            for (var row in rawRows) {
+              final val = row['m$i'];
+              colSum += (val is num) ? val.toDouble() : double.tryParse(val?.toString() ?? '0') ?? 0;
+            }
+            final mean = colSum / total;
+            mgmtData['m${i}_mean'] = mean;
+            mgmtSum += mean;
+            means.add({'label': 'M$i', 'score': mean, 'category': 'Management'});
+          }
+          _mgmtScore = mgmtSum / 10;
+          _mgmtData = mgmtData;
+
+          final Map<String, dynamic> perfData = {'total_responses': total};
+          double perfSum = 0;
+          for (int i = 1; i <= 10; i++) {
+            double colSum = 0;
+            for (var row in rawRows) {
+              final val = row['p$i'];
+              colSum += (val is num) ? val.toDouble() : double.tryParse(val?.toString() ?? '0') ?? 0;
+            }
+            final mean = colSum / total;
+            perfData['p${i}_mean'] = mean;
+            perfSum += mean;
+            means.add({'label': 'P$i', 'score': mean, 'category': 'Performance'});
+          }
+          _perfScore = perfSum / 10;
+          _perfData = perfData;
+        }
       }
 
-      if (perf != null) {
-        _perfData = perf;
-        if (_totalResponses == 0) _totalResponses = perf['total_responses'] ?? 0;
-        double perfSum = 0;
-        for (int i = 1; i <= 10; i++) {
-          double score = (perf['p${i}_mean'] as num?)?.toDouble() ?? 0.0;
-          perfSum += score;
-          means.add({
-            'label': 'P$i',
-            'score': score,
-            'category': 'Performance'
-          });
-        }
-        _perfScore = perfSum / 10;
-      }
-      
       _overallScore = (_mgmtScore + _perfScore) / 2;
+      debugPrint('[SubjectDetailScreen] =========================================');
+      debugPrint('[SubjectDetailScreen] Subject: $subjectCode | Term: $activeTermId');
+      debugPrint('[SubjectDetailScreen] Subject IDs resolved: $subjectIds');
+      debugPrint('[SubjectDetailScreen] mgmtRows from management_results: ${mgmtRows.length}');
+      debugPrint('[SubjectDetailScreen] perfRows from performance_results: ${perfRows.length}');
+      for (var id in subjectIds) {
+        final mg = bestMgmt[id];
+        final pf = bestPerf[id];
+        debugPrint('[SubjectDetailScreen]   subj_id=$id');
+        if (mg != null) {
+          debugPrint('[SubjectDetailScreen]     mgmt: overall=${mg["overall_management_mean"]} | responses=${mg["total_responses"]} | created_at=${mg["created_at"]}');
+        } else {
+          debugPrint('[SubjectDetailScreen]     mgmt: NO ROW FOUND');
+        }
+        if (pf != null) {
+          debugPrint('[SubjectDetailScreen]     perf: overall=${pf["overall_performance_mean"]} | responses=${pf["total_responses"]} | created_at=${pf["created_at"]}');
+        } else {
+          debugPrint('[SubjectDetailScreen]     perf: NO ROW FOUND');
+        }
+      }
+      debugPrint('[SubjectDetailScreen] hasPrecomputed=$hasPrecomputed');
+      debugPrint('[SubjectDetailScreen] FINAL: mgmt=$_mgmtScore | perf=$_perfScore | overall=$_overallScore | respondents=$_totalResponses');
+      debugPrint('[SubjectDetailScreen] =========================================');
 
       if (mounted) {
         setState(() {
           _questionMeans = means;
-          _subjectRemarks = remarks.cast<Map<String, dynamic>>();
+          _subjectRemarks = remarkRows.cast<Map<String, dynamic>>();
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error fetching subject details: $e');
+      debugPrint('[SubjectDetailScreen] Error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── Filtered remarks getter ──────────────────────────────
+
+  // -- Filtered remarks getter ------------------------------
   List<Map<String, dynamic>> get _filteredRemarks {
     if (_selectedFilter == 'All') return _subjectRemarks;
     return _subjectRemarks.where((r) => (r['tone'] ?? 'Neutral') == _selectedFilter).toList();
   }
 
-  // ── Premium filter row ───────────────────────────────────
+  // -- Premium filter row -----------------------------------
   Widget _buildFilterRow() {
     final filters = [
       {'label': 'All',      'icon': Icons.all_inclusive_rounded,           'color': AppColors.primary,       'count': _subjectRemarks.length},
@@ -365,7 +418,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        title: Text(widget.subject.code, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(widget.subject.code, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: _isLoading
@@ -378,7 +431,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.subject.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    Text(widget.subject.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary, overflow: TextOverflow.ellipsis)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -558,7 +611,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
             ),
             ...criteria.asMap().entries.map((entry) {
               final idx = entry.key + 1;
-              final mean = (data['${prefix}${idx}_mean'] as num?)?.toDouble() ?? 0.0;
+              final mean = (data['$prefix${idx}_mean'] as num?)?.toDouble() ?? 0.0;
               return TableRow(
                 children: [
                   _buildTableCell('$idx'),

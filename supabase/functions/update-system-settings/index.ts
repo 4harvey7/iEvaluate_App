@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -15,8 +15,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // ── Authenticate caller ──────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
-    const { data: { user: caller } } = await supabaseAdmin.auth.getUser(authHeader!.replace('Bearer ', ''))
+    if (!authHeader) throw new Error('Unauthorized')
+
+    const { data: { user: caller }, error: userError } =
+      await supabaseAdmin.auth.getUser(authHeader.replace('Bearer ', ''))
+    if (userError || !caller) throw new Error('Unauthorized')
+
+    // ── C-3 FIX: Verify caller is SAO_ADMIN ─────────────────────────────────
+    const { data: adminCheck, error: adminError } = await supabaseAdmin
+      .from('Sao_users')
+      .select('roles!inner(Roles)')
+      .eq('user_id', caller.id)
+      .single()
+
+    if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
+      throw new Error('Forbidden: Admin access required')
+    }
 
     const { autoSync, semester, academicYear } = await req.json()
 
@@ -31,6 +47,7 @@ serve(async (req) => {
     if (adminEmails.length > 0) {
       const BREVO_KEY = Deno.env.get('BREVO_API_KEY')
       const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')
+      if (!SENDER_EMAIL) throw new Error('BREVO_SENDER_EMAIL is not configured')
 
       const syncStatus = autoSync ? 'ENABLED' : 'DISABLED'
       let message = `Auto-Sync with system clock has been <b>${syncStatus}</b> by ${caller?.email}.<br><br>`
@@ -68,9 +85,13 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const safeMessage = ['Unauthorized', 'Forbidden:', 'BREVO_SENDER_EMAIL'].some(
+      m => error.message?.startsWith(m)
+    ) ? error.message : 'Operation failed. Please try again.'
+
+    return new Response(JSON.stringify({ error: safeMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
+      status: error.message?.startsWith('Unauthorized') ? 401 : 400,
     })
   }
 })

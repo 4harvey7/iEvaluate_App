@@ -1,10 +1,14 @@
+// Screen where the instructor can read what the students actually wrote about them.
+// Some will be nice. Some will be brutal. Dili ta makapili. Bahala na what they say.
+// This screen also has AI insights, word cloud, sentiment stats — importente kaayo.
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 
+// StatefulWidget — lots of dynamic data (feedback, AI analysis, word cloud, filters)
 class StudentFeedbackScreen extends StatefulWidget {
   final String userId;
-  final String? termId;
+  final String? termId; // optional — if not provided, we fetch the current term
   const StudentFeedbackScreen({super.key, required this.userId, this.termId});
 
   @override
@@ -13,10 +17,13 @@ class StudentFeedbackScreen extends StatefulWidget {
 
 class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
   final _supabase = Supabase.instance.client;
+
+  // Filter for the feedback list — starts at 'All', can switch to Positive/Neutral/Critical
   String _selectedFilter = 'All';
   bool _isLoading = true;
-  String _activeTermDisplay = '';
+  String _activeTermDisplay = ''; // shown in the AppBar subtitle — e.g. "First Semester 2024-2025"
 
+  // Sentiment distribution counters — percentages of positive, neutral, critical
   Map<String, dynamic> _sentimentSummary = {
     'positive': 0,
     'neutral': 0,
@@ -24,25 +31,34 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     'totalComments': 0,
   };
 
+  // Word cloud items — words that appear often in feedback, with size and color
   List<Map<String, dynamic>> _wordCloud = [];
+  // All feedback items loaded from database — filtered copy is shown in UI
   List<Map<String, dynamic>> _allFeedback = [];
+  // AI-generated summary text — reads the feedback so you dont have to read 200 comments
   String _aiInsightSummary = "Analyzing your feedback...";
+  // Positive themes extracted by AI — the good stuff students liked
   List<Map<String, String>> _positiveThemes = [];
+  // Improvement areas flagged by AI — things to work on, ayaw ignore
   List<Map<String, String>> _improvementInsights = [];
 
   @override
   void initState() {
     super.initState();
-    _fetchFeedbackData();
+    _fetchFeedbackData(); // start loading everything on screen open
   }
 
+  // The main data fetcher — grabs remarks, AI suggestions, and word cloud in parallel.
+  // Also resolves the active term if not provided by the caller.
   Future<void> _fetchFeedbackData() async {
+    if (mounted) setState(() => _isLoading = true);
     try {
       String? activeTermId = widget.termId;
 
       // If no termId is provided (e.g., dashboard still loading), fetch the current active term
       String activeTermName = "Current Term";
       if (activeTermId == null || activeTermId.isEmpty) {
+        // No term provided — look it up from system_settings
         final settings = await _supabase
             .from('system_settings')
             .select('current_term_id, academic_terms(semester, academic_year)')
@@ -53,7 +69,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
           activeTermName = "${term['semester']} ${term['academic_year']}";
         }
       } else {
-        // Fetch term name for provided termId
+        // Fetch term name for provided termId — just need the display label
         final termData = await _supabase
             .from('academic_terms')
             .select('semester, academic_year')
@@ -64,45 +80,50 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
         }
       }
 
-      // If we still don't have a term ID, we can't filter correctly
+      // If we still don't have a term ID, we can't filter correctly — show empty screen
       if (activeTermId == null || activeTermId.isEmpty) {
         if (mounted) {
           setState(() {
             _isLoading = false;
-            _allFeedback = [];
+            _allFeedback = []; // wala data, wala display
           });
         }
         return;
       }
       
+      // Set the term display name in the AppBar subtitle
       if (mounted) {
         setState(() {
           _activeTermDisplay = activeTermName;
         });
       }
 
+      // Query 1: Student remarks (the actual feedback text + tone + date + subject)
       var remarksQuery = _supabase
           .from('student_remarks')
           .select('remark, tone, created_at, subjects(subject_code)')
           .eq('instructor_id', widget.userId)
           .eq('term_id', activeTermId);
 
+      // Query 2: AI suggestion entry for this instructor+term — the ML-analyzed summary
       var aiQuery = _supabase
           .from('instructor_ai_suggestions')
           .select()
           .eq('instructor_id', widget.userId)
           .eq('term_id', activeTermId);
 
+      // Query 3: Word cloud data — most frequent words from feedback
       var wordCloudQuery = _supabase
           .from('instructor_wordcloud')
           .select('word, count')
           .eq('instructor_id', widget.userId)
           .eq('term_id', activeTermId);
 
+      // Run all three queries at the same time — faster, no need wait one by one
       final responses = await Future.wait<dynamic>([
         remarksQuery,
-        aiQuery.order('updated_at', ascending: false).limit(1).maybeSingle(),
-        wordCloudQuery.order('count', ascending: false).limit(25),
+        aiQuery.order('updated_at', ascending: false).limit(1).maybeSingle(), // only most recent AI entry
+        wordCloudQuery.order('count', ascending: false).limit(25), // top 25 words only
       ]);
 
       final remarks = responses[0] as List;
@@ -111,10 +132,11 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
       if (mounted) {
         setState(() {
+          // Map each remark row into a clean display-friendly map
           _allFeedback = remarks.map((r) {
             // Using subjects!inner ensures we get records where subjects are linked
             // We use standard Supabase relationship syntax
-            String subjectCode = 'N/A';
+            String subjectCode = 'N/A'; // default if subject link is missing
             if (r['subjects'] != null) {
               if (r['subjects'] is Map) {
                 subjectCode = r['subjects']['subject_code'] ?? 'N/A';
@@ -126,16 +148,18 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
             return {
               'course': subjectCode,
               'text': r['remark'],
-              'sentiment': r['tone'] ?? 'Neutral',
+              'sentiment': r['tone'] ?? 'Neutral', // default to Neutral if tone is null
               'date': r['created_at'] != null ? DateTime.parse(r['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
             };
           }).toList();
 
+          // Count each sentiment type — used for the bar chart and percentage display
           int pos = _allFeedback.where((f) => f['sentiment'] == 'Positive').length;
           int neu = _allFeedback.where((f) => f['sentiment'] == 'Neutral').length;
           int neg = _allFeedback.where((f) => f['sentiment'] == 'Critical').length;
           int total = _allFeedback.length;
 
+          // Only compute percentages if there is at least one comment
           if (total > 0) {
             _sentimentSummary = {
               'positive': ((pos / total) * 100).round(),
@@ -145,22 +169,23 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
             };
           }
 
+          // Parse AI suggestion fields into usable lists
           if (aiSuggestion != null) {
             _aiInsightSummary = aiSuggestion['ai_suggestion'] ?? "";
             _positiveThemes = _parseThemes(aiSuggestion['positive_themes'], '💡');
             _improvementInsights = _parseImprovements(aiSuggestion['improvement_insights']);
           }
 
-          // Dense Word Cloud Logic
+          // Dense Word Cloud Logic — scale font size by frequency count
           _wordCloud = words.asMap().entries.map((entry) {
             int index = entry.key;
             var w = entry.value;
             return {
               'word': w['word'],
-              // More aggressive scaling for visual impact
+              // More aggressive scaling for visual impact — frequent words are BIG
               'weight': 14.0 + (w['count'] as num).toDouble() * 4.5,
               'color': _getWordColor(w['word']),
-              // More organic rotation pattern
+              // More organic rotation pattern — every 5th or 7th word gets rotated sideways
               'rotated': index % 5 == 0 || index % 7 == 0,
             };
           }).toList();
@@ -175,6 +200,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     }
   }
 
+  // Parses a raw string of themes into a list of labeled items.
+  // Handles numbered lists ("1. text"), newlines, and fallback sentence splitting.
+  // Also merges dangling fragments (e.g. "and deep knowledge...") back into previous item.
   List<Map<String, String>> _parseThemes(dynamic data, String defaultIcon) {
     if (data == null) return [];
     if (data is! String || data.trim().isEmpty) return [];
@@ -206,6 +234,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
       if (trimmed.isEmpty) continue;
       final firstWord = trimmed.split(' ').first.toLowerCase().replaceAll(',', '');
       if (merged.isNotEmpty && _danglers.contains(firstWord)) {
+        // Merge this fragment with the previous item — it's a continuation
         merged[merged.length - 1] = '${merged.last}. $trimmed';
       } else {
         merged.add(trimmed);
@@ -213,11 +242,13 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     }
 
     return merged
-        .where((s) => s.length > 5) // skip garbage fragments
+        .where((s) => s.length > 5) // skip garbage fragments — too short to be meaningful
         .map((s) => {'icon': defaultIcon, 'label': s.endsWith('.') ? s : '$s.'})
         .toList();
   }
 
+  // Same idea as _parseThemes but for improvement/critical areas.
+  // Also extracts a short label (first 4 words) as the "title" of each insight.
   List<Map<String, String>> _parseImprovements(dynamic data) {
     if (data == null) return [];
     if (data is! String || data.trim().isEmpty) return [];
@@ -239,7 +270,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
       parts = raw.split(RegExp(r'\.\s+')).where((s) => s.trim().isNotEmpty).toList();
     }
 
-    // Merge dangling fragments into previous item
+    // Merge dangling fragments into previous item — same logic as _parseThemes above
     const _danglers = {'and', 'or', 'but', 'as', 'with', 'which', 'that',
                        'including', 'such', 'among', 'while', 'where', 'additional',
                        'more', 'further'};
@@ -257,7 +288,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
     // Build label from first few words of each item as a title
     return merged
-        .where((s) => s.length > 5)
+        .where((s) => s.length > 5) // skip very short fragments
         .map((s) {
           final sentence = s.endsWith('.') ? s : '$s.';
           // Extract a short label: first 3–5 words, capitalised
@@ -267,20 +298,22 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
           return {
             'icon': '⚠️',
             'label': label[0].toUpperCase() + label.substring(1),
-            'detail': sentence,
+            'detail': sentence, // full sentence shown as sub-detail below the label
           };
         })
         .toList();
   }
 
+  // Maps a word to a color based on its length — simple but gives visual variety
+  // Short words get one color, longer words get another. Murag random but consistent.
   Color _getWordColor(String word) {
     final colors = [AppColors.primary, AppColors.success, Colors.lightBlueAccent, AppColors.warning];
-    return colors[word.length % colors.length];
+    return colors[word.length % colors.length]; // modulo gives predictable color per word
   }
 
-  // Filter Logic
+  // Filter Logic — returns only the feedback items matching the selected sentiment filter
   List<Map<String, dynamic>> get _filteredFeedback {
-    if (_selectedFilter == 'All') return _allFeedback;
+    if (_selectedFilter == 'All') return _allFeedback; // no filter = show everything
     return _allFeedback.where((f) => f['sentiment'] == _selectedFilter).toList();
   }
 
@@ -292,19 +325,33 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        // Two-line title: screen name + active term below it
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Student Feedback', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, fontSize: 18)),
             if (_activeTermDisplay.isNotEmpty)
-              Text(_activeTermDisplay, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12)),
+              Text(_activeTermDisplay, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12, overflow: TextOverflow.ellipsis)),
           ],
         ),
+        actions: [
+          // Manual refresh button — in case the AI analysis just came in and user wants fresh data
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.surface),
+            tooltip: 'Refresh',
+            onPressed: _fetchFeedbackData,
+          ),
+        ],
       ),
+      // Show spinner while loading, then the content once ready
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-        : SafeArea(
+        : RefreshIndicator(
+            onRefresh: _fetchFeedbackData, // pull-to-refresh triggers re-fetch
+            color: AppColors.primary,
+            child: SafeArea(
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,6 +361,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
               // SENTIMENT ANALYSIS DASHBOARD
               // ==========================================
+              // Card showing the breakdown of positive/neutral/critical feedback percentages
               Container(
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
@@ -333,7 +381,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Segmented Bar Chart
+                    // Segmented Bar Chart — one colored segment per sentiment type
+                    // flex values are the percentages (clamped to at least 1 to avoid 0-flex crash)
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
                       child: Row(
@@ -346,7 +395,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Legend & Stats
+                    // Legend & Stats — percentage labels below the bar
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -363,6 +412,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
               // ✨ NEW: AI INSTRUCTOR INSIGHT SUMMARY
               // ==========================================
+              // The AI reads all the feedback and writes a summary so the instructor
+              // doesnt have to read 200+ student comments manually. Importente feature.
               const Text('AI Instructor Insights', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
 
@@ -377,7 +428,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header row
+                    // Header row with AI icon and label
                     Row(
                       children: [
                         Container(
@@ -402,14 +453,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     const Divider(height: 1, color: AppColors.background),
                     const SizedBox(height: 16),
 
-                    // Summary Text
+                    // Summary Text — the paragraph the AI wrote about this instructor's feedback
                     Text(
                       _aiInsightSummary,
                       style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, height: 1.6),
                     ),
                     const SizedBox(height: 16),
 
-                    // Analyzed comments pill
+                    // Analyzed comments pill — shows how many comments the AI based this on
                     Row(
                       children: [
                         Container(
@@ -438,6 +489,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               const SizedBox(height: 16),
 
               // --- Positive Themes Block ---
+              // Shows the things students consistently said good things about
               if (_positiveThemes.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -460,6 +512,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       const SizedBox(height: 4),
                       const Text('Consistently praised aspects of your teaching', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 16),
+                      // Each theme shown as a green chip/badge
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
@@ -480,7 +533,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                 Flexible(
                                   child: Text(
                                     theme['label']!,
-                                    style: const TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600, overflow: TextOverflow.ellipsis),
                                   ),
                                 ),
                               ],
@@ -495,6 +548,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               ],
 
               // --- Improvement Insights Block (only when critical feedback exists) ---
+              // This only shows if students had complaints — the uncomfortable part
               if (_improvementInsights.isNotEmpty) ...[
                 Container(
                   padding: const EdgeInsets.all(20),
@@ -517,6 +571,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       const SizedBox(height: 4),
                       const Text('Areas flagged in student feedback worth reviewing', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                       const SizedBox(height: 16),
+                      // Each insight shows an icon, short label, and full detail text
                       Column(
                         children: _improvementInsights.map((insight) {
                           return Padding(
@@ -524,6 +579,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Warning icon in a colored box — makes it stand out
                                 Container(
                                   width: 36,
                                   height: 36,
@@ -539,8 +595,10 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
+                                      // Short title label in bold orange
                                       Text(insight['label']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.warning)),
                                       const SizedBox(height: 2),
+                                      // Full detail text in smaller gray text
                                       Text(insight['detail']!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.5)),
                                     ],
                                   ),
@@ -562,8 +620,10 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
 
               // ==========================================
-              // 👈 UPGRADED WORD CLOUD GENERATOR
+              // UPGRADED WORD CLOUD GENERATOR
               // ==========================================
+              // Visual word cloud — words that students used most appear bigger.
+              // The cloud is random-shuffled so it looks more natural, less boring.
               const Text('AI Word Cloud', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
               Container(
@@ -587,6 +647,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   runSpacing: 6.0,
                   children: _wordCloud.map((wordData) {
                     // Scale font: weight 14–58 maps to 10–22px readable range
+                    // High count words = bigger, rare words = smaller
                     final double rawWeight = (wordData['weight'] as double).clamp(14.0, 58.0);
                     final double fontSize = 10.0 + ((rawWeight - 14.0) / 44.0) * 12.0;
 
@@ -595,7 +656,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: fontSize,
-                        fontWeight: fontSize > 18 ? FontWeight.w800 : FontWeight.w600,
+                        fontWeight: fontSize > 18 ? FontWeight.w800 : FontWeight.w600, // bold if large
                         color: wordData['color'],
                         height: 1.1,
                         letterSpacing: -0.1,
@@ -608,14 +669,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     // Restore organic layout: every 5th or 7th word goes vertical (bottom→top)
                     if (wordData['rotated'] == true) {
                       return RotatedBox(
-                        quarterTurns: 3, // 270° = bottom-to-top
+                        quarterTurns: 3, // 270° = bottom-to-top rotation for visual variety
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
                           child: wordText,
                         ),
                       );
                     }
-                    return wordText;
+                    return wordText; // normal horizontal word
                   }).toList(),
                 ),
               ),
@@ -624,20 +685,22 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               // ==========================================
               // INDIVIDUAL FEEDBACK LIST & FILTERS
               // ==========================================
+              // The raw list of actual student comments — filterable by sentiment type
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Direct Quotes', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                  // Show count of currently filtered results
                   Text('${_filteredFeedback.length} Comments', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Filter chips
+              // Filter chips row — All, Positive, Neutral, Critical
               _buildFilterRow(),
               const SizedBox(height: 16),
 
-              // Feedback List
+              // If filtered list is empty, show a simple message
               _filteredFeedback.isEmpty
                   ? const Center(
                 child: Padding(
@@ -645,9 +708,10 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   child: Text("No comments match this filter.", style: TextStyle(color: AppColors.textSecondary)),
                 ),
               )
+                  // Otherwise show each feedback item as a colored card
                   : Column(
                 children: _filteredFeedback.map((feedback) {
-                  // Determine visual style based on sentiment
+                  // Determine visual style based on sentiment — color-coded for quick reading
                   Color sentimentColor = feedback['sentiment'] == 'Positive' ? AppColors.success
                       : feedback['sentiment'] == 'Critical' ? AppColors.error
                       : AppColors.textTertiary;
@@ -661,7 +725,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: sentimentColor.withValues(alpha: 0.3), width: 1)
+                        side: BorderSide(color: sentimentColor.withValues(alpha: 0.3), width: 1) // subtle colored border
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -671,20 +735,27 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(6)),
-                                child: Text(feedback['course'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary)),
+                              // Subject code pill on the left
+                              Flexible(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(6)),
+                                  child: Text(feedback['course'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary), overflow: TextOverflow.ellipsis),
+                                ),
                               ),
+                              const SizedBox(width: 8),
+                              // Date on the right side
                               Text(feedback['date'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                             ],
                           ),
                           const SizedBox(height: 12),
+                          // The actual feedback text in italic — what the student wrote
                           Text(
                             '"${feedback['text']}"',
                             style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontStyle: FontStyle.italic, height: 1.4),
                           ),
                           const SizedBox(height: 12),
+                          // Sentiment icon and label at the bottom — green/gray/red
                           Row(
                             children: [
                               Icon(sentimentIcon, color: sentimentColor, size: 16),
@@ -702,16 +773,17 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
           ),
         ),
       ),
+      ),
     );
   }
 
-  // Premium Filter Row with counts + icons
+  // Premium Filter Row with counts + icons — horizontally scrollable chips for each filter type
   Widget _buildFilterRow() {
     final filters = [
       {
         'label': 'All',
         'icon': Icons.all_inclusive_rounded,
-        'count': _allFeedback.length,
+        'count': _allFeedback.length, // total count regardless of sentiment
         'color': AppColors.primary,
       },
       {
@@ -735,22 +807,22 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     ];
 
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+      scrollDirection: Axis.horizontal, // scroll if screen too small to fit all chips
       child: Row(
         children: filters.map((f) {
           final label   = f['label']   as String;
           final icon    = f['icon']    as IconData;
           final count   = f['count']   as int;
           final color   = f['color']   as Color;
-          final selected = _selectedFilter == label;
+          final selected = _selectedFilter == label; // is this the active filter?
 
           return Padding(
             padding: const EdgeInsets.only(right: 10),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
+              duration: const Duration(milliseconds: 200), // smooth transition when selected
               curve: Curves.easeInOut,
               decoration: BoxDecoration(
-                color: selected ? color : AppColors.surface,
+                color: selected ? color : AppColors.surface, // filled when selected
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: selected ? color : color.withValues(alpha: 0.3),
@@ -761,7 +833,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     : [],
               ),
               child: InkWell(
-                onTap: () => setState(() => _selectedFilter = label),
+                onTap: () => setState(() => _selectedFilter = label), // update active filter
                 borderRadius: BorderRadius.circular(14),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -770,7 +842,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                     children: [
                       Icon(icon,
                           size: 16,
-                          color: selected ? Colors.white : color),
+                          color: selected ? Colors.white : color), // white when selected
                       const SizedBox(width: 6),
                       Text(
                         label,
@@ -781,6 +853,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      // Count badge inside each chip
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
@@ -809,7 +882,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     );
   }
 
-  // Helper Widget for Sentiment Stats
+  // Helper Widget for Sentiment Stats — shows percentage in big text with color-coded label
   Widget _buildSentimentStat(String label, String percentage, Color color) {
     return Column(
       children: [

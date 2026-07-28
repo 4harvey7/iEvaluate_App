@@ -1,9 +1,13 @@
 // lib/sao_admin/user_management_screen.dart
+// This screen manage all the academic users — professors, dept heads, etc.
+// If a person teach in a classroom, they probably here somewhere.
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
 import '../theme/app_colors.dart';
+import '../widgets/safe_button.dart';
 
+// The widget shell — just a box that holds the real stuff inside
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
 
@@ -12,29 +16,33 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  final _supabase = Supabase.instance.client;
+  final _supabase = Supabase.instance.client; // one ring to rule the database
   
-  List<Map<String, dynamic>> _allUsers = [];
-  List<Map<String, dynamic>> _roles = []; 
-  List<Map<String, dynamic>> _allDeptNames = []; 
+  List<Map<String, dynamic>> _allUsers = []; // every academic user fetched from DB
+  List<Map<String, dynamic>> _roles = []; // available roles, but only non-SAO ones
+  List<Map<String, dynamic>> _allDeptNames = []; // all department names for dropdowns
   
-  bool _isLoading = true;
-  String _searchQuery = '';
-  String _selectedRoleFilter = 'All';
-  String _sortBy = 'Newest';
+  bool _isLoading = true; // spinner flag — true while we waiting for data
+  String _searchQuery = ''; // what the admin typed in the search box
+  String _selectedRoleFilter = 'All'; // which role filter is selected, default all
+  String _sortBy = 'Newest'; // sort order — newest or oldest first
 
+  // called once when screen opens — start loading data right away
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _fetchData(); // go get the users, dili ta wait
   }
 
+  // fetch all users from department_table with their info, roles, and departments
+  // this query is long because we need everything in one call — wala choice
   Future<void> _fetchData() async {
-    if (!mounted) return;
+    if (!mounted) return; // screen already gone, ayaw proceed
     setState(() => _isLoading = true);
     
     try {
       debugPrint('[USER_MGMT] Fetching academic users from department_table...');
+      // the big join query — gets user info, role, and dept all at once
       final usersResponse = await _supabase
           .from('department_table')
           .select('''
@@ -53,7 +61,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             dept_data:department_name!Department_name_ID ( d_name )
           ''');
 
+      // fetch all departments separately for the edit dropdown
       final deptsResponse = await _supabase.from('department_name').select('id, d_name');
+      // fetch all roles — we'll filter out SAO roles after
       final rolesResponse = await _supabase.from('roles').select('id, Roles');
 
       debugPrint('[USER_MGMT] Raw DB Response Count: ${usersResponse.length}');
@@ -66,40 +76,49 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         setState(() {
           _allUsers = List<Map<String, dynamic>>.from(usersResponse);
           _allDeptNames = List<Map<String, dynamic>>.from(deptsResponse);
+          // filter roles to only non-SAO ones — this screen is for academic staff only
           _roles = List<Map<String, dynamic>>.from(rolesResponse)
               .where((r) => !r['Roles'].toString().toUpperCase().contains('SAO'))
               .toList();
-          _isLoading = false;
+          _isLoading = false; // done loading, show the list
         });
       }
     } catch (e) {
       debugPrint('[USER_MGMT] Error fetching data: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isLoading = false); // stop spinner even if it crash
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          const SnackBar(
+            content: Text('Failed to load user data. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
+  // computed getter that filters and sorts _allUsers based on current search/filter/sort
+  // no DB call here — all done in memory, basin maglisod if user count is huge
   List<Map<String, dynamic>> get _filteredUsers {
     List<Map<String, dynamic>> filtered = _allUsers.where((user) {
       final ui = user['user_info'];
-      if (ui == null) return false;
+      if (ui == null) return false; // wala user info, skip this one
       
       final roleName = user['role_data']?['Roles'] ?? 'Unknown';
+      // if role filter is active, skip users that dili match
       if (_selectedRoleFilter != 'All' && roleName != _selectedRoleFilter) return false;
       
       if (_searchQuery.isNotEmpty) {
+        // search by full name OR university ID — both are valid ways to find someone
         final fullName = '${ui['first_name']} ${ui['last_name']}'.toLowerCase();
         final uniId = ui['university_id'].toString().toLowerCase();
         final query = _searchQuery.toLowerCase();
         if (!fullName.contains(query) && !uniId.contains(query)) return false;
       }
-      return true;
+      return true; // this user passed all filters, include them
     }).toList();
 
+    // sort by ID string — newest means bigger ID, oldest means smaller
     filtered.sort((a, b) {
       if (_sortBy == 'Newest') {
         return b['id'].toString().compareTo(a['id'].toString());
@@ -111,17 +130,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return filtered;
   }
 
+  // toggle a user between approved and disabled — basically enable/disable them
+  // wala middle ground, either approved or disabled
   Future<void> _toggleUserStatus(Map<String, dynamic> user) async {
     final ui = user['user_info'];
     final String currentStatus = ui['account_status'];
+    // flip the status: if approved then disable, if disabled then approve
     final String newStatus = currentStatus == 'approved' ? 'disabled' : 'approved';
     
     try {
+      // call edge function to update the status — importente kaayo this goes through the function
       await _supabase.functions.invoke('admin-accept-user', body: {
         'targetUserId': user['user_id'],
         'status': newStatus,
       });
-      _fetchData();
+      _fetchData(); // refresh the list after change
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Account $newStatus successfully'), backgroundColor: AppColors.success),
@@ -135,23 +158,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // ── User Details Modal ────────────────────────────────────────
+  // shows a bottom sheet with details — different content for dept heads vs instructors
   Future<void> _showUserDetailsModal(Map<String, dynamic> user) async {
     final ui = user['user_info'];
     final userId = user['user_id'];
     final roleName = user['role_data']?['Roles'] ?? '';
     final deptName = user['dept_data']?['d_name'] ?? 'No Dept';
     final fullName = '${ui['first_name']} ${ui['last_name']}';
-    final isDeptHead = roleName.toUpperCase().contains('DEPARTMENT');
+    final isDeptHead = roleName.toUpperCase().contains('DEPARTMENT'); // check if dept head
 
+    // prepare containers for data we'll fetch below
     List<Map<String, dynamic>> subjects = [];
     Map<String, dynamic>? overallScore;
     Map<String, dynamic>? deptSummary;
 
     try {
+      // get the current active term — everything is scoped to this term
       final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
       final termId = settings?['current_term_id'];
 
       if (isDeptHead) {
+        // for dept heads, show summary of all instructors under them
         final deptRow = await _supabase.from('department_table').select('Department_name_ID').eq('user_id', userId).maybeSingle();
         final deptId = deptRow?['Department_name_ID'];
         if (deptId != null && termId != null) {
@@ -163,7 +190,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           final instrIds = (instrRows as List).map((r) => r['user_id'].toString()).toList();
 
           if (instrIds.isNotEmpty) {
-            // Sum their scores from overall_total_survey
+            // Sum their scores from overall_total_survey — compute dept average
             final rows = await _supabase
                 .from('overall_total_survey')
                 .select('overall_mean, total_responses')
@@ -174,6 +201,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               total += (r['total_responses'] as int? ?? 0);
               sum += (r['overall_mean'] as num? ?? 0).toDouble();
             }
+            // package the summary into a map
             deptSummary = {
               'instructorCount': instrIds.length,
               'avgScore': (rows).isEmpty ? 0.0 : sum / (rows).length,
@@ -182,23 +210,35 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           }
         }
       } else {
+        // for regular instructors, show their subjects and evaluation scores
         if (termId != null) {
-          subjects = List<Map<String, dynamic>>.from(await _supabase.from('subjects')
-              .select('subject_code, subject_name, section').eq('instructor_id', userId).eq('term_id', termId));
+          // get subjects assigned to this instructor this term
+          final rows = await _supabase
+              .from('instructor_subjects')
+              .select('subjects(subject_code, subject_name)')
+              .eq('instructor_id', userId)
+              .eq('term_id', termId);
+          subjects = (rows as List).map((r) {
+            final s = r['subjects'];
+            return Map<String, dynamic>.from(s is List ? s[0] : s ?? {});
+          }).toList();
         }
+        // get their overall evaluation score this term
         overallScore = await _supabase.from('overall_total_survey')
             .select('overall_mean, management_mean, performance_mean, total_responses')
             .eq('instructor_id', userId).eq('term_id', termId ?? '').maybeSingle();
       }
-    } catch (e) { debugPrint('UserDetailsModal error: $e'); }
+    } catch (e) { debugPrint('UserDetailsModal error: $e'); } // log it and continue
 
     if (!mounted) return;
+    // show the actual bottom sheet
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
+        height: MediaQuery.of(context).size.height * 0.75, // takes up 75% of screen height
         decoration: const BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         child: Column(children: [
+          // top header with user's name, role, and dept
           Container(
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -207,12 +247,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
-                Text(deptName, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11)),
+                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
+                Text(deptName, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11), overflow: TextOverflow.ellipsis),
               ])),
             ]),
           ),
+          // scrollable content — dept summary or instructor scores depending on role
           Expanded(child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: isDeptHead ? _buildDeptModal(deptSummary, deptName) : _buildInstructorModal(overallScore, subjects),
@@ -222,11 +263,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  // build the dept head modal content — shows dept stats like avg score, count
   Widget _buildDeptModal(Map<String, dynamic>? s, String name) {
     if (s == null) return const Center(child: Text('No department data.', style: TextStyle(color: AppColors.textSecondary)));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Department Summary — $name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
       const SizedBox(height: 16),
+      // three info tiles: average score, instructor count, total responses
       Row(children: [
         Expanded(child: _infoTile('Avg Score', (s['avgScore'] as double).toStringAsFixed(2), AppColors.primary)),
         const SizedBox(width: 10),
@@ -237,11 +280,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     ]);
   }
 
+  // build the instructor modal content — shows score breakdown and their subjects
   Widget _buildInstructorModal(Map<String, dynamic>? overall, List<Map<String, dynamic>> subjects) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (overall != null) ...[
         const Text('Score Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
         const SizedBox(height: 12),
+        // three scores: overall, management, performance — the holy trinity of evaluation
         Row(children: [
           Expanded(child: _infoTile('Overall', (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primary)),
           const SizedBox(width: 10),
@@ -250,11 +295,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           Expanded(child: _infoTile('Performance', (overall['performance_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.success)),
         ]),
         const SizedBox(height: 6),
+        // how many students actually submitted evaluations
         Text('${overall['total_responses'] ?? 0} responses this term', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
         const SizedBox(height: 20),
       ],
       Text('Subjects This Term (${subjects.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
       const SizedBox(height: 12),
+      // show subject cards or empty message if none assigned
       if (subjects.isEmpty) const Text('No subjects assigned.', style: TextStyle(color: AppColors.textSecondary))
       else ...subjects.map((s) => Card(
         color: AppColors.surface, margin: const EdgeInsets.only(bottom: 8),
@@ -262,44 +309,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           leading: const Icon(Icons.menu_book, color: AppColors.primary, size: 20),
-          title: Text('${s['subject_code']} — ${s['subject_name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13)),
-          subtitle: (s['section'] != null && (s['section'] as String).isNotEmpty)
-              ? Text('Section ${s['section']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)) : null,
+          title: Text('${s['subject_code']} — ${s['subject_name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
         ),
       )),
     ]);
   }
 
+  // small colored info tile with a big value and a label below
+  // reusable mini card, used all over the modals
   Widget _infoTile(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Column(children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis), // the big number
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis), // label below the number
       ]),
     );
   }
 
+  // show the dialog to add a brand new academic user — lots of fields, lots of validation
   void _showAddUserDialog() {
     TextEditingController firstController = TextEditingController();
     TextEditingController lastController = TextEditingController();
     TextEditingController emailController = TextEditingController();
     TextEditingController idController = TextEditingController();
-    TextEditingController codeController = TextEditingController();
+    TextEditingController codeController = TextEditingController(); // for the OTP verification step
     int? selectedRoleId = _roles.isNotEmpty ? _roles.first['id'] : null;
     int? selectedDeptId = _allDeptNames.isNotEmpty ? _allDeptNames.first['id'] : null;
-    bool needsCode = false;
-    bool isSaving = false;
+    bool needsCode = false; // becomes true when creating a DEPARTMENT_HEAD, extra auth needed
+    bool isSaving = false; // disable button while request in flight, ayaw double click
 
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: false, // cannot dismiss by tapping outside, dili ta escape
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          // title changes depending on which step we're on
           title: Text(needsCode ? 'Verify Authorization' : 'Add Academic Personnel', 
               style: const TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
@@ -307,6 +356,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!needsCode) ...[
+                  // step 1: fill in the user details
                   TextField(controller: firstController, decoration: const InputDecoration(labelText: 'First Name')),
                   const SizedBox(height: 12),
                   TextField(controller: lastController, decoration: const InputDecoration(labelText: 'Last Name')),
@@ -315,6 +365,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const SizedBox(height: 12),
                   TextField(controller: idController, decoration: const InputDecoration(labelText: 'University ID')),
                   const SizedBox(height: 16),
+                  // pick a role from the dropdown — only non-SAO roles shown here
                   DropdownButtonFormField<int>(
                     value: selectedRoleId,
                     isExpanded: true,
@@ -323,6 +374,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedRoleId = val),
                   ),
                   const SizedBox(height: 12),
+                  // pick a department — everyone needs a department
                   DropdownButtonFormField<int>(
                     value: selectedDeptId,
                     isExpanded: true,
@@ -331,6 +383,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedDeptId = val!),
                   ),
                 ] else ...[
+                  // step 2: verify with OTP code before creating a dept head — extra security
                   const Text('Creating a Department Head requires authorization.', textAlign: TextAlign.center),
                   const SizedBox(height: 20),
                   const Text('Enter the 6-digit code sent to your email:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -339,7 +392,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     controller: codeController,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                    style: const TextStyle(fontSize: 24, letterSpacing: 8), // big spaced code display
                     decoration: const InputDecoration(hintText: '000000'),
                   ),
                 ],
@@ -350,7 +403,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
-                // Validate fields first
+                // Validate fields first — ayaw submit if empty fields
                 final fn = firstController.text.trim();
                 final ln = lastController.text.trim();
                 final em = emailController.text.trim();
@@ -359,10 +412,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
                   return;
                 }
+                // basic email format check — murag real email ba
                 if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(em)) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red));
                   return;
                 }
+                // university ID must have at least 4 characters — reasonable requirement
                 if (id.length < 4) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
                   return;
@@ -370,10 +425,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
                 final roleName = role['Roles'];
 
+                // department head needs extra OTP verification — cannot just create one freely
                 if (roleName == 'DEPARTMENT_HEAD' && !needsCode) {
                    final currentUser = _supabase.auth.currentUser;
                    setDialogState(() => isSaving = true);
                    try {
+                     // request the server to email a verification code to the admin
                      await _supabase.functions.invoke(
                        'send-admin-code',
                        body: {'email': currentUser?.email},
@@ -382,6 +439,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                          'apikey': Env.supabaseAnonKey,
                        },
                      );
+                     // switch dialog to code entry step
                      setDialogState(() { needsCode = true; isSaving = false; });
                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
@@ -392,6 +450,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                    }
                 }
 
+                // actually create the user — call the edge function with all the data
                 setDialogState(() => isSaving = true);
                 try {
                   final response = await _supabase.functions.invoke(
@@ -403,7 +462,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       'universityId': idController.text.trim(),
                       'roleName': roleName,
                       'deptId': selectedDeptId,
-                      'verificationCode': codeController.text.trim(),
+                      'verificationCode': codeController.text.trim(), // OTP if dept head
                     },
                     headers: {
                       'Authorization': 'Bearer ${_supabase.auth.currentSession?.accessToken}',
@@ -412,17 +471,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   );
 
                   if (response.status == 200) {
-                    _fetchData();
+                    _fetchData(); // refresh list to show the new user
                     if (mounted) Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
-                    throw response.data['error'] ?? 'Server error';
+                    throw response.data['error'] ?? 'Server error'; // throw the server's error message
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
                 }
               },
+              // show spinner when saving, show text otherwise
               child: isSaving 
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
@@ -433,14 +493,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  // show dialog to edit an existing user's name, role, or department
+  // if changing to dept head, OTP verification kicks in again — dili ta skip security
   void _showEditUserDialog(Map<String, dynamic> user) {
     final ui = user['user_info'];
+    // pre-fill the fields with existing data
     TextEditingController firstController = TextEditingController(text: ui['first_name']);
     TextEditingController lastController = TextEditingController(text: ui['last_name']);
-    TextEditingController codeController = TextEditingController();
+    TextEditingController codeController = TextEditingController(); // for OTP if upgrading to dept head
     int selectedRoleId = user['roles'];
     int selectedDeptId = user['Department_name_ID'];
-    bool needsCode = false;
+    bool needsCode = false; // becomes true if promoting to dept head
     bool isSaving = false;
 
     showDialog(
@@ -450,12 +513,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(needsCode ? 'Verify Authorization' : 'Edit Academic Profile'),
+          title: Text(needsCode ? 'Verify Authorization' : 'Edit Academic Profile'), // title changes on step 2
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!needsCode) ...[
+                  // edit form fields — name, role, department
                   TextField(controller: firstController, decoration: const InputDecoration(labelText: 'First Name')),
                   const SizedBox(height: 12),
                   TextField(controller: lastController, decoration: const InputDecoration(labelText: 'Last Name')),
@@ -476,6 +540,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedDeptId = val!),
                   ),
                 ] else ...[
+                  // OTP step — only shown when upgrading someone to department head
                   const Text('Updating to Department Head requires authorization.', textAlign: TextAlign.center),
                   const SizedBox(height: 20),
                   const Text('Enter the 6-digit code:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -497,12 +562,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onPressed: isSaving ? null : () async {
                 final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
                 final roleName = role['Roles'];
+                // check if they're being promoted to dept head when they weren't before
                 final bool isUpgradingToHead = roleName == 'DEPARTMENT_HEAD' && user['role_data']?['Roles'] != 'DEPARTMENT_HEAD';
 
+                // upgrading to dept head needs OTP first — extra layer of protection
                 if (isUpgradingToHead && !needsCode) {
                    final currentUser = _supabase.auth.currentUser;
                    setDialogState(() => isSaving = true);
                    try {
+                     // request the OTP code from the server
                      await _supabase.functions.invoke('send-admin-code', body: {'email': currentUser?.email});
                      setDialogState(() { needsCode = true; isSaving = false; });
                      return;
@@ -512,6 +580,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                    }
                 }
 
+                // actually update the user — call edge function with new data
                 setDialogState(() => isSaving = true);
                 try {
                   await _supabase.functions.invoke('admin-update-role', body: {
@@ -520,10 +589,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     'lastName': lastController.text.trim(),
                     'roleId': selectedRoleId,
                     'roleName': roleName,
-                    'verificationCode': codeController.text.trim(),
-                    'isAcademic': true
+                    'verificationCode': codeController.text.trim(), // OTP if applicable
+                    'isAcademic': true // flag to tell the function this is academic user
                   });
-                  _fetchData();
+                  _fetchData(); // reload users after update
                   if (mounted) Navigator.pop(context);
                 } catch (e) {
                   setDialogState(() => isSaving = false);
@@ -538,12 +607,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  // the bottom sheet for filtering and sorting users — like settings for the list
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (BuildContext context) {
+        // StatefulBuilder so filter choices update visually inside the sheet
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter setModalState) {
             return Padding(
@@ -555,18 +626,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 24),
                   const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // sort chips: newest first or oldest first
                   Row(
                     children: ['Newest', 'Oldest'].map((s) => Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: ChoiceChip(
                         label: Text(s),
                         selected: _sortBy == s,
+                        // update both the modal state AND the main screen state
                         onSelected: (val) { if(val) { setModalState(() => _sortBy = s); setState((){}); } },
                       ),
                     )).toList(),
                   ),
                   const SizedBox(height: 24),
                   const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // role filter chips — "All" plus each available role
                   Wrap(
                     spacing: 8,
                     children: ['All', ..._roles.map((r) => r['Roles'])].map((r) => ChoiceChip(
@@ -576,6 +650,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     )).toList(),
                   ),
                   const SizedBox(height: 32),
+                  // apply button — just closes the sheet, filter already applied live
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -592,9 +667,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
+  // the main build — the whole screen is a list of users with search bar on top
   @override
   Widget build(BuildContext context) {
-    final users = _filteredUsers;
+    final users = _filteredUsers; // get filtered+sorted list
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -606,18 +682,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
-            onPressed: _showAddUserDialog,
+            onPressed: _showAddUserDialog, // open add user dialog
           ),
-          IconButton(
+          SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _fetchData,
+            onPressed: _fetchData, // manual refresh
           ),
         ],
       ),
+      // show spinner while loading, show content when done
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
+                // search bar + filter button row
                 Container(
                   color: AppColors.surface,
                   padding: const EdgeInsets.all(16.0),
@@ -625,7 +703,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     children: [
                       Expanded(
                         child: TextField(
-                          onChanged: (v) => setState(() => _searchQuery = v),
+                          onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
                           decoration: InputDecoration(
                             hintText: 'Search Name or ID...',
                             prefixIcon: const Icon(Icons.search, color: AppColors.primary),
@@ -638,49 +716,67 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       const SizedBox(width: 12),
                       IconButton(
                         icon: const Icon(Icons.filter_list, color: AppColors.primary),
-                        onPressed: _showFilterBottomSheet,
+                        onPressed: _showFilterBottomSheet, // open filter options
                       ),
                     ],
                   ),
                 ),
                 Expanded(
-                  child: users.isEmpty
-                      ? const Center(child: Text('No academic users found.'))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: users.length,
-                          itemBuilder: (context, index) {
-                            final user = users[index];
-                            final ui = user['user_info'];
-                            final isActive = ui['account_status'] == 'approved';
+                  child: RefreshIndicator(
+                    onRefresh: _fetchData, // pull down to refresh
+                    color: AppColors.primary,
+                    // show empty state or user list depending on results
+                    child: users.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: const [
+                              Center(child: Padding(
+                                padding: EdgeInsets.all(48),
+                                child: Text('No academic users found.'),
+                              )),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final user = users[index];
+                              final ui = user['user_info'];
+                              final isActive = ui['account_status'] == 'approved'; // active or disabled
 
-                            return Card(
-                              color: AppColors.surface,
-                              margin: const EdgeInsets.only(bottom: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              child: ListTile(
-                                onTap: () => _showUserDetailsModal(user),
-                                leading: CircleAvatar(
-                                  backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                  child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                              return Card(
+                                color: AppColors.surface,
+                                margin: const EdgeInsets.only(bottom: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                child: ListTile(
+                                  onTap: () => _showUserDetailsModal(user), // tap to see details
+                                  leading: CircleAvatar(
+                                    // gray background if disabled, colored if active
+                                    backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
+                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                                  ),
+                                  // strikethrough name if user is disabled — visual cue
+                                  title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),
+                                  subtitle: Text('${ui['university_id']} • ${user['role_data']?['Roles'] ?? 'N/A'}\n${user['dept_data']?['d_name'] ?? 'No Dept'}', overflow: TextOverflow.ellipsis),
+                                  isThreeLine: true,
+                                  // three dot menu with edit and enable/disable options
+                                  trailing: PopupMenuButton<String>(
+                                    onSelected: (val) {
+                                      if (val == 'edit') _showEditUserDialog(user);
+                                      if (val == 'status') _toggleUserStatus(user); // flip the status
+                                    },
+                                    itemBuilder: (context) => [
+                                      const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
+                                      // label changes based on current status
+                                      PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Approve')])),
+                                    ],
+                                  ),
                                 ),
-                                title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough)),
-                                subtitle: Text('${ui['university_id']} • ${user['role_data']?['Roles'] ?? 'N/A'}\n${user['dept_data']?['d_name'] ?? 'No Dept'}'),
-                                isThreeLine: true,
-                                trailing: PopupMenuButton<String>(
-                                  onSelected: (val) {
-                                    if (val == 'edit') _showEditUserDialog(user);
-                                    if (val == 'status') _toggleUserStatus(user);
-                                  },
-                                  itemBuilder: (context) => [
-                                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
-                                    PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Approve')])),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
+                    ),
                 ),
               ],
             ),

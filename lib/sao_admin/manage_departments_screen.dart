@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/safe_button.dart';
 
 class ManageDepartmentsScreen extends StatefulWidget {
   const ManageDepartmentsScreen({super.key});
@@ -239,7 +240,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
           ],
         ),
         actions: [
-          IconButton(
+          SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
             onPressed: _loadDepartments,
             tooltip: 'Refresh',
@@ -249,36 +250,41 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primary))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildFormCard(),
-                  const SizedBox(height: 32),
-                  Row(children: [
-                    const Icon(Icons.list_alt_rounded,
-                        color: AppColors.primary, size: 22),
-                    const SizedBox(width: 8),
-                    Text(
-                      'All Departments (${_departments.length})',
-                      style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold),
+          : RefreshIndicator(
+              onRefresh: _loadDepartments,
+              color: AppColors.primary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFormCard(),
+                    const SizedBox(height: 32),
+                    Row(children: [
+                      const Icon(Icons.list_alt_rounded,
+                          color: AppColors.primary, size: 22),
+                      const SizedBox(width: 8),
+                      Text(
+                        'All Departments (${_departments.length})',
+                        style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold),
+                      ),
+                    ]),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Tap a department to view its score, head, and instructors.',
+                      style: TextStyle(
+                          color: AppColors.textSecondary, fontSize: 12),
                     ),
-                  ]),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Tap a department to view its score, head, and instructors.',
-                    style: TextStyle(
-                        color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  const SizedBox(height: 12),
-                  _departments.isEmpty
-                      ? _buildEmptyState()
-                      : _buildDepartmentList(),
-                ],
+                    const SizedBox(height: 12),
+                    _departments.isEmpty
+                        ? _buildEmptyState()
+                        : _buildDepartmentList(),
+                  ],
+                ),
               ),
             ),
     );
@@ -517,6 +523,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                               ? AppColors.warning
                               : AppColors.textPrimary,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -545,7 +552,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                   onPressed: () => _startEdit(dept),
                   tooltip: 'Edit',
                 ),
-                IconButton(
+                SafeIconButton(
                   icon: const Icon(Icons.delete_outline,
                       color: AppColors.error, size: 20),
                   onPressed: () => _delete(dept),
@@ -1008,14 +1015,16 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                                             fontWeight: FontWeight.w600,
                                             fontSize: 14,
                                             color:
-                                                AppColors.textPrimary)),
+                                                AppColors.textPrimary),
+                                        overflow: TextOverflow.ellipsis),
                                     if ((inst['role'] as String)
                                         .isNotEmpty)
                                       Text(inst['role'],
                                           style: const TextStyle(
                                               fontSize: 11,
                                               color: AppColors
-                                                  .textSecondary)),
+                                                  .textSecondary),
+                                          overflow: TextOverflow.ellipsis),
                                   ],
                                 ),
                               ),

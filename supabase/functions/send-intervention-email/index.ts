@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
@@ -56,9 +56,8 @@ serve(async (req) => {
 
     // 3. Send email via Brevo (same API key already in Supabase secrets)
     const BREVO_KEY = Deno.env.get('BREVO_API_KEY')
-    const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL') || 'rodzharveydlicayan@gmail.com'
-
-    if (!BREVO_KEY) throw new Error('BREVO_API_KEY is not set in Supabase secrets')
+    const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')
+    if (!SENDER_EMAIL) throw new Error('BREVO_SENDER_EMAIL is not set in Supabase secrets')
 
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',

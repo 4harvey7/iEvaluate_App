@@ -1,11 +1,15 @@
 // lib/sao_admin/personnel_management_screen.dart
+// This screen manages the SAO staff — the people running the evaluation system.
+// Different from user_management (academics), this is for the SAO office folks.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
 import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/safe_button.dart';
 
+// the outer shell widget — just a box, nothing special yet
 class PersonnelManagementScreen extends StatefulWidget {
   const PersonnelManagementScreen({super.key});
 
@@ -14,25 +18,29 @@ class PersonnelManagementScreen extends StatefulWidget {
 }
 
 class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
-  final _supabase = Supabase.instance.client;
-  final _authService = AuthService();
+  final _supabase = Supabase.instance.client; // database connection, treat with respect
+  final _authService = AuthService(); // handles auth stuff like password reset
   
-  List<Map<String, dynamic>> _allPersonnel = [];
-  List<Map<String, dynamic>> _saoRoles = [];
-  bool _isLoading = true;
+  List<Map<String, dynamic>> _allPersonnel = []; // all SAO staff fetched from DB
+  List<Map<String, dynamic>> _saoRoles = []; // only SAO roles (filtered from all roles)
+  bool _isLoading = true; // spinner flag
   
-  String _searchQuery = '';
-  String _selectedRoleFilter = 'All';
-  String _sortBy = 'Newest';
+  String _searchQuery = ''; // search text
+  String _selectedRoleFilter = 'All'; // which role to filter by
+  String _sortBy = 'Newest'; // sort direction
 
+  // called once on screen open — start fetching data right away
   @override
   void initState() {
     super.initState();
-    _fetchData();
+    _fetchData(); // fetch everything, dili ta wait for button click
   }
 
+  // fetch all SAO personnel and their roles from the database
+  // 1. fetches from Sao_users table (not department_table — that's for academics)
+  // 2. also fetches all roles and filters to SAO ones only
   Future<void> _fetchData() async {
-    if (!mounted) return;
+    if (!mounted) return; // screen gone already? ayaw proceed
     setState(() => _isLoading = true);
     
     try {
@@ -40,6 +48,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       debugPrint('[PERSONNEL_MGMT] Logged in as: ${currentUser?.email} (ID: ${currentUser?.id})');
 
       // 1. Fetch Users from Sao_users (SAO Admin/Staff)
+      // includes user info and role data via joins
       final personnelResponse = await _supabase
           .from('Sao_users')
           .select('''
@@ -57,11 +66,13 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           ''');
 
       // 2. Fetch Roles (Filtered to SAO roles)
+      // we fetch all roles then filter in-memory to only keep SAO ones
       final rolesResponse = await _supabase.from('roles').select('id, Roles');
 
       if (mounted) {
         setState(() {
           _allPersonnel = List<Map<String, dynamic>>.from(personnelResponse);
+          // only keep roles that start with 'SAO' — dili ta include academic roles here
           _saoRoles = List<Map<String, dynamic>>.from(rolesResponse)
               .where((r) => r['Roles'].toString().toUpperCase().startsWith('SAO'))
               .toList();
@@ -71,7 +82,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     } catch (e) {
       debugPrint('[PERSONNEL_MGMT] Fetch Error: $e');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() => _isLoading = false); // stop spinner even on error
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error loading data: $e'), backgroundColor: AppColors.error),
         );
@@ -79,37 +90,43 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     }
   }
 
+  // computed getter — filters and sorts personnel based on current search/filter/sort
+  // disabled accounts always float to the top — admin can see who needs attention
   List<Map<String, dynamic>> get _filteredPersonnel {
     List<Map<String, dynamic>> filtered = _allPersonnel.where((person) {
       final ui = person['user_info'];
-      if (ui == null) return false;
-      
+      if (ui == null) return false; // no user info? skip this ghost
+
       final roleName = person['role_data']?['Roles'] ?? 'Unknown';
       
+      // apply role filter if not set to 'All'
       if (_selectedRoleFilter != 'All' && roleName != _selectedRoleFilter) return false;
       
       if (_searchQuery.isNotEmpty) {
+        // match by full name or university ID — both are acceptable ways to find someone
         final fullName = '${ui['first_name']} ${ui['last_name']}'.toLowerCase();
         final uniId = ui['university_id'].toString().toLowerCase();
         final query = _searchQuery.toLowerCase();
         if (!fullName.contains(query) && !uniId.contains(query)) return false;
       }
-      return true;
+      return true; // passed all checks, include in results
     }).toList();
 
+    // sort with a twist: disabled users always come first — admin should see them prominently
     filtered.sort((a, b) {
       final uiA = a['user_info'];
       final uiB = b['user_info'];
-      if (uiA == null || uiB == null) return 0;
+      if (uiA == null || uiB == null) return 0; // null safety, ayaw crash
       
       final isActiveA = uiA['account_status'] == 'approved';
       final isActiveB = uiB['account_status'] == 'approved';
 
-      // 1. Blocked/Disabled users first
+      // 1. Blocked/Disabled users first — float them to the top so admin notice
       if (isActiveA != isActiveB) {
-        return isActiveA ? 1 : -1;
+        return isActiveA ? 1 : -1; // disabled (-1) comes before active (1)
       }
 
+      // 2. then sort by ID within same status group
       if (_sortBy == 'Newest') {
         return b['id'].toString().compareTo(a['id'].toString());
       } else {
@@ -120,18 +137,22 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     return filtered;
   }
 
+  // toggle personnel between approved and disabled status
+  // basically the on/off switch for SAO staff accounts
   Future<void> _toggleStatus(Map<String, dynamic> person) async {
     final ui = person['user_info'];
     final String currentStatus = ui['account_status'];
+    // flip it: approved becomes disabled, disabled becomes approved
     final String newStatus = currentStatus == 'approved' ? 'disabled' : 'approved';
     
     try {
+      // call the edge function — importente kaayo dili ta update directly
       await _supabase.functions.invoke('admin-accept-user', body: {
         'targetUserId': person['user_id'],
         'status': newStatus,
       });
       
-      _fetchData();
+      _fetchData(); // refresh the list
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Account $newStatus successfully'), backgroundColor: AppColors.success),
@@ -145,54 +166,61 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   }
 
   // ── Personnel Details Modal ───────────────────────────────────
+  // shows bottom sheet with details — admins see profile info, staff see scan stats
   Future<void> _showPersonnelDetailsModal(Map<String, dynamic> person) async {
     final ui = person['user_info'];
     final userId = person['user_id'];
     final roleName = person['role_data']?['Roles'] ?? '';
     final fullName = '${ui['first_name']} ${ui['last_name']}';
-    final isAdmin = roleName.toUpperCase().contains('ADMIN');
+    final isAdmin = roleName.toUpperCase().contains('ADMIN'); // admins get different view
 
+    // scan statistics — only relevant for SAO_STAFF, not admins
     int totalScans = 0, todayScans = 0, termScans = 0;
     String lastUpload = '';
 
     if (!isAdmin) {
+      // staff users have scan activities — fetch their numbers
       try {
         final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
         final termId = settings?['current_term_id'];
         final today = DateTime.now();
-        final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
+        final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String(); // midnight UTC
 
-        // All-time scans by this SAO staff
+        // All-time scans by this SAO staff — from the beginning of time
         final all = await _supabase
             .from('raw_GoogleSheet_data_result')
             .select('created_at')
             .eq('sao_staff_id', userId);
         totalScans = (all as List).length;
 
-        // This term's scans
+        // This term's scans — scoped to current active term
         var termQ = _supabase
             .from('raw_GoogleSheet_data_result')
             .select('created_at')
             .eq('sao_staff_id', userId);
-        if (termId != null) termQ = termQ.eq('term_id', termId);
+        if (termId != null) termQ = termQ.eq('term_id', termId); // apply term filter
         final termRows = await termQ;
         termScans = (termRows as List).length;
+        // today's scans = anything uploaded since midnight today
         todayScans = termRows.where((r) => (r['created_at'] as String? ?? '').compareTo(startOfDay) >= 0).length;
 
         if (all.isNotEmpty) {
+          // find the most recent upload timestamp
           final sorted = all.map((r) => r['created_at'] as String).toList()..sort((a, b) => b.compareTo(a));
-          lastUpload = sorted.first;
+          lastUpload = sorted.first; // most recent = first after descending sort
         }
       } catch (e) { debugPrint('PersonnelModal error: $e'); }
     }
 
     if (!mounted) return;
+    // show the modal with different content based on whether person is admin or staff
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.65,
+        height: MediaQuery.of(context).size.height * 0.65, // 65% of screen height
         decoration: const BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         child: Column(children: [
+          // header with name, role, and email
           Container(
             padding: const EdgeInsets.all(20),
             decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -201,23 +229,26 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12)),
-                Text(ui['email'] ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11)),
+                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
+                Text(ui['email'] ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11), overflow: TextOverflow.ellipsis),
               ])),
             ]),
           ),
+          // body: admin sees profile, staff sees their scan stats
           Expanded(child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: isAdmin
-                ? _buildAdminProfile(ui)
-                : _buildGathererStats(totalScans, termScans, todayScans, lastUpload),
+                ? _buildAdminProfile(ui) // admin: show contact info
+                : _buildGathererStats(totalScans, termScans, todayScans, lastUpload), // staff: show scan numbers
           )),
         ]),
       ),
     );
   }
 
+  // builds a simple profile view for SAO admin accounts
+  // admins just need to see their ID, email, and status — no scan stats
   Widget _buildAdminProfile(Map<String, dynamic> ui) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text('Account Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
@@ -228,21 +259,25 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     ]);
   }
 
+  // builds scan statistics for SAO staff — today, this term, and all-time counts
+  // also shows how long ago their last upload was
   Widget _buildGathererStats(int total, int term, int today, String lastUpload) {
-    String lastStr = 'No uploads yet';
+    String lastStr = 'No uploads yet'; // default if they haven't uploaded anything
     if (lastUpload.isNotEmpty) {
       try {
-        final dt = DateTime.parse(lastUpload).toLocal();
+        final dt = DateTime.parse(lastUpload).toLocal(); // convert from UTC to local time
         final diff = DateTime.now().difference(dt);
+        // human-readable time ago: minutes, hours, or days
         if (diff.inMinutes < 60) lastStr = '${diff.inMinutes}m ago';
         else if (diff.inHours < 24) lastStr = '${diff.inHours}h ago';
         else lastStr = '${diff.inDays}d ago';
-      } catch (_) {}
+      } catch (_) {} // if parsing fails, just keep 'No uploads yet'
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text('Scan Statistics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
       const SizedBox(height: 16),
+      // three boxes: today, this term, all time — in order of recency
       Row(children: [
         Expanded(child: _statBox('Today', '$today', AppColors.primary)),
         const SizedBox(width: 10),
@@ -251,46 +286,53 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         Expanded(child: _statBox('All Time', '$total', AppColors.success)),
       ]),
       const SizedBox(height: 16),
+      // last upload time — useful to see if staff been active recently
       _profileRow(Icons.cloud_upload_outlined, 'Last Upload', lastStr),
     ]);
   }
 
+  // a single row in the profile view — icon, label, and value side by side
   Widget _profileRow(IconData icon, String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(children: [
-        Icon(icon, color: AppColors.primary, size: 18),
+        Icon(icon, color: AppColors.primary, size: 18), // colored icon on left
         const SizedBox(width: 12),
-        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-        Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary))),
+        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)), // bold label
+        Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)), // value text
       ]),
     );
   }
 
+  // a colored box with a big number and a label underneath it
+  // used for scan count stats — today, term, all-time
   Widget _statBox(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Column(children: [
-        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis), // big number
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis), // label below
       ]),
     );
   }
 
+  // dialog to edit an existing SAO personnel — name and role changes
+  // if promoting to SAO_ADMIN, needs OTP verification — dili basta basta mag-promote
   void _showEditPersonnelDialog(Map<String, dynamic> person) {
     final ui = person['user_info'];
+    // pre-fill with current values
     TextEditingController firstController = TextEditingController(text: ui['first_name']);
     TextEditingController lastController = TextEditingController(text: ui['last_name']);
-    TextEditingController codeController = TextEditingController();
+    TextEditingController codeController = TextEditingController(); // OTP input for admin promotion
     int selectedRoleId = person['role_id'];
-    bool needsCode = false;
+    bool needsCode = false; // becomes true if promoting to SAO_ADMIN
     bool isSaving = false;
 
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: false, // cannot dismiss by tapping outside
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.surface,
@@ -302,10 +344,12 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!needsCode) ...[
+                  // step 1: edit form
                   TextField(controller: firstController, decoration: const InputDecoration(labelText: 'First Name')),
                   const SizedBox(height: 12),
                   TextField(controller: lastController, decoration: const InputDecoration(labelText: 'Last Name')),
                   const SizedBox(height: 16),
+                  // role dropdown — only SAO roles shown here
                   DropdownButtonFormField<int>(
                     value: selectedRoleId,
                     isExpanded: true,
@@ -314,6 +358,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedRoleId = val!),
                   ),
                 ] else ...[
+                  // step 2: enter OTP — required when upgrading to SAO_ADMIN
                   const Text('Upgrading a user to Admin requires authorization.', textAlign: TextAlign.center),
                   const SizedBox(height: 20),
                   const Text('Enter the 6-digit code sent to your email:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -322,7 +367,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     controller: codeController,
                     keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 24, letterSpacing: 8),
+                    style: const TextStyle(fontSize: 24, letterSpacing: 8), // big spaced digits
                     decoration: const InputDecoration(hintText: '000000'),
                   ),
                 ],
@@ -331,12 +376,14 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            ElevatedButton(
+            SafeElevatedButton(
               onPressed: () async {
                 final selectedRole = _saoRoles.firstWhere((r) => r['id'] == selectedRoleId);
+                // check if this is a promotion from non-admin to admin
                 final bool isUpgradingToAdmin = selectedRole['Roles'] == 'SAO_ADMIN' && 
                     person['role_data']?['Roles'] != 'SAO_ADMIN';
 
+                // promoting to SAO_ADMIN requires OTP — extra security layer, importente kaayo
                 if (isUpgradingToAdmin && !needsCode) {
                    final currentUser = _supabase.auth.currentUser;
                    
@@ -347,7 +394,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                        'send-admin-code',
                        body: {
                          'email': currentUser?.email,
-                         // We no longer send the code from here!
+                         // We no longer send the code from here! server decides that
                        },
                        headers: {
                          'Authorization': 'Bearer ${_supabase.auth.currentSession?.accessToken}',
@@ -355,6 +402,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                        },
                      );
                      
+                     // switch dialog to OTP input step
                      setDialogState(() {
                        needsCode = true;
                        isSaving = false;
@@ -363,7 +411,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                      ScaffoldMessenger.of(context).showSnackBar(
                        SnackBar(content: Text('Verification code sent to ${currentUser?.email}'))
                      );
-                     return;
+                     return; // stop here and wait for user to enter the code
                    } catch (e) {
                      setDialogState(() => isSaving = false);
                      ScaffoldMessenger.of(context).showSnackBar(
@@ -373,6 +421,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                    }
                 }
 
+                // if not upgrading to admin, or OTP already entered — proceed with update
                 try {
                   setDialogState(() => isSaving = true);
                   
@@ -388,7 +437,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       'lastName': lastController.text.trim(),
                       'roleId': selectedRoleId,
                       'roleName': roleName,
-                      'isAcademic': false,
+                      'isAcademic': false, // this is SAO staff, not academic
                       'verificationCode': codeController.text.trim(), // Server verifies this!
                     },
                     headers: {
@@ -398,12 +447,13 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   );
 
                   if (response.status == 200) {
-                    _fetchData();
+                    _fetchData(); // reload the list to show changes
                     if (mounted) Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Personnel updated successfully!'), backgroundColor: AppColors.success)
                     );
                   } else {
+                    // server returned an error, extract and throw the message
                     final errorMsg = response.data is Map ? (response.data['error'] ?? 'Server error') : 'Server error';
                     throw errorMsg;
                   }
@@ -414,6 +464,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   );
                 }
               },
+              // show spinner or button label depending on save state
               child: isSaving 
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : Text(needsCode ? 'Verify & Save' : 'Save Changes'),
@@ -424,14 +475,16 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     );
   }
 
+  // dialog to create a brand new SAO personnel from scratch
+  // creating SAO_ADMIN requires OTP — wala choice, it's a rule
   void _showAddPersonnelDialog() {
     TextEditingController firstController = TextEditingController();
     TextEditingController lastController = TextEditingController();
     TextEditingController emailController = TextEditingController();
     TextEditingController idController = TextEditingController();
-    TextEditingController codeController = TextEditingController();
-    String? selectedRoleName = _saoRoles.isNotEmpty ? _saoRoles.first['Roles'] : null;
-    bool needsCode = false;
+    TextEditingController codeController = TextEditingController(); // OTP if creating admin
+    String? selectedRoleName = _saoRoles.isNotEmpty ? _saoRoles.first['Roles'] : null; // default to first role
+    bool needsCode = false; // triggered when creating SAO_ADMIN
     bool isSaving = false;
 
     showDialog(
@@ -448,6 +501,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!needsCode) ...[
+                  // step 1: fill in new person's details
                   TextField(controller: firstController, decoration: const InputDecoration(labelText: 'First Name')),
                   const SizedBox(height: 12),
                   TextField(controller: lastController, decoration: const InputDecoration(labelText: 'Last Name')),
@@ -456,6 +510,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const SizedBox(height: 12),
                   TextField(controller: idController, decoration: const InputDecoration(labelText: 'University ID')),
                   const SizedBox(height: 16),
+                  // role dropdown — only SAO roles (SAO_ADMIN, SAO_STAFF etc.)
                   DropdownButtonFormField<String>(
                     value: selectedRoleName,
                     isExpanded: true,
@@ -464,6 +519,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedRoleName = val),
                   ),
                 ] else ...[
+                  // step 2: OTP verification for creating admin accounts
                   const Text('Creating an Admin requires authorization.', textAlign: TextAlign.center),
                   const SizedBox(height: 20),
                   const Text('Enter the 6-digit code sent to your email:', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -483,8 +539,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
-                if (selectedRoleName == null) return;
-                // Validate required fields
+                if (selectedRoleName == null) return; // no role selected, ayaw proceed
+                // Validate required fields — all four must be filled
                 final fn = firstController.text.trim();
                 final ln = lastController.text.trim();
                 final em = emailController.text.trim();
@@ -493,19 +549,23 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
                   return;
                 }
+                // validate email format — looks murag real email
                 if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(em)) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red));
                   return;
                 }
+                // university ID must have at least 4 chars — reasonable minimum
                 if (id.length < 4) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
                   return;
                 }
 
+                // creating SAO_ADMIN requires OTP first — trigger the email
                 if (!needsCode && selectedRoleName == 'SAO_ADMIN') {
                    final currentUser = _supabase.auth.currentUser;
                    setDialogState(() => isSaving = true);
                    try {
+                     // request server to send OTP to the current admin's email
                      await _supabase.functions.invoke(
                        'send-admin-code',
                        body: {'email': currentUser?.email},
@@ -514,7 +574,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                          'apikey': Env.supabaseAnonKey,
                        },
                      );
-                     setDialogState(() { needsCode = true; isSaving = false; });
+                     setDialogState(() { needsCode = true; isSaving = false; }); // switch to OTP step
                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
                    } catch (e) {
@@ -524,6 +584,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                    }
                 }
 
+                // actually create the user — call the edge function
                 setDialogState(() => isSaving = true);
                 try {
                   final response = await _supabase.functions.invoke(
@@ -534,8 +595,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       'email': emailController.text.trim(),
                       'universityId': idController.text.trim(),
                       'roleName': selectedRoleName!,
-                      'address': 'SAO Office',
-                      'verificationCode': codeController.text.trim(),
+                      'address': 'SAO Office', // default address for all SAO staff
+                      'verificationCode': codeController.text.trim(), // OTP if admin
                     },
                     headers: {
                       'Authorization': 'Bearer ${_supabase.auth.currentSession?.accessToken}',
@@ -544,11 +605,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   );
 
                   if (response.status == 200 || response.status == 201) {
-                    _fetchData();
+                    _fetchData(); // refresh list
                     if (mounted) Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
-                    throw response.data['error'] ?? 'Server error';
+                    throw response.data['error'] ?? 'Server error'; // server said no
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
@@ -565,6 +626,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     );
   }
 
+  // the filter/sort bottom sheet — same pattern as user management
   void _showFilterBottomSheet() {
     showModalBottomSheet(
       context: context,
@@ -582,18 +644,21 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 24),
                   const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // newest or oldest choice chips
                   Row(
                     children: ['Newest', 'Oldest'].map((s) => Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: ChoiceChip(
                         label: Text(s),
                         selected: _sortBy == s,
+                        // update both modal state and parent state
                         onSelected: (val) { if(val) { setModalState(() => _sortBy = s); setState((){}); } },
                       ),
                     )).toList(),
                   ),
                   const SizedBox(height: 24),
                   const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold)),
+                  // role filter: "All" + each SAO role
                   Wrap(
                     spacing: 8,
                     children: ['All', ..._saoRoles.map((r) => r['Roles'])].map((r) => ChoiceChip(
@@ -603,6 +668,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     )).toList(),
                   ),
                   const SizedBox(height: 32),
+                  // apply = just close, filter is already live
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -619,9 +685,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     );
   }
 
+  // the main build method — the whole screen with appbar, search, and list
   @override
   Widget build(BuildContext context) {
-    final personnel = _filteredPersonnel;
+    final personnel = _filteredPersonnel; // apply filter+sort before rendering
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -633,18 +700,20 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
-            onPressed: _showAddPersonnelDialog,
+            onPressed: _showAddPersonnelDialog, // open add dialog
           ),
-          IconButton(
+          SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _fetchData,
+            onPressed: _fetchData, // manual refresh button
           ),
         ],
       ),
+      // spinner while loading, column layout when done
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
+                // search + filter row at the top
                 Container(
                   color: AppColors.surface,
                   padding: const EdgeInsets.all(16.0),
@@ -652,7 +721,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     children: [
                       Expanded(
                         child: TextField(
-                          onChanged: (v) => setState(() => _searchQuery = v),
+                          onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
                           decoration: InputDecoration(
                             hintText: 'Search Name or ID...',
                             prefixIcon: const Icon(Icons.search, color: AppColors.primary),
@@ -671,36 +740,53 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   ),
                 ),
                 Expanded(
-                  child: personnel.isEmpty
-                      ? const Center(child: Text('No SAO personnel found.'))
-                      : ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: personnel.length,
+                  child: RefreshIndicator(
+                    onRefresh: _fetchData,
+                    color: AppColors.primary,
+                    // show empty message or the actual list
+                    child: personnel.isEmpty
+                        ? ListView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            children: const [
+                              Center(child: Padding(
+                                padding: EdgeInsets.all(48),
+                                child: Text('No SAO personnel found.'),
+                              )),
+                            ],
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: personnel.length,
                           itemBuilder: (context, index) {
                             final person = personnel[index];
                             final ui = person['user_info'];
-                            final isActive = ui['account_status'] == 'approved';
-                            final isTargetAdmin = person['role_data']?['Roles'] == 'SAO_ADMIN';
+                            final isActive = ui['account_status'] == 'approved'; // is this person enabled?
+                            final isTargetAdmin = person['role_data']?['Roles'] == 'SAO_ADMIN'; // admins have shield icon, cannot edit by others
 
                             return Card(
                               color: AppColors.surface,
                               margin: const EdgeInsets.only(bottom: 12),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               child: ListTile(
-                                onTap: () => _showPersonnelDetailsModal(person),
+                                onTap: () => _showPersonnelDetailsModal(person), // tap to see details
                                 leading: CircleAvatar(
+                                  // gray if disabled, colored if active
                                   backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
                                   child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
                                 ),
-                                title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough)),
-                                subtitle: Text('${ui['university_id']} • ${person['role_data']?['Roles'] ?? 'N/A'}'),
+                                // strikethrough if disabled — visual cue that account is off
+                                title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),
+                                subtitle: Text('${ui['university_id']} • ${person['role_data']?['Roles'] ?? 'N/A'}', overflow: TextOverflow.ellipsis),
+                                // admins get a shield icon — cannot be edited by others, dili pwede
                                 trailing: isTargetAdmin 
                                   ? const Icon(Icons.shield, color: AppColors.textSecondary, size: 20) // Admins cannot be edited by other admins
                                   : PopupMenuButton<String>(
                                   onSelected: (val) {
                                     if (val == 'edit') _showEditPersonnelDialog(person);
-                                    if (val == 'status') _toggleStatus(person);
+                                    if (val == 'status') _toggleStatus(person); // enable/disable
                                     if (val == 'reset') {
+                                      // send password reset email — useful when staff forget password
                                       _authService.sendPasswordResetEmail(ui['email']);
                                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reset email sent.')));
                                     }
@@ -715,6 +801,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                             );
                           },
                         ),
+                    ),
                 ),
               ],
             ),

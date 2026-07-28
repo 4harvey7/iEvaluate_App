@@ -3,11 +3,15 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subject.dart';
 
+/// Loads subjects for the current instructor+term via the instructor_subjects
+/// junction table (2NF schema). Scores come from management_results /
+/// performance_results (pre-computed means).
 class SubjectsProvider extends ChangeNotifier {
   final SupabaseClient _supabase;
   final List<Subject> _subjects = [];
 
-  SubjectsProvider({SupabaseClient? client}) : _supabase = client ?? Supabase.instance.client;
+  SubjectsProvider({SupabaseClient? client})
+      : _supabase = client ?? Supabase.instance.client;
 
   UnmodifiableListView<Subject> get subjects => UnmodifiableListView(_subjects);
 
@@ -19,148 +23,174 @@ class SubjectsProvider extends ChangeNotifier {
   }
 
   Future<void> load({String? termId}) async {
-    // If already fetching a specific term, don't interrupt.
-    // If this is a background auto-load (termId is null) and we're already fetching, skip it.
+    // Only skip if already fetching AND no new termId is being forced in.
+    // If a real termId is provided (post-login call), always allow it through.
     if (_isFetching && (termId == null || termId.isEmpty)) return;
-    
+
     try {
       _isFetching = true;
-      
+
       final userId = _supabase.auth.currentUser?.id;
-      debugPrint('[SubjectsProvider] Loading subjects for User: $userId, Term: $termId');
       if (userId == null) {
         _subjects.clear();
         notifyListeners();
         return;
       }
 
-      // 1. Resolve Term
+      // 1. Resolve active term
       String? activeTermId = termId;
       if (activeTermId == null || activeTermId.isEmpty) {
-        final settings = await _supabase.from('system_settings')
+        final settings = await _supabase
+            .from('system_settings')
             .select('current_term_id')
             .limit(1)
             .maybeSingle();
         activeTermId = settings?['current_term_id'];
       }
-      
+
       if (activeTermId == null || activeTermId.isEmpty) {
-        debugPrint('SubjectsProvider: No active term ID found.');
+        debugPrint('[SubjectsProvider] No active term found.');
         _subjects.clear();
         notifyListeners();
         return;
       }
 
-      // 2. Multi-source Discovery
-      final responses = await Future.wait<dynamic>([
-        _supabase.from('subjects').select().eq('instructor_id', userId).eq('term_id', activeTermId),
-        _supabase.from('management_results').select('subject_id, overall_management_mean, subjects(*)').eq('instructor_id', userId).eq('term_id', activeTermId),
-        _supabase.from('performance_results').select('subject_id, overall_performance_mean, subjects(*)').eq('instructor_id', userId).eq('term_id', activeTermId),
-        _supabase.from('raw_GoogleSheet_data_result').select('subject_id, subjects(*)').eq('instructor_ID', userId).eq('term_id', activeTermId),
+      // 2. Get subjects for this instructor+term via instructor_subjects junction table.
+      final assignmentRows = await _supabase
+          .from('instructor_subjects')
+          .select('subject_id, subjects(id, subject_code, subject_name, created_at, department_id)')
+          .eq('instructor_id', userId)
+          .eq('term_id', activeTermId);
+
+      debugPrint('[SubjectsProvider] Assignments found: ${(assignmentRows as List).length}');
+
+      if ((assignmentRows as List).isEmpty) {
+        _subjects.clear();
+        notifyListeners();
+        return;
+      }
+
+      // Build id to metadata map (one row per unique subject_id)
+      final Map<String, Map<String, dynamic>> subjectById = {};
+      for (var row in assignmentRows) {
+        final subjectData = row['subjects'];
+        if (subjectData == null) continue;
+        final meta = Map<String, dynamic>.from(
+          subjectData is List ? subjectData[0] : subjectData,
+        );
+        final id = meta['id']?.toString();
+        if (id == null) continue;
+        subjectById.putIfAbsent(id, () => meta);
+      }
+
+      if (subjectById.isEmpty) {
+        _subjects.clear();
+        notifyListeners();
+        return;
+      }
+
+      final validSubjectIds = subjectById.keys.toList();
+
+      // 3. Fetch pre-computed results for this instructor+term.
+      final results = await Future.wait([
+        _supabase
+            .from('management_results')
+            .select('subject_id, overall_management_mean, total_responses, created_at')
+            .eq('instructor_id', userId)
+            .eq('term_id', activeTermId)
+            .filter('subject_id', 'in', validSubjectIds)
+            .order('created_at', ascending: false),
+        _supabase
+            .from('performance_results')
+            .select('subject_id, overall_performance_mean, total_responses, created_at')
+            .eq('instructor_id', userId)
+            .eq('term_id', activeTermId)
+            .filter('subject_id', 'in', validSubjectIds)
+            .order('created_at', ascending: false),
       ]);
 
-      debugPrint('[SubjectsProvider] Term Resolved: $activeTermId');
-      debugPrint('[SubjectsProvider] Response counts: '
-            'subjects=${(responses[0] as List).length}, '
-            'mgmt=${(responses[1] as List).length}, '
-            'perf=${(responses[2] as List).length}, '
-            'raw=${(responses[3] as List).length}');
+      final mgmtRows = (results[0] as List);
+      final perfRows = (results[1] as List);
 
-      // Group subjects by Code and Section to prevent duplicates
-      Map<String, Map<String, dynamic>> uniqueSubjects = {};
-
-      void register(dynamic item) {
-        if (item == null) return;
-        
-        // Prefer metadata from the joined 'subjects' table if available
-        final metadata = item['subjects'] != null 
-            ? Map<String, dynamic>.from(item['subjects']) 
-            : Map<String, dynamic>.from(item);
-            
-        final code = metadata['subject_code']?.toString();
-        if (code == null) return;
-        
-        final section = metadata['section']?.toString() ?? '';
-        final key = '${code}_$section'.toUpperCase();
-
-        if (!uniqueSubjects.containsKey(key)) {
-          uniqueSubjects[key] = metadata;
-          uniqueSubjects[key]!['all_ids'] = <String>{};
-        } else {
-          // If this version has more data (like an ID from 'subjects' table), prefer it
-          if (item.containsKey('instructor_id') && !uniqueSubjects[key]!.containsKey('instructor_id')) {
-             uniqueSubjects[key] = metadata;
-          }
-        }
-        
-        // Collect all IDs that map to this subject code (across any term/record found)
-        final sid = metadata['id']?.toString() ?? item['subject_id']?.toString();
-        if (sid != null) {
-          (uniqueSubjects[key]!['all_ids'] as Set<String>).add(sid);
+      final Map<String, Map<String, dynamic>> mgmtBySubjectId = {};
+      for (var row in mgmtRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !mgmtBySubjectId.containsKey(sid)) {
+          mgmtBySubjectId[sid] = Map<String, dynamic>.from(row);
         }
       }
 
-      for (var response in responses) {
-        if (response is List) {
-          for (var item in response) register(item);
+      final Map<String, Map<String, dynamic>> perfBySubjectId = {};
+      for (var row in perfRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !perfBySubjectId.containsKey(sid)) {
+          perfBySubjectId[sid] = Map<String, dynamic>.from(row);
         }
       }
 
-      List<Subject> newSubjects = [];
-      for (var entry in uniqueSubjects.values) {
-        final allRelatedIds = entry['all_ids'] as Set<String>;
+      // 4. Build Subject objects
+      final List<Subject> newSubjects = [];
 
-        double mMean = 0.0, pMean = 0.0;
-        
-        // Aggregate scores from any matching ID
-        for (var response in responses) {
-          if (response is List) {
-            for (var item in response) {
-              final itemSid = item['subject_id']?.toString();
-              if (allRelatedIds.contains(itemSid)) {
-                if (item.containsKey('overall_management_mean')) mMean = (item['overall_management_mean'] as num?)?.toDouble() ?? mMean;
-                if (item.containsKey('overall_performance_mean')) pMean = (item['overall_performance_mean'] as num?)?.toDouble() ?? pMean;
+      for (var entry in subjectById.entries) {
+        final id = entry.key;
+        final meta = entry.value;
+        final code = meta['subject_code']?.toString() ?? id;
+
+        final mgmt = mgmtBySubjectId[id];
+        final perf = perfBySubjectId[id];
+
+        double mMean = (mgmt?['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+        double pMean = (perf?['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+        int totalResponses = (mgmt?['total_responses'] as num?)?.toInt() ??
+            (perf?['total_responses'] as num?)?.toInt() ?? 0;
+
+        // Fallback to raw data if no pre-computed results
+        if (mMean == 0.0 && pMean == 0.0) {
+          try {
+            final rawRows = await _supabase
+                .from('raw_GoogleSheet_data_result')
+                .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
+                .eq('subject_id', id)
+                .eq('instructor_ID', userId)
+                .eq('term_id', activeTermId);
+
+            if ((rawRows as List).isNotEmpty) {
+              double mSum = 0, pSum = 0;
+              for (var row in rawRows) {
+                for (int i = 1; i <= 10; i++) {
+                  mSum += (row['m${i}'] as num?)?.toDouble() ?? 0.0;
+                  pSum += (row['p${i}'] as num?)?.toDouble() ?? 0.0;
+                }
               }
+              mMean = mSum / (rawRows.length * 10);
+              pMean = pSum / (rawRows.length * 10);
+              totalResponses = rawRows.length;
             }
+          } catch (e) {
+            debugPrint('[SubjectsProvider] Raw fallback error for $code: $e');
           }
         }
 
-        if (mMean == 0.0 || pMean == 0.0) {
-          // Try to find raw data for any of the linked IDs
-          final rawData = await _supabase.from('raw_GoogleSheet_data_result')
-              .select()
-              .filter('subject_id', 'in', allRelatedIds.toList())
-              .eq('instructor_ID', userId)
-              .eq('term_id', activeTermId);
+        debugPrint('[SubjectsProvider] $code mgmt=$mMean perf=$pMean n=$totalResponses');
 
-          if (rawData.isNotEmpty) {
-            double mSum = 0, pSum = 0;
-            for (var row in rawData) {
-              for (int i = 1; i <= 10; i++) {
-                mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
-                pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
-              }
-            }
-            if (mMean == 0.0) mMean = mSum / (rawData.length * 10);
-            if (pMean == 0.0) pMean = pSum / (rawData.length * 10);
-          }
+        try {
+          newSubjects.add(Subject.fromJson({
+            ...meta,
+            'management_mean': mMean,
+            'performance_mean': pMean,
+            'all_ids': <String>{id},
+          }));
+        } catch (e) {
+          debugPrint('[SubjectsProvider] Error building Subject $code: $e');
         }
-
-        newSubjects.add(Subject.fromJson({
-          ...entry,
-          'management_mean': mMean,
-          'performance_mean': pMean,
-        }));
       }
 
       newSubjects.sort((a, b) => a.code.compareTo(b.code));
-
-      // Atomic Update: Only clear and replace when new data is ready
       _subjects.clear();
       _subjects.addAll(newSubjects);
       notifyListeners();
     } catch (e) {
-      debugPrint('Error loading subjects in Provider: $e');
+      debugPrint('[SubjectsProvider] Error: $e');
     } finally {
       _isFetching = false;
     }

@@ -5,7 +5,6 @@ class Subject {
   final String? id; // UUID from database
   final String code;
   final String name;
-  final String? section;
   final DateTime addedAt;
   final double? managementMean;
   final double? performanceMean;
@@ -17,7 +16,6 @@ class Subject {
     this.id,
     required this.code,
     required this.name,
-    this.section,
     required this.addedAt,
     this.managementMean,
     this.performanceMean,
@@ -28,7 +26,6 @@ class Subject {
         'id': id,
         'subject_code': code,
         'subject_name': name,
-        'section': section,
         'created_at': addedAt.toUtc().toIso8601String(),
         'management_mean': managementMean,
         'performance_mean': performanceMean,
@@ -38,7 +35,6 @@ class Subject {
         id: json['id'] as String?,
         code: json['subject_code'] as String,
         name: json['subject_name'] as String,
-        section: json['section'] as String?,
         addedAt: DateTime.parse(json['created_at'] as String),
         managementMean: (json['management_mean'] as num?)?.toDouble(),
         performanceMean: (json['performance_mean'] as num?)?.toDouble(),

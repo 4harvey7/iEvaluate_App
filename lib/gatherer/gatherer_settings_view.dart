@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
+import '../widgets/safe_button.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -188,7 +189,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
           content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
           actions: [
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            ElevatedButton(
+            SafeElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
@@ -438,24 +439,30 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             SizedBox(
               width: double.infinity,
               height: 54,
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  await _authService.signOut();
-                  if (mounted) {
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                          (route) => false,
-                    );
-                  }
-                },
-                icon: const Icon(Icons.logout, color: AppColors.error),
-                label: const Text('End Shift & Log Out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.error, width: 2),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: SafeOutlinedButton(
+                  onPressed: () async {
+                    await _authService.signOut();
+                    if (mounted) {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            (route) => false,
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.error, width: 2),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.logout, color: AppColors.error),
+                      SizedBox(width: 8),
+                      Text('End Shift & Log Out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
                 ),
-              ),
             ),
           ],
         ),

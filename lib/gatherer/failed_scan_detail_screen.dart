@@ -1,4 +1,7 @@
 // lib/gatherer/failed_scan_detail_screen.dart
+// When OCR fail to properly read a scan, the scan ends up here.
+// This screen let user manually type in all the data that the machine couldnt read.
+// It like being the backup plan for when robot fail at their job.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -11,52 +14,62 @@ import '../theme/app_colors.dart';
 import '../core/config/env.dart';
 import 'models/scan_task.dart';
 
+// this screen takes one failed scan record and shows its data for correction
 class FailedScanDetailScreen extends StatefulWidget {
-  final Map<String, dynamic> scan;
+  final Map<String, dynamic> scan; // the failed scan record from Supabase
   const FailedScanDetailScreen({super.key, required this.scan});
 
   @override
   State<FailedScanDetailScreen> createState() => _FailedScanDetailScreenState();
 }
 
+// the state — lots of controllers and autocomplete logic here
 class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
-  final _supabase = Supabase.instance.client;
+  final _supabase = Supabase.instance.client; // database connection
 
   // Local image (for zoom preview only)
+  // we try to find the original scan image so user can see what they correcting
   File? _localImageFile;
-  bool _localImageAvailable = false;
+  bool _localImageAvailable = false; // false until we find the file
 
-  // Text field controllers
+  // Text field controllers — one per editable field
   late TextEditingController _instructorCtrl;
   late TextEditingController _subjectCtrl;
   late TextEditingController _remarksCtrl;
   late TextEditingController _studentIdCtrl;
+  // map of score controllers — keys like 'm1', 'p5', etc.
   late Map<String, TextEditingController> _scoreCtrlMap;
 
   // Autocomplete — Instructor
+  // debounce so we dont query database on every keystroke like crazy
   final FocusNode _instructorFocus = FocusNode();
-  List<Map<String, dynamic>> _instructorSuggestions = [];
-  String? _selectedInstructorId;
-  Timer? _instructorDebounce;
+  List<Map<String, dynamic>> _instructorSuggestions = []; // dropdown suggestions
+  String? _selectedInstructorId; // set when user pick from suggestions — the actual ID
+  Timer? _instructorDebounce; // timer to delay search while user still typing
 
   // Autocomplete — Subject
+  // same debounce pattern as instructor — search after user stop typing for 300ms
   final FocusNode _subjectFocus = FocusNode();
   List<Map<String, dynamic>> _subjectSuggestions = [];
-  String? _selectedSubjectId;
+  String? _selectedSubjectId; // set when user pick from suggestions
   Timer? _subjectDebounce;
 
   // Submission
-  bool _isSubmitting = false;
+  bool _isSubmitting = false; // true while we POSTing to n8n — disable the button
 
+  // n8n endpoint for manual corrections — different from the regular scan upload
   static String get _n8nCorrectionUrl => Env.n8nManualCorrectionUrl;
 
+  // initialize everything — pre-fill fields from partial_data if available
   @override
   void initState() {
     super.initState();
 
+    // get partial_data map — this is what OCR managed to read before failing
     final partial =
         (widget.scan['partial_data'] is Map ? Map<String, dynamic>.from(widget.scan['partial_data'] as Map) : {});
 
+    // pre-fill text fields with partial OCR data — even wrong data help user know what to fix
     _instructorCtrl =
         TextEditingController(text: partial['instructor']?.toString() ?? '');
     _subjectCtrl =
@@ -66,11 +79,13 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _studentIdCtrl =
         TextEditingController(text: partial['student_id']?.toString() ?? '');
 
+    // build the score controllers from partial ratings data
     _scoreCtrlMap = {};
     final ratings = (partial['ratings'] is Map ? Map<String, dynamic>.from(partial['ratings'] as Map) : {}) as Map<String, dynamic>;
     final mgmt = (ratings['management'] is List ? ratings['management'] as List : []);
     final perf = (ratings['performance'] is List ? ratings['performance'] as List : []);
     for (int i = 0; i < 10; i++) {
+      // only pre-fill if the score was actually detected — otherwise leave blank
       final mScore = (i < mgmt.length && mgmt[i]['detected'] == true)
           ? mgmt[i]['score']?.toString() ?? ''
           : '';
@@ -82,24 +97,26 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     }
 
     // Hide suggestions when focus leaves the field
+    // we delay 150ms so tap on suggestion register before list disappears
     _instructorFocus.addListener(() {
       if (!_instructorFocus.hasFocus) {
         Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) setState(() => _instructorSuggestions = []);
+          if (mounted) setState(() => _instructorSuggestions = []); // clear dropdown
         });
       }
     });
     _subjectFocus.addListener(() {
       if (!_subjectFocus.hasFocus) {
         Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) setState(() => _subjectSuggestions = []);
+          if (mounted) setState(() => _subjectSuggestions = []); // clear dropdown
         });
       }
     });
 
-    _findLocalImage();
+    _findLocalImage(); // try to find the original scan image file
   }
 
+  // clean up all controllers and subscriptions — very importente, memory leak kung dili
   @override
   void dispose() {
     _instructorFocus.dispose();
@@ -108,17 +125,19 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _subjectCtrl.dispose();
     _remarksCtrl.dispose();
     _studentIdCtrl.dispose();
-    _instructorDebounce?.cancel();
+    _instructorDebounce?.cancel(); // cancel pending debounce timers
     _subjectDebounce?.cancel();
-    for (final c in _scoreCtrlMap.values) c.dispose();
+    for (final c in _scoreCtrlMap.values) c.dispose(); // dispose all score controllers
     super.dispose();
   }
 
   // ── Find local image for zoom preview ──────────────────────────────────────
 
+  // look in SharedPreferences queue for the image file matching this task_id
+  // if found and file still exist on device, show it for reference
   Future<void> _findLocalImage() async {
     final taskId = widget.scan['task_id']?.toString() ?? '';
-    if (taskId.isEmpty) return;
+    if (taskId.isEmpty) return; // no task_id, cannot find image
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getStringList('gatherer_sync_queue') ?? [];
@@ -126,39 +145,45 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         final map = jsonDecode(s) as Map<String, dynamic>;
         final task = ScanTask.fromMap(map);
         if (task.id == taskId) {
-          final f = File(task.localPath);
+          final f = File(task.localPath); // construct File from saved path
           if (await f.exists()) {
+            // file still there — set it for display
             if (mounted) setState(() { _localImageFile = f; _localImageAvailable = true; });
           }
-          return;
+          return; // found the task, stop searching
         }
       }
     } catch (e) {
-      debugPrint('findLocalImage error: $e');
+      debugPrint('findLocalImage error: $e'); // file search fail — not critical, just no preview
     }
   }
 
   // ── Autocomplete — Instructor ───────────────────────────────────────────────
 
+  // called whenever user type in instructor field
+  // clears confirmed selection and starts debounce timer for search
   void _onInstructorChanged(String query) {
     _selectedInstructorId = null; // user is editing — clear confirmed selection
-    _instructorDebounce?.cancel();
+    _instructorDebounce?.cancel(); // cancel previous debounce, start fresh
     if (query.trim().length < 2) {
-      setState(() => _instructorSuggestions = []);
+      setState(() => _instructorSuggestions = []); // less than 2 chars, dont search yet
       return;
     }
+    // wait 300ms after last keystroke before querying — saves database calls
     _instructorDebounce = Timer(const Duration(milliseconds: 300), () {
       _searchInstructors(query.trim());
     });
   }
 
+  // search supabase for instructors matching the query — up to 6 results
+  // matches on first_name OR last_name (case insensitive)
   Future<void> _searchInstructors(String query) async {
     try {
       final results = await _supabase
           .from('user_info')
           .select('id, first_name, last_name')
-          .or('first_name.ilike.%$query%,last_name.ilike.%$query%')
-          .limit(6);
+          .or('first_name.ilike.%$query%,last_name.ilike.%$query%') // partial match both names
+          .limit(6); // dont return too many, 6 is enough
       if (mounted) {
         setState(() {
           _instructorSuggestions =
@@ -166,25 +191,27 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Instructor search error: $e');
+      debugPrint('Instructor search error: $e'); // search fail, just show nothing
     }
   }
 
+  // user tapped on an instructor suggestion — fill the field and save the ID
   void _selectInstructor(Map<String, dynamic> item) {
     final name =
         '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim();
     setState(() {
-      _instructorCtrl.text = name;
-      _selectedInstructorId = item['id']?.toString();
-      _instructorSuggestions = [];
+      _instructorCtrl.text = name; // show full name in the text field
+      _selectedInstructorId = item['id']?.toString(); // store ID for submission
+      _instructorSuggestions = []; // hide suggestions dropdown
     });
-    _instructorFocus.unfocus();
+    _instructorFocus.unfocus(); // dismiss keyboard
   }
 
   // ── Autocomplete — Subject ─────────────────────────────────────────────────
 
+  // called whenever user type in subject field — same debounce pattern as instructor
   void _onSubjectChanged(String query) {
-    _selectedSubjectId = null;
+    _selectedSubjectId = null; // clear confirmed selection on edit
     _subjectDebounce?.cancel();
     if (query.trim().length < 2) {
       setState(() => _subjectSuggestions = []);
@@ -195,6 +222,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     });
   }
 
+  // search supabase for subjects matching code or name — up to 6 results
   Future<void> _searchSubjects(String query) async {
     try {
       final results = await _supabase
@@ -213,12 +241,13 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     }
   }
 
+  // user tapped on a subject suggestion — fill field with "CODE — Name" format
   void _selectSubject(Map<String, dynamic> item) {
     final display =
         '${item['subject_code'] ?? ''} — ${item['subject_name'] ?? ''}'.trim();
     setState(() {
-      _subjectCtrl.text = display;
-      _selectedSubjectId = item['id']?.toString();
+      _subjectCtrl.text = display; // show formatted subject string
+      _selectedSubjectId = item['id']?.toString(); // store ID for submission
       _subjectSuggestions = [];
     });
     _subjectFocus.unfocus();
@@ -226,33 +255,38 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
+  // collect all the corrected data and POST it to n8n for processing
+  // n8n will then re-run the evaluation pipeline with the manual corrections
   Future<void> _submit() async {
-    setState(() => _isSubmitting = true);
+    setState(() => _isSubmitting = true); // disable button, show loading
     try {
+      // collect all 20 score values — default to 0 if empty or not a number
       final scores = <String, int>{};
       for (int i = 1; i <= 10; i++) {
         scores['m$i'] = int.tryParse(_scoreCtrlMap['m$i']?.text ?? '') ?? 0;
         scores['p$i'] = int.tryParse(_scoreCtrlMap['p$i']?.text ?? '') ?? 0;
       }
 
+      // build the complete payload — all the corrected data plus metadata
       final payload = <String, dynamic>{
-        'failed_scan_id':   widget.scan['id'],
+        'failed_scan_id':   widget.scan['id'], // which failed scan we correcting
         'task_id':          widget.scan['task_id'],
         'user_id':          widget.scan['user_id'],
         'term_id':          widget.scan['term_id'],
         'instructor':       _instructorCtrl.text.trim(),
-        'instructor_id':    _selectedInstructorId,
+        'instructor_id':    _selectedInstructorId, // null if user typed manually without picking suggestion
         'subject':          _subjectCtrl.text.trim(),
-        'subject_id':       _selectedSubjectId,
+        'subject_id':       _selectedSubjectId, // null if user typed manually
         'remarks':          _remarksCtrl.text.trim(),
         'student_id':       _studentIdCtrl.text.trim(),
-        ...scores,
-        'manually_corrected':  true,
+        ...scores, // spread all 20 score key-values directly into payload
+        'manually_corrected':  true, // flag so n8n knows this came from human correction
         'validation_status':   'corrected',
         'correction_source':   'manual_text',
         'timestamp': DateTime.now().toIso8601String(),
       };
 
+      // POST to n8n correction webhook — 30 second timeout
       final response = await http
           .post(
             Uri.parse(_n8nCorrectionUrl),
@@ -262,14 +296,16 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        // n8n accepted the correction — go back to list
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Submitted! n8n is processing the correction.'),
             backgroundColor: AppColors.success,
           ));
-          Navigator.pop(context);
+          Navigator.pop(context); // return to failed scans list
         }
       } else {
+        // n8n rejected it — show error with status and body for debugging
         throw Exception('n8n returned ${response.statusCode}: ${response.body}');
       }
     } catch (e) {
@@ -280,13 +316,16 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         ));
       }
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) setState(() => _isSubmitting = false); // re-enable button
     }
   }
 
   // ── Discard ────────────────────────────────────────────────────────────────
 
+  // ask user to confirm, then mark the failed scan as 'discarded' in supabase
+  // once discarded, it disappear from the failed scans list — permanent action
   Future<void> _discard() async {
+    // show confirm dialog — this permanent, so ask twice basically
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -299,27 +338,28 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             style: TextStyle(color: AppColors.textSecondary)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(context, false), // cancel, go back
               child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(context, true), // confirmed discard
             child: const Text('Discard', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true) return; // user cancel or dismiss — do nothing
     try {
+      // update the status to 'discarded' — we dont actually delete, just mark it
       await _supabase
           .from('failed_scan_queue')
           .update({'status': 'discarded'}).eq('id', widget.scan['id']);
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Scan discarded.')));
-        Navigator.pop(context);
+        Navigator.pop(context); // return to failed scans list
       }
     } catch (e) {
       if (mounted) {
@@ -331,15 +371,16 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
+  // build the entire screen — appbar, failure banner, image preview, form, submit bar
   @override
   Widget build(BuildContext context) {
-    final taskId = widget.scan['task_id']?.toString() ?? 'Unknown';
-    final tableFound = widget.scan['table_found'] == true;
-    final gridSource = widget.scan['grid_source']?.toString() ?? 'fallback';
+    final taskId = widget.scan['task_id']?.toString() ?? 'Unknown'; // shown in AppBar subtitle
+    final tableFound = widget.scan['table_found'] == true; // was a table detected?
+    final gridSource = widget.scan['grid_source']?.toString() ?? 'fallback'; // how OCR made the grid
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      resizeToAvoidBottomInset: true,
+      resizeToAvoidBottomInset: true, // resize when keyboard open so fields not hidden
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         foregroundColor: AppColors.surface,
@@ -351,35 +392,36 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     color: AppColors.surface,
                     fontWeight: FontWeight.bold,
                     fontSize: 17)),
-            Text(taskId,
+            Text(taskId, // show which scan task this is
                 style: const TextStyle(
                     color: AppColors.textInvertedDim, fontSize: 11),
                 overflow: TextOverflow.ellipsis),
           ],
         ),
         actions: [
+          // discard button in top-right — red because destructive action
           TextButton.icon(
             icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
             label: const Text('Discard',
                 style: TextStyle(
                     color: AppColors.error, fontWeight: FontWeight.bold)),
-            onPressed: _discard,
+            onPressed: _discard, // triggers confirmation dialog first
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildFailureBanner(tableFound, gridSource),
-          _buildImagesRow(),
+          _buildFailureBanner(tableFound, gridSource), // show what went wrong
+          _buildImagesRow(), // show the original scan image if available
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
                 left: 20,
                 right: 20,
                 top: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24, // account for keyboard
               ),
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, // drag to dismiss keyboard
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -389,32 +431,32 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Instructor with autocomplete
+                  // Instructor with autocomplete — type 2+ chars to search
                   _buildInstructorField(),
 
-                  // Subject with autocomplete
+                  // Subject with autocomplete — same pattern
                   _buildSubjectField(),
 
-                  // Other fields
+                  // Other fields — remarks and student ID, no autocomplete
                   _buildSimpleField('Remarks & Suggestions', _remarksCtrl,
                       maxLines: 3),
                   _buildSimpleField('Student ID', _studentIdCtrl,
-                      keyboardType: TextInputType.number, digitsOnly: true),
+                      keyboardType: TextInputType.number, digitsOnly: true), // numbers only
 
                   const SizedBox(height: 24),
 
-                  // Management scores
+                  // Management scores — 10 small inputs in a grid
                   _buildScoreSection('Management Scores (M1–M10)', 'm'),
                   const SizedBox(height: 20),
 
-                  // Performance scores
+                  // Performance scores — another 10
                   _buildScoreSection('Performance Scores (P1–P10)', 'p'),
                   const SizedBox(height: 20),
                 ],
               ),
             ),
           ),
-          _buildSubmitBar(),
+          _buildSubmitBar(), // sticky submit button at the bottom
         ],
       ),
     );
@@ -422,6 +464,9 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Failure banner ─────────────────────────────────────────────────────────
 
+  // show what kind of failure this scan had — helps user understand context
+  // orange = table found but grid detection failed (less severe)
+  // red = no table detected at all (more severe, data less reliable)
   Widget _buildFailureBanner(bool tableFound, String gridSource) {
     final color = tableFound ? AppColors.warning : AppColors.error;
     final msg = tableFound
@@ -430,7 +475,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     final icon = tableFound ? Icons.grid_off_rounded : Icons.crop_free;
     return Container(
       width: double.infinity,
-      color: color.withValues(alpha: 0.12),
+      color: color.withValues(alpha: 0.12), // subtle colored background
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
@@ -449,8 +494,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Images row (zoom only, no crop) ───────────────────────────────────────
 
+  // show the original scan image so user can see what they correcting
+  // user can tap to zoom in for better inspection — useful for small scores
   Widget _buildImagesRow() {
-    if (!_localImageAvailable || _localImageFile == null) return const SizedBox.shrink();
+    if (!_localImageAvailable || _localImageFile == null) return const SizedBox.shrink(); // no image, show nothing
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -467,10 +514,11 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
               child: Image.file(
                 _localImageFile!,
                 width: double.infinity,
-                height: 110,
+                height: 110, // compact preview height
                 fit: BoxFit.cover,
               ),
             ),
+            // "tap to zoom" label overlay — so user know it tappable
             Container(
               margin: const EdgeInsets.all(6),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -494,6 +542,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
+  // helper widget — wraps an image in a labeled container with optional tap-to-zoom
   Widget _imageCard(
       {required String label,
       required Widget child,
@@ -515,6 +564,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     alignment: Alignment.bottomRight,
                     children: [
                       child,
+                      // small zoom icon overlay in bottom-right corner
                       Container(
                         margin: const EdgeInsets.all(4),
                         padding: const EdgeInsets.all(4),
@@ -527,27 +577,29 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     ],
                   ),
                 )
-              : child,
+              : child, // no tap handler, just show image directly
         ),
       ],
     );
   }
 
+  // show image in a fullscreen zoomable dialog — InteractiveViewer allow pinch-zoom
   void _showZoomedImage(Image image, String title) {
     showDialog(
       context: context,
-      barrierColor: Colors.black87,
+      barrierColor: Colors.black87, // dark backdrop
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(12),
         child: Stack(
           children: [
             InteractiveViewer(
-              minScale: 0.5,
-              maxScale: 8.0,
+              minScale: 0.5, // can zoom out a bit
+              maxScale: 8.0, // up to 8x zoom — enough to read small scores
               child: ClipRRect(
                   borderRadius: BorderRadius.circular(12), child: image),
             ),
+            // close button in top-right
             Positioned(
               top: 0, right: 0,
               child: GestureDetector(
@@ -560,6 +612,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 ),
               ),
             ),
+            // title + zoom hint at the bottom of the image
             Positioned(
               bottom: 0, left: 0, right: 0,
               child: Container(
@@ -582,6 +635,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
+  // placeholder shown when image is not available — gray box with icon
   Widget _imagePlaceholder(String label) {
     return Container(
       height: 100,
@@ -608,6 +662,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Autocomplete fields ────────────────────────────────────────────────────
 
+  // build the instructor text field plus its suggestion dropdown
+  // the check icon suffix appear when user pick from suggestions (confirming ID selected)
   Widget _buildInstructorField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -615,22 +671,25 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         TextField(
           controller: _instructorCtrl,
           focusNode: _instructorFocus,
-          onChanged: _onInstructorChanged,
+          onChanged: _onInstructorChanged, // trigger debounce search on each change
           textCapitalization: TextCapitalization.words,
           decoration: _inputDecoration(
             label: 'Instructor Name',
             prefix: Icons.person_outline,
+            // green check when instructor ID is confirmed via suggestion selection
             suffix: _selectedInstructorId != null
                 ? const Icon(Icons.check_circle,
                     color: AppColors.success, size: 18)
                 : null,
           ),
         ),
+        // show suggestion card only when there are suggestions
         if (_instructorSuggestions.isNotEmpty)
           _buildSuggestionCard(
             _instructorSuggestions,
             itemBuilder: (item) => Row(
               children: [
+                // avatar circle with initials
                 Container(
                   width: 34,
                   height: 34,
@@ -640,7 +699,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   ),
                   child: Center(
                     child: Text(
-                      _initials(item['first_name'], item['last_name']),
+                      _initials(item['first_name'], item['last_name']), // e.g. "JD"
                       style: const TextStyle(
                           color: AppColors.primary,
                           fontWeight: FontWeight.bold,
@@ -649,20 +708,25 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim(),
-                  style: const TextStyle(
-                      color: AppColors.textPrimary, fontSize: 14),
+                Flexible(
+                  child: Text(
+                    '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim(),
+                    style: const TextStyle(
+                        color: AppColors.textPrimary, fontSize: 14),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
-            onTap: _selectInstructor,
+            onTap: _selectInstructor, // user pick this instructor
           ),
         const SizedBox(height: 14),
       ],
     );
   }
 
+  // build the subject text field plus its suggestion dropdown
+  // shows subject code prominently since that the key identifier
   Widget _buildSubjectField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,7 +735,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           controller: _subjectCtrl,
           focusNode: _subjectFocus,
           onChanged: _onSubjectChanged,
-          textCapitalization: TextCapitalization.characters,
+          textCapitalization: TextCapitalization.characters, // course codes usually uppercase
           decoration: _inputDecoration(
             label: 'Subject / Course Code',
             prefix: Icons.book_outlined,
@@ -686,6 +750,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             _subjectSuggestions,
             itemBuilder: (item) => Row(
               children: [
+                // subject code chip — colored box
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -719,6 +784,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
+  // build the dropdown suggestion card container
+  // shown below a text field when there are autocomplete matches
   Widget _buildSuggestionCard(
     List<Map<String, dynamic>> items, {
     required Widget Function(Map<String, dynamic>) itemBuilder,
@@ -734,7 +801,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 8,
-              offset: const Offset(0, 4))
+              offset: const Offset(0, 4)) // small shadow to lift it above content
         ],
       ),
       child: ClipRRect(
@@ -743,18 +810,18 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           children: items.asMap().entries.map((entry) {
             final isLast = entry.key == items.length - 1;
             return InkWell(
-              onTap: () => onTap(entry.value),
+              onTap: () => onTap(entry.value), // user tap this suggestion
               child: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   border: isLast
-                      ? null
+                      ? null // no border on last item
                       : Border(
                           bottom: BorderSide(
-                              color: AppColors.borderSubtle, width: 0.8)),
+                              color: AppColors.borderSubtle, width: 0.8)), // divider between items
                 ),
-                child: itemBuilder(entry.value),
+                child: itemBuilder(entry.value), // render the item content
               ),
             );
           }).toList(),
@@ -765,6 +832,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Simple fields ──────────────────────────────────────────────────────────
 
+  // helper to build a simple text field with optional multiline, keyboard type, digits-only filter
   Widget _buildSimpleField(String label, TextEditingController ctrl,
       {int maxLines = 1,
       TextInputType keyboardType = TextInputType.text,
@@ -776,12 +844,13 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         maxLines: maxLines,
         keyboardType: keyboardType,
         inputFormatters:
-            digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
+            digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null, // enforce numbers only if needed
         decoration: _inputDecoration(label: label),
       ),
     );
   }
 
+  // shared input decoration — consistent look across all fields in this screen
   InputDecoration _inputDecoration(
       {required String label, IconData? prefix, Widget? suffix}) {
     return InputDecoration(
@@ -793,13 +862,15 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        borderSide: const BorderSide(color: AppColors.primary, width: 2), // blue border when focused
       ),
     );
   }
 
   // ── Score grids ────────────────────────────────────────────────────────────
 
+  // build a section with title and 5x2 grid of score input fields
+  // prefix 'm' for management, 'p' for performance
   Widget _buildScoreSection(String title, String prefix) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -811,27 +882,27 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 fontSize: 14)),
         const SizedBox(height: 8),
         GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true, // dont take extra space
+          physics: const NeverScrollableScrollPhysics(), // parent scroll handles scrolling
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5,
+            crossAxisCount: 5, // 5 columns
             childAspectRatio: 1.2,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
-          itemCount: 10,
+          itemCount: 10, // always 10 scores
           itemBuilder: (context, index) {
-            final key = '$prefix${index + 1}';
+            final key = '$prefix${index + 1}'; // e.g. 'm3', 'p7'
             return TextField(
               controller: _scoreCtrlMap[key],
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly], // numbers only
               decoration: InputDecoration(
-                labelText: key.toUpperCase(),
+                labelText: key.toUpperCase(), // M3, P7, etc.
                 filled: true,
                 fillColor: AppColors.surface,
-                contentPadding: EdgeInsets.zero,
+                contentPadding: EdgeInsets.zero, // compact cell padding
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 focusedBorder: OutlineInputBorder(
@@ -850,6 +921,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Submit bar ─────────────────────────────────────────────────────────────
 
+  // sticky bottom bar with the submit button
+  // disabled and shows spinner while submitting — ayaw mag-double submit
   Widget _buildSubmitBar() {
     return Container(
       color: AppColors.surface,
@@ -862,7 +935,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white))
+                      strokeWidth: 2, color: Colors.white)) // spinner while submitting
               : const Icon(Icons.cloud_upload_outlined, size: 20),
           label: Text(
             _isSubmitting ? 'Submitting…' : 'Submit & Validate',
@@ -871,12 +944,12 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           ),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: AppColors.success,
+            backgroundColor: AppColors.success, // green because it a positive action
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14)),
           ),
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: _isSubmitting ? null : _submit, // null disables the button
         ),
       ),
     );
@@ -884,6 +957,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
+  // get initials from first and last name — used for the avatar in instructor suggestions
+  // e.g. "John Doe" -> "JD"
   String _initials(dynamic firstName, dynamic lastName) {
     final f = firstName?.toString() ?? '';
     final l = lastName?.toString() ?? '';

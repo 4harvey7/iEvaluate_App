@@ -1,3 +1,6 @@
+// Screen for viewing all past semesters with evaluation scores.
+// Basically the "history tab" — where you see how far you've come, or how far you fell.
+// Pull-to-refresh works, bar chart is tappable, murag interactive siya. importente.
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -6,6 +9,7 @@ import 'subject_detail_screen.dart';
 import 'detailed_report_screen.dart';
 import 'widgets/subject_card.dart';
 
+// StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
   final String userId;
   const PastSemestersScreen({super.key, required this.userId});
@@ -16,23 +20,32 @@ class PastSemestersScreen extends StatefulWidget {
 
 class _PastSemestersScreenState extends State<PastSemestersScreen> {
   final _supabase = Supabase.instance.client;
+
+  // General loading flag — true while fetching term history
   bool _isLoading = true;
+  // Separate flag for when we're loading a specific term's subjects — so the rest of UI stays visible
   bool _isTermLoading = false;
+  // All historical term data — list of maps with scores and term info
   List<Map<String, dynamic>> _historicalData = [];
+  // The currently selected term ID in the dropdown — drives which subjects show below
   String? _selectedTermId;
+  // The subjects taught in the selected term
   List<Map<String, dynamic>> _selectedTermSubjects = [];
   
   @override
   void initState() {
     super.initState();
-    _fetchHistory();
+    _fetchHistory(); // start fetching all historical terms right away
   }
 
+  // Fetches all terms where this instructor has evaluation summaries.
+  // Also determines which term to show by default (current term or the latest one).
   Future<void> _fetchHistory() async {
     try {
       if (mounted) setState(() => _isLoading = true);
 
       // Fetch all terms where this instructor has an overall summary
+      // Run both queries in parallel — current term ID and history data
       final responses = await Future.wait<dynamic>([
         _supabase.from('system_settings').select('current_term_id').maybeSingle(),
         _supabase.from('overall_total_survey').select('*, academic_terms(*)').eq('instructor_id', widget.userId),
@@ -41,18 +54,19 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
       final currentTermId = responses[0]?['current_term_id'];
       final summaries = responses[1] as List;
 
+      // Use a map to deduplicate by term ID — one entry per term
       Map<String, Map<String, dynamic>> termsMap = {};
 
       for (var item in summaries) {
         final tid = item['term_id'];
-        if (tid == null) continue;
+        if (tid == null) continue; // skip rows with no term ID, bahala na
         final termData = item['academic_terms'];
         
         termsMap[tid] = {
           'termId': tid,
           'semester': termData != null 
               ? '${termData['semester']} ${termData['academic_year']}'
-              : 'Unknown Term',
+              : 'Unknown Term', // fallback if academic_terms join is null
           'created_at': termData?['created_at'] ?? item['created_at'] ?? '',
           'overallScore': (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
           'managementScore': (item['management_mean'] as num?)?.toDouble() ?? 0.0,
@@ -62,7 +76,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
       }
 
       List<Map<String, dynamic>> processedData = termsMap.values.toList();
-      // Sort chronologically by term creation
+      // Sort chronologically by term creation — oldest left, newest right in the chart
       processedData.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
 
       if (mounted) {
@@ -72,14 +86,15 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
           if (_selectedTermId == null) {
             // Try to default to current term if it's in history, else last historical term
             if (processedData.any((t) => t['termId'] == currentTermId)) {
-              _selectedTermId = currentTermId;
+              _selectedTermId = currentTermId; // current term is in history, select it
             } else if (processedData.isNotEmpty) {
-              _selectedTermId = processedData.last['termId'];
+              _selectedTermId = processedData.last['termId']; // just pick the latest one
             }
           }
           _isLoading = false;
         });
 
+        // Load subjects for the auto-selected term
         if (_selectedTermId != null) {
           _loadSelectedTermData(_selectedTermId!);
         }
@@ -90,94 +105,175 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
     }
   }
 
+  // Loads subjects for a specific selected term.
+  // This is the complex one — junction tables, weighted aggregation, and fallback to raw data.
+  // Pray lang everything is in the precomputed tables. Wala choice if not.
   Future<void> _loadSelectedTermData(String termId) async {
     try {
       if (mounted) setState(() => _isTermLoading = true);
-      
-      // 1. Discovery across all possible sources for this term
-      final responses = await Future.wait<dynamic>([
-        _supabase.from('subjects').select().eq('instructor_id', widget.userId).eq('term_id', termId),
-        _supabase.from('management_results').select('subject_id, overall_management_mean, subjects(*)').eq('instructor_id', widget.userId).eq('term_id', termId),
-        _supabase.from('performance_results').select('subject_id, overall_performance_mean, subjects(*)').eq('instructor_id', widget.userId).eq('term_id', termId),
-        _supabase.from('raw_GoogleSheet_data_result').select('subject_id').eq('instructor_ID', widget.userId).eq('term_id', termId),
+
+      debugPrint('[PastSemesters] =========================================');
+      debugPrint('[PastSemesters] LOAD TERM: ${widget.userId} | term=$termId');
+      // 1. Get subjects for this instructor+term via instructor_subjects junction table.
+      final subjectsList = await _supabase
+          .from('instructor_subjects')
+          .select('subject_id, subjects(id, subject_code, subject_name, department_id)')
+          .eq('instructor_id', widget.userId)
+          .eq('term_id', termId);
+
+      if ((subjectsList as List).isEmpty) {
+        // No subjects linked to this instructor for this term — empty result
+        if (mounted) setState(() { _selectedTermSubjects = []; _isTermLoading = false; });
+        return;
+      }
+
+      // Build lookup maps: subject_id → subject metadata, and subject_code → list of IDs
+      // Multiple IDs per code because same subject can have multiple sections
+      final Map<String, Map<String, dynamic>> subjectById = {};
+      final Map<String, List<String>> codeToIds = {};
+      for (var row in subjectsList) {
+        final subjectData = row['subjects'];
+        if (subjectData == null) continue;
+        final s = Map<String, dynamic>.from(
+          subjectData is List ? subjectData[0] : subjectData,
+        );
+        final id = s['id']?.toString();
+        final code = s['subject_code']?.toString();
+        if (id == null || code == null) continue;
+        subjectById.putIfAbsent(id, () => s);
+        codeToIds.putIfAbsent(code, () => []).add(id); // group sections by subject code
+      }
+
+      final validSubjectIds = subjectById.keys.toList();
+
+      // 2. Fetch pre-computed results for ONLY the valid subject IDs.
+      //    Order by created_at DESC so the most recent (corrected) row comes first.
+      final results = await Future.wait([
+        _supabase
+            .from('management_results')
+            .select('subject_id, overall_management_mean, total_responses, created_at')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', termId)
+            .filter('subject_id', 'in', validSubjectIds)
+            .order('created_at', ascending: false), // newest row = most accurate
+        _supabase
+            .from('performance_results')
+            .select('subject_id, overall_performance_mean, total_responses, created_at')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', termId)
+            .filter('subject_id', 'in', validSubjectIds)
+            .order('created_at', ascending: false),
       ]);
 
-      // Group by Code and Section
-      Map<String, Map<String, dynamic>> uniqueSubjects = {};
+      final mgmtRows = results[0] as List;
+      final perfRows = results[1] as List;
 
-      void register(dynamic item) {
-        if (item == null) return;
-        final metadata = item['subjects'] != null ? Map<String, dynamic>.from(item['subjects']) : Map<String, dynamic>.from(item);
-        final code = metadata['subject_code']?.toString();
-        if (code == null) return;
-        
-        final section = metadata['section']?.toString() ?? '';
-        final key = '${code}_$section'.toUpperCase();
-        final sid = (metadata['id'] ?? item['subject_id'])?.toString();
-        if (sid == null) return;
-
-        if (!uniqueSubjects.containsKey(key)) {
-          uniqueSubjects[key] = metadata;
-          uniqueSubjects[key]!['all_ids'] = <String>{sid};
-        } else {
-          if (item.containsKey('instructor_id')) uniqueSubjects[key] = metadata;
-          (uniqueSubjects[key]!['all_ids'] as Set<String>).add(sid);
+      // Best (most recent) row per subject_id — only keep the first occurrence since sorted DESC
+      final Map<String, Map<String, dynamic>> bestMgmt = {};
+      for (var row in mgmtRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !bestMgmt.containsKey(sid)) {
+          bestMgmt[sid] = Map<String, dynamic>.from(row); // first = most recent
+        }
+      }
+      final Map<String, Map<String, dynamic>> bestPerf = {};
+      for (var row in perfRows) {
+        final sid = row['subject_id']?.toString();
+        if (sid != null && !bestPerf.containsKey(sid)) {
+          bestPerf[sid] = Map<String, dynamic>.from(row);
         }
       }
 
-      for (var response in responses) {
-        if (response is List) {
-          for (var item in response) register(item);
-        }
-      }
-
+      // 3. Build subject list — one entry per unique subject_code.
+      //    Aggregate across sections (weighted by total_responses).
+      // This ensures that if a subject has 2 sections, we combine them properly.
       List<Map<String, dynamic>> processed = [];
-      for (var entry in uniqueSubjects.values) {
-        final allRelatedIds = entry['all_ids'] as Set<String>;
 
-        double mMean = 0.0, pMean = 0.0;
-        
-        // Aggregate scores from any matching ID
-        for (var response in responses) {
-          if (response is List) {
-            for (var item in response) {
-              final itemSid = (item['subject_id'] ?? item['id'])?.toString();
-              if (itemSid != null && allRelatedIds.contains(itemSid)) {
-                if (item.containsKey('overall_management_mean')) mMean = (item['overall_management_mean'] as num?)?.toDouble() ?? mMean;
-                if (item.containsKey('overall_performance_mean')) pMean = (item['overall_performance_mean'] as num?)?.toDouble() ?? pMean;
-              }
-            }
+      for (var entry in codeToIds.entries) {
+        final code = entry.key;
+        final ids = entry.value;
+        final meta = subjectById[ids.first]!; // use first section's metadata for display
+
+        // Weighted sum for management — weight each section by its number of responses
+        double mWeightedSum = 0, pWeightedSum = 0;
+        int mTotal = 0, pTotal = 0;
+
+        for (var id in ids) {
+          final mgmt = bestMgmt[id];
+          if (mgmt != null) {
+            final n = (mgmt['total_responses'] as num?)?.toInt() ?? 0;
+            final mean = (mgmt['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+            mWeightedSum += mean * n; // weighted contribution
+            mTotal += n;
+          }
+          final perf = bestPerf[id];
+          if (perf != null) {
+            final n = (perf['total_responses'] as num?)?.toInt() ?? 0;
+            final mean = (perf['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+            pWeightedSum += mean * n;
+            pTotal += n;
           }
         }
 
-        if (mMean == 0.0 || pMean == 0.0) {
-          final rawData = await _supabase.from('raw_GoogleSheet_data_result')
-              .select()
-              .filter('subject_id', 'in', allRelatedIds.toList())
+        // Final weighted average for this subject code
+        double mMean = mTotal > 0 ? mWeightedSum / mTotal : 0.0;
+        double pMean = pTotal > 0 ? pWeightedSum / pTotal : 0.0;
+
+        // Fallback to raw data if no pre-computed results — bahala na last resort
+        if (mMean == 0.0 && pMean == 0.0) {
+          debugPrint('[PastSemesters] No precomputed data for $code in $termId, using raw...');
+          final rawData = await _supabase
+              .from('raw_GoogleSheet_data_result')
+              .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
+              .filter('subject_id', 'in', ids)
               .eq('instructor_ID', widget.userId)
               .eq('term_id', termId);
 
-          if (rawData.isNotEmpty) {
+          if ((rawData as List).isNotEmpty) {
             double mSum = 0, pSum = 0;
+            // Sum all 10 management and 10 performance columns across all rows
             for (var row in rawData) {
               for (int i = 1; i <= 10; i++) {
                 mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
                 pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
               }
             }
-            if (mMean == 0.0) mMean = mSum / (rawData.length * 10);
-            if (pMean == 0.0) pMean = pSum / (rawData.length * 10);
+            // Divide by (total rows * 10 questions) to get mean per question
+            mMean = mSum / (rawData.length * 10);
+            pMean = pSum / (rawData.length * 10);
           }
         }
 
+        // Debug logs — very verbose, but helpful when things go wrong
+        debugPrint('[PastSemesters] ─────────────────────────────────');
+        debugPrint('[PastSemesters] Subject: $code | Term: $termId');
+        debugPrint('[PastSemesters]   Subject IDs (this term): $ids');
+        for (var id in ids) {
+          final mg = bestMgmt[id];
+          final pf = bestPerf[id];
+          debugPrint('[PastSemesters]   subj_id=$id');
+          if (mg != null) {
+            debugPrint('[PastSemesters]     mgmt: overall=${mg["overall_management_mean"]} | responses=${mg["total_responses"]} | created=${mg["created_at"]}');
+          } else {
+            debugPrint('[PastSemesters]     mgmt: NO ROW FOUND');
+          }
+          if (pf != null) {
+            debugPrint('[PastSemesters]     perf: overall=${pf["overall_performance_mean"]} | responses=${pf["total_responses"]} | created=${pf["created_at"]}');
+          } else {
+            debugPrint('[PastSemesters]     perf: NO ROW FOUND');
+          }
+        }
+        debugPrint('[PastSemesters]   FINAL → mgmt=$mMean | perf=$pMean');
+
+        // Add the processed subject to our result list
         processed.add({
-          ...entry,
+          ...meta,
           'management_mean': mMean,
           'performance_mean': pMean,
         });
       }
 
-      // Sort by subject code
+      // Sort subjects alphabetically by code for consistent ordering
       processed.sort((a, b) => (a['subject_code'] ?? '').compareTo(b['subject_code'] ?? ''));
 
       if (mounted) {
@@ -187,19 +283,23 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading term data: $e');
+      debugPrint('[PastSemesters] Error loading term data: $e');
       if (mounted) setState(() => _isTermLoading = false);
     }
   }
 
+  // Getter for the currently selected term's summary data.
+  // Looks up the selected term ID in the history list — returns null if not found.
   Map<String, dynamic>? get _selectedTermData {
     if (_selectedTermId == null || _historicalData.isEmpty) return null;
     final matches = _historicalData.where((t) => t['termId'] == _selectedTermId);
+    // If no exact match, return the last one as fallback — bahala na
     return matches.isNotEmpty ? matches.first : _historicalData.last;
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show global spinner while initial data is loading
     if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     final termData = _selectedTermData;
@@ -210,17 +310,31 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
         backgroundColor: AppColors.textPrimary,
         title: const Text('Past Semesters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
+        actions: [
+          // Refresh button — re-fetches everything from scratch
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'Refresh',
+            onPressed: _fetchHistory,
+          ),
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+      body: RefreshIndicator(
+        onRefresh: _fetchHistory, // pull-to-refresh also re-fetches history
+        color: AppColors.primary,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // needed for pull-to-refresh even on short content
+          padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Page title and subtitle
             const Text('Historical Growth', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
             const SizedBox(height: 8),
             const Text('Track your evaluation scores across previous academic terms.', style: TextStyle(color: AppColors.textSecondary)),
             const SizedBox(height: 24),
 
+            // Interactive bar chart showing all historical term scores
             _buildTrendGraph(),
 
             const SizedBox(height: 32),
@@ -228,15 +342,18 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Term Filter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                // Show "Full Term Report" button only when a term with data is selected
                 if (termData != null && termData.isNotEmpty)
                   TextButton.icon(
                     onPressed: () {
+                      // Get instructor name from user metadata — not ideal but wala pa better source here
                       final name = _supabase.auth.currentUser?.userMetadata?['full_name'] ?? 'Instructor';
                       Navigator.push(context, MaterialPageRoute(builder: (_) => DetailedReportScreen(
                         userId: widget.userId,
                         instructorName: name,
-                        department: 'Faculty',
+                        department: 'Faculty', // hardcoded for now — not great but acceptable
                         termId: _selectedTermId,
+                        // Parse semester and academic year from combined string
                         term: termData['semester']?.toString().split(' ')[0] ?? '',
                         academicYear: termData['semester']?.toString().contains(' ') == true ? termData['semester']?.toString().split(' ').sublist(1).join(' ') ?? '' : '',
                         managementScore: (termData['managementScore'] as num?)?.toDouble() ?? 0.0,
@@ -253,6 +370,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             ),
             const SizedBox(height: 12),
 
+            // Dropdown to select which term to view subjects for
             if (_historicalData.isNotEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -262,6 +380,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                     value: _selectedTermId,
                     isExpanded: true,
                     hint: const Text('Select Term'),
+                    // Show terms newest first in dropdown — reversed list
                     items: _historicalData.reversed.map((t) {
                       return DropdownMenuItem(
                         value: t['termId'] as String,
@@ -270,14 +389,15 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                     }).toList(),
                     onChanged: (val) {
                       if (val != null) {
-                        setState(() => _selectedTermId = val);
-                        _loadSelectedTermData(val);
+                        setState(() => _selectedTermId = val); // update selected term
+                        _loadSelectedTermData(val); // and load its subjects
                       }
                     },
                   ),
                 ),
               )
             else
+              // No history at all — maybe the instructor is brand new
               const Center(child: Text('No historical data found.')),
 
             const SizedBox(height: 24),
@@ -285,22 +405,26 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('Subjects Taught', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                // Show count of subjects for selected term when not loading
                 if (!_isTermLoading)
                   Text('${_selectedTermSubjects.length} Subjects', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 16),
 
+            // Either show loading, empty message, or list of subject cards
             if (_isTermLoading)
               const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
             else if (_selectedTermSubjects.isEmpty)
               const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No subjects found for this term.')))
             else
+              // Map each subject data into a Subject model and render a SubjectCard
               ..._selectedTermSubjects.map((s) {
                 final subjectObj = Subject.fromJson({
                   ...s,
                   'management_mean': s['management_mean'],
                   'performance_mean': s['performance_mean'],
+                  // Use fallback date if created_at is missing — dili null ang date pls
                   'created_at': s['created_at'] ?? termData?['created_at'] ?? DateTime.now().toIso8601String(),
                 });
                 return SubjectCard(
@@ -311,9 +435,12 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 
+  // Builds the dark gradient bar chart showing performance trend across all terms.
+  // Each bar is tappable — clicking it selects that term and loads its subjects.
   Widget _buildTrendGraph() {
     return Container(
       width: double.infinity,
@@ -330,35 +457,40 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
           SizedBox(
             height: 180,
             child: _historicalData.isEmpty
+                // No data at all — cannot draw bars, show placeholder text
                 ? const Center(child: Text('No data available', style: TextStyle(color: Colors.white54)))
                 : Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: _historicalData.map((data) {
                       double score = (data['overallScore'] as num?)?.toDouble() ?? 0.0;
+                      // Bar height proportional to score out of 5 — max 120px
                       double h = (score / 5.0) * 120;
-                      bool isSel = data['termId'] == _selectedTermId;
+                      bool isSel = data['termId'] == _selectedTermId; // highlight selected term
                       return Column(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
+                          // Score label above the bar
                           Text(score.toStringAsFixed(1), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
+                          // Tappable bar — clicking selects this term
                           GestureDetector(
                             onTap: () {
                               setState(() => _selectedTermId = data['termId']);
-                              _loadSelectedTermData(data['termId']);
+                              _loadSelectedTermData(data['termId']); // load this term's subjects
                             },
                             child: Container(
                               width: 30,
-                              height: h.clamp(5, 120),
+                              height: h.clamp(5, 120), // minimum height 5px so it's always visible
                               decoration: BoxDecoration(
-                                color: isSel ? AppColors.primary : Colors.white24,
+                                color: isSel ? AppColors.primary : Colors.white24, // highlight selected
                                 borderRadius: BorderRadius.circular(4),
                                 border: isSel ? Border.all(color: Colors.white, width: 1) : null,
                               ),
                             ),
                           ),
                           const SizedBox(height: 8),
+                          // Short label below bar — just the semester abbreviation
                           SizedBox(width: 40, child: Text(data['semester']?.toString().split(' ')[0] ?? '', style: const TextStyle(color: Colors.white54, fontSize: 8), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),
                         ],
                       );

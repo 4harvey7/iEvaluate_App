@@ -40,7 +40,7 @@ dependencies:
   shared_preferences: ^2.3.0
   google_fonts: ^6.2.1
   supabase_flutter: ^2.12.4
-  flutter_dotenv: ^6.0.1
+  # flutter_dotenv removed — secrets are now injected via --dart-define-from-file at build time
   intl: ^0.19.0
   pdf: ^3.11.1
   printing: ^5.13.2
@@ -79,7 +79,8 @@ flutter:
     - assets/images/CTU_logo.png
     - assets/images/sast_tab_guide.png
     - assets/images/sast_sheet_guide.png
-    - .env
+    # .env REMOVED — never bundle secrets as a Flutter asset.
+    # Secrets are now compiled in via: flutter build apk --dart-define-from-file=.env.json
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

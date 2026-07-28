@@ -1,22 +1,27 @@
 // lib/gatherer/gatherer_dashboard_view.dart
+// The welcome screen for data gatherers.
+// Shows who you are, how many you scanned today, and the big START SCAN button.
+// Also shows n8n status — is the automation server alive or naa bay problema?
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
+// pure StatelessWidget — all data is passed in from parent, no own state
+// parent (DataGathererScreen) manages the state, we just display what we receive
 class GathererDashboardView extends StatelessWidget {
-  final String userName;
-  final String userRole;
-  final String currentTerm;
-  final int scanned;
-  final int target;
-  final int queueCount;
-  final int pendingCount;
-  final int successCount;
-  final int overallSurveyCount;
-  final bool n8nOnline;
-  final bool checkingN8n;
-  final VoidCallback onCheckN8n;
-  final VoidCallback onStartScan;
-  final VoidCallback onImportData;
+  final String userName; // logged-in user full name
+  final String userRole; // Data Gatherer, Admin, etc.
+  final String currentTerm; // e.g. "1st Semester, 2025-2026"
+  final int scanned; // how many scanned today — from supabase
+  final int target; // daily target (500) — hard-coded in parent, pray lang maabot
+  final int queueCount; // total items in local sync queue
+  final int pendingCount; // how many still not uploaded
+  final int successCount; // how many successfully uploaded this session
+  final int overallSurveyCount; // total surveys for the current term
+  final bool n8nOnline; // is the automation server alive
+  final bool checkingN8n; // true while pinging n8n
+  final VoidCallback onCheckN8n; // tap to re-ping n8n
+  final VoidCallback onStartScan; // goes to scanner tab
+  final VoidCallback onImportData; // opens Google Sheet import screen
 
   const GathererDashboardView({
     super.key,
@@ -36,6 +41,7 @@ class GathererDashboardView extends StatelessWidget {
     required this.onImportData,
   });
 
+  // build the entire dashboard scroll content
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -47,6 +53,7 @@ class GathererDashboardView extends StatelessWidget {
 
             // ==========================================
             // 1. WELCOME & STATUS CARD
+            // Shows user name, current term, role, and n8n status
             // ==========================================
             Container(
               padding: const EdgeInsets.all(20),
@@ -58,10 +65,11 @@ class GathererDashboardView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // greet the user by name — personalised touch
                   Text('Welcome, $userName',
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   const SizedBox(height: 4),
-                  // Current term
+                  // Current term — shows semester and academic year
                   Row(
                     children: [
                       const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textSecondary),
@@ -70,7 +78,7 @@ class GathererDashboardView extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  // Role display
+                  // Role display — badge icon with the user role text
                   Row(
                     children: [
                       const Icon(Icons.badge_outlined, size: 14, color: AppColors.textSecondary),
@@ -80,18 +88,21 @@ class GathererDashboardView extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   // N8N System Status (live check)
+                  // tap this to re-ping n8n — if offline, uploads will fail
                   GestureDetector(
-                    onTap: checkingN8n ? null : onCheckN8n,
+                    onTap: checkingN8n ? null : onCheckN8n, // disable tap while already checking
                     child: Row(
                       children: [
                         Text('System Status: ',
                             style: TextStyle(fontSize: 12, color: AppColors.textPrimary.withValues(alpha: 0.7))),
                         if (checkingN8n)
+                          // tiny spinner while checking — murag kasagaran sa life
                           const SizedBox(
                             width: 10, height: 10,
                             child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary),
                           )
                         else ...[
+                          // show "Online" or "Offline" text with matching color
                           Text(
                             n8nOnline ? 'Online' : 'Offline',
                             style: TextStyle(
@@ -101,10 +112,12 @@ class GathererDashboardView extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
+                          // small dot indicator — green or red
                           CircleAvatar(
                               radius: 5,
                               backgroundColor: n8nOnline ? AppColors.success : AppColors.error),
                           const SizedBox(width: 8),
+                          // hint to user that they can tap to refresh status
                           Text('(tap to refresh)',
                               style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6))),
                         ],
@@ -119,12 +132,14 @@ class GathererDashboardView extends StatelessWidget {
 
             // ==========================================
             // 2. SCAN BUTTON
+            // The biggest, most important button on this screen
+            // Tap it to go to the camera scanner tab — this the main job
             // ==========================================
             SizedBox(
               width: double.infinity,
-              height: 120,
+              height: 120, // big button, hard to miss
               child: ElevatedButton(
-                onPressed: onStartScan,
+                onPressed: onStartScan, // jump to scanner tab
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.textPrimary,
@@ -145,21 +160,23 @@ class GathererDashboardView extends StatelessWidget {
             const SizedBox(height: 16),
 
             // ==========================================
-            // 🔗 GOOGLE SHEET IMPORT BUTTON
+            // GOOGLE SHEET IMPORT BUTTON
+            // Alternative to scanning — import from a Google Sheet link
+            // Useful when forms are already digitized, dili na need scan
             // ==========================================
             SizedBox(
               width: double.infinity,
               height: 60,
               child: ElevatedButton.icon(
-                onPressed: onImportData,
+                onPressed: onImportData, // navigate to Google Sheet import screen
                 icon: const Icon(Icons.table_chart_outlined),
                 label: const Text('IMPORT FROM GOOGLE SHEETS', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surface,
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.primary, width: 2),
+                  side: const BorderSide(color: AppColors.primary, width: 2), // outlined style
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
+                  elevation: 0, // no shadow — flat look
                 ),
               ),
             ),
@@ -168,12 +185,15 @@ class GathererDashboardView extends StatelessWidget {
 
             // ==========================================
             // 3. SUPABASE CONNECTION STATS — 4 Cards
+            // Shows numbers pulled from actual database — not just local estimates
             // ==========================================
             const Text('Supabase Connection',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
             const SizedBox(height: 10),
 
             // Row 1: Entries Today + Pending
+            // "Entries Today" = how many forms actually made it to supabase today
+            // "Pending" = how many are queued but not uploaded yet
             Row(
               children: [
                 _buildStatCard(
@@ -188,7 +208,7 @@ class GathererDashboardView extends StatelessWidget {
                   label: 'PENDING',
                   value: '$pendingCount',
                   sub: 'not yet synced',
-                  color: AppColors.warning,
+                  color: AppColors.warning, // orange = caution, needs upload
                   icon: Icons.hourglass_empty_rounded,
                 ),
               ],
@@ -197,13 +217,15 @@ class GathererDashboardView extends StatelessWidget {
             const SizedBox(height: 12),
 
             // Row 2: Success + Overall
+            // "Success" = how many uploaded this session (may reset on reload)
+            // "Overall Surveys" = total count for the whole current term
             Row(
               children: [
                 _buildStatCard(
                   label: 'SUCCESS',
                   value: '$successCount',
                   sub: 'synced this session',
-                  color: AppColors.success,
+                  color: AppColors.success, // green = good
                   icon: Icons.cloud_done_rounded,
                 ),
                 const SizedBox(width: 12),
@@ -217,13 +239,15 @@ class GathererDashboardView extends StatelessWidget {
               ],
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 40), // bottom breathing room so nothing cut off
           ],
         ),
       ),
     );
   }
 
+  // builds a single stat card widget — shown in 2x2 grid below the buttons
+  // each card has an icon, label, big number value, and subtitle
   Widget _buildStatCard({
     required String label,
     required String value,
@@ -231,7 +255,7 @@ class GathererDashboardView extends StatelessWidget {
     required Color color,
     required IconData icon,
   }) {
-    return Expanded(
+    return Expanded( // both cards share equal width in the row
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -244,14 +268,20 @@ class GathererDashboardView extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 14, color: color),
+                Icon(icon, size: 14, color: color), // small icon with card color
                 const SizedBox(width: 4),
-                Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8))),
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8)),
+                    overflow: TextOverflow.ellipsis, // dont overflow on small screens
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)),
-            Text(sub, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+            Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)), // big number
+            Text(sub, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)), // subtitle below number
           ],
         ),
       ),
