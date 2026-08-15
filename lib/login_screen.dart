@@ -1,10 +1,11 @@
 // lib/login_screen.dart
 // this is the login screen, the front door of the app
-// if this screen have problem, nobody can get in, importente kaayo ni
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/config/agreements.dart';
 import 'core/services/auth_service.dart';
 import 'main.dart' show screenForRole;
 import 'signup_screen.dart';
@@ -25,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _obscurePassword = true; // hide the password by default, dili ta show-off
   bool _isLoading       = false;
+  bool _hasAcceptedAgreements = false;
   String? _errorMessage; // null means no error, something means user did something wrong
   late final StreamSubscription<AuthState> _authSubscription;
 
@@ -64,6 +66,11 @@ class _LoginScreenState extends State<LoginScreen> {
     // if either field is empty we yell at the user nicely before even trying
     if (input.isEmpty || password.isEmpty) {
       setState(() => _errorMessage = 'Please enter your ID/email and password.');
+      return;
+    }
+
+    if (!_hasAcceptedAgreements) {
+      setState(() => _errorMessage = 'Please agree to the NDA and DPA to log in.');
       return;
     }
 
@@ -109,6 +116,32 @@ class _LoginScreenState extends State<LoginScreen> {
       _lastFailedAttempt = DateTime.now();
       setState(() => _errorMessage = result.error);
     }
+  }
+
+  void _showNdaDpaModal() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('NDA & DPA Agreements', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              MarkdownBody(data: Agreements.ndaText),
+              Divider(height: 32, thickness: 1),
+              MarkdownBody(data: Agreements.dpaText),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   // show the forgot password dialog so user can request a reset link via email
@@ -196,6 +229,8 @@ class _LoginScreenState extends State<LoginScreen> {
           actions: [
             ElevatedButton(
               onPressed: isUpdating ? null : () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 final newPass = passwordController.text.trim();
 
                 // validate password strength, must meet all requirements or we reject it
@@ -206,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 final hasSpecial = newPass.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'));
 
                 if (!hasLength || !hasUpper || !hasNumber || !hasSpecial) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  messenger.showSnackBar(const SnackBar(
                     content: Text(
                       'Password must be at least 8 characters and include '
                       'an uppercase letter, a number, and a special character.',
@@ -220,14 +255,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   await Supabase.instance.client.auth.updateUser(
                     UserAttributes(password: newPass),
                   );
-                  final messenger = ScaffoldMessenger.of(context);
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) navigator.pop();
                   messenger.showSnackBar(
                     const SnackBar(content: Text('Password updated successfully! Please login.'), backgroundColor: AppColors.success),
                   );
                 } catch (e) {
                   setDialogState(() => isUpdating = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
                   );
                 }
@@ -286,6 +320,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: const Text('Forgot Password?', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),
+
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderHairline),
+                  ),
+                  child: CheckboxListTile(
+                    title: Row(
+                      children: [
+                        const Expanded(child: Text('I agree to the NDA and DPA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary))),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline, color: AppColors.primary),
+                          onPressed: _showNdaDpaModal,
+                          tooltip: 'Read Agreements',
+                        ),
+                      ],
+                    ),
+                    value: _hasAcceptedAgreements,
+                    onChanged: (val) => setState(() => _hasAcceptedAgreements = val ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: const EdgeInsets.only(left: 8, right: 4),
+                    dense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
 
                 if (_errorMessage != null) ...[
                   Builder(builder: (context) {

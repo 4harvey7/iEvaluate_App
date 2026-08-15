@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // The settings widget — stateful because we load and change user info here
 class DeptHeadSettingsScreen extends StatefulWidget {
@@ -112,7 +113,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return Padding(
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 // Shift content above keyboard — wala choice or the fields get covered
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
@@ -150,6 +153,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                           ),
                           // Disabled while save is in progress — dili ta allow double tap
                           onPressed: isSaving ? null : () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            final navigator = Navigator.of(context);
                             setSheetState(() => isSaving = true); // Show loading state
                             try {
                               // Call auth service to update name in Supabase
@@ -158,20 +163,22 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                                 lastName: lastController.text.trim(),
                               );
                               
+                              if (!mounted) return;
                               if (result.success) {
                                 // Update local state so UI reflects the new name immediately
                                 setState(() {
                                   _firstName = firstController.text.trim();
                                   _lastName = lastController.text.trim();
                                 });
-                                if (mounted) Navigator.pop(context); // Close the sheet
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
+                                navigator.pop(); // Close the sheet
+                                scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               } else {
                                 throw Exception(result.error); // Something went wrong
                               }
                             } catch (e) {
+                              if (!mounted) return;
                               setSheetState(() => isSaving = false); // Re-enable button
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },
                           // Show spinner while saving, text when idle
@@ -218,13 +225,16 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
-                Navigator.pop(context); // Close dialog first
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
+                navigator.pop(); // Close dialog first
                 final result = await _authService.deleteAccount(); // Send the delete request
+                if (!mounted) return;
                 if (result.success) {
                    // Account deleted — send them back to login screen. wala choice now.
-                   if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                   navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                 } else {
-                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
+                   scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
             ),
@@ -281,24 +291,26 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ),
                   // Disabled while request is in flight — ayaw double tap
                   onPressed: isUpdating ? null : () async {
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
                     final newPw = newPasswordController.text.trim();
                     final confirmPw = confirmPasswordController.text.trim();
 
                     // Validate all fields — dili ta allow empty password change
                     if (newPw.isEmpty || confirmPw.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // Passwords must match — otherwise user made typo and we need to catch it
                     if (newPw != confirmPw) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // Minimum length check — 6 chars is the floor, anything less is too risky
                     if (newPw.length < 6) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                       return;
                     }
 
@@ -309,32 +321,30 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       // Supabase allows password update if there's a valid session.
                       final result = await _authService.updatePassword(newPw);
                       
-                      if (mounted) {
-                        if (result.success) {
-                          Navigator.pop(context); // Close dialog
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                            content: Text('Password updated successfully. Please log in again for security.'), 
-                            backgroundColor: AppColors.success
-                          ));
-                          // Auto sign out for security after password change
-                          // Wait 2 seconds so user can read the success message first
-                          await Future.delayed(const Duration(seconds: 2));
-                          await _authService.signOut(); // Sign out — new password require new login
-                          if (mounted) {
-                            Navigator.pushAndRemoveUntil(
-                              context, 
-                              MaterialPageRoute(builder: (context) => const LoginScreen()), 
-                              (route) => false // Remove all previous routes
-                            );
-                          }
-                        } else {
-                          setDialogState(() => isUpdating = false); // Re-enable button
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
-                        }
+                      if (!mounted) return;
+                      if (result.success) {
+                        navigator.pop(); // Close dialog
+                        scaffoldMessenger.showSnackBar(const SnackBar(
+                          content: Text('Password updated successfully. Please log in again for security.'), 
+                          backgroundColor: AppColors.success
+                        ));
+                        // Auto sign out for security after password change
+                        // Wait 2 seconds so user can read the success message first
+                        await Future.delayed(const Duration(seconds: 2));
+                        await _authService.signOut(); // Sign out — new password require new login
+                        if (!mounted) return;
+                        navigator.pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()), 
+                          (route) => false // Remove all previous routes
+                        );
+                      } else {
+                        setDialogState(() => isUpdating = false); // Re-enable button
+                        scaffoldMessenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
                       }
                     } catch (e) {
+                      if (!mounted) return;
                       setDialogState(() => isUpdating = false); // Re-enable on error
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                     }
                   },
                   // Show spinner or "Update" text based on loading state
@@ -526,13 +536,16 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 height: 54,
                 child: SafeOutlinedButton(
                   onPressed: () async {
-                    await _authService.signOut(); // End the session in Supabase
-                    if (mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                            (route) => false, // Wipe all routes — no going back without login
-                      );
+                    final navigator = Navigator.of(context);
+                    final confirm = await showLogoutConfirmationDialog(context);
+                    if (confirm == true) {
+                      await _authService.signOut(); // End the session in Supabase
+                      if (mounted) {
+                        navigator.pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          (route) => false, // Wipe all routes — no going back without login
+                        );
+                      }
                     }
                   },
                   style: OutlinedButton.styleFrom(
@@ -584,7 +597,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       trailing: Switch(
         value: value,
         onChanged: onChanged, // Calls setState in parent to reflect change
-        activeColor: AppColors.surface,
+        activeThumbColor: AppColors.surface,
         activeTrackColor: AppColors.success, // Green track when enabled
         inactiveThumbColor: Colors.white,
         inactiveTrackColor: AppColors.borderHairline, // Gray when disabled

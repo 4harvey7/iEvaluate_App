@@ -64,7 +64,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         // Ordered by year so we get chronological chart data
         _supabase
             .from('overall_total_survey')
-            .select('overall_mean, management_mean, performance_mean, term_id, academic_terms(semester, academic_year)')
+            .select('overall_mean, combined_score_mean, management_mean, performance_mean, term_id, academic_terms(semester, academic_year)')
             .eq('instructor_id', instructorId)
             .order('academic_terms(academic_year)', ascending: true),
 
@@ -103,18 +103,39 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         if (termInfo is Map) {
           final sem = termInfo['semester'] as String? ?? '';
           final yr = termInfo['academic_year'] as String? ?? '';
-          // Short label: "1st 25-26" style — fits nicely under the bar chart
-          label = '${sem.replaceAll(' Semester', '')} ${yr.replaceAll('20', '')}';
+          // Compact label: "1st\n25-26" — two lines fit nicely under each bar
+          final ordinal = sem.split(' ').isNotEmpty ? sem.split(' ').first : sem;
+          final ayParts = yr.split('-');
+          final yearShort = ayParts.length == 2
+              ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
+              : yr;
+          label = '$ordinal\n$yearShort';
         }
         // Add to chart data — includes label, overall score, mgmt, perf, and current flag
         history.add(_TermScore(
           label: label,
-          score: (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+          score: (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
           mgmt: (row['management_mean'] as num?)?.toDouble() ?? 0.0,
           perf: (row['performance_mean'] as num?)?.toDouble() ?? 0.0,
           isCurrent: termId == widget.currentTermId, // Highlight current term bar in the chart
+          termInfo: row['academic_terms'] as Map?, // store for sorting
         ));
       }
+
+      // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
+      // DB orders only by academic_year which doesn't handle 1st vs 2nd within same year
+      const semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
+      history.sort((a, b) {
+        final aYear = int.tryParse(a.termInfo?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+        final bYear = int.tryParse(b.termInfo?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+        if (aYear != bYear) return aYear.compareTo(bYear);
+        final aSem = a.termInfo?['semester']?.toString() ?? '';
+        final bSem = b.termInfo?['semester']?.toString() ?? '';
+        final aSemKey = semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
+        final bSemKey = semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
+        return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
+      });
 
       // If no subjects came from subjects table, try management_results as fallback
       // basin naa data there even if instructor_subjects is empty — we try our best
@@ -124,7 +145,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         subjects = subjectRows.map((row) {
           final s = row['subjects'];
           // Handle subjects field being either Map or List — Supabase is unpredictable sometimes
-          final subjectData = s is Map ? s : (s is List && (s as List).isNotEmpty ? s[0] : null);
+          final subjectData = s is Map ? s : (s is List && s.isNotEmpty ? s[0] : null);
           return Subject.fromJson({
             'id': subjectData?['id'] ?? row['subject_id'],
             'subject_code': subjectData?['subject_code'] ?? 'N/A',
@@ -651,11 +672,12 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 /// Holds the term label (short), overall score, mgmt + perf, and whether it's the current term.
 /// dili pwede just use a Map — this is cleaner and type-safe.
 class _TermScore {
-  final String label; // Short label shown under the bar chart — e.g. "1st 25-26"
-  final double score; // Overall score for this term
-  final double mgmt; // Management score — separate tracking
-  final double perf; // Performance score — separate tracking
-  final bool isCurrent; // If true, this term's bar is highlighted in primary color
+  final String label;    // Short label shown under the bar chart — e.g. "1st\n25-26"
+  final double score;    // Overall score for this term
+  final double mgmt;     // Management score — separate tracking
+  final double perf;     // Performance score — separate tracking
+  final bool isCurrent;  // If true, this term's bar is highlighted in primary color
+  final Map? termInfo;   // Raw academic_terms map — used only for sorting, not displayed
 
   const _TermScore({
     required this.label,
@@ -663,5 +685,6 @@ class _TermScore {
     required this.mgmt,
     required this.perf,
     required this.isCurrent,
+    this.termInfo,
   });
 }

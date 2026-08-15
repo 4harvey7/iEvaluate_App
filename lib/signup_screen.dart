@@ -1,8 +1,9 @@
 // lib/signup_screen.dart
 // this is the signup screen. user come here to beg the system for an account.
-// 4 steps, many fields, much validation. pray lang it all work.
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
+import 'core/config/agreements.dart';
 import 'core/services/auth_service.dart';
 import 'theme/app_colors.dart';
 
@@ -398,6 +399,32 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  void _showNdaDpaModal() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('NDA & DPA Agreements', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              MarkdownBody(data: Agreements.ndaText),
+              Divider(height: 32, thickness: 1),
+              MarkdownBody(data: Agreements.dpaText),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // step 4: show the data privacy/NDA text and a checkbox
   // user must accept or dili pwede register, wala choice
   Widget _buildReviewStep() {
@@ -408,32 +435,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
         children: [
           const Text('Review & Terms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
           const SizedBox(height: 20),
-          // scrollable privacy text box -- please actually read it, importente kaayo
+          const Text(
+            'To complete your registration, you must read and agree to our Data Privacy Act (DPA) and Non-Disclosure Agreement (NDA).',
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
+          ),
+          const Spacer(),
           Container(
-            height: 180,
-            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.borderHairline),
             ),
-            child: const SingleChildScrollView(
-              child: Text(
-                'Data Privacy & NDA: By registering, you acknowledge that all evaluation '
-                    'data is sensitive and subject to university policy. Sharing, reproducing, '
-                    'or misusing evaluation results is strictly prohibited and may result in '
-                    'disciplinary action in accordance with CTU data privacy regulations.',
-                style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
+            child: CheckboxListTile(
+              title: Row(
+                children: [
+                  const Expanded(child: Text('I agree to the NDA and DPA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary))),
+                  IconButton(
+                    icon: const Icon(Icons.info_outline, color: AppColors.primary),
+                    onPressed: _showNdaDpaModal,
+                    tooltip: 'Read Agreements',
+                  ),
+                ],
               ),
+              value: _hasAcceptedAgreements,
+              onChanged: (val) => setState(() => _hasAcceptedAgreements = val ?? false),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: const EdgeInsets.only(left: 8, right: 4),
+              dense: true,
             ),
-          ),
-          const Spacer(),
-          // the famous checkbox -- tick this or you stuck on this page forever
-          CheckboxListTile(
-            title: const Text('I accept terms and conditions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-            value: _hasAcceptedAgreements,
-            onChanged: (val) => setState(() => _hasAcceptedAgreements = val!), // update flag when user tick
-            controlAffinity: ListTileControlAffinity.leading,
           ),
         ],
       ),

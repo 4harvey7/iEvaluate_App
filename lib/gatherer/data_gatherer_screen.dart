@@ -117,10 +117,24 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     }
   }
 
-  // listen to settings stream so semester/term change automatically update the UI
-  // if term change, also refresh stats because different term = different data
   void _subscribeToSettings() {
-    _settingsSubscription = _settingsService.streamSettings().listen((settings) {
+    _settingsSubscription = _settingsService.streamSettings().listen((settings) async {
+      if (!mounted) return;
+
+      // Check if term changed from last known term in storage
+      final prefs = await SharedPreferences.getInstance();
+      final savedTermId = prefs.getString('gatherer_last_term_id');
+
+      // If we have a saved term and it's different from the new one, wipe the queue
+      if (savedTermId != null && savedTermId != settings.termId) {
+        _clearLocalQueue();
+      }
+
+      // Save the new term ID for next time if it's not null
+      if (settings.termId != null) {
+        await prefs.setString('gatherer_last_term_id', settings.termId!);
+      }
+
       if (mounted) {
         final termChanged = settings.termId != _currentTermId; // did the term change?
         setState(() {
@@ -176,13 +190,13 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
       // query for entries created since midnight today
       final todayData = await _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .select('id')
           .gte('created_at', startOfDay);
 
       // Overall filtered by current term — if no term yet, get all
       var overallQuery = _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .select('id');
       if (_currentTermId != null) {
         overallQuery = overallQuery.eq('term_id', _currentTermId!); // filter by term
@@ -234,6 +248,27 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     } catch (e) {
       debugPrint('saveQueue error: $e'); // if this fail, queue lost on restart. oops.
     }
+  }
+
+  // clear the entire local queue and delete the image files
+  // called automatically when the term changes to free up space
+  void _clearLocalQueue() {
+    for (var task in _localQueue) {
+      try {
+        final file = File(task.localPath);
+        if (file.existsSync()) {
+          file.deleteSync(); // delete the actual image file to save storage
+        }
+      } catch (e) {
+        debugPrint('Failed to delete file: $e'); // ignore if delete fails
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _localQueue.clear();
+      });
+    }
+    _saveQueueToStorage();
   }
 
   // ─── Queue Actions ────────────────────────────────────────────────────────
@@ -404,6 +439,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
       final bytes = await file.readAsBytes(); // read raw image bytes
       final base64Image = base64Encode(bytes); // encode to base64 string for JSON transport
+      final paperSize = _extractPaperSize(task.localPath); // read paper size from filename tag
 
       final n8nWebhookUrl = Env.n8nScanUploadUrl; // the scan upload endpoint
 
@@ -417,6 +453,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           'image': base64Image, // the actual image encoded as base64
           'task_id': task.id,
           'filename': task.localPath.split(Platform.pathSeparator).last, // just the filename, not full path
+          'paper_size': paperSize, // explicit paper size — no need for n8n to parse filename
           'timestamp': DateTime.now().toIso8601String(),
         }),
       ).timeout(const Duration(seconds: 30)); // 30 seconds max, then timeout
@@ -439,6 +476,16 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     } finally {
       _saveQueueToStorage(); // always save after upload attempt, success or not
     }
+  }
+
+  // extracts the paper size tag from the filename — scanner embeds it as _SHORT, _A4, or _LONG
+  // e.g. "SCAN-1234_A4.jpg" → "A4",  "SCAN-5678_LONG.jpg" → "LONG"
+  String _extractPaperSize(String path) {
+    final filename = path.split(Platform.pathSeparator).last;
+    if (filename.contains('_SHORT')) return 'SHORT';
+    if (filename.contains('_A4'))    return 'A4';
+    if (filename.contains('_LONG'))  return 'LONG';
+    return 'UNKNOWN'; // fallback — should not happen if scanner always tags the file
   }
 
   // sync all non-success tasks — loops through and uploads one by one
@@ -554,6 +601,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                   icon: const Icon(Icons.refresh_rounded, color: AppColors.surface),
                   tooltip: 'Refresh',
                   onPressed: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     setState(() => _isRefreshing = true);
                     // fetch stats and check n8n at the same time — parallel, faster
                     await Future.wait([
@@ -563,7 +611,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                     if (mounted) setState(() => _isRefreshing = false);
                     if (mounted) {
                       // tell user refresh done
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         const SnackBar(
                           content: Text('Dashboard refreshed'),
                           backgroundColor: AppColors.success,

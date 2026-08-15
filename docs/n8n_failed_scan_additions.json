@@ -111,10 +111,10 @@
     "what_this_does": [
       "1. After '1. Clean API Output', a new parallel branch checks if table_found === false.",
       "2. If true → formats a record and inserts it into Supabase failed_scan_queue with status='pending'.",
-      "3. The existing flow (2. Format Final Results → Merge4 → Supabase raw_GoogleSheet_data_result) is UNCHANGED.",
+      "3. The existing flow (2. Format Final Results → Merge4 → Supabase sast_all_raw_data_survey) is UNCHANGED.",
       "4. The Flutter app's FailedScansScreen polls failed_scan_queue for pending records.",
       "5. Staff corrects via Option A (text) or Option B (crop tool), then submits.",
-      "6. On submit, Flutter sets status='validated' in failed_scan_queue AND inserts the corrected record into raw_GoogleSheet_data_result."
+      "6. On submit, Flutter sets status='validated' in failed_scan_queue AND inserts the corrected record into sast_all_raw_data_survey."
     ]
   }
 }

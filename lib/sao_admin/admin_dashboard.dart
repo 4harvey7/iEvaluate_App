@@ -18,6 +18,7 @@ import 'manage_subjects_screen.dart';
 import 'manage_departments_screen.dart';
 
 import '../widgets/safe_button.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // This widget is the throne of the admin. Very holy. Dili ta puwede diri if not admin.
 class AdminDashboardScreen extends StatefulWidget {
@@ -110,7 +111,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .count(CountOption.exact);
 
       // Files scanned this term — filter by term if available
-      var fileQuery = _supabase.from('raw_GoogleSheet_data_result').select('id');
+      var fileQuery = _supabase.from('sast_all_raw_data_survey').select('id');
       if (_currentTermId != null) {
         fileQuery = fileQuery.eq('term_id', _currentTermId!); // only this term's scans
       }
@@ -393,10 +394,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _fetchDashboardData(); // refresh the list after decision
       }
     } catch (e) {
+      debugPrint('[DASHBOARD] Approval/Rejection Error: $e'); // log raw error for debugging
       if (mounted) {
-        // something went wrong, show the error
+        // show a friendly message — dili ta expose raw exception to the admin UI
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: AppColors.error),
+          const SnackBar(content: Text('Action failed. Please try again.'), backgroundColor: AppColors.error),
         );
       }
     }
@@ -441,10 +443,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                const Icon(Icons.admin_panel_settings, color: AppColors.primary, size: 48), // big admin icon, very cool
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                  child: const Icon(Icons.admin_panel_settings, color: AppColors.surface, size: 28),
+                ),
                 const SizedBox(height: 12),
-                Text(_adminName, style: const TextStyle(color: AppColors.surface, fontSize: 20, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis), // the admin's name in big text
-                const Text('Highest Access Level', style: TextStyle(color: AppColors.textSecondary, fontSize: 14), overflow: TextOverflow.ellipsis), // flex on everyone
+                Text(_adminName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                const Text('SAO Administrator • Highest Access', style: TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
@@ -486,17 +492,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemAuditScreen()));
           }),
           // settings — system configuration, importente kaayo dili puwede ma-ignore
-          _buildDrawerItem(context, Icons.settings, 'System Settings', false, onTap: () {
+          _buildDrawerItem(context, Icons.settings, 'System Settings', false, onTap: () async {
             Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SaoAdminSettings()));
+            await Navigator.push(context, MaterialPageRoute(builder: (_) => const SaoAdminSettings()));
+            _fetchAdminProfile(); // refresh name after returning
+            _fetchTermThenData(); // refresh term and dashboard data
           }),
+          const Divider(),
           // log out — bye bye admin, thanks for your service
           _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-            await _authService.signOut(); // actually sign out from supabase
-            if (mounted) {
-              // kick them all the way back to login, dili ta stay here
-              Navigator.pushAndRemoveUntil(context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+            final navigator = Navigator.of(context);
+            final confirm = await showLogoutConfirmationDialog(context);
+            if (confirm == true) {
+              await _authService.signOut(); // actually sign out from supabase
+              if (mounted) {
+                // kick them all the way back to login, dili ta stay here
+                navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
+              }
             }
           }),
         ],

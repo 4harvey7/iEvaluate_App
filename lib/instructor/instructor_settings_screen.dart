@@ -3,11 +3,13 @@
 // change password, or do the extreme action of deleting their whole account.
 // Proceed with caution. Especially the delete part. Dili pwede undo.
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // Simple StatefulWidget — needs state because profile data loads after build
 class InstructorSettingsScreen extends StatefulWidget {
@@ -29,11 +31,40 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   String _userTitle = 'Instructor'; // default title if fetch fails
   String _userDept = 'Computer Studies'; // default dept — pray it matches actual one
   bool _isLoading = true; // show spinner until data arrives
+  bool _pushNotificationsEnabled = true;
 
   @override
   void initState() {
     super.initState();
     _loadUserProfile(); // kick off the profile fetch immediately
+    _loadNotificationSettings();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _pushNotificationsEnabled = prefs.getBool('instructor_push_notifications') ?? true;
+      });
+    }
+  }
+
+  Future<void> _togglePushNotifications(bool value) async {
+    setState(() {
+      _pushNotificationsEnabled = value;
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('instructor_push_notifications', value);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            value ? 'Push notifications enabled.' : 'Push notifications disabled.',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   // Loads instructor profile from Supabase.
@@ -106,7 +137,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return Padding(
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 // Push sheet up when keyboard is open so the fields are visible
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
@@ -142,6 +175,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                           ),
                           // Disable button while saving to avoid double-click disaster
                           onPressed: isSaving ? null : () async {
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
                             setSheetState(() => isSaving = true);
                             try {
                               // Call auth service to update name in the database
@@ -156,14 +191,14 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                                   _firstName = firstController.text.trim();
                                   _lastName = lastController.text.trim();
                                 });
-                                if (mounted) Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
+                                if (mounted) navigator.pop();
+                                messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               } else {
                                 throw Exception(result.error);
                               }
                             } catch (e) {
                               setSheetState(() => isSaving = false);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },
                           // Show spinner while saving, text when idle
@@ -208,13 +243,15 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
-                Navigator.pop(context); // close dialog first
+                final navigator = Navigator.of(context);
+                final messenger = ScaffoldMessenger.of(context);
+                navigator.pop(); // close dialog first
                 final result = await _authService.deleteAccount(); // the point of no return
                 if (result.success) {
                   // Account deleted — kick back to login screen, no route history left
-                   if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                   if (mounted) navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                 } else {
-                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
+                   if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
             ),
@@ -265,25 +302,28 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: isUpdating ? null : () async {
+                  final navigator = Navigator.of(context);
+                  final messenger = ScaffoldMessenger.of(context);
+                  final rootNavigator = Navigator.of(this.context);
                   final currentPw = currentPasswordController.text.trim();
                   final newPw = newPasswordController.text.trim();
                   final confirmPw = confirmPasswordController.text.trim();
 
                   // Validation 1: Cannot leave fields empty, ayaw!
                   if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                    messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                     return;
                   }
 
                   // Validation 2: New and confirm passwords must match exactly
                   if (newPw != confirmPw) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                    messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                     return;
                   }
 
                   // Validation 3: Password must be at least 6 characters long
                   if (newPw.length < 6) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                    messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                     return;
                   }
 
@@ -297,7 +337,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     if (verifyResp.user == null) {
                       // Wrong current password — balik ka
                       setDialogState(() => isUpdating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      messenger.showSnackBar(const SnackBar(
                           content: Text('Current password is incorrect.'),
                           backgroundColor: AppColors.error));
                       return;
@@ -307,9 +347,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     final result = await _authService.updatePassword(newPw);
                     if (!mounted) return;
                     if (result.success) {
-                      final outerCtx = context;
-                      Navigator.pop(context); // close dialog first
-                      ScaffoldMessenger.of(outerCtx).showSnackBar(const SnackBar(
+                      navigator.pop(); // close dialog first
+                      messenger.showSnackBar(const SnackBar(
                         content: Text('Password updated. Please log in again.'),
                         backgroundColor: AppColors.success,
                       ));
@@ -317,15 +356,14 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       await Future.delayed(const Duration(seconds: 2));
                       await _authService.signOut(); // force re-login for security
                       if (mounted) {
-                        Navigator.pushAndRemoveUntil(
-                          outerCtx,
+                        rootNavigator.pushAndRemoveUntil(
                           MaterialPageRoute(builder: (_) => const LoginScreen()),
                           (route) => false, // clear all routes — fresh start
                         );
                       }
                     } else {
                       setDialogState(() => isUpdating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      messenger.showSnackBar(SnackBar(
                         content: Text(result.error ?? 'Failed to update password.'),
                         backgroundColor: AppColors.error,
                       ));
@@ -333,7 +371,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   } catch (e) {
                     setDialogState(() => isUpdating = false);
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                     }
                   }
@@ -437,47 +475,30 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Section: Notifications — placeholder for future notification settings
+              // Section: Notifications — manage push notification preferences
               const Text('Notifications', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,
                 elevation: 1,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  children: [
-                    // Email alerts — not yet implemented, "Coming Soon" badge for now
-                    ListTile(
-                      leading: const Icon(Icons.email, color: AppColors.textSecondary),
-                      title: const Text('Email Alerts', style: TextStyle(color: AppColors.textSecondary)),
-                      subtitle: const Text('Get emailed when a new evaluation is processed.', style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-                        ),
-                        child: const Text('Coming Soon', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
-                      ),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    const Divider(height: 1, indent: 56),
-                    // Push notifications — also not yet implemented. Future plans lang.
-                    ListTile(
-                      leading: const Icon(Icons.notifications_active, color: AppColors.textSecondary),
-                      title: const Text('Push Notifications', style: TextStyle(color: AppColors.textSecondary)),
-                      subtitle: const Text('Receive alerts directly on your device.', style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
-                      trailing: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-                        ),
-                        child: const Text('Coming Soon', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.warning)),
-                      ),
-                    ),
-                  ],
+                    child: const Icon(Icons.notifications_active, color: AppColors.primary),
+                  ),
+                  title: const Text('Push Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                  subtitle: const Text('Receive evaluation updates and system alerts directly on your device.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  trailing: Switch.adaptive(
+                    value: _pushNotificationsEnabled,
+                    activeTrackColor: AppColors.primary,
+                    onChanged: _togglePushNotifications,
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
@@ -527,14 +548,17 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 height: 54,
                 child: SafeOutlinedButton(
                   onPressed: () async {
-                    await _authService.signOut(); // clear session from Supabase
-                    if (mounted) {
-                      // Send to login screen, remove all previous routes so user cant go back
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                            (route) => false,
-                      );
+                    final navigator = Navigator.of(context);
+                    final confirm = await showLogoutConfirmationDialog(context);
+                    if (confirm == true) {
+                      await _authService.signOut(); // clear session from Supabase
+                      if (mounted) {
+                        // Send to login screen, remove all previous routes so user cant go back
+                        navigator.pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                              (route) => false,
+                        );
+                      }
                     }
                   },
                   style: OutlinedButton.styleFrom(

@@ -62,7 +62,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
     setState(() => _isLoading = true); // show spinner
     try {
       final response = await _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .select()
           .isFilter('instructor_ID', null) // only records with no instructor linked
           .order('created_at', ascending: false); // newest first
@@ -105,7 +105,9 @@ class _DataValidationScreenState extends State<DataValidationScreen>
       isScrollControlled: true, // allow sheet to expand to nearly full screen
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
-        builder: (ctx, _) => Padding(
+        builder: (ctx, _) => AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
           padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom), // move up when keyboard open
           child: Container(
@@ -288,7 +290,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
       }
       // push the update to supabase — match by row ID
       await _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .update(updates)
           .eq('id', form['id']);
       if (mounted) {
@@ -312,7 +314,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
   Future<void> _handleDelete(dynamic id) async {
     try {
       await _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .delete()
           .eq('id', id); // delete by primary key
       if (mounted) {

@@ -98,7 +98,7 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
 
         // Fallback to raw if no pre-computed
         if (mMean == 0.0 && pMean == 0.0) {
-          final rawData = await _supabase.from('raw_GoogleSheet_data_result')
+          final rawData = await _supabase.from('sast_all_raw_data_survey')
               .select()
               .eq('subject_id', id)
               .eq('instructor_ID', widget.userId)

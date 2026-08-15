@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -100,7 +101,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return Padding(
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
                   padding: const EdgeInsets.all(24),
@@ -133,6 +136,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: isSaving ? null : () async {
+                            final navigator = Navigator.of(context);
+                            final messenger = ScaffoldMessenger.of(context);
                             setSheetState(() => isSaving = true);
                             try {
                               final result = await _authService.updateProfile(
@@ -145,8 +150,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                                   _firstName = firstController.text.trim();
                                   _lastName = lastController.text.trim();
                                 });
-                                final messenger = ScaffoldMessenger.of(context);
-                                Navigator.pop(context);
+                                navigator.pop();
                                 messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               } else {
                                 throw Exception(result.error);
@@ -154,7 +158,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             } catch (e) {
                               setSheetState(() => isSaving = false);
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                                messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                               }
                             }
                           },
@@ -193,11 +197,13 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
+                final navigator = Navigator.of(context);
+                final rootNavigator = Navigator.of(this.context);
                 final messenger = ScaffoldMessenger.of(context);
-                Navigator.pop(context);
+                navigator.pop();
                 final result = await _authService.deleteAccount();
                 if (result.success) {
-                   if (mounted) Navigator.pushAndRemoveUntil(this.context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                   if (mounted) rootNavigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                 } else {
                    if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
@@ -248,21 +254,24 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: isUpdating ? null : () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
+                    final rootNavigator = Navigator.of(this.context);
                     final newPw = newPasswordController.text.trim();
                     final confirmPw = confirmPasswordController.text.trim();
 
                     if (newPw.isEmpty || confirmPw.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     if (newPw != confirmPw) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     if (newPw.length < 6) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                       return;
                     }
 
@@ -273,8 +282,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       
                       if (mounted) {
                         if (result.success) {
-                          final messenger = ScaffoldMessenger.of(context);
-                          Navigator.pop(context);
+                          navigator.pop();
                           messenger.showSnackBar(const SnackBar(
                             content: Text('Password updated successfully. Please log in again.'), 
                             backgroundColor: AppColors.success
@@ -284,21 +292,20 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                           await Future.delayed(const Duration(seconds: 2));
                           await _authService.signOut();
                           if (mounted) {
-                            Navigator.pushAndRemoveUntil(
-                              this.context, 
+                            rootNavigator.pushAndRemoveUntil(
                               MaterialPageRoute(builder: (context) => const LoginScreen()), 
                               (route) => false
                             );
                           }
                         } else {
                           setDialogState(() => isUpdating = false);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
+                          messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
                         }
                       }
                     } catch (e) {
                       setDialogState(() => isUpdating = false);
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                        messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                       }
                     }
                   },
@@ -441,13 +448,16 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               height: 54,
                 child: SafeOutlinedButton(
                   onPressed: () async {
-                    await _authService.signOut();
-                    if (mounted) {
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginScreen()),
-                            (route) => false,
-                      );
+                    final rootNavigator = Navigator.of(context);
+                    final confirm = await showLogoutConfirmationDialog(context);
+                    if (confirm == true) {
+                      await _authService.signOut();
+                      if (mounted) {
+                        rootNavigator.pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                              (route) => false,
+                        );
+                      }
                     }
                   },
                   style: OutlinedButton.styleFrom(
@@ -484,7 +494,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeColor: AppColors.surface,
+        activeThumbColor: AppColors.surface,
         activeTrackColor: AppColors.success,
         inactiveThumbColor: Colors.white,
         inactiveTrackColor: AppColors.borderHairline,

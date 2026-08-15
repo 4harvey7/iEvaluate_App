@@ -211,6 +211,7 @@ class EvaluationService {
           .from('overall_total_survey')
           .select('''
             overall_mean, 
+            combined_score_mean,
             management_mean, 
             performance_mean, 
             total_responses,
@@ -219,9 +220,9 @@ class EvaluationService {
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds); // only get rows for our faculty
       
-      debugPrint('EvaluationService - Found ${stats?.length ?? 0} overall_total_survey records for faculty: $facultyIds');
+      debugPrint('EvaluationService - Found ${(stats as List).length} overall_total_survey records for faculty: $facultyIds');
 
-      if (stats == null || (stats as List).isEmpty) {
+      if ((stats as List).isEmpty) {
         debugPrint('EvaluationService - No records in overall_total_survey for faculty in term $termId. Dashboard will show 0.0.');
         return _emptySummary(); // no data found, zeros it is
       }
@@ -236,10 +237,9 @@ class EvaluationService {
       for (var row in list) {
         double mgmt = (row['management_mean'] as num?)?.toDouble() ?? 0.0;
         double perf = (row['performance_mean'] as num?)?.toDouble() ?? 0.0;
-        double overall = (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+        double overall = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
 
         // Fallback logic if the generated column is 0.0 but component means exist
-        // basin the overall_mean column is 0 but we have mgmt and perf, so compute it manually
         if (overall == 0.0 && (mgmt > 0 || perf > 0)) {
           overall = double.parse(((mgmt + perf) / 2).toStringAsFixed(2)); // average of two components
         }
@@ -278,16 +278,16 @@ class EvaluationService {
 
     final data = await _supabase
         .from('overall_total_survey')
-        .select('overall_mean, total_responses')
+        .select('overall_mean, combined_score_mean, total_responses')
         .eq('term_id', resolvedTermId); // get all records for this term
     
-    if (data == null || (data as List).isEmpty) return {}; // nothing in db, return empty
+    if ((data as List).isEmpty) return {}; // nothing in db, return empty
 
     final list = data as List;
     double sum = 0;
     int totalResp = 0;
     for (var row in list) {
-      sum += (row['overall_mean'] as num?)?.toDouble() ?? 0.0;    // accumulate score
+      sum += (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;    // accumulate score
       totalResp += (row['total_responses'] as int?) ?? 0;          // accumulate responses
     }
 
@@ -310,6 +310,7 @@ class EvaluationService {
         .from('overall_total_survey')
         .select('''
           overall_mean,
+          combined_score_mean,
           user_info!instructor_id(
             department_table!user_id(
               department_name!Department_name_ID(d_name)
@@ -317,8 +318,6 @@ class EvaluationService {
           )
         ''')
         .eq('term_id', resolvedTermId);
-    
-    if (data == null) return [];
 
     final Map<String, List<double>> deptScores = {}; // accumulate scores per dept name
     for (var row in (data as List)) {
@@ -340,7 +339,7 @@ class EvaluationService {
         deptName = deptNameData['d_name'] ?? 'Unknown';
       }
       
-      final score = (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+      final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
       deptScores.putIfAbsent(deptName, () => []).add(score); // add score to that dept's list
     }
 
@@ -360,15 +359,26 @@ class EvaluationService {
     final resolvedTermId = termId ?? await _getActiveTermId();
     if (resolvedTermId == null) return []; // no term, nobody on top today
 
+    // ── Find the previous term so we can compute a real trend ───────────────
+    // Same approach as faculty_roster_screen.dart — order terms by created_at,
+    // find the one immediately before the active term.
+    final allTerms = await _supabase
+        .from('academic_terms')
+        .select('id, created_at')
+        .order('created_at', ascending: true);
+
+    final termIds = (allTerms as List).map((t) => t['id'] as String).toList();
+    final currentTermIndex = termIds.indexOf(resolvedTermId);
+    final previousTermId = currentTermIndex > 0 ? termIds[currentTermIndex - 1] : null;
+
     // big join to get instructor name, dept, and subject count all in one query
     final data = await _supabase
         .from('overall_total_survey')
         .select('''
           instructor_id,
           overall_mean,
-          user_info!instructor_id(
-            first_name, 
-            last_name,
+          combined_score_mean,
+          user_info!instructor_id(\n            first_name, \n            last_name,
             department_table!user_id(
               department_name!Department_name_ID(d_name)
             ),
@@ -379,7 +389,28 @@ class EvaluationService {
         .order('overall_mean', ascending: false) // highest score first
         .limit(10); // top 10 only, dili need all of them
 
-    if (data == null) return [];
+    // ── Batch-fetch previous term scores for trend comparison ────────────────
+    // One extra query for all top-10 IDs at once — avoids N+1 per instructor.
+    final Map<String, double> prevScores = {};
+    if (previousTermId != null) {
+      final instructorIds = (data as List)
+          .map((row) => row['instructor_id'] as String)
+          .toList();
+
+      if (instructorIds.isNotEmpty) {
+        final prevData = await _supabase
+            .from('overall_total_survey')
+            .select('instructor_id, overall_mean, combined_score_mean')
+            .eq('term_id', previousTermId)
+            .filter('instructor_id', 'in', instructorIds);
+
+        for (final row in prevData as List) {
+          final id = row['instructor_id'] as String?;
+          final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+          if (id != null) prevScores[id] = score;
+        }
+      }
+    }
 
     return (data as List).map((row) {
       final userInfo = row['user_info'];
@@ -400,13 +431,28 @@ class EvaluationService {
       
       final subjects = userInfo['instructor_subjects'] as List? ?? []; // count their subjects
 
+      // ── Real trend: compare current score vs previous term ─────────────────
+      // Threshold of 0.1 — anything smaller is noise, not a real change.
+      final currentScore = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+      final prevScore = prevScores[row['instructor_id'] as String] ?? 0.0;
+      final String trend;
+      if (prevScore == 0.0) {
+        trend = 'flat'; // no previous term data to compare — dont guess
+      } else if (currentScore - prevScore > 0.1) {
+        trend = 'up'; // improved by more than 0.1 — genuine increase
+      } else if (prevScore - currentScore > 0.1) {
+        trend = 'down'; // dropped by more than 0.1 — dean should notice
+      } else {
+        trend = 'flat'; // within noise threshold — status quo
+      }
+
       return InstructorPerformance(
         id: row['instructor_id'],
         name: '${userInfo['first_name']} ${userInfo['last_name']}', // combine first and last name
         department: deptName,
-        overallScore: (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+        overallScore: currentScore,
         subjectCount: subjects.length, // number of subjects they have assigned
-        trend: 'up', // hardcoded for now, real trend calculation is future work, bahala na
+        trend: trend, // real term-over-term trend, not hardcoded
       );
     }).whereType<InstructorPerformance>().toList(); // filter out the nulls we skipped
   }
@@ -416,17 +462,44 @@ class EvaluationService {
   Future<List<Map<String, dynamic>>> getInstructorHistory(String instructorId) async {
     final data = await _supabase
         .from('overall_total_survey')
-        .select('overall_mean, academic_terms(semester, academic_year)') // join to get term label
-        .eq('instructor_id', instructorId)
-        .order('created_at', ascending: true); // oldest first so chart go left to right
+        .select('overall_mean, combined_score_mean, academic_terms(semester, academic_year)') // join to get term label
+        .eq('instructor_id', instructorId);
 
-    if (data == null) return [];
+    final rows = List<Map<String, dynamic>>.from(data as List);
 
-    return (data as List).map((row) {
-      final term = row['academic_terms'];
+    // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
+    const semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
+    rows.sort((a, b) {
+      final aTerm = a['academic_terms'] as Map?;
+      final bTerm = b['academic_terms'] as Map?;
+      final aYear = int.tryParse(aTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+      final bYear = int.tryParse(bTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+      if (aYear != bYear) return aYear.compareTo(bYear);
+      final aSem = aTerm?['semester']?.toString() ?? '';
+      final bSem = bTerm?['semester']?.toString() ?? '';
+      final aSemKey = semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
+      final bSemKey = semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
+      return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
+    });
+
+    return rows.map((row) {
+      final term = row['academic_terms'] as Map?;
+      // Build compact label: "1st\n25-26"
+      String label = 'Term';
+      if (term != null) {
+        final sem = term['semester']?.toString() ?? '';
+        final ay = term['academic_year']?.toString() ?? '';
+        final ayParts = ay.split('-');
+        final yearShort = ayParts.length == 2
+            ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+              '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
+            : ay;
+        final ordinal = sem.split(' ').isNotEmpty ? sem.split(' ').first : sem; // "1st"
+        label = '$ordinal\n$yearShort'; // "1st\n25-26"
+      }
       return {
-        'sem': '${term['semester']} ${term['academic_year']}', // combine semester and year for label
-        'score': (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+        'sem': label,
+        'score': (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
       };
     }).toList();
   }
@@ -442,8 +515,6 @@ class EvaluationService {
         .select('overall_management_mean, subjects!subject_id(subject_code, subject_name)')
         .eq('instructor_id', instructorId)
         .eq('term_id', termId); // only get subjects for the active term
-
-    if (data == null) return [];
 
     return (data as List).map((row) {
       final subjectRaw = row['subjects'];
@@ -526,7 +597,7 @@ class EvaluationService {
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds);
 
-      if (mgmtResults == null || (mgmtResults as List).isEmpty) return []; // no data at all
+      if ((mgmtResults as List).isEmpty) return []; // no data at all
 
       // Create a map for quick performance lookup: "instructorId_subjectId" -> mean
       // key combines instructor and subject so we can find it fast by two IDs
@@ -629,7 +700,13 @@ class EvaluationService {
           deptAvg: double.parse(deptAvg.toStringAsFixed(2)),
           difficulty: avgScore < 3.5 ? 'High' : (avgScore < 4.5 ? 'Moderate' : 'Low'), // lower score = harder to do well
           sentiment: avgScore < 3.0 ? 'Critical' : (avgScore < 4.0 ? 'Neutral' : 'Positive'), // sentiment based on score range
-          trend: 'stable', // hardcoded for now, future work to compute real trend
+          // Trend: compare subject avg to dept avg — no extra query needed.
+          // >0.1 above dept avg = up (subject doing well), >0.1 below = down (needs attention).
+          trend: avgScore - deptAvg > 0.1
+              ? 'up'
+              : deptAvg - avgScore > 0.1
+                  ? 'down'
+                  : 'stable',
           sections: rows.length,
           instructorBreakdown: breakdowns,
           aiNote: (deptAvg - avgScore) > 0.5 ? "AI Note: Significant performance gap vs. department average." : null, // flag if subject is notably below dept avg
@@ -682,25 +759,25 @@ class EvaluationService {
           .from('overall_total_survey')
           .select('''
             overall_mean,
+            combined_score_mean,
             instructor_id,
             user_info!instructor_id(first_name, last_name)
           ''')
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds)
           .lt('overall_mean', threshold); // only get rows below the threshold score
-      
-      if (stats == null) return [];
 
       final List<ActionAlert> alerts = [];
       for (var row in (stats as List)) {
         final userInfo = row['user_info'];
         final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown'; // fallback name
+        final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
         
         // create one alert per underperforming instructor
         alerts.add(ActionAlert(
           type: 'Performance',
           title: 'Low Performance Alert',
-          desc: "Score (${(row['overall_mean'] as num?)?.toStringAsFixed(2) ?? '?'}) is below the department average of ${threshold.toStringAsFixed(2)}.",
+          desc: "Score (${score.toStringAsFixed(2)}) is below the department average of ${threshold.toStringAsFixed(2)}.",
           instructorId: row['instructor_id'],
           instructorName: name,
           dateFlagged: DateTime.now(), // flag date is now, murag fresh alert
@@ -723,8 +800,6 @@ class EvaluationService {
           .select('*, user_info!instructor_id(first_name, last_name)') // join to get instructor name
           .eq('dean_id', userId) // only get this dean's reports
           .order('created_at', ascending: false); // newest first
-      
-      if (data == null) return [];
 
       return (data as List).map((row) {
         // Prefer stored name; fall back to joined user_info

@@ -68,7 +68,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   // auto = AI handled it, manual = needed review, corrected = was fixed after the fact
   Future<void> _loadAiAccuracy() async {
     try {
-      var query = _supabase.from('raw_GoogleSheet_data_result').select('id, validation_status');
+      var query = _supabase.from('sast_all_raw_data_survey').select('id, validation_status');
       if (_currentTermId != null) query = query.eq('term_id', _currentTermId!); // filter by current term
       final rows = await query;
 
@@ -100,10 +100,10 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
       // start of today in UTC ISO string — used to filter "today's" records
       final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
 
-      // raw_GoogleSheet_data_result has sao_staff_id referencing user_info
+      // sast_all_raw_data_survey has sao_staff_id referencing user_info
       // join user_info to get readable names instead of UUIDs — dili ta readable ang UUID
       var query = _supabase
-          .from('raw_GoogleSheet_data_result')
+          .from('sast_all_raw_data_survey')
           .select('sao_staff_id, created_at, user_info!sao_staff_id(first_name, last_name)');
       if (_currentTermId != null) query = query.eq('term_id', _currentTermId!); // term filter
       final rows = await query;
@@ -453,37 +453,50 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
       ),
       child: Column(
         children: _deptProgress.map((dept) {
-          final progress = (dept['progress'] as double).clamp(0.0, 1.0); // clamp to valid range
           final total = dept['total'] as int;
-          final isTop = progress == 1.0; // this dept has the most responses — crown them
+          // check if it's the top department (most responses)
+          final isTop = _deptProgress.isNotEmpty && total == (_deptProgress.first['total'] as int) && total > 0;
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: isTop ? AppColors.success.withValues(alpha: 0.3) : AppColors.borderSubtle, width: isTop ? 1.5 : 0.5),
+            ),
+            child: Row(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // department name on the left — truncated if too long
-                    Expanded(
-                        child: Text(dept['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                            overflow: TextOverflow.ellipsis)),
-                    const SizedBox(width: 8),
-                    // response count on the right — green if top dept, blue otherwise
-                    Text('$total responses',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: isTop ? AppColors.success : AppColors.primary)),
-                  ],
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isTop ? AppColors.success.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    isTop ? Icons.star_rounded : Icons.domain, 
+                    color: isTop ? AppColors.success : AppColors.primary, 
+                    size: 20
+                  ),
                 ),
-                const SizedBox(height: 8),
-                // the actual progress bar — full width for top dept, proportional for others
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress, // 0.0 to 1.0
-                    backgroundColor: AppColors.background,
-                    color: isTop ? AppColors.success : AppColors.primary, // green for top, blue for rest
-                    minHeight: 8,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    dept['name'], // department name
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isTop ? AppColors.success.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: isTop ? AppColors.success.withValues(alpha: 0.2) : AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  child: Text(
+                    '$total forms',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: isTop ? AppColors.success : AppColors.primary, fontSize: 13),
                   ),
                 ),
               ],

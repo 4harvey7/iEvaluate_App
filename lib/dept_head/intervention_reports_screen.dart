@@ -101,7 +101,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return Padding(
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 // Shift content up when keyboard opens — dili ta hide the form fields
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
@@ -207,6 +209,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                           ),
                           // Disabled while submitting to prevent duplicate inserts
                           onPressed: isSubmitting ? null : () async {
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            final navigator = Navigator.of(context);
                             final deanId = _supabase.auth.currentUser?.id;
                             // Must have deanId and instructorId — otherwise something is very wrong
                             if (deanId == null || alert.instructorId == null) return;
@@ -221,14 +225,14 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                 notes: notesController.text, // Dean's remarks
                               );
 
-                              if (mounted) {
-                                Navigator.pop(context); // Close the sheet
-                                _loadData(); // Reload so the new report appears in the log
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
-                              }
+                              if (!mounted) return;
+                              navigator.pop(); // Close the sheet
+                              _loadData(); // Reload so the new report appears in the log
+                              scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
                             } catch (e) {
+                              if (!mounted) return;
                               setSheetState(() => isSubmitting = false); // Re-enable on error
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },
                           // Spinner while submitting, text when idle
@@ -501,10 +505,12 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                     onPressed: report.status == 'Resolved'
                                         ? null // Button does nothing if already resolved
                                         : () async {
+                                      final scaffoldMessenger = ScaffoldMessenger.of(context);
                                       try {
                                         await _evaluationService.resolveIntervention(report.id); // Update status to Resolved
+                                        if (!mounted) return;
                                         _loadData(); // Reload to reflect the change
-                                        ScaffoldMessenger.of(context).showSnackBar(
+                                        scaffoldMessenger.showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'Intervention marked as resolved.',
@@ -512,7 +518,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                           ),
                                         );
                                       } catch (e) {
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                                        if (!mounted) return;
+                                        scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e')));
                                       }
                                     },
                                   ),

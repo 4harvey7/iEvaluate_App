@@ -13,7 +13,6 @@
 //   "SUPABASE_URL": "https://xxxx.supabase.co",
 //   "SUPABASE_ANON_KEY": "eyJ...",
 //   "N8N_BASE_URL": "http://192.168.x.x:5678",
-//   "PYTHON_API_BASE_URL": "http://192.168.x.x:5000",
 //   "USE_N8N_TEST": "true",
 //   "N8N_WEBHOOK_HEALTH": "webhook/health-check",
 //   "N8N_WEBHOOK_SCAN_UPLOAD": "webhook/sast-scan-upload",
@@ -50,9 +49,6 @@ class Env {
   static const String n8nBaseUrl =
       String.fromEnvironment('N8N_BASE_URL', defaultValue: '');
 
-  static const String pythonApiBaseUrl =
-      String.fromEnvironment('PYTHON_API_BASE_URL', defaultValue: '');
-
   // ── Full n8n Webhook URLs ──────────────────────────────────────────────────
   static String get n8nHealthUrl =>
       '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_HEALTH')}';
@@ -75,10 +71,6 @@ class Env {
   static String get n8nImportErrorCorrectionUrl =>
       '$n8nBaseUrl/$_webhookPrefix/${_path('N8N_WEBHOOK_IMPORT_ERROR_CORRECTION')}';
 
-  // ── Full Python API URLs ───────────────────────────────────────────────────
-  static String get pythonProcessCropUrl =>
-      '$pythonApiBaseUrl/${_path('PYTHON_PROCESS_CROP')}';
-
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   static const _rawWebhookPaths = <String, String>{
@@ -96,8 +88,6 @@ class Env {
         String.fromEnvironment('N8N_WEBHOOK_SUBJECT_BULK_IMPORT', defaultValue: 'webhook/subject-bulk-import'),
     'N8N_WEBHOOK_IMPORT_ERROR_CORRECTION':
         String.fromEnvironment('N8N_WEBHOOK_IMPORT_ERROR_CORRECTION', defaultValue: 'webhook/import-error-correction'),
-    'PYTHON_PROCESS_CROP':
-        String.fromEnvironment('PYTHON_PROCESS_CROP', defaultValue: 'process-crop'),
   };
 
   /// Strips any leading "webhook/" or "webhook-test/" prefix so the

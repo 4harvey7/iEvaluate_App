@@ -28,6 +28,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   String _searchQuery = ''; // search text
   String _selectedRoleFilter = 'All'; // which role to filter by
   String _sortBy = 'Newest'; // sort direction
+  final List<String> _sortOptions = ['Newest', 'Oldest', 'A-Z', 'Z-A']; // added sort options
 
   // called once on screen open — start fetching data right away
   @override
@@ -129,9 +130,18 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       // 2. then sort by ID within same status group
       if (_sortBy == 'Newest') {
         return b['id'].toString().compareTo(a['id'].toString());
-      } else {
+      } else if (_sortBy == 'Oldest') {
         return a['id'].toString().compareTo(b['id'].toString());
+      } else if (_sortBy == 'A-Z') {
+        final nameA = '${a['user_info']['first_name']} ${a['user_info']['last_name']}'.toLowerCase();
+        final nameB = '${b['user_info']['first_name']} ${b['user_info']['last_name']}'.toLowerCase();
+        return nameA.compareTo(nameB);
+      } else if (_sortBy == 'Z-A') {
+        final nameA = '${a['user_info']['first_name']} ${a['user_info']['last_name']}'.toLowerCase();
+        final nameB = '${b['user_info']['first_name']} ${b['user_info']['last_name']}'.toLowerCase();
+        return nameB.compareTo(nameA);
       }
+      return 0;
     });
 
     return filtered;
@@ -188,14 +198,14 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
         // All-time scans by this SAO staff — from the beginning of time
         final all = await _supabase
-            .from('raw_GoogleSheet_data_result')
+            .from('sast_all_raw_data_survey')
             .select('created_at')
             .eq('sao_staff_id', userId);
         totalScans = (all as List).length;
 
         // This term's scans — scoped to current active term
         var termQ = _supabase
-            .from('raw_GoogleSheet_data_result')
+            .from('sast_all_raw_data_survey')
             .select('created_at')
             .eq('sao_staff_id', userId);
         if (termId != null) termQ = termQ.eq('term_id', termId); // apply term filter
@@ -378,6 +388,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             SafeElevatedButton(
               onPressed: () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 final selectedRole = _saoRoles.firstWhere((r) => r['id'] == selectedRoleId);
                 // check if this is a promotion from non-admin to admin
                 final bool isUpgradingToAdmin = selectedRole['Roles'] == 'SAO_ADMIN' && 
@@ -408,13 +420,13 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                        isSaving = false;
                      });
                      
-                     ScaffoldMessenger.of(context).showSnackBar(
+                     scaffoldMessenger.showSnackBar(
                        SnackBar(content: Text('Verification code sent to ${currentUser?.email}'))
                      );
                      return; // stop here and wait for user to enter the code
                    } catch (e) {
                      setDialogState(() => isSaving = false);
-                     ScaffoldMessenger.of(context).showSnackBar(
+                     scaffoldMessenger.showSnackBar(
                        SnackBar(content: Text('Failed to send verification: $e'), backgroundColor: Colors.red)
                      );
                      return;
@@ -448,8 +460,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
                   if (response.status == 200) {
                     _fetchData(); // reload the list to show changes
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    if (mounted) navigator.pop();
+                    scaffoldMessenger.showSnackBar(
                       const SnackBar(content: Text('Personnel updated successfully!'), backgroundColor: AppColors.success)
                     );
                   } else {
@@ -459,7 +471,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error)
                   );
                 }
@@ -539,6 +551,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 if (selectedRoleName == null) return; // no role selected, ayaw proceed
                 // Validate required fields — all four must be filled
                 final fn = firstController.text.trim();
@@ -575,11 +589,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                        },
                      );
                      setDialogState(() { needsCode = true; isSaving = false; }); // switch to OTP step
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
                    } catch (e) {
                      setDialogState(() => isSaving = false);
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
                      return;
                    }
                 }
@@ -606,14 +620,14 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
                   if (response.status == 200 || response.status == 201) {
                     _fetchData(); // refresh list
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
+                    if (mounted) navigator.pop();
+                    scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
                     throw response.data['error'] ?? 'Server error'; // server said no
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
                 }
               },
               child: isSaving
@@ -626,64 +640,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     );
   }
 
-  // the filter/sort bottom sheet — same pattern as user management
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
-                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
-                  // newest or oldest choice chips
-                  Row(
-                    children: ['Newest', 'Oldest'].map((s) => Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(s),
-                        selected: _sortBy == s,
-                        // update both modal state and parent state
-                        onSelected: (val) { if(val) { setModalState(() => _sortBy = s); setState((){}); } },
-                      ),
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold)),
-                  // role filter: "All" + each SAO role
-                  Wrap(
-                    spacing: 8,
-                    children: ['All', ..._saoRoles.map((r) => r['Roles'])].map((r) => ChoiceChip(
-                      label: Text(r),
-                      selected: _selectedRoleFilter == r,
-                      onSelected: (val) { if(val) { setModalState(() => _selectedRoleFilter = r); setState((){}); } },
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 32),
-                  // apply = just close, filter is already live
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Apply'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  // Filter bottom sheet removed in favor of inline dropdowns
 
   // the main build method — the whole screen with appbar, search, and list
   @override
@@ -713,28 +670,65 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
-                // search + filter row at the top
+                // search + inline dropdowns for filters
                 Container(
                   color: AppColors.surface,
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: TextField(
-                          onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
-                          decoration: InputDecoration(
-                            hintText: 'Search Name or ID...',
-                            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-                            filled: true,
-                            fillColor: AppColors.background,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          ),
+                      TextField(
+                        onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
+                        decoration: InputDecoration(
+                          hintText: 'Search Name or ID...',
+                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                          filled: true,
+                          fillColor: AppColors.background,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: const Icon(Icons.filter_list, color: AppColors.primary),
-                        onPressed: _showFilterBottomSheet,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedRoleFilter,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: AppColors.background,
+                              ),
+                              icon: const Icon(Icons.filter_list, color: AppColors.primary),
+                              items: ['All', ..._saoRoles.map((r) => r['Roles'].toString())].map((String role) {
+                                return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => _selectedRoleFilter = value);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _sortBy,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: AppColors.background,
+                              ),
+                              icon: const Icon(Icons.sort, color: AppColors.primary),
+                              items: _sortOptions.map((String option) {
+                                return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => _sortBy = value);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

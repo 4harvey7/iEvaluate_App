@@ -26,6 +26,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   String _searchQuery = ''; // what the admin typed in the search box
   String _selectedRoleFilter = 'All'; // which role filter is selected, default all
   String _sortBy = 'Newest'; // sort order — newest or oldest first
+  final List<String> _sortOptions = ['Newest', 'Oldest', 'A-Z', 'Z-A']; // added a-z sorting
 
   // called once when screen opens — start loading data right away
   @override
@@ -118,13 +119,22 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       return true; // this user passed all filters, include them
     }).toList();
 
-    // sort by ID string — newest means bigger ID, oldest means smaller
+    // sort by ID string or Name
     filtered.sort((a, b) {
       if (_sortBy == 'Newest') {
         return b['id'].toString().compareTo(a['id'].toString());
-      } else {
+      } else if (_sortBy == 'Oldest') {
         return a['id'].toString().compareTo(b['id'].toString());
+      } else if (_sortBy == 'A-Z') {
+        final nameA = '${a['user_info']['first_name']} ${a['user_info']['last_name']}'.toLowerCase();
+        final nameB = '${b['user_info']['first_name']} ${b['user_info']['last_name']}'.toLowerCase();
+        return nameA.compareTo(nameB);
+      } else if (_sortBy == 'Z-A') {
+        final nameA = '${a['user_info']['first_name']} ${a['user_info']['last_name']}'.toLowerCase();
+        final nameB = '${b['user_info']['first_name']} ${b['user_info']['last_name']}'.toLowerCase();
+        return nameB.compareTo(nameA);
       }
+      return 0;
     });
 
     return filtered;
@@ -193,13 +203,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             // Sum their scores from overall_total_survey — compute dept average
             final rows = await _supabase
                 .from('overall_total_survey')
-                .select('overall_mean, total_responses')
+                .select('overall_mean, combined_score_mean, total_responses')
                 .eq('term_id', termId)
                 .filter('instructor_id', 'in', instrIds);
             int total = 0; double sum = 0;
             for (final r in (rows as List)) {
               total += (r['total_responses'] as int? ?? 0);
-              sum += (r['overall_mean'] as num? ?? 0).toDouble();
+              sum += (r['combined_score_mean'] as num?)?.toDouble() ?? (r['overall_mean'] as num?)?.toDouble() ?? 0.0;
             }
             // package the summary into a map
             deptSummary = {
@@ -225,7 +235,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         }
         // get their overall evaluation score this term
         overallScore = await _supabase.from('overall_total_survey')
-            .select('overall_mean, management_mean, performance_mean, total_responses')
+            .select('overall_mean, combined_score_mean, management_mean, performance_mean, total_responses')
             .eq('instructor_id', userId).eq('term_id', termId ?? '').maybeSingle();
       }
     } catch (e) { debugPrint('UserDetailsModal error: $e'); } // log it and continue
@@ -288,7 +298,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         const SizedBox(height: 12),
         // three scores: overall, management, performance — the holy trinity of evaluation
         Row(children: [
-          Expanded(child: _infoTile('Overall', (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primary)),
+          Expanded(child: _infoTile('Overall', (overall['combined_score_mean'] as num?)?.toStringAsFixed(2) ?? (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primary)),
           const SizedBox(width: 10),
           Expanded(child: _infoTile('Management', (overall['management_mean'] as num?)?.toStringAsFixed(2) ?? '-', Colors.teal)),
           const SizedBox(width: 10),
@@ -403,6 +413,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 // Validate fields first — ayaw submit if empty fields
                 final fn = firstController.text.trim();
                 final ln = lastController.text.trim();
@@ -441,11 +453,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                      );
                      // switch dialog to code entry step
                      setDialogState(() { needsCode = true; isSaving = false; });
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
                    } catch (e) {
                      setDialogState(() => isSaving = false);
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
                      return;
                    }
                 }
@@ -472,14 +484,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                   if (response.status == 200) {
                     _fetchData(); // refresh list to show the new user
-                    if (mounted) Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
+                    if (mounted) navigator.pop();
+                    scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
                     throw response.data['error'] ?? 'Server error'; // throw the server's error message
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
                 }
               },
               // show spinner when saving, show text otherwise
@@ -560,6 +572,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                final navigator = Navigator.of(context);
                 final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
                 final roleName = role['Roles'];
                 // check if they're being promoted to dept head when they weren't before
@@ -593,10 +607,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     'isAcademic': true // flag to tell the function this is academic user
                   });
                   _fetchData(); // reload users after update
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) navigator.pop();
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error));
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error));
                 }
               },
               child: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Save Changes'),
@@ -607,65 +621,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  // the bottom sheet for filtering and sorting users — like settings for the list
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext context) {
-        // StatefulBuilder so filter choices update visually inside the sheet
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Filter & Sort', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 24),
-                  const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
-                  // sort chips: newest first or oldest first
-                  Row(
-                    children: ['Newest', 'Oldest'].map((s) => Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(s),
-                        selected: _sortBy == s,
-                        // update both the modal state AND the main screen state
-                        onSelected: (val) { if(val) { setModalState(() => _sortBy = s); setState((){}); } },
-                      ),
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Filter By Role', style: TextStyle(fontWeight: FontWeight.bold)),
-                  // role filter chips — "All" plus each available role
-                  Wrap(
-                    spacing: 8,
-                    children: ['All', ..._roles.map((r) => r['Roles'])].map((r) => ChoiceChip(
-                      label: Text(r),
-                      selected: _selectedRoleFilter == r,
-                      onSelected: (val) { if(val) { setModalState(() => _selectedRoleFilter = r); setState((){}); } },
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 32),
-                  // apply button — just closes the sheet, filter already applied live
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Apply'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+  // Filter bottom sheet removed in favor of inline dropdowns for better visibility
 
   // the main build — the whole screen is a list of users with search bar on top
   @override
@@ -695,28 +651,65 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : Column(
               children: [
-                // search bar + filter button row
+                // search bar + inline dropdowns for filters
                 Container(
                   color: AppColors.surface,
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
+                  child: Column(
                     children: [
-                      Expanded(
-                        child: TextField(
-                          onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
-                          decoration: InputDecoration(
-                            hintText: 'Search Name or ID...',
-                            prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-                            filled: true,
-                            fillColor: AppColors.background,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          ),
+                      TextField(
+                        onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
+                        decoration: InputDecoration(
+                          hintText: 'Search Name or ID...',
+                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                          filled: true,
+                          fillColor: AppColors.background,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: const Icon(Icons.filter_list, color: AppColors.primary),
-                        onPressed: _showFilterBottomSheet, // open filter options
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedRoleFilter,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: AppColors.background,
+                              ),
+                              icon: const Icon(Icons.filter_list, color: AppColors.primary),
+                              items: ['All', ..._roles.map((r) => r['Roles'].toString())].map((String role) {
+                                return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => _selectedRoleFilter = value);
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _sortBy,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                filled: true,
+                                fillColor: AppColors.background,
+                              ),
+                              icon: const Icon(Icons.sort, color: AppColors.primary),
+                              items: _sortOptions.map((String option) {
+                                return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => _sortBy = value);
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

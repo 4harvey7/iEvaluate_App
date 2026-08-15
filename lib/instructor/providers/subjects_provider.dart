@@ -9,16 +9,19 @@ import '../models/subject.dart';
 class SubjectsProvider extends ChangeNotifier {
   final SupabaseClient _supabase;
   final List<Subject> _subjects = [];
+  double? _trueTermAverage;
 
   SubjectsProvider({SupabaseClient? client})
       : _supabase = client ?? Supabase.instance.client;
 
   UnmodifiableListView<Subject> get subjects => UnmodifiableListView(_subjects);
+  double? get trueTermAverage => _trueTermAverage;
 
   bool _isFetching = false;
 
   void clear() {
     _subjects.clear();
+    _trueTermAverage = null;
     notifyListeners();
   }
 
@@ -33,6 +36,7 @@ class SubjectsProvider extends ChangeNotifier {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) {
         _subjects.clear();
+        _trueTermAverage = null;
         notifyListeners();
         return;
       }
@@ -51,6 +55,7 @@ class SubjectsProvider extends ChangeNotifier {
       if (activeTermId == null || activeTermId.isEmpty) {
         debugPrint('[SubjectsProvider] No active term found.');
         _subjects.clear();
+        _trueTermAverage = null;
         notifyListeners();
         return;
       }
@@ -66,6 +71,7 @@ class SubjectsProvider extends ChangeNotifier {
 
       if ((assignmentRows as List).isEmpty) {
         _subjects.clear();
+        _trueTermAverage = null;
         notifyListeners();
         return;
       }
@@ -85,6 +91,7 @@ class SubjectsProvider extends ChangeNotifier {
 
       if (subjectById.isEmpty) {
         _subjects.clear();
+        _trueTermAverage = null;
         notifyListeners();
         return;
       }
@@ -107,10 +114,23 @@ class SubjectsProvider extends ChangeNotifier {
             .eq('term_id', activeTermId)
             .filter('subject_id', 'in', validSubjectIds)
             .order('created_at', ascending: false),
+        _supabase
+            .from('overall_total_survey')
+            .select('overall_mean, combined_score_mean')
+            .eq('instructor_id', userId)
+            .eq('term_id', activeTermId)
+            .maybeSingle(),
       ]);
 
       final mgmtRows = (results[0] as List);
       final perfRows = (results[1] as List);
+      final overallAnalytics = results[2] as Map<String, dynamic>?;
+
+      if (overallAnalytics != null) {
+        _trueTermAverage = (overallAnalytics['combined_score_mean'] as num?)?.toDouble() ?? (overallAnalytics['overall_mean'] as num?)?.toDouble();
+      } else {
+        _trueTermAverage = null;
+      }
 
       final Map<String, Map<String, dynamic>> mgmtBySubjectId = {};
       for (var row in mgmtRows) {
@@ -148,7 +168,7 @@ class SubjectsProvider extends ChangeNotifier {
         if (mMean == 0.0 && pMean == 0.0) {
           try {
             final rawRows = await _supabase
-                .from('raw_GoogleSheet_data_result')
+                .from('sast_all_raw_data_survey')
                 .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
                 .eq('subject_id', id)
                 .eq('instructor_ID', userId)

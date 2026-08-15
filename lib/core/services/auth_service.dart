@@ -373,10 +373,12 @@ class AuthService {
     } catch (e) {
       debugPrint('[AUTH] Reset Password Error (type): ${e.runtimeType}');
       final msg = e.toString();
-      if (msg.contains('SocketException') || msg.contains('Failed host lookup')) {
+      // detect ALL network-related errors (not just SocketException) and surface them to user
+      if (_isNetworkError(msg) || msg.contains('Failed host lookup')) {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
-      // even on error we return success, same behavior so no info leak
+      // for all other errors (e.g. auth service errors) we still return success
+      // this prevents attackers from learning which emails are registered — security 101
       return const AuthResult(success: true);
     }
   }

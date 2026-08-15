@@ -13,6 +13,7 @@ import 'faculty_roster_screen.dart';
 import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
 import 'dept_head_settings_screen.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // The main widget for the department dashboard. Very importente kaayo.
 // It is stateful because data changes and we need to rebuild the UI — dili pwede static.
@@ -169,11 +170,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   // Word cloud colours — cycle through these based on word index
   // We have 5 colors, repeat if more than 5 words. bahala na, looks nice anyway.
   static const List<Color> _cloudColors = [
-    AppColors.primary,
-    AppColors.success,
-    AppColors.warning,
-    AppColors.textPrimary,
-    AppColors.primaryDeep,
+    AppColors.primary,           // Vibrant Orange
+    Color(0xFF4ADE80),           // Bright Neon Green
+    Colors.lightBlueAccent,      // Bright Blue
+    Color(0xFFFACC15),           // Bright Yellow
+    Color(0xFFF87171),           // Bright Coral/Red
   ];
 
   // The main build method — builds the entire screen UI.
@@ -255,15 +256,14 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Avatar shows first letter of dean's name — fancy but simple
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                    child: Text(_deanName.isNotEmpty ? _deanName[0] : '?', style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold)),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                    child: Text(_deanName.isNotEmpty ? _deanName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 12),
                   Text(_deanName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                  Text('Dean • ${_deptInfo['college']}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
+                  Text('Department Head • ${_deptInfo['college'] ?? 'Academic Affairs'}', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
@@ -296,23 +296,27 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
               );
             }),
             // Go to settings — where user change their info or password
-            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () {
+            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () async {
               Navigator.pop(context);
-              Navigator.push(
+              await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const DeptHeadSettingsScreen()),
               );
+              _loadInitialData(); // reload name and data after returning
             }),
             const Divider(),
             // Log out — sign out and go back to login. No coming back without logging in again.
             _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-              await _authService.signOut(); // Bye bye session
-              if (mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                      (route) => false, // Remove ALL previous routes — no going back
-                );
+              final navigator = Navigator.of(context);
+              final confirm = await showLogoutConfirmationDialog(context);
+              if (confirm == true) {
+                await _authService.signOut(); // Bye bye session
+                if (mounted) {
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false, // Remove ALL previous routes — no going back
+                  );
+                }
               }
             }),
           ],
@@ -396,33 +400,39 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      // Progress bar section — shows how many students already submitted evals
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Evaluation Completion Progress', style: TextStyle(color: Colors.white, fontSize: 12)),
-                              // Show percentage — e.g. "72%" completion. Ayaw let it be 0%.
-                              Text('${(_deptInfo['completionRate'] * 100).toInt()}%', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // The actual progress bar — fills based on completion rate
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: _deptInfo['completionRate'], // 0.0 to 1.0
-                              backgroundColor: Colors.white24,
-                              color: AppColors.primary,
-                              minHeight: 8,
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.description_outlined, color: AppColors.primary, size: 20),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Shows total evaluations submitted — dean love seeing this number go up
-                          Text('${_deptInfo['totalEvals']} forms processed this semester', style: const TextStyle(color: Colors.white70, fontSize: 12), overflow: TextOverflow.ellipsis),
-                        ],
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Total Forms Processed', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${_deptInfo['totalEvals']} forms this semester',
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -508,14 +518,19 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
 
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
+                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    gradient: const LinearGradient(
+                      colors: [AppColors.textPrimary, Color(0xFF0F172A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5))],
+                    boxShadow: [
+                      BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))
+                    ],
                   ),
                   child: _wordCloudData.isEmpty
-                  // No word data yet — show placeholder message
                   ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(
@@ -525,28 +540,51 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                       ),
                     )
-                  // Got words — render them with size based on frequency count
                   : Wrap(
                     alignment: WrapAlignment.center,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 16.0,
+                    spacing: 12.0,
                     runSpacing: 12.0,
                     children: List.generate(_wordCloudData.length, (i) {
                       final wordData = _wordCloudData[i];
                       final count = (wordData['total_count'] as num?)?.toInt() ?? 1;
-                      // Scale font: min 12, max 36 based on count — more frequent = bigger word
+                      
+                      // Use relative scaling: most frequent word is 1.0, least is near 0.0
                       final maxCount = (_wordCloudData.first['total_count'] as num?)?.toInt() ?? 1;
-                      final fontSize = 12.0 + (count / maxCount) * 24.0; // Simple linear scale
-                      final color = _cloudColors[i % _cloudColors.length]; // Cycle through colors
-                      return Text(
-                        wordData['word'],
+                      final double ratio = maxCount > 0 ? (count / maxCount) : 1.0;
+                      
+                      // Scale between 12px and 32px based on frequency
+                      final double fontSize = 12.0 + (ratio * 20.0);
+                      
+                      final String word = wordData['word'] ?? '';
+                      final color = _cloudColors[i % _cloudColors.length];
+                      
+                      final Widget wordText = Text(
+                        word,
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: fontSize,
-                          // Bold if word appears in top 50% of frequency — stand out more
-                          fontWeight: count > (maxCount * 0.5) ? FontWeight.bold : FontWeight.w500,
+                          fontWeight: ratio > 0.5 ? FontWeight.w800 : FontWeight.w600,
                           color: color,
+                          height: 1.1,
+                          letterSpacing: -0.2,
+                          shadows: [
+                            Shadow(color: Colors.black.withValues(alpha: 0.3), offset: const Offset(0, 1), blurRadius: 2),
+                          ],
                         ),
                       );
+
+                      // Rotate roughly every 4th word for a dynamic look
+                      if (i % 4 == 0 && i != 0) {
+                        return RotatedBox(
+                          quarterTurns: 3,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: wordText,
+                          ),
+                        );
+                      }
+                      return wordText;
                     }),
                   ),
                 ),
@@ -560,21 +598,43 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   }
 
   // --- Helper Widget for Drawer ---
-  // Builds each row item in the navigation drawer — keeps code clean, dili ta repeat
-  // isLogout flag turns the text red so user know its the danger button
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
+  // Builds each row item in the navigation drawer — keeps code clean
+  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
+      {bool isLogout = false, int badgeCount = 0, VoidCallback? onTap}) {
+    final color = isLogout
+        ? AppColors.error
+        : (isSelected ? AppColors.primary : AppColors.textPrimary);
     return ListTile(
-      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon, color: color),
+          if (badgeCount > 0)
+            Positioned(
+              top: -4,
+              right: -6,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                    color: AppColors.error, shape: BoxShape.circle),
+                child: Text('$badgeCount',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // Bold if current page
+          color: color,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
         overflow: TextOverflow.ellipsis,
       ),
       selected: isSelected,
-      // If no onTap given, default to showing "coming soon" — wala choice for unimplemented items
       onTap: onTap ?? () {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title coming soon!")));

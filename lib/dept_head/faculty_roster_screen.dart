@@ -103,6 +103,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             ),
             overall_total_survey (
               overall_mean,
+              combined_score_mean,
               management_mean,
               performance_mean,
               total_responses,
@@ -147,8 +148,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
 
             // Calculate trend: up/down/flat based on 0.1-point threshold
             // Anything less than 0.1 difference is considered flat — not significant
-            final currentScore = (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
-            final prevScore = (prevSurvey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
+            final currentScore = (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
+            final prevScore = (prevSurvey?['combined_score_mean'] as num?)?.toDouble() ?? (prevSurvey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
             String trend;
             if (prevSurvey == null || prevScore == 0.0) {
               trend = 'flat'; // No previous data to compare — we dont guess
@@ -166,7 +167,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
               'name': '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim(),
               'title': roleInfo?['Roles'] ?? 'Instructor', // Default to Instructor if role missing
               'department': deptName,
-              'score': (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
+              'score': (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
               'mgmt_score': (survey?['management_mean'] as num?)?.toDouble() ?? 0.0,
               'perf_score': (survey?['performance_mean'] as num?)?.toDouble() ?? 0.0,
               'evals': survey?['total_responses'] ?? 0,
@@ -225,6 +226,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   // These are small widgets used inside the bottom sheet modal for instructor quick-view
 
   // Top section of the modal — avatar + name + close button
+  // ignore: unused_element
   Widget _buildModalHeader(Map<String, dynamic> instructor) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -245,6 +247,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   }
 
   // Two stat chips: overall score and total evaluations count side by side
+  // ignore: unused_element
   Widget _buildQuickStats(Map<String, dynamic> instructor) {
     return Row(
       children: [
@@ -271,6 +274,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   }
 
   // Sentiment breakdown legend — positive/neutral/negative percentages in a row
+  // ignore: unused_element
   Widget _buildSentimentLegend(Map<String, dynamic> sent) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -294,6 +298,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
 
   // Card shown when instructor score is below threshold — alerts dean + links to reports
   // This card is RED and has a "Draft Intervention Report" button. Serious business.
+  // ignore: unused_element
   Widget _buildInterventionCard(Map<String, dynamic> instructor) {
     return Container(
       padding: const EdgeInsets.all(16),

@@ -7,6 +7,7 @@ import 'core/config/env.dart';
 import 'login_screen.dart';
 import 'splash_screen.dart';
 import 'instructor/providers/subjects_provider.dart';
+import 'theme/app_theme.dart';
 
 // we import all the dashboard screens here so the router can find them, without this nothing work
 import 'sao_admin/admin_dashboard.dart';
@@ -34,7 +35,11 @@ Widget screenForRole(String role, String userId) {
     case 'PART-TIME':
     case 'INSTRUCTOR':
       // all instructor types go to the same dashboard, we not picky here
-      return InstructorDashboardScreen(userId: userId);
+      // SubjectsProvider is scoped here because only instructor role consumes it
+      return ChangeNotifierProvider(
+        create: (_) => SubjectsProvider(),
+        child: InstructorDashboardScreen(userId: userId),
+      );
     case 'DEPARTMENT-HEAD': 
     case 'DEPARTMENT_HEAD': // both variants work, the database cant make up its mind
     case 'DEAN':
@@ -52,18 +57,11 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
   @override
   Widget build(BuildContext context) {
-    // we wrap everything in MultiProvider so all the state stuff is available everywhere
-    return MultiProvider(
-      providers: [
-        // SubjectsProvider load itself when created, convenient ba
-        ChangeNotifierProvider(create: (_) => SubjectsProvider()),
-      ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false, // we hide the debug banner, it look unprofessional
-        title: 'iEvaluate',
-        theme: ThemeData(primarySwatch: Colors.orange),
-        home: const SplashScreen(), // always start at splash screen, then we figure out the rest
-      ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false, // we hide the debug banner, it look unprofessional
+      title: 'iEvaluate',
+      theme: AppTheme.light, // use the fully-configured project theme instead of bare primarySwatch
+      home: const SplashScreen(), // always start at splash screen, then we figure out the rest
     );
   }
 }

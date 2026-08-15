@@ -19,7 +19,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
 
   List<Map<String, dynamic>> _departments = [];
   bool _isLoading = true;
-  bool _isSaving = false;
 
   // When non-null we are in edit mode
   Map<String, dynamic>? _editing;
@@ -73,38 +72,220 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
 
   // ── CRUD ──────────────────────────────────────────────────────
 
-  Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-    final name = _nameController.text.trim();
-    setState(() => _isSaving = true);
-    try {
-      if (_editing != null) {
-        await _supabase
-            .from('department_name')
-            .update({'d_name': name}).eq('id', _editing!['id']);
-        _showSnack('Department updated successfully');
-      } else {
-        final existing = await _supabase
-            .from('department_name')
-            .select('id')
-            .ilike('d_name', name)
-            .maybeSingle();
-        if (existing != null) {
-          _showSnack('A department with that name already exists.',
-              isError: true);
-          setState(() => _isSaving = false);
-          return;
-        }
-        await _supabase.from('department_name').insert({'d_name': name});
-        _showSnack('Department added successfully');
-      }
-      _clearForm();
-      await _loadDepartments();
-    } catch (e) {
-      _showSnack('Error: $e', isError: true);
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
+  void _showAddEditDialog([Map<String, dynamic>? dept]) {
+    _editing = dept;
+    if (dept != null) {
+      _nameController.text = dept['d_name'];
+    } else {
+      _nameController.clear();
     }
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        bool isSaving = false;
+        final isEditing = dept != null;
+
+        return StatefulBuilder(builder: (context, setState) {
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(children: [
+              Icon(isEditing ? Icons.edit_rounded : Icons.add_business,
+                  color: isEditing ? AppColors.warning : AppColors.primary),
+              const SizedBox(width: 8),
+              Text(isEditing ? 'Edit Department' : 'Add Department',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ]),
+            content: SingleChildScrollView(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isEditing)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: AppColors.warning.withValues(alpha: 0.3)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: AppColors.warning, size: 18),
+                            SizedBox(width: 8),
+                            Expanded(
+                                child: Text(
+                                    'Reminder: Are you sure you want to add a new department? Please ensure the official name is correct.',
+                                    style: TextStyle(
+                                        color: AppColors.warning, fontSize: 13))),
+                          ],
+                        ),
+                      ),
+                    TextFormField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        labelText: 'Department Name *',
+                        hintText: 'e.g. College of Engineering...',
+                        prefixIcon: const Icon(Icons.domain,
+                            color: AppColors.primary),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Required';
+                        if (v.trim().length < 3) return 'At least 3 characters';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSaving
+                    ? null
+                    : () {
+                        _clearForm();
+                        Navigator.pop(context);
+                      },
+                child: const Text('Cancel',
+                    style: TextStyle(color: AppColors.textSecondary)),
+              ),
+              ElevatedButton(
+                onPressed: isSaving
+                    ? null
+                    : () async {
+                        if (!(_formKey.currentState?.validate() ?? false)) {
+                          return;
+                        }
+                        final name = _nameController.text.trim();
+
+                        // Show confirmation only when adding
+                        if (!isEditing) {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16)),
+                              title: const Row(children: [
+                                Icon(Icons.help_outline,
+                                    color: AppColors.primary),
+                                SizedBox(width: 8),
+                                Text('Confirm Add'),
+                              ]),
+                              content: RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                      fontSize: 14,
+                                      color: AppColors.textPrimary),
+                                  children: [
+                                    const TextSpan(
+                                        text:
+                                            'Are you sure you want to add '),
+                                    TextSpan(
+                                      text: '"$name"',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.primary),
+                                    ),
+                                    const TextSpan(
+                                        text: ' as a new department?'),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(ctx, false),
+                                  child: const Text('Cancel',
+                                      style: TextStyle(
+                                          color: AppColors.textSecondary)),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      Navigator.pop(ctx, true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(8)),
+                                  ),
+                                  child: const Text('Yes, Add',
+                                      style:
+                                          TextStyle(color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true) return;
+                        }
+
+                        setState(() => isSaving = true);
+
+                        try {
+                          if (isEditing) {
+                            await _supabase
+                                .from('department_name')
+                                .update({'d_name': name}).eq('id', dept['id']);
+                            _showSnack('Department updated successfully');
+                          } else {
+                            final existing = await _supabase
+                                .from('department_name')
+                                .select('id')
+                                .ilike('d_name', name)
+                                .maybeSingle();
+                            if (existing != null) {
+                              _showSnack('Department already exists',
+                                  isError: true);
+                              setState(() => isSaving = false);
+                              return;
+                            }
+                            await _supabase
+                                .from('department_name')
+                                .insert({'d_name': name});
+                            _showSnack('Department added successfully');
+                          }
+                          Navigator.pop(context);
+                          _clearForm();
+                          await _loadDepartments();
+                        } catch (e) {
+                          _showSnack('Error: $e', isError: true);
+                          setState(() => isSaving = false);
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isEditing ? AppColors.warning : AppColors.primary,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                child: isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : Text(isEditing ? 'Save' : 'Add',
+                        style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        });
+      },
+    );
   }
 
   Future<void> _delete(Map<String, dynamic> dept) async {
@@ -195,10 +376,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   }
 
   void _startEdit(Map<String, dynamic> dept) {
-    setState(() {
-      _editing = dept;
-      _nameController.text = dept['d_name'];
-    });
+    _showAddEditDialog(dept);
   }
 
   void _clearForm() {
@@ -241,6 +419,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
         ),
         actions: [
           SafeIconButton(
+            icon: const Icon(Icons.add_business, color: AppColors.primary),
+            onPressed: () async { _showAddEditDialog(); },
+            tooltip: 'Add Department',
+          ),
+          SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
             onPressed: _loadDepartments,
             tooltip: 'Refresh',
@@ -259,8 +442,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildFormCard(),
-                    const SizedBox(height: 32),
                     Row(children: [
                       const Icon(Icons.list_alt_rounded,
                           color: AppColors.primary, size: 22),
@@ -290,166 +471,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     );
   }
 
-  Widget _buildFormCard() {
-    final isEditing = _editing != null;
-    return Card(
-      color: AppColors.surface,
-      elevation: 2,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isEditing
-                        ? AppColors.warning.withValues(alpha: 0.12)
-                        : AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isEditing
-                        ? Icons.edit_rounded
-                        : Icons.add_business,
-                    color: isEditing
-                        ? AppColors.warning
-                        : AppColors.primary,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isEditing
-                            ? 'Edit Department'
-                            : 'Add New Department',
-                        style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary),
-                      ),
-                      Text(
-                        isEditing
-                            ? 'Editing: ${_editing!['d_name']}'
-                            : 'Enter the official department name',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-              ]),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: _nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Department Name *',
-                  hintText:
-                      'e.g. College of Engineering and Architecture',
-                  prefixIcon: const Icon(Icons.domain,
-                      color: AppColors.primary),
-                  filled: true,
-                  fillColor:
-                      AppColors.background.withValues(alpha: 0.5),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppColors.primary, width: 2)),
-                  errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(
-                          color: AppColors.error, width: 1.5)),
-                ),
-                validator: (v) {
-                  if (v == null || v.trim().isEmpty) {
-                    return 'Department name is required';
-                  }
-                  if (v.trim().length < 3) {
-                    return 'Name must be at least 3 characters';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 20),
-              Row(children: [
-                if (isEditing) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _isSaving ? null : _clearForm,
-                      icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Cancel'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.textSecondary,
-                        side: const BorderSide(
-                            color: AppColors.borderHairline),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: _isSaving ? null : _save,
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white))
-                        : Icon(
-                            isEditing
-                                ? Icons.save_rounded
-                                : Icons.add_rounded,
-                            size: 20),
-                    label: Text(
-                      _isSaving
-                          ? (isEditing ? 'Saving...' : 'Adding...')
-                          : (isEditing
-                              ? 'Save Changes'
-                              : 'Add Department'),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isEditing
-                          ? AppColors.warning
-                          : AppColors.primary,
-                      foregroundColor: Colors.white,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                  ),
-                ),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildDepartmentList() {
     return ListView.builder(
@@ -464,15 +486,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
           duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: isCurrentlyEditing
-                ? AppColors.warning.withValues(alpha: 0.06)
-                : AppColors.surface,
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isCurrentlyEditing
-                  ? AppColors.warning.withValues(alpha: 0.5)
-                  : AppColors.borderHairline,
-              width: isCurrentlyEditing ? 1.5 : 1,
+              color: AppColors.borderHairline,
+              width: 1,
             ),
             boxShadow: [
               BoxShadow(
@@ -492,17 +510,13 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 // Avatar
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: isCurrentlyEditing
-                      ? AppColors.warning.withValues(alpha: 0.15)
-                      : AppColors.primary.withValues(alpha: 0.1),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
                     dept['d_name'].toString().isNotEmpty
                         ? dept['d_name'].toString()[0].toUpperCase()
                         : '?',
-                    style: TextStyle(
-                      color: isCurrentlyEditing
-                          ? AppColors.warning
-                          : AppColors.primary,
+                    style: const TextStyle(
+                      color: AppColors.primary,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -519,22 +533,16 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: isCurrentlyEditing
-                              ? AppColors.warning
-                              : AppColors.textPrimary,
+                          color: AppColors.textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        isCurrentlyEditing
-                            ? 'Currently editing...'
-                            : 'Tap to view details',
+                        'Tap to view details',
                         style: TextStyle(
                           fontSize: 11,
-                          color: isCurrentlyEditing
-                              ? AppColors.warning
-                              : AppColors.textTertiary,
+                          color: AppColors.textTertiary,
                         ),
                       ),
                     ],
@@ -542,11 +550,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 ),
                 // Edit & Delete
                 IconButton(
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.edit_outlined,
-                    color: isCurrentlyEditing
-                        ? AppColors.warning
-                        : AppColors.primary,
+                    color: AppColors.primary,
                     size: 20,
                   ),
                   onPressed: () => _startEdit(dept),
@@ -680,7 +686,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
         final scores = await _supabase
             .from('overall_total_survey')
             .select(
-                'instructor_id, overall_mean, management_mean, performance_mean, total_responses')
+                'instructor_id, overall_mean, combined_score_mean, management_mean, performance_mean, total_responses')
             .eq('term_id', termId)
             .filter('instructor_id', 'in', allIds);
 
@@ -690,7 +696,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
 
         for (final s in (scores as List)) {
           final id = s['instructor_id'] as String?;
-          final overall = (s['overall_mean'] as num?)?.toDouble() ?? 0.0;
+          final overall = (s['combined_score_mean'] as num?)?.toDouble() ?? (s['overall_mean'] as num?)?.toDouble() ?? 0.0;
           final mgmt =
               (s['management_mean'] as num?)?.toDouble() ?? 0.0;
           final perf =

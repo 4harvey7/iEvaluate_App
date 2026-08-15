@@ -66,18 +66,22 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
           .maybeSingle();
       final activeTermId = settings?['current_term_id'] as String?;
 
-      // Fetch all terms sorted newest first — admin wants to see latest first
+      // Fetch all terms sorted logically: newest academic year first, then semester
       final rows = await _supabase
           .from('academic_terms')
           .select('id, semester, academic_year')
-          .order('created_at', ascending: false);
+          .order('academic_year', ascending: false)
+          .order('semester', ascending: false);
 
       if (mounted) {
         setState(() {
           // convert raw rows into id+label maps for the dropdown
-          _terms = (rows as List).map((r) => {
-            'id': r['id'] as String,
-            'label': '${r['semester']} ${r['academic_year']}',
+          _terms = (rows as List).map((r) {
+            final isCurrent = r['id'] == activeTermId;
+            return {
+              'id': r['id'] as String,
+              'label': '${r['semester']} ${r['academic_year']}${isCurrent ? ' (Current)' : ''}',
+            };
           }).toList();
 
           // Select active term, or first if not found
@@ -474,7 +478,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
             icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
             tooltip: 'Export Report',
             onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating PDF Report...')));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saving PDF to Downloads...')));
               // generate the PDF with all current data — may take a moment
               await _pdfService.generatePerformanceReport(
                 title: 'University Performance Report - $_selectedLabel',
@@ -571,50 +575,59 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 const Text('Department Averages', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 16),
                 // department progress bars — each dept gets a bar showing their average
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10)]),
-                  child: _departmentAverages.isEmpty 
-                    ? const Center(child: Text("No department data found"))
-                    : Column(
-                        children: _departmentAverages.map((dept) {
-                          double percentage = (dept['score'] / 5.0); // fraction of max score (5.0)
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        dept['dept'], // department name
-                                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text('${dept['score']}', style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'])), // score with color
-                                  ],
+                // department list — each dept gets a styled card showing their average
+                _departmentAverages.isEmpty 
+                  ? Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10)]),
+                      child: const Center(child: Text("No department data found", style: TextStyle(color: AppColors.textSecondary))),
+                    )
+                  : Column(
+                      children: _departmentAverages.map((dept) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+                            border: Border.all(color: AppColors.borderSubtle, width: 0.5),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: dept['color'].withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
                                 ),
-                                const SizedBox(height: 8),
-                                // the actual progress bar — gray background, colored fill
-                                Stack(
-                                  children: [
-                                    Container(height: 8, decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(4))), // gray track
-                                    FractionallySizedBox(
-                                      widthFactor: percentage, // fill width based on score fraction
-                                      child: Container(height: 8, decoration: BoxDecoration(color: dept['color'], borderRadius: BorderRadius.circular(4))), // colored fill
-                                    ),
-                                  ],
+                                child: Icon(Icons.domain, color: dept['color'], size: 20),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Text(
+                                  dept['dept'], // department name
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
                                 ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: dept['color'].withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: dept['color'].withValues(alpha: 0.2)),
+                                ),
+                                child: Text(
+                                  '${dept['score']}',
+                                  style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'], fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                 const SizedBox(height: 32),
                 // instructor leaderboard section header with "View All" button
                 Row(

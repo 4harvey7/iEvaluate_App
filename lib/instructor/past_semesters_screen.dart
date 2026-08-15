@@ -68,7 +68,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               ? '${termData['semester']} ${termData['academic_year']}'
               : 'Unknown Term', // fallback if academic_terms join is null
           'created_at': termData?['created_at'] ?? item['created_at'] ?? '',
-          'overallScore': (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
+          'overallScore': (item['combined_score_mean'] as num?)?.toDouble() ?? (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
           'managementScore': (item['management_mean'] as num?)?.toDouble() ?? 0.0,
           'performanceScore': (item['performance_mean'] as num?)?.toDouble() ?? 0.0,
           'evaluations': (item['total_responses'] as int?) ?? 0,
@@ -76,8 +76,27 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
       }
 
       List<Map<String, dynamic>> processedData = termsMap.values.toList();
-      // Sort chronologically by term creation — oldest left, newest right in the chart
-      processedData.sort((a, b) => (a['created_at'] ?? '').compareTo(b['created_at'] ?? ''));
+      // Sort chronologically: oldest academic year first, then 1st → 2nd → Summer within year
+      processedData.sort((a, b) {
+        final semOrder = {'1st': 0, '2nd': 1, 'Sum': 2, 'Summer': 2};
+        final aSem = a['semester']?.toString() ?? '';
+        final bSem = b['semester']?.toString() ?? '';
+        // Extract start year from academic_year e.g. "2025-2026" → 2025
+        int aYear = 0, bYear = 0;
+        int aSemIdx = 99, bSemIdx = 99;
+        final aParts = aSem.split(' ');
+        final bParts = bSem.split(' ');
+        if (aParts.length >= 3) {
+          aYear = int.tryParse(aParts.last.split('-').first) ?? 0;
+          aSemIdx = semOrder[aParts[0]] ?? 99;
+        }
+        if (bParts.length >= 3) {
+          bYear = int.tryParse(bParts.last.split('-').first) ?? 0;
+          bSemIdx = semOrder[bParts[0]] ?? 99;
+        }
+        if (aYear != bYear) return aYear.compareTo(bYear);
+        return aSemIdx.compareTo(bSemIdx);
+      });
 
       if (mounted) {
         setState(() {
@@ -223,7 +242,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
         if (mMean == 0.0 && pMean == 0.0) {
           debugPrint('[PastSemesters] No precomputed data for $code in $termId, using raw...');
           final rawData = await _supabase
-              .from('raw_GoogleSheet_data_result')
+              .from('sast_all_raw_data_survey')
               .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
               .filter('subject_id', 'in', ids)
               .eq('instructor_ID', widget.userId)
@@ -471,7 +490,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           // Score label above the bar
-                          Text(score.toStringAsFixed(1), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                          Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           // Tappable bar — clicking selects this term
                           GestureDetector(
@@ -490,8 +509,36 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Short label below bar — just the semester abbreviation
-                          SizedBox(width: 40, child: Text(data['semester']?.toString().split(' ')[0] ?? '', style: const TextStyle(color: Colors.white54, fontSize: 8), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis)),
+                          // Short label below bar: "1st\n25-26" so different years are distinguishable
+                          SizedBox(
+                            width: 40,
+                            child: Builder(builder: (_) {
+                              final full = data['semester']?.toString() ?? '';
+                              // full = "1st Semester 2025-2026"
+                              final parts = full.split(' ');
+                              final ordinal = parts.isNotEmpty ? parts[0] : full; // "1st"
+                              // academic_year is the last token e.g. "2025-2026" → shorten to "25-26"
+                              String yearShort = '';
+                              if (parts.length >= 3) {
+                                final ay = parts.last; // "2025-2026"
+                                final ayParts = ay.split('-');
+                                if (ayParts.length == 2) {
+                                  yearShort = '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                                      '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}';
+                                } else {
+                                  yearShort = ay;
+                                }
+                              }
+                              final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
+                              return Text(
+                                label,
+                                style: const TextStyle(color: Colors.white54, fontSize: 8),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                              );
+                            }),
+                          ),
                         ],
                       );
                     }).toList(),

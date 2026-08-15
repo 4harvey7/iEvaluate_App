@@ -114,7 +114,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         debugPrint('Summary tables empty for term $effectiveTermId. Calculating directly from RAW data...');
         try {
           final rawResults = await _supabase
-              .from('raw_GoogleSheet_data_result')
+              .from('sast_all_raw_data_survey')
               .select()
               .eq('instructor_ID', widget.userId)
               .eq('term_id', effectiveTermId);
@@ -198,9 +198,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
             final ts = summaryData['total_responses'] as int?;
             if (ts != null) _totalEvals = ts;
             
-            final os = double.tryParse(summaryData['overall_mean']?.toString() ?? '') 
-                ?? double.tryParse(summaryData['combined_score_mean']?.toString() ?? '');
-            if (os != null) _overallScore = os;
+            final os = double.tryParse(summaryData['combined_score_mean']?.toString() ?? '') 
+                ?? double.tryParse(summaryData['overall_mean']?.toString() ?? '') 
+                ?? 0.0;
+            _overallScore = os;
           }
 
           _isLoading = false;

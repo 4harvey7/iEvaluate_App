@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS public.failed_scan_queue (
   -- Validation lifecycle
   status          TEXT        DEFAULT 'pending',
   -- pending   : waiting for human review
-  -- validated : gatherer submitted corrected data → written to raw_GoogleSheet_data_result
+  -- validated : gatherer submitted corrected data → written to sast_all_raw_data_survey
   -- discarded : gatherer rejected this scan entirely
 
   -- Corrected fields after human review
@@ -69,11 +69,11 @@ CREATE POLICY fsq_own_rw ON public.failed_scan_queue
 -- No extra policy needed for the n8n service key.
 
 -- ============================================================
--- Also add a column to raw_GoogleSheet_data_result to mark
+-- Also add a column to sast_all_raw_data_survey to mark
 -- manually corrected records (if it doesn't already exist)
 -- ============================================================
-ALTER TABLE public.raw_GoogleSheet_data_result
+ALTER TABLE public.sast_all_raw_data_survey
   ADD COLUMN IF NOT EXISTS manually_corrected BOOLEAN DEFAULT FALSE;
 
-ALTER TABLE public.raw_GoogleSheet_data_result
+ALTER TABLE public.sast_all_raw_data_survey
   ADD COLUMN IF NOT EXISTS task_id TEXT;

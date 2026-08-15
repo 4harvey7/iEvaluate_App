@@ -20,6 +20,11 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
   // Filter for the feedback list — starts at 'All', can switch to Positive/Neutral/Critical
   String _selectedFilter = 'All';
+  String _selectedSubjectFilter = 'All Subjects';
+  List<String> _availableSubjects = ['All Subjects'];
+  String _sortOrder = 'Date (Newest)';
+  final List<String> _sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Sentiment (Positive First)', 'Sentiment (Critical First)'];
+  
   bool _isLoading = true;
   String _activeTermDisplay = ''; // shown in the AppBar subtitle — e.g. "First Semester 2024-2025"
 
@@ -152,6 +157,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               'date': r['created_at'] != null ? DateTime.parse(r['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
             };
           }).toList();
+
+          // Extract unique subjects for the filter dropdown
+          final uniqueSubjects = _allFeedback.map((f) => f['course'] as String).toSet().toList();
+          uniqueSubjects.sort();
+          _availableSubjects = ['All Subjects', ...uniqueSubjects];
+          if (!_availableSubjects.contains(_selectedSubjectFilter)) {
+            _selectedSubjectFilter = 'All Subjects';
+          }
 
           // Count each sentiment type — used for the bar chart and percentage display
           int pos = _allFeedback.where((f) => f['sentiment'] == 'Positive').length;
@@ -313,8 +326,40 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
   // Filter Logic — returns only the feedback items matching the selected sentiment filter
   List<Map<String, dynamic>> get _filteredFeedback {
-    if (_selectedFilter == 'All') return _allFeedback; // no filter = show everything
-    return _allFeedback.where((f) => f['sentiment'] == _selectedFilter).toList();
+    List<Map<String, dynamic>> filtered = List.from(_allFeedback);
+    
+    if (_selectedFilter != 'All') {
+      filtered = filtered.where((f) => f['sentiment'] == _selectedFilter).toList();
+    }
+    
+    if (_selectedSubjectFilter != 'All Subjects') {
+      filtered = filtered.where((f) => f['course'] == _selectedSubjectFilter).toList();
+    }
+
+    filtered.sort((a, b) {
+      if (_sortOrder == 'Date (Newest)') {
+        return (b['date'] as String).compareTo(a['date'] as String);
+      } else if (_sortOrder == 'Date (Oldest)') {
+        return (a['date'] as String).compareTo(b['date'] as String);
+      } else if (_sortOrder == 'Sentiment (Positive First)') {
+        final weightA = _sentimentWeight(a['sentiment'] as String);
+        final weightB = _sentimentWeight(b['sentiment'] as String);
+        return weightB.compareTo(weightA); // Positive > Neutral > Critical
+      } else if (_sortOrder == 'Sentiment (Critical First)') {
+        final weightA = _sentimentWeight(a['sentiment'] as String);
+        final weightB = _sentimentWeight(b['sentiment'] as String);
+        return weightA.compareTo(weightB); // Critical > Neutral > Positive
+      }
+      return 0;
+    });
+    
+    return filtered;
+  }
+
+  int _sentimentWeight(String sentiment) {
+    if (sentiment == 'Positive') return 3;
+    if (sentiment == 'Neutral') return 2;
+    return 1; // Critical
   }
 
   @override
@@ -533,7 +578,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                 Flexible(
                                   child: Text(
                                     theme['label']!,
-                                    style: const TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600, overflow: TextOverflow.ellipsis),
+                                    style: const TextStyle(color: AppColors.success, fontSize: 13, fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ],
@@ -698,6 +743,52 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
               // Filter chips row — All, Positive, Neutral, Critical
               _buildFilterRow(),
+              const SizedBox(height: 12),
+
+              // Dropdowns for Subject Filter and Sort Order
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _selectedSubjectFilter,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                      ),
+                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
+                      items: _availableSubjects.map((String subject) {
+                        return DropdownMenuItem<String>(value: subject, child: Text(subject, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _selectedSubjectFilter = value);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _sortOrder,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                      ),
+                      icon: const Icon(Icons.sort, color: AppColors.primary),
+                      items: _sortOptions.map((String option) {
+                        return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _sortOrder = value);
+                      },
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
 
               // If filtered list is empty, show a simple message

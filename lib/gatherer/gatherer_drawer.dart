@@ -9,6 +9,7 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import 'failed_scans_screen.dart';
 import '../sao_admin/import_errors_screen.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // the drawer widget — StatefulWidget because it loads badge counts on open
 class GathererDrawer extends StatefulWidget {
@@ -81,6 +82,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
       title: Text(
         title,
         style: TextStyle(color: color, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
+        overflow: TextOverflow.ellipsis,
       ),
       // show badge only if count > 0 — orange pill with white number
       trailing: badge > 0
@@ -125,27 +127,26 @@ class _GathererDrawerState extends State<GathererDrawer> {
             decoration: const BoxDecoration(color: AppColors.textPrimary),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end, // push content to bottom of header
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // circle avatar with initials — no photo, just letters
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.3),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
                   child: Text(
-                    initials.toUpperCase(), // uppercase initials always
+                    initials.toUpperCase(),
                     style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                 ),
                 const SizedBox(height: 12),
-                // full display name
                 Text(
                   displayName,
                   style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                // role below name — smaller and dimmer
                 Text(
                   widget.userRole,
                   style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -205,14 +206,17 @@ class _GathererDrawerState extends State<GathererDrawer> {
           const Divider(), // visual separator before logout
           // Log Out — red because it ends the session
           _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-            await _authService.signOut(); // sign out from supabase
-            if (context.mounted) {
-              // remove all routes and go to login — user cannot go back
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false, // remove everything from stack
-              );
+            final confirm = await showLogoutConfirmationDialog(context);
+            if (confirm == true) {
+              await _authService.signOut(); // sign out from supabase
+              if (context.mounted) {
+                // remove all routes and go to login — user cannot go back
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false, // remove everything from stack
+                );
+              }
             }
           }),
         ],

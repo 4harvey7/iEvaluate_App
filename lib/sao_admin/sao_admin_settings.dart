@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 class SaoAdminSettings extends StatefulWidget {
   const SaoAdminSettings({super.key});
@@ -144,7 +145,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return Padding(
+              return AnimatedPadding(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOut,
                 // pushes the sheet up when keyboard appears — importente kaayo ni
                 padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
                 child: Container(
@@ -212,6 +215,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: isSaving ? null : () async {
+                            final navigator = Navigator.of(context);
+                            final scaffoldMessenger = ScaffoldMessenger.of(context);
                             final bool roleChanged = tempSelectedRole != originalRole; // did the role actually change
 
                             if (roleChanged && !needsOTP) {
@@ -228,7 +233,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               } catch (e) {
                                 // edge function failed, dili ta makapadayon
                                 setSheetState(() => isSaving = false);
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                                scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                                 return;
                               }
                             }
@@ -252,10 +257,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
                                 // Role changed successfully — must log out for new permissions to take effect
                                 if (mounted) {
-                                  Navigator.pop(context);
+                                  navigator.pop();
                                   await _authService.signOut(); // bye bye session
-                                  Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Role updated. Please log in again.'), backgroundColor: AppColors.success));
+                                  navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                                  scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Role updated. Please log in again.'), backgroundColor: AppColors.success));
                                 }
                               } else {
                                 // Simple profile update — just name, no drama
@@ -268,13 +273,13 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                   _firstName = firstController.text.trim();
                                   _lastName = lastController.text.trim();
                                 });
-                                if (mounted) Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
+                                if (mounted) navigator.pop();
+                                scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               }
                             } catch (e) {
                               // something went wrong during save, stop the spinner and tell user
                               setSheetState(() => isSaving = false);
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },
                           // show spinner while saving, otherwise show appropriate label
@@ -335,25 +340,27 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: isUpdating ? null : () async {
+                    final navigator = Navigator.of(context);
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
                     final currentPw = currentPasswordController.text.trim();
                     final newPw = newPasswordController.text.trim();
                     final confirmPw = confirmPasswordController.text.trim();
 
                     // basic validation — all fields must have something, no laziness allowed
                     if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // passwords must match — typos are the enemy
                     if (newPw != confirmPw) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // minimum length check — basin mag-use ug "123" ang admin
                     if (newPw.length < 6) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                       return;
                     }
 
@@ -368,7 +375,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       if (verifyResp.user == null) {
                         // wrong current password — dili ta makaproceed
                         setDialogState(() => isUpdating = false);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Current password is incorrect.'), backgroundColor: AppColors.error));
+                        scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Current password is incorrect.'), backgroundColor: AppColors.error));
                         return;
                       }
 
@@ -377,20 +384,19 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
                       if (mounted) {
                         if (result.success) {
-                          Navigator.pop(context); // Close dialog — mission accomplished
+                          navigator.pop(); // Close dialog — mission accomplished
 
                           // Force sign-out and re-authentication for security
                           // new password means new session, pray lang they remember it
                           await _authService.signOut();
 
                           if (mounted) {
-                            Navigator.pushAndRemoveUntil(
-                              context,
+                            navigator.pushAndRemoveUntil(
                               MaterialPageRoute(builder: (context) => const LoginScreen()),
                               (route) => false, // nuke the entire navigation stack
                             );
 
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            scaffoldMessenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Password updated. Please log in with your new password.'),
                                 backgroundColor: AppColors.success,
@@ -401,7 +407,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         } else {
                           // authService returned failure — show the error message
                           setDialogState(() => isUpdating = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          scaffoldMessenger.showSnackBar(
                             SnackBar(
                               content: Text(result.error ?? 'Failed to update password.'),
                               backgroundColor: AppColors.error,
@@ -412,7 +418,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     } catch (e) {
                       // unexpected crash — stop spinner and show what happened
                       setDialogState(() => isUpdating = false);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                     }
                   },
                   // show tiny spinner inside button while updating
@@ -456,14 +462,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
-                Navigator.pop(context); // close the confirmation dialog
+                final navigator = Navigator.of(context);
+                final scaffoldMessenger = ScaffoldMessenger.of(context);
+                navigator.pop(); // close the confirmation dialog
                 final result = await _authService.deleteAccount(); // actually delete
                 if (result.success) {
                    // account gone — redirect to login, wala nay account to go back to
-                   if (mounted) Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                   if (mounted) navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                 } else {
                    // deletion failed — at least show why
-                   if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
+                   if (mounted) scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
             ),
@@ -866,10 +874,14 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 height: 54,
                 child: SafeOutlinedButton(
                   onPressed: () async {
-                    await _authService.signOut(); // terminate the session
-                    if (mounted) {
-                      // send user back to login, remove all routes — no going back
-                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                    final navigator = Navigator.of(context);
+                    final confirm = await showLogoutConfirmationDialog(context);
+                    if (confirm == true) {
+                      await _authService.signOut(); // terminate the session
+                      if (mounted) {
+                        // send user back to login, remove all routes — no going back
+                        navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                      }
                     }
                   },
                   style: OutlinedButton.styleFrom(

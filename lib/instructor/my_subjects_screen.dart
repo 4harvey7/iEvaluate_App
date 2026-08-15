@@ -38,6 +38,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
   // Load the current term settings, then fetch term display name, then load subjects.
   // Order matters here — need term ID before we can do anything else.
   Future<void> _loadData() async {
+    final provider = context.read<SubjectsProvider>();
     try {
       final settings = await _settingsService.getSettings();
       if (!mounted) return; // widget might be gone by the time this completes
@@ -61,7 +62,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
       }
       
       // Tell the subjects provider to load subjects for this term
-      context.read<SubjectsProvider>().load(termId: _currentTermId);
+      provider.load(termId: _currentTermId);
     } catch (e) {
       debugPrint('Error loading term data: $e');
     }
@@ -95,17 +96,21 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
             return _buildEmptyState();
           }
 
-          // Calculate average score across all subjects that have data
-          double totalMean = 0;
-          int count = 0;
-          for (var s in subjects) {
-            if (s.overallMean > 0) { // skip subjects with no score yet
-              totalMean += s.overallMean;
-              count++;
+          // Use true term average if available, otherwise fallback to unweighted average
+          double termAverage = 0.0;
+          if (provider.trueTermAverage != null && provider.trueTermAverage! > 0) {
+            termAverage = provider.trueTermAverage!;
+          } else {
+            double totalMean = 0;
+            int count = 0;
+            for (var s in subjects) {
+              if (s.overallMean > 0) { // skip subjects with no score yet
+                totalMean += s.overallMean;
+                count++;
+              }
             }
+            termAverage = count > 0 ? totalMean / count : 0.0;
           }
-          // If no subject has a score yet, average is 0 — murag ghost town
-          final termAverage = count > 0 ? totalMean / count : 0.0;
 
           return RefreshIndicator(
             onRefresh: () => provider.load(termId: _currentTermId), // pull to reload subjects

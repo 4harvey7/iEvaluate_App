@@ -32,6 +32,8 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   Map<String, dynamic>? _mgmtData;
   Map<String, dynamic>? _perfData;
   String _selectedFilter = 'All';
+  String _sortOrder = 'Date (Newest)';
+  final List<String> _sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Sentiment (Positive First)', 'Sentiment (Critical First)'];
 
   // Management criteria — SS Form 2 (Feb 4, 2009, Revision 3)
   static const List<String> _managementCriteria = [
@@ -242,7 +244,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
         // Fallback to raw data if no pre-computed results exist
         debugPrint('[SubjectDetailScreen] No pre-computed results, falling back to raw data...');
         final rawRows = await _supabase
-            .from('raw_GoogleSheet_data_result')
+            .from('sast_all_raw_data_survey')
             .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
             .filter('subject_id', 'in', subjectIds)
             .eq('instructor_ID', widget.userId)
@@ -326,8 +328,39 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   // -- Filtered remarks getter ------------------------------
   List<Map<String, dynamic>> get _filteredRemarks {
-    if (_selectedFilter == 'All') return _subjectRemarks;
-    return _subjectRemarks.where((r) => (r['tone'] ?? 'Neutral') == _selectedFilter).toList();
+    List<Map<String, dynamic>> filtered = List.from(_subjectRemarks);
+    if (_selectedFilter != 'All') {
+      filtered = filtered.where((r) => (r['tone'] ?? 'Neutral') == _selectedFilter).toList();
+    }
+    
+    filtered.sort((a, b) {
+      if (_sortOrder == 'Date (Newest)') {
+        final dateA = a['created_at'] != null ? DateTime.parse(a['created_at']) : DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = b['created_at'] != null ? DateTime.parse(b['created_at']) : DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
+      } else if (_sortOrder == 'Date (Oldest)') {
+        final dateA = a['created_at'] != null ? DateTime.parse(a['created_at']) : DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = b['created_at'] != null ? DateTime.parse(b['created_at']) : DateTime.fromMillisecondsSinceEpoch(0);
+        return dateA.compareTo(dateB);
+      } else if (_sortOrder == 'Sentiment (Positive First)') {
+        final weightA = _sentimentWeight(a['tone'] ?? 'Neutral');
+        final weightB = _sentimentWeight(b['tone'] ?? 'Neutral');
+        return weightB.compareTo(weightA);
+      } else if (_sortOrder == 'Sentiment (Critical First)') {
+        final weightA = _sentimentWeight(a['tone'] ?? 'Neutral');
+        final weightB = _sentimentWeight(b['tone'] ?? 'Neutral');
+        return weightA.compareTo(weightB);
+      }
+      return 0;
+    });
+
+    return filtered;
+  }
+
+  int _sentimentWeight(String sentiment) {
+    if (sentiment == 'Positive') return 3;
+    if (sentiment == 'Neutral') return 2;
+    return 1;
   }
 
   // -- Premium filter row -----------------------------------
@@ -495,7 +528,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    Text(q['score'].toStringAsFixed(1), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                                    Text(q['score'].toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
                                     Container(
                                       width: 14,
@@ -530,6 +563,24 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     const SizedBox(height: 12),
                     // Filter chips
                     _buildFilterRow(),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: _sortOrder,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                      ),
+                      icon: const Icon(Icons.sort, color: AppColors.primary),
+                      items: _sortOptions.map((String option) {
+                        return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) setState(() => _sortOrder = value);
+                      },
+                    ),
                     const SizedBox(height: 16),
                     if (_subjectRemarks.isEmpty)
                       Container(

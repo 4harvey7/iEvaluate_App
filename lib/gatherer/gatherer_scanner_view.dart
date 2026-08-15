@@ -5,7 +5,6 @@
 import 'dart:io';
 import 'dart:async';
 import 'dart:math';
-import 'dart:io' show Platform;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,7 +80,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   // ── Blur Detection state ─────────────────────────────────────────────────────
   bool _isBlurry = false; // true if last captured image failed blur check
-  double _blurScore = 0; // variance of laplacian — higher = sharper
   bool _isCheckingBlur = false; // true while running blur detection algorithm
 
   // ── Sensor state (Tilt Guard) ────────────────────────────────────────────────
@@ -372,7 +370,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
     setState(() {
       _capturedImagePath = null; // clear path = go back to camera view
       _isBlurry = false; // reset blur state
-      _blurScore = 0;
     });
   }
 
@@ -422,7 +419,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
       if (mounted) {
         setState(() {
-          _blurScore = variance;
           // Threshold of 150-250 is usually safe for 640px document images.
           // Lower values mean more blurry — 200 is a reasonable cutoff.
           _isBlurry = variance < 200;
@@ -1345,7 +1341,9 @@ class _FormLinkBottomSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
       padding:
       EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom), // push up with keyboard
       child: Container(

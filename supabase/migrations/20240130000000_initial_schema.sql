@@ -117,7 +117,7 @@ CREATE TABLE public.sast_results (
   CONSTRAINT sast_results_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
 
-CREATE TABLE public.raw_GoogleSheet_data_result (
+CREATE TABLE public.sast_all_raw_data_survey (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   m1 bigint, m2 bigint, m3 bigint, m4 bigint, m5 bigint,
@@ -132,11 +132,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -152,11 +152,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -172,11 +172,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -192,11 +192,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -228,11 +228,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -264,11 +264,11 @@ CREATE TABLE public.raw_GoogleSheet_data_result (
   instructor_ID uuid,
   term_id uuid,
   subject_id uuid,
-  CONSTRAINT raw_GoogleSheet_data_result_pkey PRIMARY KEY (id),
-  CONSTRAINT raw_GoogleSheet_data_result_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
-  CONSTRAINT raw_GoogleSheet_data_result_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
+  CONSTRAINT sast_all_raw_data_survey_pkey PRIMARY KEY (id),
+  CONSTRAINT sast_all_raw_data_survey_sao_staff_id_fkey FOREIGN KEY (sao_staff_id) REFERENCES public.user_info(id),
+  CONSTRAINT sast_all_raw_data_survey_instructor_ID_fkey FOREIGN KEY (instructor_ID) REFERENCES auth.users(id),
   CONSTRAINT fk_raw_results_term FOREIGN KEY (term_id) REFERENCES public.academic_terms(id),
-  CONSTRAINT raw_GoogleSheet_data_result_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
+  CONSTRAINT sast_all_raw_data_survey_subject_id_fkey FOREIGN KEY (subject_id) REFERENCES public.subjects(id)
 );
 
 CREATE TABLE public.management_results (
@@ -499,7 +499,7 @@ ALTER TABLE public.student_remarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.instructor_wordcloud ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.academic_terms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.raw_GoogleSheet_data_result ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sast_all_raw_data_survey ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sast_results ENABLE ROW LEVEL SECURITY;
 
 -- Helper Function to avoid recursion in department_table
@@ -643,13 +643,13 @@ FOR SELECT USING (
   )
 );
 
-CREATE POLICY "Gatherers can insert raw results" ON public.raw_GoogleSheet_data_result
+CREATE POLICY "Gatherers can insert raw results" ON public.sast_all_raw_data_survey
 FOR INSERT WITH CHECK (auth.uid() = sao_staff_id);
 
-CREATE POLICY "Instructors can view own raw results" ON public.raw_GoogleSheet_data_result
+CREATE POLICY "Instructors can view own raw results" ON public.sast_all_raw_data_survey
 FOR SELECT USING (auth.uid() = instructor_ID);
 
-CREATE POLICY "Deans can view department raw results" ON public.raw_GoogleSheet_data_result
+CREATE POLICY "Deans can view department raw results" ON public.sast_all_raw_data_survey
 FOR SELECT USING (
   instructor_ID IN (
     SELECT user_id FROM public.department_table

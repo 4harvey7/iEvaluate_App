@@ -18,6 +18,7 @@ import 'providers/subjects_provider.dart';
 import 'student_feedback_screen.dart';
 import 'detailed_report_screen.dart';
 import 'subject_detail_screen.dart';
+import '../widgets/logout_confirmation_dialog.dart';
 
 // The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
 class InstructorDashboardScreen extends StatefulWidget {
@@ -93,6 +94,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   // isInitial = true means quiet mode (no snackbar on load, dili spam).
   Future<void> _refreshDashboardData({bool isInitial = false}) async {
     if (_isSyncing) return; // already syncing, ayaw double trigger
+    final messenger = ScaffoldMessenger.of(context);
+    final subjectsProvider = context.read<SubjectsProvider>(); // capture before any await
     setState(() => _isSyncing = true);
     
     try {
@@ -111,13 +114,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       // Run profile fetch and subject load at the same time — faster, murag paralel universe
       await Future.wait([
         _fetchInstructorProfile(),
-        context.read<SubjectsProvider>().load(termId: _currentTermId),
+        subjectsProvider.load(termId: _currentTermId), // use captured reference, not context.read
         if (!isInitial) Future.delayed(const Duration(milliseconds: 500)), // small wait for non-initial
       ]);
       
       // Show success snackbar only on manual sync, not on initial load
       if (mounted && !isInitial) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           const SnackBar(
             content: Text('Dashboard and local results synced successfully'),
             behavior: SnackBarBehavior.floating,
@@ -129,7 +132,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       debugPrint('Sync failed: $e');
       if (mounted && !isInitial) {
         // Tell the user something went wrong. At least be honest.
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Sync failed: $e'), backgroundColor: AppColors.error),
         );
       }
@@ -190,7 +193,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
         if (analytics != null) {
           debugPrint('[InstructorDashboard] Found data in overall_total_survey');
-          overallScore = (analytics['overall_mean'] as num?)?.toDouble() ?? 0.0;
+          overallScore = (analytics['combined_score_mean'] as num?)?.toDouble() ?? (analytics['overall_mean'] as num?)?.toDouble() ?? 0.0;
           managementScore = (analytics['management_mean'] as num?)?.toDouble() ?? 0.0;
           performanceScore = (analytics['performance_mean'] as num?)?.toDouble() ?? 0.0;
           totalEvaluations = analytics['total_responses'] ?? 0;
@@ -247,7 +250,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           // FALLBACK 2: Raw data — if even subject results are empty, dig into the raw spreadsheet data
           if (totalEvaluations == 0) {
             debugPrint('[InstructorDashboard] Subject results empty. Checking raw data...');
-            var rawQuery = _supabase.from('raw_GoogleSheet_data_result').select().eq('term_id', _currentTermId);
+            var rawQuery = _supabase.from('sast_all_raw_data_survey').select().eq('term_id', _currentTermId);
             
             if (subjectIds.isNotEmpty) {
               rawQuery = rawQuery.filter('subject_id', 'in', subjectIds);
@@ -293,7 +296,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       // 5. Fetch Historical Performance (All terms) — the "glow up" chart data
       final historyData = await _supabase
           .from('overall_total_survey')
-          .select('overall_mean, academic_terms(semester, academic_year)')
+          .select('overall_mean, combined_score_mean, academic_terms(semester, academic_year)')
           .eq('instructor_id', widget.userId)
           .order('created_at', ascending: true); // oldest first, so chart goes left to right
 
@@ -331,18 +334,39 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           // Build the history chart from the last 4 terms only — fit in the bar chart
           if ((historyData as List).isNotEmpty) {
             _myHistory.clear();
-            final recentHistory = (historyData as List).reversed.take(4).toList().reversed;
+            // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
+            final semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
+            final sorted = List.from(historyData)..sort((a, b) {
+              final aTerm = a['academic_terms'];
+              final bTerm = b['academic_terms'];
+              final aYear = int.tryParse(aTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+              final bYear = int.tryParse(bTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+              if (aYear != bYear) return aYear.compareTo(bYear);
+              final aSem = aTerm?['semester']?.toString() ?? '';
+              final bSem = bTerm?['semester']?.toString() ?? '';
+              // Match first word to semOrder key
+              final aSemKey = semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
+              final bSemKey = semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
+              return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
+            });
+            // Take the 4 most recent terms (end of sorted list) in order
+            final recentHistory = sorted.length > 4 ? sorted.sublist(sorted.length - 4) : sorted;
             for (var item in recentHistory) {
               final term = item['academic_terms'];
               String label = 'Sem'; // default label if term data missing
               if (term != null) {
-                String year = term['academic_year'].toString();
-                if (year.length >= 4) year = year.substring(2); // shorten year e.g. 2024 -> 24
-                label = '${term['semester'].toString().substring(0, 3)} $year';
+                // Build compact label: "1st\n25-26"
+                final ay = term['academic_year'].toString(); // e.g. "2025-2026"
+                final ayParts = ay.split('-');
+                final yearShort = ayParts.length == 2
+                    ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                      '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
+                    : ay;
+                label = '${term['semester'].toString().substring(0, 3)}\n$yearShort';
               }
               _myHistory.add({
                 'sem': label,
-                'score': (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
+                'score': (item['combined_score_mean'] as num?)?.toDouble() ?? (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
               });
             }
           }
@@ -364,7 +388,12 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   void dispose() {
     // Clean up subscriptions or the memory will cry. Importente ni.
     _settingsSubscription?.cancel();
-    _interventionChannel?.unsubscribe();
+    // removeChannel() both unsubscribes AND removes the channel from the Supabase
+    // client registry — prevents server-side resource leaks on repeated navigation.
+    // Fire-and-forget is intentional: dispose() is synchronous in Flutter.
+    if (_interventionChannel != null) {
+      _supabase.removeChannel(_interventionChannel!);
+    }
     super.dispose();
   }
 
@@ -513,9 +542,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 children: [
                   CircleAvatar(
                     radius: 28,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                    // Show first letter of name as avatar, or '?' if name not loaded yet
-                    child: Text(_instructorName.isNotEmpty ? _instructorName[0] : '?', style: const TextStyle(color: AppColors.surface, fontSize: 24, fontWeight: FontWeight.bold)),
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                    child: Text(_instructorName.isNotEmpty ? _instructorName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(height: 12),
                   Text(_instructorName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
@@ -535,7 +563,18 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             // Go to subjects screen — see what subjects are assigned this term
             _buildDrawerItem(context, Icons.menu_book_rounded, 'My Subjects', false, onTap: () {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (_) => MySubjectsScreen(userId: widget.userId)));
+              // ChangeNotifierProvider.value forwards the EXISTING instance into the new route.
+              // Without this, MySubjectsScreen exits the provider subtree and crashes.
+              final subjectsProvider = context.read<SubjectsProvider>();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider.value(
+                    value: subjectsProvider,
+                    child: MySubjectsScreen(userId: widget.userId),
+                  ),
+                ),
+              );
             }),
             // Go to student feedback — see what the students wrote about you
             _buildDrawerItem(context, Icons.forum, 'Student Feedback', false, onTap: () {
@@ -543,19 +582,25 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               Navigator.push(context, MaterialPageRoute(builder: (context) => StudentFeedbackScreen(userId: widget.userId, termId: _currentTermId)));
             }),
             // Account settings — profile edit, password change, danger zone
-            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () {
+            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () async {
               Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => const InstructorSettingsScreen()));
+              await Navigator.push(context, MaterialPageRoute(builder: (context) => const InstructorSettingsScreen()));
+              _fetchInstructorProfile(); // refresh name after returning
             }),
             const Divider(),
             // Log out — signs out and boots back to login. wala na siya.
             _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
               final navigator = Navigator.of(context);
-              await _authService.signOut(); // terminate session
-              navigator.pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false, // remove all previous routes — no going back
-              );
+              final confirm = await showLogoutConfirmationDialog(context);
+              if (confirm == true) {
+                await _authService.signOut(); // terminate session
+                if (mounted) {
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false, // remove all previous routes — no going back
+                  );
+                }
+              }
             }),
           ],
         ),
@@ -720,9 +765,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildStat('Management', _myPerformance['managementScore'].toStringAsFixed(1)),
+                        _buildStat('Management', _myPerformance['managementScore'].toStringAsFixed(2)),
                         Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // divider line
-                        _buildStat('Performance', _myPerformance['performanceScore'].toStringAsFixed(1)),
+                        _buildStat('Performance', _myPerformance['performanceScore'].toStringAsFixed(2)),
                         Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // another divider
                         _buildStat('Evaluations', _myPerformance['totalEvaluations'].toString()),
                       ],
@@ -742,9 +787,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               termId: _currentTermId,
                               term: _currentSemester,
                               academicYear: _currentYear,
-                              managementScore: (_myPerformance['managementScore'] as num).toDouble(),
-                              performanceScore: (_myPerformance['performanceScore'] as num).toDouble(),
-                              overallScore: (_myPerformance['overallScore'] as num).toDouble(),
+                              managementScore: (_myPerformance['managementScore'] as num?)?.toDouble() ?? 0.0,
+                              performanceScore: (_myPerformance['performanceScore'] as num?)?.toDouble() ?? 0.0,
+                              overallScore: (_myPerformance['overallScore'] as num?)?.toDouble() ?? 0.0,
                               totalEvaluations: _myPerformance['totalEvaluations'],
                             ),
                           ),
@@ -810,20 +855,30 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                             children: _myHistory.map<Widget>((data) {
                               // Bar height is proportional to score out of 5.0
                               double barHeight = (data['score'] / 5.0) * 100;
-                              return Column(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 12)),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    width: 24,
-                                    height: barHeight,
-                                    decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(4)),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  // Short semester label below each bar
-                                  Text(data['sem'].split(' ')[0], style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
-                                ],
+                              // Flexible lets bars share the available width equally —
+                              // avoids overflow when there are 4+ history entries
+                              return Flexible(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
+                                    const SizedBox(height: 4),
+                                    Container(
+                                      width: 20,
+                                      height: barHeight,
+                                      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(4)),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    // Label fits inside whatever width Flexible assigns
+                                    Text(
+                                      data['sem'].toString(),
+                                      style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               );
                             }).toList(),
                           ),
@@ -913,10 +968,19 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   Widget _buildEmptySubjectsCard(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => MySubjectsScreen(userId: widget.userId)),
-      ),
+      onTap: () {
+        // ChangeNotifierProvider.value forwards the EXISTING instance into the new route.
+        final subjectsProvider = context.read<SubjectsProvider>();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChangeNotifierProvider.value(
+              value: subjectsProvider,
+              child: MySubjectsScreen(userId: widget.userId),
+            ),
+          ),
+        );
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -1046,19 +1110,42 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   }
 
   // Builds one item in the side drawer navigation list.
-  // isLogout = true makes it red and scary. isSelected = highlights in primary color.
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected, {bool isLogout = false, VoidCallback? onTap}) {
+  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
+      {bool isLogout = false, int badgeCount = 0, VoidCallback? onTap}) {
+    final color = isLogout
+        ? AppColors.error
+        : (isSelected ? AppColors.primary : AppColors.textPrimary);
     return ListTile(
-      leading: Icon(icon, color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary)),
+      leading: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Icon(icon, color: color),
+          if (badgeCount > 0)
+            Positioned(
+              top: -4,
+              right: -6,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                    color: AppColors.error, shape: BoxShape.circle),
+                child: Text('$badgeCount',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
       title: Text(
         title,
         style: TextStyle(
-          color: isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary),
+          color: color,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
+        overflow: TextOverflow.ellipsis,
       ),
       selected: isSelected,
-      // Use provided onTap or fallback to a "coming soon" snackbar — bahala na
       onTap: onTap ?? () {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title coming soon!")));

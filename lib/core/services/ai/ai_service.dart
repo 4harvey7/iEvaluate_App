@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -49,10 +50,16 @@ class AIService {
     if (data == null) return [];
     if (data is List) return data.map((e) => e.toString()).toList();
     if (data is String) {
-      // Handle potential comma separated string or JSON string
+      // Handle a JSON-formatted array string (e.g. `["good","clear"]`)
       if (data.startsWith('[') && data.endsWith(']')) {
-         // basic json list parsing if needed, but supabase usually handles this if it's jsonb
+        try {
+          final decoded = jsonDecode(data);
+          if (decoded is List) return decoded.map((e) => e.toString()).toList();
+        } catch (_) {
+          // not valid JSON — fall through to comma-split below
+        }
       }
+      // Handle plain comma-separated values (e.g. "good,clear")
       return data.split(',').map((e) => e.trim()).toList();
     }
     return [];

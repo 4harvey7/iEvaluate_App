@@ -1,12 +1,52 @@
-import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path_provider/path_provider.dart';
 import '../evaluation_service.dart';
 
 class PdfService {
+  // ─────────────────────────────────────────────────────────
+  //  Helper: save bytes → file, then share/download
+  // ─────────────────────────────────────────────────────────
+  Future<void> _saveAndShare(Uint8List bytes, String fileName) async {
+    if (kIsWeb) {
+      // On web: trigger a browser download via Printing.sharePdf (uses anchor download)
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      return;
+    }
+
+    // On mobile / desktop: save to Downloads or Documents directory
+    Directory? dir;
+    try {
+      if (Platform.isAndroid) {
+        // Try the public Downloads directory first
+        dir = Directory('/storage/emulated/0/Download');
+        if (!await dir.exists()) dir = await getExternalStorageDirectory();
+      } else if (Platform.isIOS) {
+        dir = await getApplicationDocumentsDirectory();
+      } else {
+        // Windows / macOS / Linux → user downloads folder
+        dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      }
+    } catch (_) {
+      dir = await getApplicationDocumentsDirectory();
+    }
+
+    final filePath = '${dir!.path}/$fileName';
+    final file = File(filePath);
+    await file.writeAsBytes(bytes);
+    debugPrint('PDF saved to: $filePath');
+
+    // Share the saved file so the user can open/view it
+    await Printing.sharePdf(bytes: bytes, filename: fileName);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  Performance Report (SAO Admin)
+  // ─────────────────────────────────────────────────────────
   Future<void> generatePerformanceReport({
     required String title,
     required Map<String, dynamic> overviewStats,
@@ -69,11 +109,14 @@ class PdfService {
       ),
     );
 
-    await Printing.layoutPdf(
-        onLayout: (PdfPageFormat format) async => pdf.save(),
-        name: '${title.replaceAll(' ', '_')}.pdf');
+    final bytes = await pdf.save();
+    final fileName = '${title.replaceAll(' ', '_')}.pdf';
+    await _saveAndShare(bytes, fileName);
   }
 
+  // ─────────────────────────────────────────────────────────
+  //  Instructor Detailed Report (Instructor view)
+  // ─────────────────────────────────────────────────────────
   Future<void> generateInstructorDetailedReport({
     required String instructorName,
     required String department,
@@ -89,7 +132,7 @@ class PdfService {
     required List<Map<String, dynamic>> wordCloudData,
   }) async {
     final pdf = pw.Document();
-    
+
     // Load logo from assets
     pw.MemoryImage? logo;
     try {
@@ -124,10 +167,9 @@ class PdfService {
       ),
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-      name: 'SAST_Report_${instructorName.replaceAll(' ', '_')}.pdf',
-    );
+    final bytes = await pdf.save();
+    final fileName = 'SAST_Report_${instructorName.replaceAll(' ', '_')}.pdf';
+    await _saveAndShare(bytes, fileName);
   }
 
   pw.Widget _buildStatItem(String label, String value) {
@@ -281,8 +323,8 @@ class PdfService {
   }
 
   pw.Widget _pwCommentsSection(String aiSuggestion, List<Map<String, dynamic>> wordCloudData, double mgmt, double perf, double overall) {
-    final summaryText = aiSuggestion.isNotEmpty 
-        ? aiSuggestion 
+    final summaryText = aiSuggestion.isNotEmpty
+        ? aiSuggestion
         : "Integrated ratings (Management = ${mgmt.toStringAsFixed(2)}, Performance = ${perf.toStringAsFixed(2)}, Overall = ${overall.toStringAsFixed(2)}, all ${_getVerbalDescription(overall)}) reflect a positive overall evaluation.";
 
     return pw.Column(
