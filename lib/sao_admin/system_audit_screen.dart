@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+
 
 class SystemAuditScreen extends StatefulWidget {
   const SystemAuditScreen({super.key});
@@ -82,13 +84,18 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Security Audit Logs', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           // Sort Toggle Button — switches between newest/oldest first
           SafeIconButton(
-            icon: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward), // arrow shows current direction
+            icon: Icon(_isAscending ? Icons.arrow_upward : Icons.arrow_downward),
             tooltip: _isAscending ? 'Showing Oldest First' : 'Showing Newest First',
-            onPressed: _toggleSort, // flip and reload
+            onPressed: _toggleSort,
           ),
           // manual refresh button — for when you just KNOW something new happened
           SafeIconButton(icon: const Icon(Icons.refresh), onPressed: _fetchLogs),

@@ -50,60 +50,118 @@ class PdfService {
   Future<void> generatePerformanceReport({
     required String title,
     required Map<String, dynamic> overviewStats,
-    required List<Map<String, dynamic>> departmentAverages,
     required List<InstructorPerformance> topInstructors,
   }) async {
     final pdf = pw.Document();
 
+    // Load logo from assets
+    pw.MemoryImage? logo;
+    try {
+      final ByteData logoData = await rootBundle.load('assets/images/CTU_logo.png');
+      logo = pw.MemoryImage(logoData.buffer.asUint8List());
+    } catch (e) {
+      debugPrint('Logo not found: $e');
+    }
+
+    // Define colors for the prestige look
+    final primaryColor = PdfColor.fromHex('#F58220'); // CTU Orange/Primary
+    final headerBgColor = PdfColor.fromHex('#F8F9FA'); // Light gray background
+    final darkTextColor = PdfColor.fromHex('#1E293B'); // Slate 800
+
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(40),
         build: (pw.Context context) {
           return [
-            pw.Header(
-              level: 0,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            // ── Official University Header ──
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logo != null) pw.SizedBox(height: 60, width: 60, child: pw.Image(logo))
+                else pw.SizedBox(width: 60),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text('Republic of the Philippines', style: pw.TextStyle(fontSize: 10, color: darkTextColor)),
+                    pw.Text('CEBU TECHNOLOGICAL UNIVERSITY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: darkTextColor)),
+                    pw.Text('ARGAO CAMPUS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: primaryColor)),
+                    pw.Text('Ed Kintanar Street, Lamacan, Argao, Cebu', style: pw.TextStyle(fontSize: 10, color: darkTextColor)),
+                  ],
+                ),
+                pw.SizedBox(width: 60), // Balance the logo
+              ],
+            ),
+            pw.SizedBox(height: 20),
+            
+            // ── Report Title ──
+            pw.Container(
+              width: double.infinity,
+              padding: const pw.EdgeInsets.symmetric(vertical: 12),
+              decoration: pw.BoxDecoration(
+                border: pw.Border(top: pw.BorderSide(color: primaryColor, width: 2), bottom: pw.BorderSide(color: primaryColor, width: 2)),
+              ),
+              child: pw.Column(
                 children: [
-                  pw.Text(title,
-                      style: pw.TextStyle(
-                          fontSize: 20, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(DateTime.now().toString().split(' ')[0]),
+                  pw.Text('UNIVERSITY PERFORMANCE REPORT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: darkTextColor)),
+                  pw.SizedBox(height: 4),
+                  pw.Text(title.replaceAll('University Performance Report - ', ''), style: pw.TextStyle(fontSize: 12, color: darkTextColor)),
+                ]
+              )
+            ),
+            pw.SizedBox(height: 30),
+
+            // ── Overview Statistics ──
+            pw.Text('OVERVIEW STATISTICS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+            pw.SizedBox(height: 10),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(16),
+              decoration: pw.BoxDecoration(
+                color: headerBgColor,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                border: pw.Border.all(color: PdfColors.grey300),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  _buildPremiumStatItem('University Average', overviewStats['overall'] ?? 'N/A', primaryColor),
+                  _buildPremiumStatItem('Total Evaluations', overviewStats['totalEvals'] ?? 'N/A', darkTextColor),
                 ],
               ),
             ),
-            pw.SizedBox(height: 20),
-            pw.Text('Overview Statistics',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            pw.Divider(),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-              children: [
-                _buildStatItem('University Average', overviewStats['overall'] ?? 'N/A'),
-                _buildStatItem('Total Evaluations', overviewStats['totalEvals'] ?? 'N/A'),
-                _buildStatItem('Completion Rate', overviewStats['completion'] ?? 'N/A'),
-              ],
-            ),
             pw.SizedBox(height: 30),
-            pw.Text('Department Averages',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            pw.Divider(),
+
+
+
+            // ── Top Performing Instructors Table ──
+            pw.Text('TOP PERFORMING INSTRUCTORS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
+            pw.SizedBox(height: 10),
             pw.TableHelper.fromTextArray(
-              headers: ['Department', 'Average Score'],
-              data: departmentAverages.map((dept) => [dept['dept'], dept['score'].toString()]).toList(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              headers: ['Rank', 'Instructor', 'Department', 'Score', 'Evals'],
+              data: topInstructors.asMap().entries.map((e) => [
+                '#${e.key + 1}',
+                e.value.name,
+                e.value.department.replaceAll('College of ', ''), // Shorten long names
+                e.value.overallScore.toStringAsFixed(2),
+                e.value.subjectCount.toString(),
+              ]).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
+              headerDecoration: pw.BoxDecoration(color: primaryColor), // Highlight the top performers table
+              cellStyle: const pw.TextStyle(fontSize: 10),
               cellAlignment: pw.Alignment.centerLeft,
+              cellAlignments: {0: pw.Alignment.center, 3: pw.Alignment.center, 4: pw.Alignment.center},
+              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+              rowDecoration: const pw.BoxDecoration(
+                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5)),
+              ),
             ),
-            pw.SizedBox(height: 30),
-            pw.Text('Top Performing Instructors',
-                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            pw.Divider(),
-            pw.TableHelper.fromTextArray(
-              headers: ['Instructor', 'Department', 'Score', 'Subjects'],
-              data: topInstructors.map((i) => [i.name, i.department, i.overallScore.toString(), i.subjectCount.toString()]).toList(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              cellAlignment: pw.Alignment.centerLeft,
-            ),
+            
+            pw.SizedBox(height: 40),
+            pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text('Generated on: ${DateTime.now().toString().split('.')[0]}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600))
+            )
           ];
         },
       ),
@@ -112,6 +170,16 @@ class PdfService {
     final bytes = await pdf.save();
     final fileName = '${title.replaceAll(' ', '_')}.pdf';
     await _saveAndShare(bytes, fileName);
+  }
+
+  pw.Widget _buildPremiumStatItem(String label, String value, PdfColor valueColor) {
+    return pw.Column(
+      children: [
+        pw.Text(label, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+        pw.SizedBox(height: 4),
+        pw.Text(value, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: valueColor)),
+      ],
+    );
   }
 
   // ─────────────────────────────────────────────────────────
@@ -414,28 +482,28 @@ class PdfService {
   }
 
   static const List<String> _managementCriteria = [
-    'gives reasonable course / subject assignments',
-    'earns appreciation and kind attention from the students',
-    'gives orientation about the subject and how the students are evaluated',
-    'gives tests and/or projects which are within the objectives of the course',
-    'shows deep interest and concern in assisting the students',
-    'manifests sympathetic insight into students\' feelings',
-    'checks and records test papers/term papers',
-    'is on time and regular in meeting the class',
-    'apportions fair subject/course assignments',
-    'sustains the attention of the class for the whole period',
+    'Gives reasonable course / subject assignments',
+    'Earns appreciation and kind attention from the students',
+    'Gives orientation about the subject and how the students are evaluated',
+    'Gives tests and/or projects which are within the objectives of the course',
+    'Shows deep interest and concern in assisting the students',
+    'Manifests sympathetic insight into students\' feelings',
+    'Checks and records test papers/term papers',
+    'Is on time and regular in meeting the class',
+    'Apportions fair subject/course assignments',
+    'Sustains the attention of the class for the whole period',
   ];
 
   static const List<String> _performanceCriteria = [
-    'presents lesson clearly, methodically, and substantially',
-    'motivates the students to learn',
-    'facilitates learning with the application of appropriate educational methods and techniques',
-    'shows mastery of the lesson',
-    'is ready for the class',
-    'inspires students\' self-reliance in their quest for knowledge',
-    'knows when the students have difficulty understanding the lesson and find ways to make it easy',
-    'integrates values into the lesson',
-    'speaks the language of instruction (English or Filipino) clearly and fluently',
-    'delivers thought provoking questions',
+    'Presents lesson clearly, methodically, and substantially',
+    'Motivates the students to learn',
+    'Facilitates learning with the application of appropriate educational methods and techniques',
+    'Shows mastery of the lesson',
+    'Is ready for the class',
+    'Inspires students\' self-reliance in their quest for knowledge',
+    'Knows when the students have difficulty understanding the lesson and find ways to make it easy',
+    'Integrates values into the lesson',
+    'Speaks the language of instruction (English or Filipino) clearly and fluently',
+    'Delivers thought provoking questions',
   ];
 }

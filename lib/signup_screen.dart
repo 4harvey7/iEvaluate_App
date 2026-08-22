@@ -29,6 +29,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _idController              = TextEditingController();
   final TextEditingController _emailController           = TextEditingController();
   final TextEditingController _departmentController      = TextEditingController();
+  
+  String _selectedEmploymentStatus = 'Full-Time'; // Default to Full-Time (Resident)
   final TextEditingController _roleController            = TextEditingController();
   final TextEditingController _passwordController        = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -37,6 +39,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool _obscurePassword        = true;  // hide the password by default, ayaw show it
   bool _obscureConfirmPassword = true;  // same for the confirm field
   bool _hasAcceptedAgreements  = false; // user must agree or they cant proceed, dili pwede skip
+  bool _hasScrolledToBottom    = false; // user must scroll to bottom of NDA/DPA first
   bool _has8Chars              = false; // password length check
   bool _hasUpper               = false; // must have uppercase, murag shouting is required
   bool _hasNumber              = false; // at least one number, basin they forget
@@ -173,6 +176,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       departmentName: _departmentController.text,
       roleName: _roleController.text,
       password: _passwordController.text,
+      employmentStatus: _selectedEmploymentStatus,
     );
 
     if (!mounted) return; // widget might be gone by now, ayaw crash
@@ -195,17 +199,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (isReviewStep) canProceed = _hasAcceptedAgreements; // on review step, must tick the checkbox
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textInverted),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text('Registration', style: TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.bold)),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          return SingleChildScrollView(
+          return Center(
             child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 600),
+              child: SingleChildScrollView(
+                child: ConstrainedBox(
               constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: IntrinsicHeight(
                 child: Column(
@@ -311,6 +322,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
             ),
+              ),
+            ),
           );
         },
       ),
@@ -355,8 +368,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
           const SizedBox(height: 16),
           _buildDropdownforstatus(), // role selector -- pick what kind of person you are
-          // Only show department for non-SAO roles
+          // Only show department and employment status for non-SAO roles
           if (!_roleController.text.toUpperCase().contains('SAO')) ...[
+            const SizedBox(height: 16),
+            _buildEmploymentStatusDropdown(),
             const SizedBox(height: 16),
             _buildDropdown(), // department selector, only for non-SAO people
           ],
@@ -399,34 +414,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
-  void _showNdaDpaModal() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('NDA & DPA Agreements', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              MarkdownBody(data: Agreements.ndaText),
-              Divider(height: 32, thickness: 1),
-              MarkdownBody(data: Agreements.dpaText),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
-          ),
-        ],
-      ),
-    );
-  }
-
   // step 4: show the data privacy/NDA text and a checkbox
-  // user must accept or dili pwede register, wala choice
+  // user must scroll to bottom to accept, wala choice
   Widget _buildReviewStep() {
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -434,12 +423,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Review & Terms', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           const Text(
-            'To complete your registration, you must read and agree to our Data Privacy Act (DPA) and Non-Disclosure Agreement (NDA).',
+            'Please read and scroll through the Data Privacy Act (DPA) and Non-Disclosure Agreement (NDA) to continue.',
             style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.4),
           ),
-          const Spacer(),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderSubtle),
+              ),
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (ScrollNotification scrollInfo) {
+                  if (!_hasScrolledToBottom && scrollInfo.metrics.pixels >= scrollInfo.metrics.maxScrollExtent - 20) {
+                    setState(() => _hasScrolledToBottom = true);
+                  }
+                  return true;
+                },
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      MarkdownBody(data: Agreements.ndaText),
+                      Divider(height: 32, thickness: 1),
+                      MarkdownBody(data: Agreements.dpaText),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Container(
             decoration: BoxDecoration(
               color: AppColors.surface,
@@ -447,18 +465,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
               border: Border.all(color: AppColors.borderHairline),
             ),
             child: CheckboxListTile(
-              title: Row(
-                children: [
-                  const Expanded(child: Text('I agree to the NDA and DPA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary))),
-                  IconButton(
-                    icon: const Icon(Icons.info_outline, color: AppColors.primary),
-                    onPressed: _showNdaDpaModal,
-                    tooltip: 'Read Agreements',
-                  ),
-                ],
-              ),
+              title: const Text('I agree to the NDA and DPA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary)),
+              subtitle: !_hasScrolledToBottom ? const Text('Scroll to the bottom to agree', style: TextStyle(fontSize: 12, color: AppColors.error)) : null,
               value: _hasAcceptedAgreements,
-              onChanged: (val) => setState(() => _hasAcceptedAgreements = val ?? false),
+              onChanged: _hasScrolledToBottom
+                  ? (val) => setState(() => _hasAcceptedAgreements = val ?? false)
+                  : null,
               controlAffinity: ListTileControlAffinity.leading,
               contentPadding: const EdgeInsets.only(left: 8, right: 4),
               dense: true,
@@ -515,6 +527,24 @@ class _SignUpScreenState extends State<SignUpScreen> {
           const SizedBox(width: 8),
           Text(label, style: TextStyle(fontSize: 12, color: isMet ? AppColors.success : AppColors.textSecondary)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmploymentStatusDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderHairline)),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          isExpanded: true,
+          value: _selectedEmploymentStatus,
+          items: const [
+            DropdownMenuItem(value: 'Full-Time', child: Text('Resident (Full-Time)')),
+            DropdownMenuItem(value: 'Part-Time', child: Text('Non-Resident (Part-Time)')),
+          ],
+          onChanged: _isLoading ? null : (val) => setState(() => _selectedEmploymentStatus = val!),
+        ),
       ),
     );
   }

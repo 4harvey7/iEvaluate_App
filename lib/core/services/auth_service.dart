@@ -33,10 +33,37 @@ class AuthService {
     required String departmentName,
     required String roleName,
     required String password,
+    String employmentStatus = 'Full-Time',
   }) async {
     debugPrint('--- [AUTH] SIGN UP ATTEMPT START ---');
 
     try {
+      // STEP 0: check if university_id is already taken
+      final existingUser = await _supabase
+          .from('user_info')
+          .select('id')
+          .eq('university_id', universityId)
+          .maybeSingle();
+
+      if (existingUser != null) {
+        return const AuthResult(
+            success: false,
+            error: 'The ID is already in the database. If you have more questions ask the SAO.');
+      }
+
+      // STEP 0.5: check if email is already taken
+      final existingEmail = await _supabase
+          .from('user_info')
+          .select('id')
+          .eq('email', institutionalEmail)
+          .maybeSingle();
+
+      if (existingEmail != null) {
+        return const AuthResult(
+            success: false,
+            error: 'This email is already registered.');
+      }
+
       // STEP 1: create the user account in supabase auth first
       final authResponse = await _supabase.auth.signUp(
         email: institutionalEmail,
@@ -92,6 +119,7 @@ class AuthService {
         'email': institutionalEmail,
         'account_status': 'pending', // all new accounts need admin approval before they can login
         'university_id': universityId,
+        'employment_status': employmentStatus,
       });
 
       // STEP 5: link user to the right table depending on their role
@@ -204,7 +232,12 @@ class AuthService {
         return const AuthResult(success: false, error: 'User profile incomplete. Please contact support.');
       }
 
-      // account must be approved by admin before they can login, pending means no entry
+      // account must be approved by admin before they can login
+      if (status == 'disabled') {
+        await signOut();
+        return const AuthResult(success: false, error: 'Your account has been deactivated by the administration.');
+      }
+      
       if (status != 'approved') {
         await signOut();
         return const AuthResult(success: false, error: 'Account pending admin approval.');
@@ -354,6 +387,41 @@ class AuthService {
       debugPrint('[AUTH] Update Profile Error: $e');
       // return generic message so the raw error dont scare the user
       return const AuthResult(success: false, error: 'Profile update failed. Please try again.');
+    }
+  }
+
+  // UPDATE EMAIL
+  // update the user email in Supabase Auth and user_info table
+  Future<AuthResult> updateEmail(String newEmail) async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return const AuthResult(success: false, error: 'No user logged in.');
+
+      // Check if new email is already used by someone else
+      final existingEmail = await _supabase
+          .from('user_info')
+          .select('id')
+          .eq('email', newEmail)
+          .maybeSingle();
+
+      if (existingEmail != null && existingEmail['id'] != userId) {
+        return const AuthResult(success: false, error: 'This email is already in use by another account.');
+      }
+
+      // 1. Update in Supabase Auth (this sends a confirmation link to the new email)
+      await _supabase.auth.updateUser(
+        UserAttributes(email: newEmail),
+      );
+
+      // 2. Update in user_info table so the database matches
+      await _supabase.from('user_info').update({
+        'email': newEmail,
+      }).eq('id', userId);
+
+      return const AuthResult(success: true);
+    } catch (e) {
+      debugPrint('[AUTH] Update Email Error: $e');
+      return const AuthResult(success: false, error: 'Email update failed. Ensure the email is not already in use.');
     }
   }
 

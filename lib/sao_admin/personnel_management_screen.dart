@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
 import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 
 // the outer shell widget — just a box, nothing special yet
@@ -184,43 +185,40 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     final fullName = '${ui['first_name']} ${ui['last_name']}';
     final isAdmin = roleName.toUpperCase().contains('ADMIN'); // admins get different view
 
-    // scan statistics — only relevant for SAO_STAFF, not admins
+    // scan statistics — now relevant for ALL SAO personnel since Admins can act as Gatherers
     int totalScans = 0, todayScans = 0, termScans = 0;
     String lastUpload = '';
 
-    if (!isAdmin) {
-      // staff users have scan activities — fetch their numbers
-      try {
-        final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
-        final termId = settings?['current_term_id'];
-        final today = DateTime.now();
-        final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String(); // midnight UTC
+    try {
+      final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
+      final termId = settings?['current_term_id'];
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String(); // midnight UTC
 
-        // All-time scans by this SAO staff — from the beginning of time
-        final all = await _supabase
-            .from('sast_all_raw_data_survey')
-            .select('created_at')
-            .eq('sao_staff_id', userId);
-        totalScans = (all as List).length;
+      // All-time scans by this user — from the beginning of time
+      final all = await _supabase
+          .from('sast_all_raw_data_survey')
+          .select('created_at')
+          .eq('sao_staff_id', userId);
+      totalScans = (all as List).length;
 
-        // This term's scans — scoped to current active term
-        var termQ = _supabase
-            .from('sast_all_raw_data_survey')
-            .select('created_at')
-            .eq('sao_staff_id', userId);
-        if (termId != null) termQ = termQ.eq('term_id', termId); // apply term filter
-        final termRows = await termQ;
-        termScans = (termRows as List).length;
-        // today's scans = anything uploaded since midnight today
-        todayScans = termRows.where((r) => (r['created_at'] as String? ?? '').compareTo(startOfDay) >= 0).length;
+      // This term's scans — scoped to current active term
+      var termQ = _supabase
+          .from('sast_all_raw_data_survey')
+          .select('created_at')
+          .eq('sao_staff_id', userId);
+      if (termId != null) termQ = termQ.eq('term_id', termId); // apply term filter
+      final termRows = await termQ;
+      termScans = (termRows as List).length;
+      // today's scans = anything uploaded since midnight today
+      todayScans = termRows.where((r) => (r['created_at'] as String? ?? '').compareTo(startOfDay) >= 0).length;
 
-        if (all.isNotEmpty) {
-          // find the most recent upload timestamp
-          final sorted = all.map((r) => r['created_at'] as String).toList()..sort((a, b) => b.compareTo(a));
-          lastUpload = sorted.first; // most recent = first after descending sort
-        }
-      } catch (e) { debugPrint('PersonnelModal error: $e'); }
-    }
+      if (all.isNotEmpty) {
+        // find the most recent upload timestamp
+        final sorted = all.map((r) => r['created_at'] as String).toList()..sort((a, b) => b.compareTo(a));
+        lastUpload = sorted.first; // most recent = first after descending sort
+      }
+    } catch (e) { debugPrint('PersonnelModal error: $e'); }
 
     if (!mounted) return;
     // show the modal with different content based on whether person is admin or staff
@@ -245,12 +243,16 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               ])),
             ]),
           ),
-          // body: admin sees profile, staff sees their scan stats
+          // body: admin sees profile and stats, staff sees just their scan stats
           Expanded(child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
-            child: isAdmin
-                ? _buildAdminProfile(ui) // admin: show contact info
-                : _buildGathererStats(totalScans, termScans, todayScans, lastUpload), // staff: show scan numbers
+            child: Column(
+              children: [
+                if (isAdmin) _buildAdminProfile(ui), // show profile details for admins
+                if (isAdmin) const SizedBox(height: 24),
+                _buildGathererStats(totalScans, termScans, todayScans, lastUpload), // show scan stats for EVERYONE now
+              ],
+            ),
           )),
         ]),
       ),
@@ -653,15 +655,20 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
-        title: const Text('SAO Personnel Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
+        title: const Text('Personnel Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
-            onPressed: _showAddPersonnelDialog, // open add dialog
+            onPressed: _showAddPersonnelDialog,
           ),
           SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _fetchData, // manual refresh button
+            onPressed: _fetchData,
           ),
         ],
       ),

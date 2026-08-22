@@ -267,9 +267,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Official Evaluation Report', style: TextStyle(color: Colors.white)),
+        title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.textPrimary,
-        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded),
@@ -516,7 +517,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
                         child: Text(
                           '${w['word']} (${w['count']})',
                           style: TextStyle(
-                            fontSize: 10 + (w['count'] as int).toDouble() * 0.5,
+                            fontSize: (10 + (w['count'] as int).toDouble() * 0.5).clamp(10.0, 18.0),
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
@@ -568,28 +569,28 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   }
 
   static const List<String> _managementCriteria = [
-    'gives reasonable course / subject assignments',
-    'earns appreciation and kind attention from the students',
-    'gives orientation about the subject and how the students are evaluated',
-    'gives tests and/or projects which are within the objectives of the course',
-    'shows deep interest and concern in assisting the students',
-    'manifests sympathetic insight into students\' feelings',
-    'checks and records test papers/term papers',
-    'is on time and regular in meeting the class',
-    'apportions fair subject/course assignments',
-    'sustains the attention of the class for the whole period',
+    'Gives reasonable course / subject assignments',
+    'Earns appreciation and kind attention from the students',
+    'Gives orientation about the subject and how the students are evaluated',
+    'Gives tests and/or projects which are within the objectives of the course',
+    'Shows deep interest and concern in assisting the students',
+    'Manifests sympathetic insight into students\' feelings',
+    'Checks and records test papers/term papers',
+    'Is on time and regular in meeting the class',
+    'Apportions fair subject/course assignments',
+    'Sustains the attention of the class for the whole period',
   ];
 
   static const List<String> _performanceCriteria = [
-    'presents lesson clearly, methodically, and substantially',
-    'motivates the students to learn',
-    'facilitates learning with the application of appropriate educational methods and techniques',
-    'shows mastery of the lesson',
-    'is ready for the class',
-    'inspires students\' self-reliance in their quest for knowledge',
-    'knows when the students have difficulty understanding the lesson and find ways to make it easy',
-    'integrates values into the lesson',
-    'speaks the language of instruction (English or Filipino) clearly and fluently',
-    'delivers thought provoking questions',
+    'Presents lesson clearly, methodically, and substantially',
+    'Motivates the students to learn',
+    'Facilitates learning with the application of appropriate educational methods and techniques',
+    'Shows mastery of the lesson',
+    'Is ready for the class',
+    'Inspires students\' self-reliance in their quest for knowledge',
+    'Knows when the students have difficulty understanding the lesson and find ways to make it easy',
+    'Integrates values into the lesson',
+    'Speaks the language of instruction (English or Filipino) clearly and fluently',
+    'Delivers thought provoking questions',
   ];
 }

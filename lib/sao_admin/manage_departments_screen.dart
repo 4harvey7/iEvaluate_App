@@ -2,7 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+
 
 class ManageDepartmentsScreen extends StatefulWidget {
   const ManageDepartmentsScreen({super.key});
@@ -404,17 +406,21 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Department Management',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18)),
+                    color: AppColors.surface,
+                    fontWeight: FontWeight.bold)),
             Text('Add, edit or remove departments',
-                style: TextStyle(color: Colors.white60, fontSize: 11)),
+                style: TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
           ],
         ),
         actions: [

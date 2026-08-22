@@ -393,15 +393,15 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       resizeToAvoidBottomInset: true, // important — form shifts up when keyboard appears
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        foregroundColor: AppColors.surface,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Fix Import Error',
                 style: TextStyle(
                     color: AppColors.surface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 17)),
+                    fontWeight: FontWeight.bold)),
             // shows source type in subtitle — sheet or scan
             Text(
               _isSheet ? '📊 From Google Sheet' : '📷 From Scan',

@@ -1,5 +1,7 @@
 import 'dart:collection';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subject.dart';
 
@@ -39,6 +41,21 @@ class SubjectsProvider extends ChangeNotifier {
         _trueTermAverage = null;
         notifyListeners();
         return;
+      }
+
+      // Load cache instantly so the user doesn't wait for a blank screen
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString('subjects_cache_$userId');
+        if (cached != null && _subjects.isEmpty) {
+          final data = jsonDecode(cached) as List;
+          _subjects.clear();
+          _subjects.addAll(data.map((x) => Subject.fromJson(Map<String, dynamic>.from(x))));
+          notifyListeners();
+          debugPrint('[SubjectsProvider] ⚡ Loaded cached subjects instantly.');
+        }
+      } catch (e) {
+        debugPrint('[SubjectsProvider] Failed to load cache: $e');
       }
 
       // 1. Resolve active term
@@ -209,6 +226,17 @@ class SubjectsProvider extends ChangeNotifier {
       _subjects.clear();
       _subjects.addAll(newSubjects);
       notifyListeners();
+
+      // Save to cache for the next time
+      try {
+        if (userId != null) {
+          final prefs = await SharedPreferences.getInstance();
+          final encoded = jsonEncode(_subjects.map((s) => s.toJson()).toList());
+          await prefs.setString('subjects_cache_$userId', encoded);
+        }
+      } catch (e) {
+        debugPrint('[SubjectsProvider] Failed to save cache: $e');
+      }
     } catch (e) {
       debugPrint('[SubjectsProvider] Error: $e');
     } finally {

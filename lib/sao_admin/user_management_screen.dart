@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 
 // The widget shell — just a box that holds the real stuff inside
@@ -219,24 +220,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             };
           }
         }
-      } else {
-        // for regular instructors, show their subjects and evaluation scores
-        if (termId != null) {
-          // get subjects assigned to this instructor this term
-          final rows = await _supabase
-              .from('instructor_subjects')
-              .select('subjects(subject_code, subject_name)')
-              .eq('instructor_id', userId)
-              .eq('term_id', termId);
-          subjects = (rows as List).map((r) {
-            final s = r['subjects'];
-            return Map<String, dynamic>.from(s is List ? s[0] : s ?? {});
-          }).toList();
-        }
-        // get their overall evaluation score this term
+      }
+
+      // Fetch personal Instructor stats for EVERYONE (both regular Instructors AND Dept Heads)
+      if (termId != null) {
+        // get subjects assigned to this instructor this term
+        final rows = await _supabase
+            .from('instructor_subjects')
+            .select('subjects(subject_code, subject_name)')
+            .eq('instructor_id', userId)
+            .eq('term_id', termId);
+        subjects = (rows as List).map((r) {
+          final s = r['subjects'];
+          return Map<String, dynamic>.from(s is List ? s[0] : s ?? {});
+        }).toList();
+        
+        // get their personal overall evaluation score this term
         overallScore = await _supabase.from('overall_total_survey')
             .select('overall_mean, combined_score_mean, management_mean, performance_mean, total_responses')
-            .eq('instructor_id', userId).eq('term_id', termId ?? '').maybeSingle();
+            .eq('instructor_id', userId).eq('term_id', termId).maybeSingle();
       }
     } catch (e) { debugPrint('UserDetailsModal error: $e'); } // log it and continue
 
@@ -263,10 +265,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ])),
             ]),
           ),
-          // scrollable content — dept summary or instructor scores depending on role
+          // scrollable content — dept summary (if applicable) AND instructor scores (for everyone)
           Expanded(child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
-            child: isDeptHead ? _buildDeptModal(deptSummary, deptName) : _buildInstructorModal(overallScore, subjects),
+            child: Column(
+              children: [
+                if (isDeptHead) ...[
+                  _buildDeptModal(deptSummary, deptName),
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+                ],
+                // Show instructor details for EVERYONE (Dept Heads are instructors too!)
+                _buildInstructorModal(overallScore, subjects),
+              ],
+            ),
           )),
         ]),
       ),
@@ -634,15 +647,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
-        title: const Text('Academic User Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
+        title: const Text('User Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
-            onPressed: _showAddUserDialog, // open add user dialog
+            onPressed: _showAddUserDialog,
           ),
           SafeIconButton(
             icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _fetchData, // manual refresh
+            onPressed: _fetchData,
           ),
         ],
       ),

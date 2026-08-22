@@ -2,23 +2,21 @@
 // The BIG screen. This is the main thing every instructor see after login.
 // If this break, everybody panic. So pray lang that the Supabase is up.
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../login_screen.dart';
 import '../theme/app_colors.dart';
-import '../core/services/auth_service.dart';
 import '../core/services/system_settings_service.dart';
-import 'instructor_settings_screen.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'models/subject.dart';
 import 'my_subjects_screen.dart';
-import 'past_semesters_screen.dart';
 import 'providers/subjects_provider.dart';
-import 'student_feedback_screen.dart';
 import 'detailed_report_screen.dart';
 import 'subject_detail_screen.dart';
-import '../widgets/logout_confirmation_dialog.dart';
+
 
 // The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
 class InstructorDashboardScreen extends StatefulWidget {
@@ -31,19 +29,20 @@ class InstructorDashboardScreen extends StatefulWidget {
 
 class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   // Services — the helpers that do the heavy lifting so we dont have to
-  final _authService = AuthService();
   final _settingsService = SystemSettingsService();
   final _supabase = Supabase.instance.client;
+
   
   // Term and instructor info — all start as "..." because we dont know yet
   String _currentTermId = '';
   String _currentSemester = '...';
   String _currentYear = '...';
   String _instructorName = '...';
-  String _instructorTitle = '...';
   String _instructorDept = '...';
-  // Flag to prevent the sync button from being smashed repeatedly
+
+  // System Services
   bool _isSyncing = false;
+  bool _isInitialLoading = true;
   // Recent feedback from students — could be nice, could be brutal, bahala na
   List<String> _recentFeedback = [];
 
@@ -55,9 +54,41 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   bool _interventionChannelActive = false; // make sure we dont subscribe twice
   RealtimeChannel? _interventionChannel;
 
+  Future<void> _loadCachedProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('instructor_profile_${widget.userId}');
+      if (cached != null) {
+        final data = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _currentTermId = data['termId'] ?? _currentTermId;
+            _currentSemester = data['semester'] ?? _currentSemester;
+            _currentYear = data['academicYear'] ?? _currentYear;
+            _instructorName = data['name'] ?? _instructorName;
+            _instructorDept = data['dept'] ?? _instructorDept;
+            _myPerformance['overallScore'] = data['overallScore'] ?? 0.0;
+            _myPerformance['managementScore'] = data['managementScore'] ?? 0.0;
+            _myPerformance['performanceScore'] = data['performanceScore'] ?? 0.0;
+            _myPerformance['totalEvaluations'] = data['totalEvaluations'] ?? 0;
+            _recentFeedback = List<String>.from(data['feedback'] ?? []);
+            if (data['history'] != null) {
+              _myHistory.clear();
+              _myHistory.addAll(List<Map<String, dynamic>>.from(data['history'].map((x) => Map<String, dynamic>.from(x))));
+            }
+          });
+          debugPrint('[INSTRUCTOR] ⚡ Loaded cached profile data instantly.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[INSTRUCTOR] Failed to load cache: $e');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _loadCachedProfile(); // Load stale data instantly!
     _subscribeToSettings(); // start listening to system settings changes
     _subscribeToInterventions(); // also listen if the dept head is mad at you
     // Wait for first frame, then sync everything so the UI is ready first
@@ -138,7 +169,12 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       }
     } finally {
       // Always turn off the loading spinner, even if things go bad
-      if (mounted) setState(() => _isSyncing = false);
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+          _isInitialLoading = false;
+        });
+      }
     }
   }
 
@@ -279,13 +315,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         }
 
         // 4. Fetch Recent Feedback — the actual words students wrote about you
-        var feedbackQuery = _supabase.from('student_remarks').select('remark').eq('term_id', _currentTermId);
-        
-        if (subjectIds.isNotEmpty) {
-          feedbackQuery = feedbackQuery.filter('subject_id', 'in', subjectIds);
-        } else {
-          feedbackQuery = feedbackQuery.eq('instructor_id', widget.userId);
-        }
+        // We now filter directly by instructor_id and term_id to ensure we get remarks
+        // even if the n8n AI pipeline missed mapping the subject_id.
+        var feedbackQuery = _supabase
+            .from('student_remarks')
+            .select('remark')
+            .eq('term_id', _currentTermId)
+            .eq('instructor_id', widget.userId);
 
         // Only get 5 most recent — we dont need all of them, just the freshest ones
         final feedbackData = await feedbackQuery.order('created_at', ascending: false).limit(5);
@@ -308,14 +344,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             _instructorName = '${user['first_name']} ${user['last_name']}';
           }
           
-          // Set department name and role/title
+          // Set department name
           if (deptData != null) {
             final dept = deptData['department_name'];
             _instructorDept = dept is Map ? dept['d_name'] ?? 'General' : 'General';
-            
-            final role = deptData['roles'];
-            _instructorTitle = role is Map ? role['Roles'] ?? 'Instructor' : 'Instructor';
+            // _instructorTitle removed — was only used in the drawer header (now MainScaffold)
           }
+
 
           // Apply term-specific scores to the performance map
           _myPerformance['overallScore'] = overallScore;
@@ -370,8 +405,28 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               });
             }
           }
-
         });
+        
+        // Save all this fresh data to cache so it loads instantly next time
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cacheData = {
+            'termId': _currentTermId,
+            'semester': _currentSemester,
+            'academicYear': _currentYear,
+            'name': _instructorName,
+            'dept': _instructorDept,
+            'overallScore': _myPerformance['overallScore'],
+            'managementScore': _myPerformance['managementScore'],
+            'performanceScore': _myPerformance['performanceScore'],
+            'totalEvaluations': _myPerformance['totalEvaluations'],
+            'feedback': _recentFeedback,
+            'history': _myHistory,
+          };
+          await prefs.setString('instructor_profile_${widget.userId}', jsonEncode(cacheData));
+        } catch (e) {
+          debugPrint('[INSTRUCTOR] Failed to save cache: $e');
+        }
       }
     } catch (e) {
       debugPrint('Error fetching instructor profile: $e');
@@ -467,6 +522,12 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('My Dashboard', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           // Sync button — shows spinner when syncing, shows icon when idle
@@ -527,87 +588,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         ],
       ),
 
-      // Side drawer — navigation menu, the instructor's main way to go around
-      drawer: Drawer(
-        backgroundColor: AppColors.surface,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            // Drawer header with instructor name and avatar — fancy lol
-            DrawerHeader(
-              decoration: const BoxDecoration(color: AppColors.textPrimary),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.25),
-                    child: Text(_instructorName.isNotEmpty ? _instructorName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(_instructorName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
-                  Text('$_instructorTitle • $_instructorDept', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-            ),
-            // Dashboard item — currently active, so it's highlighted
-            _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true, onTap: () {
-              Navigator.pop(context); // close the drawer, we already here
-            }),
-            // Go to past semesters screen — for reminiscing about old scores
-            _buildDrawerItem(context, Icons.history, 'Past Semesters', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => PastSemestersScreen(userId: widget.userId)));
-            }),
-            // Go to subjects screen — see what subjects are assigned this term
-            _buildDrawerItem(context, Icons.menu_book_rounded, 'My Subjects', false, onTap: () {
-              Navigator.pop(context);
-              // ChangeNotifierProvider.value forwards the EXISTING instance into the new route.
-              // Without this, MySubjectsScreen exits the provider subtree and crashes.
-              final subjectsProvider = context.read<SubjectsProvider>();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChangeNotifierProvider.value(
-                    value: subjectsProvider,
-                    child: MySubjectsScreen(userId: widget.userId),
-                  ),
-                ),
-              );
-            }),
-            // Go to student feedback — see what the students wrote about you
-            _buildDrawerItem(context, Icons.forum, 'Student Feedback', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(context, MaterialPageRoute(builder: (context) => StudentFeedbackScreen(userId: widget.userId, termId: _currentTermId)));
-            }),
-            // Account settings — profile edit, password change, danger zone
-            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () async {
-              Navigator.pop(context);
-              await Navigator.push(context, MaterialPageRoute(builder: (context) => const InstructorSettingsScreen()));
-              _fetchInstructorProfile(); // refresh name after returning
-            }),
-            const Divider(),
-            // Log out — signs out and boots back to login. wala na siya.
-            _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-              final navigator = Navigator.of(context);
-              final confirm = await showLogoutConfirmationDialog(context);
-              if (confirm == true) {
-                await _authService.signOut(); // terminate session
-                if (mounted) {
-                  navigator.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                    (route) => false, // remove all previous routes — no going back
-                  );
-                }
-              }
-            }),
-          ],
-        ),
-      ),
+
+      // drawer removed — MainScaffold now owns the side drawer for all roles
 
       // Main body — scrollable dashboard content, pull to refresh also works
-      body: RefreshIndicator(
+      body: _isInitialLoading 
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : RefreshIndicator(
         onRefresh: _handleManualSync, // pull down to trigger manual sync
         color: AppColors.primary,
         child: SafeArea(
@@ -1109,47 +1096,5 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     );
   }
 
-  // Builds one item in the side drawer navigation list.
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
-      {bool isLogout = false, int badgeCount = 0, VoidCallback? onTap}) {
-    final color = isLogout
-        ? AppColors.error
-        : (isSelected ? AppColors.primary : AppColors.textPrimary);
-    return ListTile(
-      leading: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(icon, color: color),
-          if (badgeCount > 0)
-            Positioned(
-              top: -4,
-              right: -6,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                    color: AppColors.error, shape: BoxShape.circle),
-                child: Text('$badgeCount',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ),
-        ],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: color,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      selected: isSelected,
-      onTap: onTap ?? () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title coming soon!")));
-      },
-    );
-  }
+  // _buildDrawerItem() removed — drawer is now managed by MainScaffold.
 }

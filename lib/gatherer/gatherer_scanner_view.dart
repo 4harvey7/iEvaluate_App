@@ -49,7 +49,7 @@ class GathererScannerView extends StatefulWidget {
   final Function(String path) onScan; // called with image path when scan is accepted
   final VoidCallback onOpenSync; // jump to sync queue tab
   final int queueCount; // number shown on sync badge button
-  final void Function(String url)? onSendFormLink; // for the form link modal
+  final VoidCallback onOpenImportData; // open google sheet import screen
   final VoidCallback? onMenuPressed; // open the drawer
 
   const GathererScannerView({
@@ -57,7 +57,7 @@ class GathererScannerView extends StatefulWidget {
     required this.onScan,
     required this.onOpenSync,
     required this.queueCount,
-    this.onSendFormLink,
+    required this.onOpenImportData,
     this.onMenuPressed,
   });
 
@@ -456,19 +456,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
     setState(() => _capturedImagePath = null); // clear path = go back to camera
   }
 
-  // open the form link modal — dark bottom sheet with URL input
-  void _openFormLinkModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // allow expanding for keyboard
-      backgroundColor: Colors.transparent,
-      builder: (_) => _FormLinkBottomSheet(
-        controller: TextEditingController(),
-        onSend: (url) => widget.onSendFormLink?.call(url), // pass URL to parent
-      ),
-    );
-  }
-
   // ══════════════════════════════════════════════════════════════════════════════
   //  Guide-frame geometry — respects paper ratio, clamps to screen
   //  This calculate the exact Rect for the paper guide overlay.
@@ -649,10 +636,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
                       ),
 
                       const Spacer(), // push right buttons to the right edge
-                      // Form link button — open bottom sheet to submit a Google Form URL
+                      // Form link button — open google sheet import screen
                       _ActionButton(
                         icon: Icons.link_rounded,
-                        onTap: _openFormLinkModal,
+                        onTap: widget.onOpenImportData,
                         activeColor: AppColors.primary,
                       ),
                       const SizedBox(width: 8),
@@ -1330,81 +1317,4 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-// bottom sheet for submitting a Google Form URL from the scanner screen
-// dark theme to match the camera UI — user paste link and tap "Add to Queue"
-class _FormLinkBottomSheet extends StatelessWidget {
-  final TextEditingController controller; // for the URL input field
-  final Function(String) onSend; // called with the URL when user confirm
 
-  const _FormLinkBottomSheet(
-      {required this.controller, required this.onSend});
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 150),
-      curve: Curves.easeOut,
-      padding:
-      EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom), // push up with keyboard
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A), // very dark background — camera aesthetic
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Process Online Form',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 24),
-            // URL input field — user paste the Google Form link here
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Enter Google Form URL',
-                hintStyle: const TextStyle(color: Colors.white24),
-                filled: true,
-                fillColor: Colors.white.withOpacity(0.05), // subtle dark fill
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(15),
-                    borderSide: BorderSide.none),
-                prefixIcon:
-                const Icon(Icons.link, color: AppColors.primary),
-              ),
-            ),
-            const SizedBox(height: 24),
-            // submit button — only active if URL not empty
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15)),
-                ),
-                onPressed: () {
-                  if (controller.text.isNotEmpty) {
-                    onSend(controller.text); // pass URL to parent for processing
-                    Navigator.pop(context); // close the sheet
-                  }
-                  // if empty, do nothing — ayaw mag-submit if empty
-                },
-                child: const Text('Add to Queue',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-      ),
-    );
-  }
-}

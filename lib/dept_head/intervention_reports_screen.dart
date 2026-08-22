@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../core/services/evaluation_service.dart';
 
 // The main widget — needs userId to find the right dept
@@ -20,6 +21,10 @@ class InterventionReportsScreen extends StatefulWidget {
 class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
   final _evaluationService = EvaluationService();
   final _supabase = Supabase.instance.client;
+
+  // ─── CACHE FOR INSTANT TAB SWITCHING ─────────────────────────────────────────
+  static final Map<String, Map<String, dynamic>> _interventionCache = {};
+
   bool _isLoading = true; // Show spinner on first load
 
   // Pending = alerts that have no intervention report yet — need action from dean
@@ -38,13 +43,28 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
   // Pending = flagged instructors with no matching log entry yet — dean must act.
   // Completed = already recorded. bahala na, at least documented.
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    final userId = widget.userId.isNotEmpty
+        ? widget.userId
+        : (_supabase.auth.currentUser?.id ?? '');
+        
+    // Check cache first for instant load
+    if (_interventionCache.containsKey(userId)) {
+      if (mounted) {
+        setState(() {
+          _pendingInterventions = _interventionCache[userId]!['pending'] as List<ActionAlert>;
+          _completedInterventions = _interventionCache[userId]!['completed'] as List<InterventionReport>;
+          _isLoading = false;
+        });
+      }
+    } else {
+      if (mounted) setState(() => _isLoading = true);
+    }
+    
     try {
-      // Resolve userId — prefer passed value, fallback to current auth user
-      final userId = widget.userId.isNotEmpty
-          ? widget.userId
-          : (_supabase.auth.currentUser?.id ?? '');
-      if (userId.isEmpty) return; // No user ID = no dept = nothing to show
+      if (userId.isEmpty) {
+        if (mounted) setState(() => _isLoading = false);
+        return; // No user ID = no dept = nothing to show
+      }
 
       // Fetch dept average first — same threshold used on the dashboard
       // This keeps the alert criteria consistent across all screens
@@ -66,6 +86,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
           }).toList();
           
           _completedInterventions = logs; // All logged interventions — includes resolved ones
+          
+          // Save to cache!
+          _interventionCache[userId] = {
+            'pending': _pendingInterventions,
+            'completed': _completedInterventions,
+          };
+          
           _isLoading = false;
         });
       }
@@ -261,6 +288,10 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Intervention Reports', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(

@@ -46,11 +46,12 @@ dependencies:
   printing: ^5.13.2
   camera: ^0.10.5+5
   path_provider: ^2.1.1
-  google_mlkit_document_scanner: ^0.1.0
   http: ^1.2.1
   sensors_plus: ^5.0.1
   image: ^4.2.0
   flutter_markdown: ^0.7.7+1
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
 
 dev_dependencies:
   flutter_test:

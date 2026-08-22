@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
 
@@ -19,6 +20,10 @@ class FacultyRosterScreen extends StatefulWidget {
 
 class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   final _supabase = Supabase.instance.client;
+  
+  static final Map<String, List<Map<String, dynamic>>> _rosterCache = {};
+  static final Map<String, String> _termIdCache = {};
+  
   bool _isLoading = true; // Start loading immediately on open
   List<Map<String, dynamic>> _facultyList = []; // All faculty from the dept
   String _currentTermId = ''; // Current academic term — we only show scores for this term
@@ -34,13 +39,26 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   // Fetches: current term, previous term, dept info, all instructors + their scores.
   // If any step fail, we stop and show empty state. dili ta crash.
   Future<void> _fetchFacultyData() async {
-    setState(() => _isLoading = true);
-    try {
-      // 1. Get current term — we need this to filter scores by semester
+    String activeTermId = _termIdCache['current'] ?? '';
+    if (activeTermId.isEmpty) {
       final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
-      _currentTermId = settings?['current_term_id'] ?? '';
+      activeTermId = settings?['current_term_id'] ?? '';
+      _termIdCache['current'] = activeTermId;
+    }
+    _currentTermId = activeTermId;
 
-      // If no current term set, wala choice — show empty and bail
+    if (_rosterCache.containsKey(activeTermId)) {
+      if (mounted) {
+        setState(() {
+          _facultyList = _rosterCache[activeTermId]!;
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() => _isLoading = true);
+    }
+    
+    try {
       if (_currentTermId.isEmpty) {
         setState(() => _isLoading = false);
         return;
@@ -117,25 +135,23 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
 
       if (mounted) {
         debugPrint('Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
-        setState(() {
-          // Map raw Supabase data into clean faculty map — easier to work with in UI
-          _facultyList = (facultyData as List).map((f) {
+        
+        final fetchedList = (facultyData as List).map<Map<String, dynamic>>((f) {
             // Handle department_table which might be a List or a Map — supabase surprise
-            final deptRaw = f['department_table'];
-            Map<String, dynamic>? deptMap;
-            if (deptRaw is List && deptRaw.isNotEmpty) {
-              deptMap = deptRaw[0]; // Take first item if it came as a list
-            } else if (deptRaw is Map<String, dynamic>) {
-              deptMap = deptRaw; // Already a map — use directly
-            }
+            final deptList = f['department_table'];
+            final deptItem = deptList is List
+                ? (deptList.isNotEmpty ? deptList[0] : null)
+                : deptList;
+            final roleInfo = deptItem?['roles'];
 
-            final roleInfo = deptMap?['roles']; // Their job title/role
-            
-            // Find the survey for the CURRENT term only — ignore old terms here
-            final surveyList = f['overall_total_survey'] as List?;
-            final survey = (surveyList != null)
+            // Safely extract the survey data list
+            final surveyData = f['overall_total_survey'];
+            final List<dynamic>? surveyList = surveyData is List ? surveyData : null;
+
+            // Find survey data for the active term
+            final survey = surveyList != null
                 ? surveyList.firstWhere(
-                    (s) => s['term_id'] == _currentTermId,
+                    (s) => s['term_id'] == activeTermId,
                     orElse: () => null)
                 : null;
 
@@ -174,8 +190,12 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
               'trend': trend, // 'up', 'down', or 'flat'
             };
           }).toList();
-          _isLoading = false; // Done loading — show the list now
-        });
+          
+          setState(() {
+            _rosterCache[activeTermId] = fetchedList;
+            _facultyList = fetchedList;
+            _isLoading = false; // Done loading — show the list now
+          });
       }
     } catch (e) {
       debugPrint('Error fetching faculty roster: $e');
@@ -352,10 +372,6 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   // The main build — search bar on top, sorted list below
   @override
   Widget build(BuildContext context) {
-    // Show spinner while loading — dili ta show empty list before data arrives
-    if (_isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.primary)));
-    }
     // Get filtered + sorted list from computed getter
     final roster = _filteredAndSortedFaculty;
 
@@ -365,11 +381,16 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Faculty Roster', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-
       ),
       body: SafeArea(
-        child: Column(
+        child: _isLoading 
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          : Column(
           children: [
             // ==========================================
             // SEARCH & SORT HEADER

@@ -123,6 +123,28 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
+                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
@@ -172,6 +194,70 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 ),
               );
             }
+        );
+      },
+    );
+  }
+
+  void _showEditEmailDialog() {
+    final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'New Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  onPressed: isSaving ? null : () async {
+                    final newEmail = emailController.text.trim();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+
+                    setDialogState(() => isSaving = true);
+                    final result = await _authService.updateEmail(newEmail);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
+                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSaving 
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -346,7 +432,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       }
     }
 
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -380,7 +466,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                           const SizedBox(height: 8),
                           GestureDetector(
                             onTap: _showEditProfileSheet,
-                            child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                            child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                           ),
                         ],
                       ),
@@ -420,9 +506,21 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     leading: Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.email_outlined, color: AppColors.primary),
+                    ),
+                    title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                    onTap: _showEditEmailDialog,
+                  ),
+                  const Divider(height: 1, indent: 56),
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
                       child: const Icon(Icons.lock, color: AppColors.primary),
                     ),
-                    title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                     onTap: _showChangePasswordDialog,
                   ),
@@ -451,6 +549,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     final rootNavigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
+                      if (!mounted) return;
+                      showLoggingOutOverlay(context);
+                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut();
                       if (mounted) {
                         rootNavigator.pushAndRemoveUntil(

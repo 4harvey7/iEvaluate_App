@@ -4,10 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+
 
 class SaoAdminSettings extends StatefulWidget {
   const SaoAdminSettings({super.key});
@@ -170,6 +172,28 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       ),
                       const SizedBox(height: 16),
                       if (!needsOTP) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
                         // regular form fields — name and role
                         _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
                         const SizedBox(height: 16),
@@ -293,6 +317,73 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 ),
               );
             }
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // INTERACTIVE: EDIT EMAIL
+  // ==========================================
+  void _showEditEmailDialog() {
+    final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'New Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  onPressed: isSaving ? null : () async {
+                    final newEmail = emailController.text.trim();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+
+                    setDialogState(() => isSaving = true);
+                    final result = await _authService.updateEmail(newEmail);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
+                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSaving 
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -506,7 +597,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         'auto_sync': false, // Explicitly false as we are now manual — human in control
         'current_term_id': termId, // point to the term we just saved
         'updated_at': DateTime.now().toIso8601String(), // timestamp the change
-      });
+      }).select().single();
 
       // 3. Trigger notifications to all SAO Admins via edge function
       // wrapped in try-catch because if edge function offline, settings still saved
@@ -576,6 +667,11 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('System Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         // show a thin progress bar at the bottom of appbar while loading
         bottom: _isLoading
@@ -629,7 +725,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             // tap this to open the edit profile bottom sheet
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -670,7 +766,24 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                   return DropdownMenuItem<String>(value: value, child: Text(value));
                                 }).toList(),
                                 onChanged: (newValue) {
-                                  setState(() => _selectedSemester = newValue!); // update state when selected
+                                  if (newValue == null) return;
+                                  
+                                  // Smart Auto-Increment: Moving from 2nd/Summer to 1st Sem usually means a new school year
+                                  if ((_selectedSemester == '2nd Semester' || _selectedSemester == 'Summer') && newValue == '1st Semester') {
+                                    try {
+                                      final parts = _selectedYear.split('-');
+                                      if (parts.length == 2) {
+                                        int start = int.parse(parts[0]);
+                                        int end = int.parse(parts[1]);
+                                        _selectedYear = '${start + 1}-${end + 1}';
+                                        _yearSearchController.text = _selectedYear; // sync the search box just in case
+                                      }
+                                    } catch (_) {
+                                      // safely ignore if format is weird
+                                    }
+                                  }
+                                  
+                                  setState(() => _selectedSemester = newValue); // update state when selected
                                 },
                               ),
                             ],
@@ -776,7 +889,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             // Confirmation dialog before applying changes — dili ta mag-yolo
                             final confirmed = await showDialog<bool>(
                               context: context,
-                              builder: (_) => AlertDialog(
+                              builder: (dialogContext) => AlertDialog(
                                 backgroundColor: AppColors.surface,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                 title: const Row(
@@ -793,7 +906,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () => Navigator.pop(context, false),
+                                    onPressed: () => Navigator.pop(dialogContext, false),
                                     child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                                   ),
                                   ElevatedButton(
@@ -801,7 +914,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                       backgroundColor: AppColors.textPrimary,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
-                                    onPressed: () => Navigator.pop(context, true), // confirmed — go ahead
+                                    onPressed: () => Navigator.pop(dialogContext, true), // confirmed — go ahead
                                     child: const Text('Yes, Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                   ),
                                 ],
@@ -843,11 +956,20 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
+                    // Edit Email option
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.email_outlined, color: AppColors.primary)),
+                      title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                      onTap: _showEditEmailDialog,
+                    ),
+                    const Divider(height: 1, indent: 56),
                     // change password option — recommended to do regularly, dili kag bato
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.primary)),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog, // opens the password change dialog
                     ),
@@ -877,6 +999,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     final navigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
+                      if (!mounted) return;
+                      showLoggingOutOverlay(context);
+                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut(); // terminate the session
                       if (mounted) {
                         // send user back to login, remove all routes — no going back

@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'detailed_report_screen.dart';
@@ -318,27 +319,31 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Show global spinner while initial data is loading
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     final termData = _selectedTermData;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        title: const Text('Past Semesters', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
+        title: const Text('Past Terms', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
-          // Refresh button — re-fetches everything from scratch
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: AppColors.surface),
             tooltip: 'Refresh',
             onPressed: _fetchHistory,
           ),
         ],
       ),
-      body: RefreshIndicator(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : RefreshIndicator(
         onRefresh: _fetchHistory, // pull-to-refresh also re-fetches history
         color: AppColors.primary,
         child: SingleChildScrollView(

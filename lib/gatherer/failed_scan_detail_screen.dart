@@ -140,7 +140,9 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     if (taskId.isEmpty) return; // no task_id, cannot find image
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getStringList('gatherer_sync_queue') ?? [];
+      final userId = widget.scan['user_id']?.toString() ?? '';
+      final queueKey = 'gatherer_sync_queue_$userId';
+      final raw = prefs.getStringList(queueKey) ?? [];
       for (final s in raw) {
         final map = jsonDecode(s) as Map<String, dynamic>;
         final task = ScanTask.fromMap(map);
@@ -383,15 +385,15 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       resizeToAvoidBottomInset: true, // resize when keyboard open so fields not hidden
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        foregroundColor: AppColors.surface,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Correct Failed Scan',
                 style: TextStyle(
                     color: AppColors.surface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 17)),
+                    fontWeight: FontWeight.bold)),
             Text(taskId, // show which scan task this is
                 style: const TextStyle(
                     color: AppColors.textInvertedDim, fontSize: 11),

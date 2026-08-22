@@ -93,3 +93,51 @@ Future<bool?> showLogoutConfirmationDialog(BuildContext context) {
     },
   );
 }
+
+/// Displays a non-dismissible loading overlay during the actual logout process.
+/// Use this to show a premium "Logging out securely..." UI before pushing the login screen.
+void showLoggingOutOverlay(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false, // User cannot dismiss this
+    builder: (BuildContext context) {
+      // PopScope prevents the back button from dismissing it
+      return PopScope(
+        canPop: false,
+        child: Dialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 3,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Logging out securely...',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Clearing your session data.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary.withValues(alpha: 0.8),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}

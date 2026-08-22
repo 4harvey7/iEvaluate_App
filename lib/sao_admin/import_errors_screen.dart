@@ -5,10 +5,21 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'import_error_detail_screen.dart';
 
+
 class ImportErrorsScreen extends StatefulWidget {
-  const ImportErrorsScreen({super.key});
+  /// When pushed from a context that does NOT use MainScaffold (e.g. the gatherer),
+  /// set this to true so the AppBar shows a back arrow instead of the hamburger menu.
+  final bool showBackButton;
+  final VoidCallback? onMenuPressed;
+
+  const ImportErrorsScreen({
+    super.key, 
+    this.showBackButton = false,
+    this.onMenuPressed,
+  });
 
   @override
   State<ImportErrorsScreen> createState() => _ImportErrorsScreenState();
@@ -78,7 +89,15 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        foregroundColor: AppColors.surface,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: widget.showBackButton
+            ? const BackButton(color: AppColors.surface)
+            : IconButton(
+                icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+                tooltip: 'Open menu',
+                onPressed: widget.onMenuPressed ?? () => MainScaffold.drawerKey.currentState?.openDrawer(),
+              ),
         // title shows count of pending errors — a number that should always be going down
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -87,8 +106,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
               'Import Errors',
               style: TextStyle(
                   color: AppColors.surface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 17),
+                  fontWeight: FontWeight.bold),
             ),
             Text(
               '${_allErrors.length} pending resolution', // how many still need fixing

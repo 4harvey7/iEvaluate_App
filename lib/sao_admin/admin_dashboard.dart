@@ -1,24 +1,18 @@
 // lib/sao_admin/admin_dashboard.dart
 // The big boss screen. This is where admin feel very important.
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/config/env.dart';
-import '../core/services/auth_service.dart';
 import '../core/services/system_settings_service.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
-import '../login_screen.dart';
-import 'personnel_management_screen.dart';
-import 'performance_analysis_screen.dart';
-import 'live_system_metrics_screen.dart';
-import 'system_audit_screen.dart';
-import 'sao_admin_settings.dart';
-import 'manage_subjects_screen.dart';
-import 'manage_departments_screen.dart';
 
 import '../widgets/safe_button.dart';
-import '../widgets/logout_confirmation_dialog.dart';
+
 
 // This widget is the throne of the admin. Very holy. Dili ta puwede diri if not admin.
 class AdminDashboardScreen extends StatefulWidget {
@@ -31,16 +25,16 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final _supabase = Supabase.instance.client; // our connection to the almighty database
-  final _authService = AuthService(); // handles login/logout, pray lang it works
   final _settingsService = SystemSettingsService(); // fetches system settings, importente kaayo
+
 
   bool _isPendingLoading = true; // true means still fetching, bahala na wait
   List<Map<String, dynamic>> _livePendingApprovals = []; // poor souls waiting for admin approval
   int _totalUsersCount = 0; // how many people exist in the system
   int _filesScannedCount = 0; // how many files got scanned this term, very busy
 
-  String _adminName = 'Admin'; // default name in case DB forgot who you are
   String? _currentTermId; // which semester we currently living in
+
 
   // System status — is everything alive or is it dead already
   bool _n8nOnline = false; // n8n workflow engine, alive or nah
@@ -50,10 +44,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // the URL we ping to check if n8n is breathing
   static String get _n8nHealthUrl => Env.n8nHealthUrl;
 
+  Future<void> _loadCachedDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('admin_dashboard_${widget.userId}');
+      if (cached != null) {
+        final data = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _currentTermId = data['termId'] ?? _currentTermId;
+            _totalUsersCount = data['totalUsersCount'] ?? _totalUsersCount;
+            _filesScannedCount = data['filesScannedCount'] ?? _filesScannedCount;
+            if (data['livePendingApprovals'] != null) {
+              _livePendingApprovals = List<Map<String, dynamic>>.from(data['livePendingApprovals'].map((x) => Map<String, dynamic>.from(x)));
+            }
+          });
+          debugPrint('[ADMIN] ⚡ Loaded cached dashboard instantly.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[ADMIN] Failed to load cache: $e');
+    }
+  }
+
   // initState — the very first thing that runs when admin open this screen
   @override
   void initState() {
     super.initState();
+    _loadCachedDashboard(); // Load stale data instantly!
     _fetchAdminProfile(); // get the admin's name so dashboard not say just "Admin"
     _fetchTermThenData(); // fetch current term first, then fetch all the dashboard data
     _checkSystemStatus(); // ping the servers to see if they still alive
@@ -62,15 +80,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // go to DB and get admin's first and last name — dili ta wala ngalan
   Future<void> _fetchAdminProfile() async {
     try {
-      final user = await _supabase
+      // Profile fetch kept in case _adminName is re-used in future dashboard UI.
+      // _adminName display moved to MainScaffold drawer header.
+      await _supabase
           .from('user_info')
           .select('first_name, last_name')
           .eq('id', widget.userId)
           .maybeSingle();
-      if (user != null && mounted) {
-        // combine the name parts, simple lang
-        setState(() => _adminName = '${user['first_name']} ${user['last_name']}');
-      }
+
     } catch (e) {
       debugPrint('Error fetching admin profile: $e'); // something went wrong, log it
     }
@@ -124,6 +141,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           _filesScannedCount = (fileRes as List).length; // save file count
           _isPendingLoading = false; // done loading, hide spinner
         });
+
+        // Save to cache so the user doesn't wait next time they open the app
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cacheData = {
+            'termId': _currentTermId,
+            'totalUsersCount': _totalUsersCount,
+            'filesScannedCount': _filesScannedCount,
+            'livePendingApprovals': _livePendingApprovals,
+          };
+          await prefs.setString('admin_dashboard_${widget.userId}', jsonEncode(cacheData));
+        } catch (e) {
+          debugPrint('[ADMIN] Failed to save cache: $e');
+        }
       }
     } catch (e) {
       debugPrint('[DASHBOARD] Fetch Error: $e'); // something broke, log and move on
@@ -166,8 +197,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text(
-          'SAO-Admin Command Center', // fancy name for "admin home page"
+          'Dashboard',
           style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -181,7 +218,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
         ],
       ),
-      drawer: _buildDrawer(context), // the side menu with all the navigation options
+      // drawer removed — MainScaffold now owns the side drawer for all roles
       body: RefreshIndicator(
         onRefresh: () async {
           // pull down to refresh, like refreshing the soul
@@ -429,130 +466,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // build the side drawer — the navigation menu, like a secret panel
-  Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      backgroundColor: AppColors.surface,
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // the fancy header at the top of the drawer, shows admin name and rank
-          DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.textPrimary),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
-                  child: const Icon(Icons.admin_panel_settings, color: AppColors.surface, size: 28),
-                ),
-                const SizedBox(height: 12),
-                Text(_adminName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                const Text('SAO Administrator • Highest Access', style: TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          // Dashboard item — tapping it just closes the drawer
-          _buildDrawerItem(context, Icons.dashboard, 'Dashboard', true, onTap: () => Navigator.pop(context)),
-          // go to user management — for managing academic users
-          _buildDrawerItem(context, Icons.group, 'User Management', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
-          }),
-          // go to subject management — add/edit subjects per term
-          _buildDrawerItem(context, Icons.book_rounded, 'Subject Management', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageSubjectsScreen()));
-          }),
-          // go to department management — wala choice, someone has to manage departments
-          _buildDrawerItem(context, Icons.domain, 'Department Management', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageDepartmentsScreen()));
-          }),
-          // go to personnel management — for SAO staff, not the profs
-          _buildDrawerItem(context, Icons.manage_accounts, 'Personnel Management', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const PersonnelManagementScreen()));
-          }),
-          // go to performance analysis — the screen full of charts and numbers
-          _buildDrawerItem(context, Icons.analytics, 'Performance Analysis', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const PerformanceAnalysisScreen()));
-          }),
-          // live metrics — for when you want to watch the system breathe in real time
-          _buildDrawerItem(context, Icons.admin_panel_settings_rounded, 'Live System Metrics', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveSystemMetricsScreen()));
-          }),
-          // security audit — who did what and when, wala makalusot
-          _buildDrawerItem(context, Icons.security, 'Security Audit Logs', false, onTap: () {
-            Navigator.pop(context);
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const SystemAuditScreen()));
-          }),
-          // settings — system configuration, importente kaayo dili puwede ma-ignore
-          _buildDrawerItem(context, Icons.settings, 'System Settings', false, onTap: () async {
-            Navigator.pop(context);
-            await Navigator.push(context, MaterialPageRoute(builder: (_) => const SaoAdminSettings()));
-            _fetchAdminProfile(); // refresh name after returning
-            _fetchTermThenData(); // refresh term and dashboard data
-          }),
-          const Divider(),
-          // log out — bye bye admin, thanks for your service
-          _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-            final navigator = Navigator.of(context);
-            final confirm = await showLogoutConfirmationDialog(context);
-            if (confirm == true) {
-              await _authService.signOut(); // actually sign out from supabase
-              if (mounted) {
-                // kick them all the way back to login, dili ta stay here
-                navigator.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
-              }
-            }
-          }),
-        ],
-      ),
-    );
-  }
-
-  // builds one row in the drawer — icon, label, and optional red badge for counts
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
-      {bool isLogout = false, int badgeCount = 0, VoidCallback? onTap}) {
-    // color is red for logout, primary for selected, else normal dark color
-    final color = isLogout
-        ? AppColors.error
-        : (isSelected ? AppColors.primary : AppColors.textPrimary);
-    return ListTile(
-      leading: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(icon, color: color),
-          if (badgeCount > 0)
-            // little red badge number on top of the icon, like notifications
-            Positioned(
-              top: -4, right: -6,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                    color: AppColors.error, shape: BoxShape.circle),
-                child: Text('$badgeCount',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ),
-        ],
-      ),
-      title: Text(title,
-          style: TextStyle(
-            color: color,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, // bold if currently selected
-          )),
-      selected: isSelected,
-      onTap: onTap,
-    );
-  }
+  // _buildDrawer() and _buildDrawerItem() removed — drawer is now managed by
+  // MainScaffold via role_nav_config.dart. Do not re-add here.
 }
