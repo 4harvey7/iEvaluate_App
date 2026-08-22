@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/evaluation_service.dart';
 import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 
 // outer widget shell, nothing fancy yet
@@ -36,7 +37,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
     'completion': '0%', // how many subjects have been evaluated
   };
 
-  List<Map<String, dynamic>> _departmentAverages = []; // dept scores for the bar chart section
+
   List<InstructorPerformance> _topInstructors = []; // ranked list of instructors by score
 
   // called once when screen opens — load everything
@@ -47,11 +48,15 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   }
 
   // loads terms first, then fetches analytics — order matters here
-  Future<void> _loadAllData() async {
-    setState(() => _isInitialLoading = true);
+  Future<void> _loadAllData({bool isRefresh = false}) async {
+    if (!isRefresh) {
+      setState(() => _isInitialLoading = true);
+    }
     await _loadTerms(); // fetch available terms from DB
     await _fetchRealAnalytics(); // fetch actual performance data for selected term
-    if (mounted) setState(() => _isInitialLoading = false); // done, hide spinner
+    if (!isRefresh && mounted) {
+      setState(() => _isInitialLoading = false); // done, hide spinner
+    }
   }
 
   /// Loads all academic terms from Supabase and selects the active one
@@ -118,31 +123,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   // this calls multiple service methods and stitches together the results
   Future<void> _fetchRealAnalytics() async {
     try {
-      // these three fetch in parallel inside the service
+      // these fetch in parallel inside the service
       final globalStats = await _evaluationService.getGlobalStats(termId: _selectedTermId);
-      final deptAverages = await _evaluationService.getDepartmentAverages(termId: _selectedTermId);
       final topInstructors = await _evaluationService.getTopInstructors(termId: _selectedTermId);
-
-      // Compute data extraction rate: instructors with evaluations / total instructors enrolled
-      // this is how we know if staff been doing their job — importente number
-      String completionRate = 'N/A';
-      try {
-        final resolvedTermId = _selectedTermId;
-        if (resolvedTermId != null) {
-          // get total subjects assigned this term
-          final totalSubjectsRes = await _supabase
-              .from('instructor_subjects')
-              .select('subject_id')
-              .eq('term_id', resolvedTermId);
-          final totalSubjects = (totalSubjectsRes as List).length;
-          final evaluatedInstructors = (globalStats['totalInstructors'] as int?) ?? 0;
-          if (totalSubjects > 0) {
-            // calculate percentage and clamp between 0-100
-            final pct = ((evaluatedInstructors / totalSubjects) * 100).clamp(0, 100).round();
-            completionRate = '$pct%';
-          }
-        }
-      } catch (_) {} // if this calculation fails, just keep 'N/A' — bahala na
 
       if (mounted) {
         setState(() {
@@ -150,14 +133,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
           _overviewStats = {
             'overall': (globalStats['avgScore'] as double? ?? 0.0).toStringAsFixed(2), // round to 2 decimals
             'totalEvals': '${globalStats['totalResponses'] ?? 0}', // total survey responses
-            'completion': completionRate, // our computed rate
           };
-          // map department averages and decide color based on score threshold
-          _departmentAverages = deptAverages.map((d) => {
-            'dept': d['dept'],
-            'score': d['score'],
-            'color': d['score'] >= 4.0 ? AppColors.primary : AppColors.warning, // green if good, yellow if murag okay
-          }).toList();
           _topInstructors = topInstructors; // sorted list of instructor performances
         });
       }
@@ -471,19 +447,21 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Performance Analysis', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
-          // PDF export button — generates and downloads a performance report
           SafeIconButton(
             icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
             tooltip: 'Export Report',
             onPressed: () async {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saving PDF to Downloads...')));
-              // generate the PDF with all current data — may take a moment
               await _pdfService.generatePerformanceReport(
                 title: 'University Performance Report - $_selectedLabel',
                 overviewStats: _overviewStats,
-                departmentAverages: _departmentAverages,
                 topInstructors: _topInstructors,
               );
             },
@@ -492,7 +470,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
       ),
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: _loadAllData, // pull down to reload everything
+          onRefresh: () => _loadAllData(isRefresh: true), // pull down to reload everything smoothly
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -545,90 +523,8 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                     Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primary)),
                   ],
                 ),
-                const SizedBox(height: 16),
-                // the "data extraction rate" card — shows how many subjects have been scanned
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: AppColors.heroGradient), // fancy gradient background
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 10, offset: const Offset(0, 4))],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Data Extraction Rate', style: TextStyle(color: Colors.white70, fontSize: 14)), // what we call scan completion rate
-                          SizedBox(height: 4),
-                          Text('System performing optimally', style: TextStyle(color: AppColors.surface, fontSize: 12)), // motivational text
-                        ],
-                      ),
-                      // big percentage number on the right side
-                      Text(_overviewStats['completion'] ?? 'N/A', style: const TextStyle(color: AppColors.primary, fontSize: 28, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 32),
-                const Text('Department Averages', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
-                // department progress bars — each dept gets a bar showing their average
-                // department list — each dept gets a styled card showing their average
-                _departmentAverages.isEmpty 
-                  ? Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10)]),
-                      child: const Center(child: Text("No department data found", style: TextStyle(color: AppColors.textSecondary))),
-                    )
-                  : Column(
-                      children: _departmentAverages.map((dept) {
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
-                            border: Border.all(color: AppColors.borderSubtle, width: 0.5),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: dept['color'].withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(Icons.domain, color: dept['color'], size: 20),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Text(
-                                  dept['dept'], // department name
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 14),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: dept['color'].withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: dept['color'].withValues(alpha: 0.2)),
-                                ),
-                                child: Text(
-                                  '${dept['score']}',
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: dept['color'], fontSize: 13),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                const SizedBox(height: 32),
+
                 // instructor leaderboard section header with "View All" button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,

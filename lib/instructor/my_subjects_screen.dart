@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/services/system_settings_service.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'providers/subjects_provider.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
@@ -75,14 +76,18 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text(
-          'My Assigned Subjects',
+          'My Subjects',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
-            fontSize: 20,
+            fontSize: 18,
           ),
         ),
       ),
@@ -153,7 +158,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     final color = Subject.getScoreColor(average); // green = good, red = time to reflect
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.textPrimary,

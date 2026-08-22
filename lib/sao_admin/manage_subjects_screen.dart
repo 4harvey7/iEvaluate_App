@@ -7,9 +7,11 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../widgets/safe_button.dart';
+
 
 // outer widget — just holds the state, nothing interesting yet
 class ManageSubjectsScreen extends StatefulWidget {
@@ -148,6 +150,19 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
               'assignments': bySubject[sid] ?? <Map<String, dynamic>>[],
             };
           }).toList();
+
+          // Sort so subjects with instructors assigned appear first
+          _subjectGroups.sort((a, b) {
+            final aHas = (a['assignments'] as List).isNotEmpty;
+            final bHas = (b['assignments'] as List).isNotEmpty;
+            if (aHas && !bHas) return -1;
+            if (!aHas && bHas) return 1;
+            
+            // secondary sort by subject code
+            final aCode = (a['subject']['subject_code']?.toString() ?? '').toLowerCase();
+            final bCode = (b['subject']['subject_code']?.toString() ?? '').toLowerCase();
+            return aCode.compareTo(bCode);
+          });
 
           _isLoading = false;
         });
@@ -348,12 +363,17 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         appBar: AppBar(
           backgroundColor: AppColors.textPrimary,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
+          iconTheme: const IconThemeData(color: AppColors.surface),
+          leading: IconButton(
+            icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+            tooltip: 'Open menu',
+            onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+          ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Subject Management', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-              Text(_currentTermLabel, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
+              const Text('Subject Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+              Text(_currentTermLabel, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
             ],
           ),
           actions: [

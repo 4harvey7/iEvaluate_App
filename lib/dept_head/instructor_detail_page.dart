@@ -42,6 +42,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   List<_TermScore> _history = []; // One entry per term — used for the bar chart
   List<Subject> _subjects = []; // Subjects this instructor teaches this term
   Map<String, dynamic>? _termMeta; // semester + academic_year for current term — for the report
+  
+  // Real sentiment data instead of hardcoded
+  Map<String, dynamic> _sentimentSummary = {'positive': 0, 'neutral': 0, 'negative': 0, 'total': 0};
+  List<String> _sentimentTags = [];
 
   // Kick off data fetch on page load
   @override
@@ -57,8 +61,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     try {
       final instructorId = widget.instructor['id'] as String;
 
-      // Parallel fetch: historical totals + current subjects + term metadata
-      // Future.wait runs all three at the same time — much faster than sequential awaits
+      // Parallel fetch: historical totals + current subjects + term metadata + sentiment
+      // Future.wait runs all four at the same time — much faster than sequential awaits
       final results = await Future.wait([
         // 1. All historical overall_total_survey rows for this instructor
         // Ordered by year so we get chronological chart data
@@ -82,12 +86,30 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             .select('semester, academic_year')
             .eq('id', widget.currentTermId)
             .maybeSingle(),
+            
+        // 4. Student remarks for sentiment percentages
+        _supabase
+            .from('student_remarks')
+            .select('tone')
+            .eq('instructor_id', instructorId)
+            .eq('term_id', widget.currentTermId),
+            
+        // 5. AI Wordcloud for the tags
+        _supabase
+            .from('instructor_wordcloud')
+            .select('word')
+            .eq('instructor_id', instructorId)
+            .eq('term_id', widget.currentTermId)
+            .order('count', ascending: false)
+            .limit(3),
       ]);
 
       // Extract results — each item in results[] matches Future.wait order above
       final historyRows = (results[0] as List? ?? []);
       final subjectRows = (results[1] as List? ?? []);
       final termData = results[2] as Map<String, dynamic>?;
+      final remarksData = (results[3] as List? ?? []);
+      final wordcloudData = (results[4] as List? ?? []);
 
       // Build history list — deduplicate by term, keep first (latest) per term
       // Same instructor might have multiple rows per term if data is duplicated — filter that
@@ -179,12 +201,58 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         }
       }
 
+      // Process Sentiment
+      int pos = 0;
+      int neu = 0;
+      int neg = 0;
+      for (final r in remarksData) {
+        final tone = r['tone'] ?? 'Neutral';
+        if (tone == 'Positive') pos++;
+        else if (tone == 'Critical') neg++;
+        else neu++;
+      }
+      final totalRemarks = pos + neu + neg;
+      int posPct = totalRemarks > 0 ? ((pos / totalRemarks) * 100).round() : 0;
+      int neuPct = totalRemarks > 0 ? ((neu / totalRemarks) * 100).round() : 0;
+      int negPct = totalRemarks > 0 ? ((neg / totalRemarks) * 100).round() : 0;
+      
+      // Ensure it adds up exactly to 100 if there's data
+      if (totalRemarks > 0) {
+        final totalPct = posPct + neuPct + negPct;
+        if (totalPct > 0 && totalPct != 100) {
+          // Adjust the largest one to make it exactly 100
+          if (posPct >= neuPct && posPct >= negPct) {
+            posPct += (100 - totalPct);
+          } else if (neuPct >= posPct && neuPct >= negPct) {
+            neuPct += (100 - totalPct);
+          } else {
+            negPct += (100 - totalPct);
+          }
+        }
+      }
+
+      final sentimentSummary = {
+        'positive': posPct,
+        'neutral': neuPct,
+        'negative': negPct,
+        'total': totalRemarks,
+      };
+
+      // Process Tags
+      final tags = wordcloudData.map((w) {
+        String word = w['word'].toString();
+        // Capitalize first letter of each word
+        return word.split(' ').map((s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '').join(' ');
+      }).toList();
+
       // All data ready — update state and re-render the page
       if (mounted) {
         setState(() {
           _history = history;
           _subjects = subjects;
           _termMeta = termData; // Store term info for the report button
+          _sentimentSummary = sentimentSummary;
+          _sentimentTags = tags;
           _isLoading = false; // Loading done — show the content now
         });
       }
@@ -238,6 +306,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           SliverAppBar(
             expandedHeight: 200, // Full height when scrolled to top
             pinned: true, // Stays visible as a small bar when scrolled down
+            elevation: 0,
             backgroundColor: AppColors.textPrimary,
             iconTheme: const IconThemeData(color: AppColors.surface),
             flexibleSpace: FlexibleSpaceBar(
@@ -326,11 +395,12 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 
                       // Official Report Button — goes to the full SAST report page
                       _buildReportButton(instructor),
-                      const SizedBox(height: 28),
-
-                      // Historical Trend — bar chart showing scores across all terms
+                      _buildDeactivateButton(instructor),
+                      const SizedBox(height: 24),
+                      _buildSentimentAnalysis(), // NEW: Sentiment analysis widget
+                      const SizedBox(height: 24),
                       _buildTrendSection(),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 32),
 
                       // Subjects — list of subjects this instructor teaches this term
                       _buildSubjectsSection(instructor),
@@ -436,6 +506,210 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+      ),
+    );
+  }
+
+  // Action button to permanently deactivate a fired instructor
+  Widget _buildDeactivateButton(Map<String, dynamic> instructor) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.error,
+            side: const BorderSide(color: AppColors.error),
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          onPressed: () async {
+            // Confirm first
+            final confirm = await showDialog<bool>(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: const Text('Deactivate Account?'),
+                content: Text('Are you sure you want to deactivate ${instructor['name']}? They will be permanently locked out of the system.'),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('Deactivate', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
+              ),
+            );
+
+            if (confirm == true) {
+              try {
+                // Deactivate in user_info
+                await Supabase.instance.client
+                    .from('user_info')
+                    .update({'account_status': 'disabled'})
+                    .eq('id', instructor['id'])
+                    .select()
+                    .single(); // enforce RLS fail
+                
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deactivated successfully.', style: TextStyle(color: Colors.white)), backgroundColor: AppColors.success));
+                  Navigator.pop(context); // Go back to roster
+                }
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to deactivate: $e'), backgroundColor: AppColors.error));
+              }
+            }
+          },
+          icon: const Icon(Icons.person_off_rounded),
+          label: const Text('Deactivate Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        ),
+      ),
+    );
+  }
+
+  // ─── Sentiment Analysis UI (Added from Mockup) ──────────────────────────────
+  Widget _buildSentimentAnalysis() {
+    // If no remarks exist, we can show a placeholder or hide it. 
+    // Let's show a placeholder state so it still looks good.
+    final hasData = _sentimentSummary['total'] > 0;
+    
+    final int posPct = hasData ? _sentimentSummary['positive'] : 0;
+    final int neuPct = hasData ? _sentimentSummary['neutral'] : 100; // default to 100% neutral if no data
+    final int negPct = hasData ? _sentimentSummary['negative'] : 0;
+    
+    final tags = _sentimentTags.isNotEmpty ? _sentimentTags : ['No Data Yet'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Text(
+            'Sentiment Analysis',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF333333),
+            ),
+          ),
+        ),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF3F2EE), // Light beige from mockup
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Comment Polarity Distribution',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF888888), // Light gray text
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Stacked Bar Chart
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  children: [
+                    if (posPct > 0)
+                      Expanded(
+                        flex: posPct,
+                        child: Container(height: 10, color: const Color(0xFF457962)), // Green
+                      ),
+                    if (neuPct > 0)
+                      Expanded(
+                        flex: neuPct,
+                        child: Container(height: 10, color: const Color(0xFFBC7631)), // Gold/Orange
+                      ),
+                    if (negPct > 0)
+                      Expanded(
+                        flex: negPct,
+                        child: Container(height: 10, color: const Color(0xFFC34A2C)), // Red/Deep Orange
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Legend
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildSentimentLegendItem('Positive', '${hasData ? posPct : 0}%', const Color(0xFF457962)),
+                  _buildSentimentLegendItem('Neutral', '${hasData ? neuPct : 0}%', const Color(0xFFBC7631)),
+                  _buildSentimentLegendItem('Negative', '${hasData ? negPct : 0}%', const Color(0xFFC34A2C)),
+                ],
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(color: Color(0xFFE0DFDC), height: 1),
+              ),
+              const Text(
+                'Key Sentiment Tags',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF333333),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: tags.map((t) => _buildSentimentTag(t)).toList(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSentimentLegendItem(String label, String percent, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '$label: ',
+          style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+        ),
+        Text(
+          percent,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF333333),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSentimentTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDE8DB), // Light orange background
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5B59F)), // Orange border
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Color(0xFFC34A2C), // Deep orange text
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

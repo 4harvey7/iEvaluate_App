@@ -451,8 +451,9 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
-        title: Text(widget.subject.code, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
-        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.surface),
+        title: Text(widget.subject.code, style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))

@@ -194,15 +194,14 @@ class EvaluationService {
           .select('user_id')
           .eq('Department_name_ID', deptId);
       
-      // Exclude the dept head themselves -- only count instructor scores
-      // dean should not evaluate themselves, that would be bias, dili pwede
+      // Get all instructors in the dept, INCLUDING the dept head themselves
+      // because Dept Heads also teach classes and receive student evaluations!
       final facultyIds = (facultyRows as List)
-          .where((row) => row['user_id'] != null && row['user_id'] != userId)
-          .map((row) => row['user_id'] as String)
-          .toSet()
+          .where((row) => row['user_id'] != null)
+          .map((row) => row['user_id'].toString())
           .toList();
 
-      debugPrint('EvaluationService - Found ${facultyIds.length} instructors (excl. dept head) for Dept $deptId');
+      debugPrint('EvaluationService - Found ${facultyIds.length} instructors for Dept $deptId');
 
       if (facultyIds.isEmpty) return _emptySummary(); // no faculty found, show zeros
 
@@ -266,6 +265,105 @@ class EvaluationService {
     } catch (e) {
       debugPrint('Error fetching department summary: $e');
       return _emptySummary(); // something broke badly, return zeros so app dont crash
+    }
+  }
+
+  // Gets the historical average score for the entire department across past terms
+  Future<List<Map<String, dynamic>>> getDepartmentHistory(String userId) async {
+    try {
+      final deptData = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (deptData == null) return [];
+      final deptId = deptData['Department_name_ID'];
+
+      final facultyRows = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', deptId);
+      
+      // Get all instructors in the dept, INCLUDING the dept head themselves
+      final facultyIds = (facultyRows as List)
+          .where((row) => row['user_id'] != null)
+          .map((row) => row['user_id'].toString())
+          .toList();
+
+      if (facultyIds.isEmpty) return [];
+
+      final historyData = await _supabase
+          .from('overall_total_survey')
+          .select('overall_mean, combined_score_mean, term_id, academic_terms(semester, academic_year)')
+          .filter('instructor_id', 'in', facultyIds)
+          .order('created_at', ascending: true);
+          
+      if ((historyData as List).isEmpty) return [];
+
+      // Group by term_id and calculate average
+      Map<String, Map<String, dynamic>> groupedByTerm = {};
+      
+      for (var row in historyData) {
+        final termId = row['term_id']?.toString() ?? 'unknown';
+        final overall = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+        final termsData = row['academic_terms'];
+        
+        if (!groupedByTerm.containsKey(termId)) {
+          groupedByTerm[termId] = {
+            'sum': 0.0,
+            'count': 0,
+            'term': termsData,
+          };
+        }
+        
+        groupedByTerm[termId]!['sum'] += overall;
+        groupedByTerm[termId]!['count'] += 1;
+      }
+      
+      List<Map<String, dynamic>> finalHistory = [];
+      
+      groupedByTerm.forEach((termId, data) {
+        final avgScore = data['sum'] / data['count'];
+        final term = data['term'];
+        String label = 'Sem';
+        if (term != null) {
+          final ay = term['academic_year'].toString();
+          final ayParts = ay.split('-');
+          final yearShort = ayParts.length == 2
+              ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
+              : ay;
+          label = '${term['semester'].toString().substring(0, 3)}\n$yearShort';
+        }
+        finalHistory.add({
+          'sem': label,
+          'score': double.parse(avgScore.toStringAsFixed(2)),
+          'rawTerm': term // Keep for sorting
+        });
+      });
+      
+      // Sort semantically
+      final semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
+      finalHistory.sort((a, b) {
+        final aTerm = a['rawTerm'];
+        final bTerm = b['rawTerm'];
+        final aYear = int.tryParse(aTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+        final bYear = int.tryParse(bTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
+        if (aYear != bYear) return aYear.compareTo(bYear);
+        final aSem = aTerm?['semester']?.toString() ?? '';
+        final bSem = bTerm?['semester']?.toString() ?? '';
+        final aSemKey = semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
+        final bSemKey = semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
+        return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
+      });
+      
+      // Clean up rawTerm before returning (no longer limiting to 4, send everything for scrollable graph)
+      return finalHistory.map((e) => {'sem': e['sem'], 'score': e['score']}).toList();
+
+    } catch (e) {
+      debugPrint('Error fetching dept history: $e');
+      return [];
     }
   }
 
@@ -382,7 +480,7 @@ class EvaluationService {
             department_table!user_id(
               department_name!Department_name_ID(d_name)
             ),
-            instructor_subjects!instructor_id(id)
+            instructor_subjects!instructor_id(id, term_id)
           )
         ''')
         .eq('term_id', resolvedTermId)
@@ -428,8 +526,8 @@ class EvaluationService {
           deptName = deptNameData['d_name'] ?? 'Unknown';
         }
       }
-      
-      final subjects = userInfo['instructor_subjects'] as List? ?? []; // count their subjects
+      final allSubjects = userInfo['instructor_subjects'] as List? ?? [];
+      final subjects = allSubjects.where((s) => s['term_id'] == resolvedTermId).toList(); // only count for selected term
 
       // ── Real trend: compare current score vs previous term ─────────────────
       // Threshold of 0.1 — anything smaller is noise, not a real change.
@@ -782,6 +880,103 @@ class EvaluationService {
           instructorName: name,
           dateFlagged: DateTime.now(), // flag date is now, murag fresh alert
         ));
+      }
+
+      // --- ADD NEGATIVE SENTIMENT FLAGS (GROUPED) ---
+      // Fetch all highly negative remarks for the department's faculty in the current term
+      final sentimentData = await _supabase
+          .from('evaluation_remarks')
+          .select('''
+            instructor_id,
+            user_info!instructor_id(first_name, last_name)
+          ''')
+          .eq('term_id', termId)
+          .eq('tone', 'Critical')
+          .filter('instructor_id', 'in', facultyIds);
+      
+      // Group them by instructor id
+      final Map<String, int> badReviewCounts = {};
+      final Map<String, String> instructorNames = {};
+      
+      for (var row in (sentimentData as List)) {
+        final iId = row['instructor_id'] as String;
+        badReviewCounts[iId] = (badReviewCounts[iId] ?? 0) + 1;
+        if (!instructorNames.containsKey(iId)) {
+          final userInfo = row['user_info'];
+          instructorNames[iId] = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+        }
+      }
+
+      // Generate one grouped alert per instructor who has negative feedback
+      for (final entry in badReviewCounts.entries) {
+        final instructorId = entry.key;
+        final count = entry.value;
+        final name = instructorNames[instructorId] ?? 'Unknown';
+
+        alerts.add(ActionAlert(
+          type: 'Sentiment',
+          title: 'Highly Negative Feedback Detected',
+          desc: count == 1 
+              ? "A student has left highly negative feedback for this instructor."
+              : "Multiple students ($count) have left highly negative feedback for this instructor.",
+          instructorId: instructorId,
+          instructorName: name,
+          dateFlagged: DateTime.now(),
+        ));
+      }
+
+      // --- ADD 3-STRIKE TERMINATION FLAGS ---
+      // Fetch entire history for these faculty members, ordered by newest first
+      final historyData = await _supabase
+          .from('overall_total_survey')
+          .select('''
+            instructor_id,
+            overall_mean,
+            combined_score_mean,
+            created_at,
+            user_info!instructor_id(first_name, last_name)
+          ''')
+          .filter('instructor_id', 'in', facultyIds)
+          .order('created_at', ascending: false); // newest first!
+      
+      // Group historical scores by instructor
+      final Map<String, List<double>> instructorHistory = {};
+      final Map<String, String> instructorNamesForHistory = {};
+      
+      for (var row in (historyData as List)) {
+        final iId = row['instructor_id'] as String;
+        final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+        
+        instructorHistory.putIfAbsent(iId, () => []).add(score);
+        
+        if (!instructorNamesForHistory.containsKey(iId)) {
+          final userInfo = row['user_info'];
+          instructorNamesForHistory[iId] = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+        }
+      }
+      
+      // Evaluate the 3-strike rule
+      for (final entry in instructorHistory.entries) {
+        final iId = entry.key;
+        final scores = entry.value;
+        
+        // Ensure they have at least 3 active semesters
+        if (scores.length >= 3) {
+          // Check the 3 most recent semesters (which are the first 3 in the list since we ordered descending)
+          final last3 = scores.sublist(0, 3);
+          
+          // If ALL 3 are below the threshold (usually 3.0), strike 3!
+          if (last3.every((score) => score < threshold)) {
+             alerts.add(ActionAlert(
+               type: 'Termination',
+               title: '3-Strike Alert: Termination Review',
+               desc: 'Instructor has scored below ${threshold.toStringAsFixed(1)} for 3 consecutive active semesters. Immediate intervention or deactivation required.',
+               instructorId: iId,
+               instructorName: instructorNamesForHistory[iId] ?? 'Unknown',
+               dateFlagged: DateTime.now(),
+             ));
+          }
+        }
       }
 
       return alerts;

@@ -8,25 +8,31 @@ import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import 'failed_scans_screen.dart';
-import '../sao_admin/import_errors_screen.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../core/navigation/role_switch_screen.dart';
+import '../core/navigation/role_nav_config.dart';
 
 // the drawer widget — StatefulWidget because it loads badge counts on open
 class GathererDrawer extends StatefulWidget {
   final int currentIndex; // which tab is currently active (to highlight in drawer)
   final Function(int) onMenuTap; // callback to switch tabs from the drawer
+  final VoidCallback? onImportTap; // callback to open import screen
+
   /// Pass the already-loaded name and role from the parent screen
   /// so the drawer shows instantly without re-fetching from Supabase.
   /// If we fetch again here, user see "..." every time they open drawer. Bad UX.
   final String userName;
   final String userRole;
+  final UserRole? originalRole; // Support role switching
 
   const GathererDrawer({
     super.key,
     required this.currentIndex,
     required this.onMenuTap,
+    this.onImportTap,
     this.userName = '', // default empty, parent should always pass this
     this.userRole = 'Data Gatherer',
+    this.originalRole,
   });
 
   @override
@@ -39,35 +45,24 @@ class _GathererDrawerState extends State<GathererDrawer> {
   final _authService = AuthService(); // for logout functionality
 
   // badge counts — shown as little orange numbers on menu items
-  int _failedCount = 0; // failed scans pending correction
   int _importErrorCount = 0; // import errors pending review
 
   // load badge counts when drawer first opens
   @override
   void initState() {
     super.initState();
-    _loadFailedCount(); // how many failed scans need attention
     _loadImportErrorCount(); // how many import errors need attention
-  }
-
-  // get count of failed scans for this user — shown as badge on Data Validation item
-  Future<void> _loadFailedCount() async {
-    final count = await FailedScansScreen.getPendingCount(
-        _supabase.auth.currentUser?.id ?? ''); // use empty string if no user (safe fallback)
-    if (mounted) setState(() => _failedCount = count);
   }
 
   // get count of pending import errors from the import_errors table
   // shown as badge on the Import Errors menu item
   Future<void> _loadImportErrorCount() async {
     try {
-      final res = await _supabase
+      final response = await _supabase
           .from('import_errors')
           .select('id')
-          .eq('status', 'pending'); // only pending ones, not resolved
-      if (mounted) {
-        setState(() => _importErrorCount = (res as List).length);
-      }
+          .eq('status', 'pending');
+      if (mounted) setState(() => _importErrorCount = (response as List).length);
     } catch (_) {} // silently fail — if this fail, badge just shows 0. bahala na.
   }
 
@@ -153,61 +148,76 @@ class _GathererDrawerState extends State<GathererDrawer> {
           ),
 
           // ── Navigation Items ─────────────────────────────────────────
-          // Dashboard — index 0 — the home screen with stats and buttons
-          _buildDrawerItem(context, Icons.dashboard, 'Dashboard', widget.currentIndex == 0, onTap: () {
-            Navigator.pop(context); // close drawer first
-            widget.onMenuTap(0); // then switch tab
-          }),
-          // Scanner — index 1 — camera view for scanning forms
-          _buildDrawerItem(context, Icons.camera_alt, 'Scanner', widget.currentIndex == 1, onTap: () {
+          
+          // Google Sheet / Form Import
+          _buildDrawerItem(context, Icons.note_add_rounded, 'Google Sheet / Form Import', widget.currentIndex == 6, onTap: () {
             Navigator.pop(context);
-            widget.onMenuTap(1);
+            if (widget.onImportTap != null) widget.onImportTap!();
           }),
-          // Data Validation — index 2 — has badge for failed scans count
-          _buildDrawerItem(
-            context,
-            Icons.fact_check,
-            'Data Validation',
-            widget.currentIndex == 2,
-            badge: _failedCount, // show count of failed scans needing correction
-            onTap: () {
-              Navigator.pop(context);
-              widget.onMenuTap(2);
-            },
-          ),
 
-          // Import Errors — not a tab, navigates to separate screen
-          // has badge for import error count
+          // Import Errors — index 4
           _buildDrawerItem(
             context,
             Icons.error_outline,
             'Import Errors',
-            false, // never shown as "selected" since it a separate screen
+            widget.currentIndex == 4,
             badge: _importErrorCount,
             onTap: () {
               Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ImportErrorsScreen()),
-              ).then((_) => _loadImportErrorCount()); // refresh badge on return
+              widget.onMenuTap(4);
             },
           ),
-          // Sync Queue — index 3 — shows local upload queue status
-          _buildDrawerItem(context, Icons.cloud_upload, 'Sync Queue', widget.currentIndex == 3, onTap: () {
+          
+          // Settings — index 5
+          _buildDrawerItem(context, Icons.settings, 'Settings', widget.currentIndex == 5, onTap: () {
             Navigator.pop(context);
-            widget.onMenuTap(3);
-          }),
-          // Settings — index 4 — profile, haptic, password, logout
-          _buildDrawerItem(context, Icons.settings, 'Settings', widget.currentIndex == 4, onTap: () {
-            Navigator.pop(context);
-            widget.onMenuTap(4);
+            widget.onMenuTap(5);
           }),
 
           const Divider(), // visual separator before logout
+
+          // ── Role Switcher Return ─────────────────────────────────────────
+          if (widget.originalRole != null)
+            ListTile(
+              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primary),
+              title: const Text(
+                'Return to SAO Admin',
+                style: TextStyle(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context); // Close drawer
+                // Push the transition screen over the current UI
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (_, __, ___) => RoleSwitchScreen(
+                      targetRoleName: 'SAO Admin',
+                      targetIcon: Icons.admin_panel_settings_rounded,
+                      onComplete: (switchCtx) {
+                        // Safely pop twice: transition screen AND Gatherer Screen
+                        int count = 0;
+                        Navigator.of(switchCtx).popUntil((_) => count++ >= 2);
+                      },
+                    ),
+                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                  ),
+                );
+              },
+            ),
+
+          if (widget.originalRole != null)
+            const Divider(),
+
           // Log Out — red because it ends the session
           _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
             final confirm = await showLogoutConfirmationDialog(context);
             if (confirm == true) {
+              if (!context.mounted) return;
+              showLoggingOutOverlay(context);
+              await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
               await _authService.signOut(); // sign out from supabase
               if (context.mounted) {
                 // remove all routes and go to login — user cannot go back

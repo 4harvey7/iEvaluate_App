@@ -26,14 +26,8 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Import Instructions', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.textPrimary,
-        foregroundColor: AppColors.surface,
-      ),
-      body: SingleChildScrollView(
+    return SafeArea(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,8 +136,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 onPressed: () {
                   final link = _linkController.text.trim();
                   if (link.isNotEmpty) {
-                    Navigator.pop(context); // Close instruction screen first
-                    widget.onSubmit(link);  // Then start processing
+                    widget.onSubmit(link);  // Start processing
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Please paste the Google Sheet link first')),

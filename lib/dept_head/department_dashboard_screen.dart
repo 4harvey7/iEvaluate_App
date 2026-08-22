@@ -2,18 +2,16 @@
 // This is the BIG BOSS screen. The dept head open this and feel very important.
 // Shows scores, alerts, word clouds — basically everything the dean need to not panic.
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-import '../login_screen.dart'; // For logging out — ayaw forget this, or user stuck forever
 import '../core/services/system_settings_service.dart';
 import '../core/services/evaluation_service.dart';
-import '../core/services/auth_service.dart';
-import 'faculty_roster_screen.dart';
+import '../core/navigation/main_scaffold.dart';
 import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
-import 'dept_head_settings_screen.dart';
-import '../widgets/logout_confirmation_dialog.dart';
 
 // The main widget for the department dashboard. Very importente kaayo.
 // It is stateful because data changes and we need to rebuild the UI — dili pwede static.
@@ -29,9 +27,12 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   // Services — the workers behind the scene. pray lang they don't throw exception.
   final _settingsService = SystemSettingsService();
   final _evaluationService = EvaluationService();
-  final _authService = AuthService();
   final _supabase = Supabase.instance.client;
 
+
+  // ─── CACHE FOR INSTANT TAB SWITCHING ─────────────────────────────────────────
+  static final Map<String, Map<String, dynamic>> _dashboardCache = {};
+  
   // These start with '...' because we don't have data yet. Patience, friend.
   String _currentSemester = '...';
   String _currentYear = '...';
@@ -55,13 +56,57 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   List<ActionAlert> _dynamicAlerts = [];
   // Word cloud — the AI version of "what students actually think"
   List<Map<String, dynamic>> _wordCloudData = [];
+  // Department performance history across terms
+  List<Map<String, dynamic>> _deptHistory = [];
   // The current term ID — basin naa pa previous term, we make sure its the right one
   String _currentTermId = '';
+  // Key to scroll down to alerts
+  final GlobalKey _alertsKey = GlobalKey();
+
+  Future<void> _loadCachedDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('dept_dashboard_${widget.userId}');
+      if (cached != null) {
+        final data = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _currentSemester = data['semester'] ?? _currentSemester;
+            _currentYear = data['year'] ?? _currentYear;
+            _currentTermId = data['termId'] ?? _currentTermId;
+            _deptInfo = Map<String, dynamic>.from(data['deptInfo'] ?? _deptInfo);
+            
+            if (data['wordCloud'] != null) {
+              _wordCloudData = List<Map<String, dynamic>>.from(data['wordCloud'].map((x) => Map<String, dynamic>.from(x)));
+            }
+            if (data['history'] != null) {
+              _deptHistory = List<Map<String, dynamic>>.from(data['history'].map((x) => Map<String, dynamic>.from(x)));
+            }
+            if (data['alerts'] != null) {
+              _dynamicAlerts = (data['alerts'] as List).map((a) => ActionAlert(
+                type: a['type'],
+                title: a['title'],
+                desc: a['desc'],
+                instructorId: a['instructorId'],
+                instructorName: a['instructorName'],
+                subjectCode: a['subjectCode'],
+                dateFlagged: DateTime.parse(a['dateFlagged']),
+              )).toList();
+            }
+          });
+          debugPrint('[DEPT HEAD] ⚡ Loaded cached dashboard instantly.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[DEPT HEAD] Failed to load cache: $e');
+    }
+  }
 
   // Called once when the screen is born into this world
   @override
   void initState() {
     super.initState();
+    _loadCachedDashboard(); // Load stale data instantly!
     _subscribeToSettings(); // Start listening for semester changes
     _loadInitialData(); // Fetch all the data — go go go
   }
@@ -101,8 +146,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
       // If no average yet, default to 3.0 so alerts still work — smart move
       final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0;
       final alerts = await _evaluationService.getDepartmentAlerts(widget.userId, threshold: deptAvg);
-      // Word cloud — student comments turned into fancy colored words
       final wordCloud = await _evaluationService.getDeptWordCloud(widget.userId);
+      // Fetch the historical performance of the whole department
+      final history = await _evaluationService.getDepartmentHistory(widget.userId);
       
       // Fetch User Info — we need the dean name so the drawer don't say "..."
       final user = await _supabase
@@ -145,7 +191,33 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
           };
           _dynamicAlerts = alerts; // Store alerts for the dashboard and notification bell
           _wordCloudData = wordCloud; // Store word cloud data for the AI section
+          _deptHistory = history; // Store the history chart data
         });
+
+        // Save to cache so the user doesn't wait next time they open the app
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final cacheData = {
+            'semester': _currentSemester,
+            'year': _currentYear,
+            'termId': _currentTermId,
+            'deptInfo': _deptInfo,
+            'wordCloud': _wordCloudData,
+            'history': _deptHistory,
+            'alerts': _dynamicAlerts.map((a) => {
+              'type': a.type,
+              'title': a.title,
+              'desc': a.desc,
+              'instructorId': a.instructorId,
+              'instructorName': a.instructorName,
+              'subjectCode': a.subjectCode,
+              'dateFlagged': a.dateFlagged.toIso8601String(),
+            }).toList(),
+          };
+          await prefs.setString('dept_dashboard_${widget.userId}', jsonEncode(cacheData));
+        } catch (e) {
+          debugPrint('Failed to save dept cache: $e');
+        }
       }
     } catch (e) {
       // If anything fails, just print it and show empty state — wala choice
@@ -187,141 +259,84 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Department Overview', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text('Department Overview', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
             // Shows current semester and year — so dean know which term they looking at
             Text('$_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
           ],
         ),
         actions: [
-          // Notification bell — shows a red badge if there are alerts to worry about
-          IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_outlined, color: AppColors.primary),
-                // Only show red dot if there are actual alerts — dili ta false alarm
-                if (_dynamicAlerts.isNotEmpty)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                          color: AppColors.error, shape: BoxShape.circle),
-                      constraints:
-                          const BoxConstraints(minWidth: 14, minHeight: 14),
-                      child: Text(
-                        '${_dynamicAlerts.length}', // How many problems waiting
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
+          // Notification Pill — much more premium than a boring icon
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  if (_dynamicAlerts.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('✅ All clear! No active alerts.'),
+                        backgroundColor: AppColors.success,
+                        behavior: SnackBarBehavior.floating,
+                      )
+                    );
+                  } else {
+                    // Smoothly scroll down to the alerts section!
+                    if (_alertsKey.currentContext != null) {
+                      Scrollable.ensureVisible(
+                        _alertsKey.currentContext!,
+                        duration: const Duration(milliseconds: 600),
+                        curve: Curves.easeOutQuart,
+                        alignment: 0.1, // Leave a little padding at the top
+                      );
+                    }
+                  }
+                },
+                child: _dynamicAlerts.isNotEmpty
+                    ? Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.notifications_active, color: AppColors.error, size: 16),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${_dynamicAlerts.length} Alerts',
+                              style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
                       ),
-                    ),
-                  ),
-              ],
+              ),
             ),
-            onPressed: () {
-              // Tapping bell just show a snackbar — no separate page, pray lang
-              if (_dynamicAlerts.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('No active alerts.')));
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(
-                      '${_dynamicAlerts.length} active alert(s). Check the dashboard below.'),
-                ));
-              }
-            },
           ),
         ],
       ),
 
-      // ==========================================
-      // DEPARTMENT HEAD NAVIGATION DRAWER
-      // The side menu — where the dean go to navigate. importente to keep tidy.
-      // ==========================================
-      drawer: Drawer(
-        backgroundColor: AppColors.surface,
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            // Drawer header shows the dean's name and college — look professional
-            DrawerHeader(
-              decoration: const BoxDecoration(color: AppColors.textPrimary),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primary.withValues(alpha: 0.25),
-                    child: Text(_deanName.isNotEmpty ? _deanName[0].toUpperCase() : '?', style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(_deanName, style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                  Text('Department Head • ${_deptInfo['college'] ?? 'Academic Affairs'}', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-            // Current page — marked as selected so it look highlighted
-            _buildDrawerItem(context, Icons.dashboard, 'Department Overview', true, onTap: () {
-              Navigator.pop(context); // Just close the drawer, we already here
-            }),
-            // Go to faculty roster — see all the instructors
-            _buildDrawerItem(context, Icons.people, 'Faculty Roster', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => FacultyRosterScreen(userId: widget.userId)),
-              );
-            }),
-            // Go to subject analytics — see how each subject performing
-            _buildDrawerItem(context, Icons.library_books, 'Subject Analytics', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => SubjectAnalyticsScreen(userId: widget.userId)),
-              );
-            }),
-            // Go to intervention reports — the "problems" list
-            _buildDrawerItem(context, Icons.gavel, 'Intervention Reports', false, onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => InterventionReportsScreen(userId: widget.userId)),
-              );
-            }),
-            // Go to settings — where user change their info or password
-            _buildDrawerItem(context, Icons.settings, 'Account Settings', false, onTap: () async {
-              Navigator.pop(context);
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const DeptHeadSettingsScreen()),
-              );
-              _loadInitialData(); // reload name and data after returning
-            }),
-            const Divider(),
-            // Log out — sign out and go back to login. No coming back without logging in again.
-            _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-              final navigator = Navigator.of(context);
-              final confirm = await showLogoutConfirmationDialog(context);
-              if (confirm == true) {
-                await _authService.signOut(); // Bye bye session
-                if (mounted) {
-                  navigator.pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    (route) => false, // Remove ALL previous routes — no going back
-                  );
-                }
-              }
-            }),
-          ],
-        ),
-      ),
+
+      // drawer removed — MainScaffold now owns the side drawer for all roles
 
       // ==========================================
       // MAIN CONTENT
@@ -438,11 +453,118 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
+                
+                // --- DEPARTMENT HISTORY (GROWTH CHART) ---
+                const Row(
+                  children: [
+                    Icon(Icons.trending_up, color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Department Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                RepaintBoundary(
+                  child: Container(
+                    height: 200, // Slightly shorter for a tighter look
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 20),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.borderHairline, width: 1), // Use hairline border to blend with app
+                    ),
+                    child: _deptHistory.isEmpty
+                        ? const Center(child: Text('No historical data available yet', style: TextStyle(color: AppColors.textTertiary, fontSize: 13)))
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            bool isScrollable = _deptHistory.length > 5;
+                            
+                            Widget content = Row(
+                              mainAxisAlignment: isScrollable ? MainAxisAlignment.start : MainAxisAlignment.spaceAround,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: _deptHistory.map<Widget>((data) {
+                                final score = (data['score'] as num?)?.toDouble() ?? 0.0;
+                                // Scale height, max height ~100px out of 5.0
+                                double barHeight = (score / 5.0) * 100;
+                                
+                                // Clean color coding
+                                Color barColor = AppColors.primary;
+                                if (score >= 4.2) {
+                                  barColor = AppColors.success;
+                                } else if (score < 3.0) {
+                                  barColor = AppColors.warning;
+                                }
+
+                                return Padding(
+                                  padding: EdgeInsets.only(right: isScrollable ? 20 : 0),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // Clean bold text instead of heavy badge
+                                      Text(
+                                        score.toStringAsFixed(2),
+                                        style: TextStyle(fontWeight: FontWeight.w800, color: barColor, fontSize: 13),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      // Animated Bar with subtle bottom fade
+                                      AnimatedContainer(
+                                        duration: const Duration(milliseconds: 800),
+                                        curve: Curves.easeOutQuart,
+                                        width: 34,
+                                        height: barHeight,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              barColor.withValues(alpha: 0.15),
+                                              barColor,
+                                            ],
+                                            begin: Alignment.bottomCenter,
+                                            end: Alignment.topCenter,
+                                          ),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      // Semester Label
+                                      SizedBox(
+                                        width: 50,
+                                        child: Text(
+                                          data['sem'].toString(),
+                                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600, height: 1.2),
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.visible,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            );
+
+                            if (isScrollable) {
+                              return SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: content,
+                              );
+                            }
+                            
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: content,
+                            );
+                          },
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 32),
 
                 // --- ACTION REQUIRED ALERTS ---
                 // This section shows which instructors need attention — basin naa problema below
-                const Row(
-                  children: [
+                Row(
+                  key: _alertsKey,
+                  children: const [
                     Icon(Icons.assignment_late, color: AppColors.textPrimary),
                     SizedBox(width: 8),
                     Text('Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
@@ -515,17 +637,17 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 const SizedBox(height: 4),
                 const Text('Aggregated themes from all student comments across the college.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                 const SizedBox(height: 16),
-
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppColors.textPrimary, Color(0xFF0F172A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
+                RepaintBoundary(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.textPrimary, Color(0xFF0F172A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))
                     ],
@@ -588,6 +710,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                     }),
                   ),
                 ),
+                ),
                 const SizedBox(height: 32),
               ],
             ),
@@ -597,48 +720,5 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     );
   }
 
-  // --- Helper Widget for Drawer ---
-  // Builds each row item in the navigation drawer — keeps code clean
-  Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
-      {bool isLogout = false, int badgeCount = 0, VoidCallback? onTap}) {
-    final color = isLogout
-        ? AppColors.error
-        : (isSelected ? AppColors.primary : AppColors.textPrimary);
-    return ListTile(
-      leading: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Icon(icon, color: color),
-          if (badgeCount > 0)
-            Positioned(
-              top: -4,
-              right: -6,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                    color: AppColors.error, shape: BoxShape.circle),
-                child: Text('$badgeCount',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold)),
-              ),
-            ),
-        ],
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: color,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-        overflow: TextOverflow.ellipsis,
-      ),
-      selected: isSelected,
-      onTap: onTap ?? () {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$title coming soon!")));
-      },
-    );
-  }
+  // _buildDrawerItem() removed — drawer is now managed by MainScaffold.
 }

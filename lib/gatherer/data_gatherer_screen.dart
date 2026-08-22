@@ -5,8 +5,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../theme/app_colors.dart';
+import '../core/navigation/role_nav_config.dart'; // Added this import for UserRole
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import '../core/services/push_notification_service.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -19,6 +24,8 @@ import 'gatherer_sync_view.dart';
 import 'gatherer_settings_view.dart';
 import 'google_sheet_import_screen.dart';
 import 'data_validation_screen.dart';
+import '../sao_admin/import_errors_screen.dart';
+import 'failed_scans_screen.dart';
 
 import 'gatherer_drawer.dart';
 import 'models/scan_task.dart';
@@ -26,7 +33,9 @@ import 'models/scan_task.dart';
 // The widget itself — it a StatefulWidget because EVERYTHING here change constantly
 class DataGathererScreen extends StatefulWidget {
   final String userId;
-  const DataGathererScreen({super.key, required this.userId});
+  final UserRole? originalRole; // Pass this if accessed via Role Switcher
+
+  const DataGathererScreen({super.key, required this.userId, this.originalRole});
 
   @override
   State<DataGathererScreen> createState() => _DataGathererScreenState();
@@ -75,19 +84,69 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   final List<ScanTask> _localQueue = []; // local queue list of scans pending upload
 
   // key for storing queue in SharedPreferences — like saving your progress
-  static const _queueKey = 'gatherer_sync_queue';
+  String get _queueKey => 'gatherer_sync_queue_${widget.userId}';
   // n8n health check URL, from env so we dont hardcode secrets. smart.
   static String get _n8nHealthUrl => Env.n8nHealthUrl;
+
+  Future<void> _loadCachedDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getString('gatherer_dashboard_${widget.userId}');
+      if (cached != null) {
+        final data = jsonDecode(cached);
+        if (mounted) {
+          setState(() {
+            _userName = data['userName'] ?? _userName;
+            _userRole = data['userRole'] ?? _userRole;
+            _entriesToday = data['entriesToday'] ?? _entriesToday;
+            _overallSurveyCount = data['overallSurveyCount'] ?? _overallSurveyCount;
+            _scannedToday = data['entriesToday'] ?? _entriesToday;
+            _currentSemester = data['semester'] ?? _currentSemester;
+            _currentYear = data['year'] ?? _currentYear;
+            _currentTermId = data['termId'] ?? _currentTermId;
+          });
+          debugPrint('[GATHERER] ⚡ Loaded cached dashboard instantly.');
+        }
+      }
+    } catch (e) {
+      debugPrint('[GATHERER] Failed to load cache: $e');
+    }
+  }
+
+  Future<void> _saveCachedDashboard() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheData = {
+        'userName': _userName,
+        'userRole': _userRole,
+        'entriesToday': _entriesToday,
+        'overallSurveyCount': _overallSurveyCount,
+        'semester': _currentSemester,
+        'year': _currentYear,
+        'termId': _currentTermId,
+      };
+      await prefs.setString('gatherer_dashboard_${widget.userId}', jsonEncode(cacheData));
+    } catch (e) {
+      debugPrint('[GATHERER] Failed to save cache: $e');
+    }
+  }
 
   // runs when screen first open — start all the loading things
   @override
   void initState() {
     super.initState();
+    _loadCachedDashboard(); // Load stale data instantly!
     _subscribeToSettings(); // listen for semester/term changes
     _fetchUserInfo(); // get the name and role of whoever logged in
     _loadQueueFromStorage(); // restore queue from last session, murag resurrection
     _checkN8nStatus(); // ping n8n to see if its alive
     _fetchSupabaseStats(); // pull the numbers from the database
+    
+    try {
+      PushNotificationService().init();
+    } catch (e) {
+      debugPrint('Error init push notifications: $e');
+    }
   }
 
   // ─── User Info ────────────────────────────────────────────────────────────
@@ -112,6 +171,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         // if role is a Map, get the 'Roles' key; if dili, default to 'Data Gatherer'
         setState(() => _userRole = role is Map ? role['Roles'] ?? 'Data Gatherer' : 'Data Gatherer');
       }
+      await _saveCachedDashboard();
     } catch (e) {
       debugPrint('fetchUserInfo error: $e'); // failed, but we survive
     }
@@ -210,6 +270,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           _scannedToday = _entriesToday; // sync local counter with database reality
         });
       }
+      await _saveCachedDashboard();
     } catch (e) {
       debugPrint('fetchSupabaseStats error: $e'); // database angry, we sad
     }
@@ -223,14 +284,18 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   Future<void> _loadQueueFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final docDir = await getApplicationDocumentsDirectory();
       final raw = prefs.getStringList(_queueKey) ?? []; // empty list if nothing saved
       final loaded = raw
           .map((s) => ScanTask.fromMap(jsonDecode(s) as Map<String, dynamic>))
-          // Don't restore "uploading" — treat as pending on restart
-          // because app may have crashed mid-upload, wala ta kabalo if it succeed
-          .map((t) => t.status == SyncStatus.uploading
-              ? (ScanTask(id: t.id, localPath: t.localPath, status: SyncStatus.pending, retryCount: t.retryCount))
-              : t)
+          .map((t) {
+            // Reconstruct absolute path safely because app sandbox dir changes on iOS/Android updates
+            final filename = p.basename(t.localPath);
+            final newPath = p.join(docDir.path, filename);
+            // Don't restore "uploading" — treat as pending on restart
+            final status = t.status == SyncStatus.uploading ? SyncStatus.pending : t.status;
+            return ScanTask(id: t.id, localPath: newPath, status: status, retryCount: t.retryCount, errorMessage: t.errorMessage);
+          })
           .toList();
       if (mounted) setState(() => _localQueue.addAll(loaded)); // put them back in the queue
     } catch (e) {
@@ -465,14 +530,32 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       }
     } catch (e) {
       debugPrint('Upload Error: $e');
+      final errorStr = e.toString();
+      final isConnectionError = errorStr.contains('SocketException') || errorStr.contains('TimeoutException');
+      
       setState(() {
         task.status = SyncStatus.failed; // mark as failed so user can retry
         // give a human-readable error — SocketException mean IP/URL wrong probably
-        task.errorMessage = e.toString().contains('SocketException')
+        task.errorMessage = isConnectionError
             ? 'Connection Refused (Check IP/URL)'
             : 'Sync Failed';
         task.retryCount++; // track how many times this task has failed
       });
+
+      if (isConnectionError && mounted) {
+        _isPaused = true; // Auto-pause the rest of the queue so it doesn't spam errors
+        
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Connection Interrupted', style: TextStyle(color: AppColors.error)),
+            content: const Text('If data transmission is interrupted. Try again. No data transmitted.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK')),
+            ],
+          ),
+        );
+      }
     } finally {
       _saveQueueToStorage(); // always save after upload attempt, success or not
     }
@@ -509,7 +592,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   @override
   Widget build(BuildContext context) {
     // tab titles shown in the AppBar — order must match the screens list below
-    final List<String> tabTitles = ['Dashboard', 'Scanner', 'Validation', 'Sync Queue', 'Settings'];
+    final List<String> tabTitles = ['Dashboard', 'Scanner', 'Validation', 'Sync Queue', 'Import Errors', 'Settings', 'Import Instructions'];
 
     // count how many tasks are pending or failed — shown as badge in drawer
     final int pendingCount = _localQueue.where((t) => t.status == SyncStatus.pending || t.status == SyncStatus.failed).length;
@@ -531,25 +614,14 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         checkingN8n: _checkingN8n,
         onCheckN8n: _checkN8nStatus,
         onStartScan: () => setState(() => _currentIndex = 1), // jump to scanner tab
-        onImportData: () {
-          // navigate to Google Sheet import screen — separate page
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GoogleSheetImportScreen(
-                userId: widget.userId,
-                onSubmit: (link) => _submitLink(link), // pass the submit function
-              ),
-            ),
-          );
-        },
+        onImportData: () => setState(() => _currentIndex = 6), // jump to import screen
       ),
       GathererScannerView(
         onScan: _performScan, // called when a photo is taken
         queueCount: _localQueue.length,
         onOpenSync: () => setState(() => _currentIndex = 3), // jump to sync queue tab
         onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(), // open the side drawer
-        onSendFormLink: (url) => _submitLink(url), // for the link modal inside scanner
+        onOpenImportData: () => setState(() => _currentIndex = 6), // jump to import screen
       ),
       DataValidationScreen(userId: widget.userId), // validation tab — check flagged records
       GathererSyncView(
@@ -562,13 +634,24 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         onPause: _pauseSync,
         onResume: _resumeSync,
       ),
+      ImportErrorsScreen(
+        showBackButton: false,
+        onMenuPressed: () => _scaffoldKey.currentState?.openDrawer(),
+      ), // import errors integrated as tab
       const GathererSettingsView(), // settings — profile, haptic, password, logout
+      GoogleSheetImportScreen(
+        userId: widget.userId,
+        onSubmit: (link) {
+          _submitLink(link);
+          setState(() => _currentIndex = 0); // Return to dashboard after submit
+        },
+      ),
     ];
 
     return Scaffold(
       key: _scaffoldKey, // need this key to programmatically open the drawer
       backgroundColor: AppColors.background,
-      appBar: AppBar(
+      appBar: _currentIndex == 4 ? null : AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
@@ -577,7 +660,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           children: [
             // show the current tab name — updates when tab changes
             Text(tabTitles[_currentIndex],
-                style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, fontSize: 18)),
+                style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
             // show semester and year below — always visible for context
             Text('$_currentSemester, $_currentYear',
                 style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
@@ -627,10 +710,38 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       drawer: GathererDrawer(
         currentIndex: _currentIndex,
         onMenuTap: (index) => setState(() => _currentIndex = index), // switch tab from drawer
+        onImportTap: () => setState(() => _currentIndex = 6),
         userName: _userName,
         userRole: _userRole,
+        originalRole: widget.originalRole, // Pass this to show the return button
       ),
       body: screens[_currentIndex], // show whichever screen is selected
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: AppColors.surface,
+        indicatorColor: AppColors.primaryTint,
+        selectedIndex: _currentIndex < 4 ? _currentIndex : 0, // Fallback so it doesn't crash on drawer screens
+        onDestinationSelected: (idx) {
+          setState(() => _currentIndex = idx);
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_rounded),
+            label: 'Dashboard',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.camera_alt_rounded),
+            label: 'Scanner',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.fact_check_rounded),
+            label: 'Validation',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.cloud_upload_rounded),
+            label: 'Sync Queue',
+          ),
+        ],
+      ),
     );
   }
 }

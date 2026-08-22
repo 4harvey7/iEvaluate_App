@@ -2,55 +2,64 @@
 // this is the main file. the big boss. the beginning of everything. dont mess it up
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:provider/provider.dart';
 import 'core/config/env.dart';
 import 'login_screen.dart';
 import 'splash_screen.dart';
-import 'instructor/providers/subjects_provider.dart';
+import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
 
-// we import all the dashboard screens here so the router can find them, without this nothing work
-import 'sao_admin/admin_dashboard.dart';
-import 'instructor/instructor_dashboard.dart';
-import 'dept_head/department_dashboard_screen.dart';
+// Role-based navigation — all routing now goes through MainScaffold.
+// role_nav_config.dart is the single source of truth for what each role sees.
+import 'core/navigation/main_scaffold.dart';
+import 'core/navigation/role_nav_config.dart';
+
+// TECHNICAL DEBT: The gatherer role bypasses MainScaffold because
+// DataGathererScreen self-manages 5 internal tabs with tightly coupled state.
+// See role_nav_config.dart and main_scaffold.dart for full explanation.
 import 'gatherer/data_gatherer_screen.dart';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'core/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize Firebase (will look for google-services.json automatically on Android)
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    debugPrint('Firebase init error: $e');
+  }
+  
   // secrets are injected at build time via --dart-define-from-file=.env.json
   // no runtime file loading needed, thank goodness
   await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
+  
   runApp(const MyApp());
 }
 
-// this is the role-based router, it decide where to send the user after login
-// think of it like a bouncer but for screens, wala silay choice kung asa sila mapunta
+// Role-based router — resolves a DB role string to the correct entry screen.
+// Non-gatherer roles go into MainScaffold; gatherer is passed through directly.
+// To add a new role: add it to UserRole + roleNavConfigs in role_nav_config.dart,
+// then add its string mapping in roleFromString() (also in role_nav_config.dart).
 Widget screenForRole(String role, String userId) {
-  debugPrint('[ROUTER] Redirecting user with Role: $role');
-  // we check the role and send the user to the right screen, simple as that
-  switch (role) {
-    case 'SAO_ADMIN':
-      return AdminDashboardScreen(userId: userId);
-    case 'FULL-TIME':
-    case 'PART-TIME':
-    case 'INSTRUCTOR':
-      // all instructor types go to the same dashboard, we not picky here
-      // SubjectsProvider is scoped here because only instructor role consumes it
-      return ChangeNotifierProvider(
-        create: (_) => SubjectsProvider(),
-        child: InstructorDashboardScreen(userId: userId),
-      );
-    case 'DEPARTMENT-HEAD': 
-    case 'DEPARTMENT_HEAD': // both variants work, the database cant make up its mind
-    case 'DEAN':
-      return DepartmentDashboardScreen(userId: userId);
-    case 'SAO_STAFF':
-      return DataGathererScreen(userId: userId);
-    default:
-      // if we dont know who this person is, we kick them back to login, safe lang
-      debugPrint('[ROUTER] Unrecognized role: "$role". Sending to Login.');
-      return const LoginScreen();
+  debugPrint('[ROUTER] Redirecting user with role: "$role"');
+
+  final userRole = roleFromString(role);
+
+  if (userRole == null) {
+    // Unrecognised role — boot back to login rather than crashing.
+    debugPrint('[ROUTER] Unrecognized role: "$role". Sending to Login.');
+    return const LoginScreen();
   }
+
+  // TECHNICAL DEBT: Gatherer bypasses MainScaffold — see file-level comment above.
+  if (userRole == UserRole.gatherer) {
+    return DataGathererScreen(userId: userId);
+  }
+
+  // All other roles route through the shared scaffold.
+  return MainScaffold(role: userRole, userId: userId);
 }
 
 class MyApp extends StatelessWidget {
@@ -61,6 +70,21 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false, // we hide the debug banner, it look unprofessional
       title: 'iEvaluate',
       theme: AppTheme.light, // use the fully-configured project theme instead of bare primarySwatch
+      builder: (context, child) {
+        // Global tablet/iPad responsiveness fix
+        // Constrain the entire app's width so no screen stretches beyond 800 pixels
+        return Container(
+          color: AppColors.background, // Fills the empty side-space on tablets
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: ClipRect(
+                child: child,
+              ),
+            ),
+          ),
+        );
+      },
       home: const SplashScreen(), // always start at splash screen, then we figure out the rest
     );
   }

@@ -340,27 +340,6 @@ class _DataValidationScreenState extends State<DataValidationScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Header ────────────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Data Validation',
-                    style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                const Text(
-                  'Review unlinked records and correct failed scans.',
-                  style: TextStyle(
-                      color: AppColors.textSecondary, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-
           // ── TabBar ────────────────────────────────────────────────────────
           // two tabs with badge counts — so user see at a glance how much work waiting
           Padding(

@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+
 
 // Simple StatefulWidget — needs state because profile data loads after build
 class InstructorSettingsScreen extends StatefulWidget {
@@ -161,6 +163,28 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
+                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
@@ -212,6 +236,99 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 ),
               );
             }
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // INTERACTIVE: EDIT ACADEMIC INFO
+  // ==========================================
+  void _showEditAcademicInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Edit Academic Info', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          content: const Text(
+            'Your Academic Information (Role and Department) is managed by the system administrator to maintain data integrity.\n\n'
+            'If you need to change your department or title, please contact the SAO Admin.',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Understood', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // INTERACTIVE: EDIT EMAIL
+  // ==========================================
+  void _showEditEmailDialog() {
+    final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'New Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  onPressed: isSaving ? null : () async {
+                    final newEmail = emailController.text.trim();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+
+                    setDialogState(() => isSaving = true);
+                    final result = await _authService.updateEmail(newEmail);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
+                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSaving 
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -416,18 +533,22 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       }
     }
 
-    // Show loading spinner while fetching profile data — dili blank ang screen
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Account Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
-      body: SafeArea(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -460,11 +581,15 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                             const SizedBox(height: 4),
                             // Title and dept on the same line
                             Text('$_userTitle • $_userDept', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                            const SizedBox(height: 8),
                             // Tap this to open the edit profile bottom sheet
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _showEditAcademicInfoDialog,
+                              child: const Text('Edit Academic Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -512,6 +637,19 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
+                    // Edit Email tile
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.email_outlined, color: AppColors.primary),
+                      ),
+                      title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                      onTap: _showEditEmailDialog,
+                    ),
+                    const Divider(height: 1, indent: 56),
                     // Change password tile — opens the 3-field password dialog
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -520,7 +658,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.lock, color: AppColors.primary),
                       ),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog,
                     ),
@@ -551,6 +689,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     final navigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
+                      if (!mounted) return;
+                      showLoggingOutOverlay(context);
+                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut(); // clear session from Supabase
                       if (mounted) {
                         // Send to login screen, remove all previous routes so user cant go back

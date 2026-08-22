@@ -4,10 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+
 
 // The settings widget — stateful because we load and change user info here
 class DeptHeadSettingsScreen extends StatefulWidget {
@@ -55,10 +57,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
         return;
       }
 
-      // Fetch first and last name from user_info table
+      // Fetch first and last name and alert prefs from user_info table
       final data = await _supabase
           .from('user_info')
-          .select('first_name, last_name')
+          .select('first_name, last_name, alert_performance, alert_sentiment, alert_digest')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -73,8 +75,12 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
         setState(() {
           // Apply name data if it came back non-null
           if (data != null) {
-            _firstName = data['first_name'] ?? '';
+            _firstName = data['first_name'] ?? 'Dean';
             _lastName = data['last_name'] ?? '';
+            // Load alert settings (default to true if null in DB)
+            _lowPerformanceAlerts = data['alert_performance'] ?? true;
+            _negativeSentimentAlerts = data['alert_sentiment'] ?? true;
+            _weeklyDepartmentDigest = data['alert_digest'] ?? true;
           }
           
           if (deptData != null) {
@@ -137,6 +143,28 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
+                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       // First name input field
                       _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
                       const SizedBox(height: 16),
@@ -192,6 +220,73 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 ),
               );
             }
+        );
+      },
+    );
+  }
+
+  // ==========================================
+  // INTERACTIVE: EDIT EMAIL
+  // ==========================================
+  void _showEditEmailDialog() {
+    final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      labelText: 'New Email',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  onPressed: isSaving ? null : () async {
+                    final newEmail = emailController.text.trim();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+
+                    setDialogState(() => isSaving = true);
+                    final result = await _authService.updateEmail(newEmail);
+                    
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
+                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSaving 
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -378,6 +473,17 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
     );
   }
 
+  // Update alert setting in Supabase
+  Future<void> _updateAlertSetting(String column, bool value) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _supabase.from('user_info').update({column: value}).eq('id', user.id);
+    } catch (e) {
+      debugPrint('Failed to update $column: $e');
+    }
+  }
+
   // Main build — the whole settings screen layout
   // Shows profile card, notification toggles, security section, and logout button
   @override
@@ -391,18 +497,22 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       }
     }
 
-    // Show loading spinner while profile data is still fetching — patience
-    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Executive Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
-      body: SafeArea(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator()) 
+        : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
@@ -440,7 +550,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                             // Tap to open the edit bottom sheet — importente this is clickable
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -466,7 +576,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       subtitle: 'Alert when instructor rating drops below 3.0.',
                       icon: Icons.trending_down,
                       value: _lowPerformanceAlerts,
-                      onChanged: (val) => setState(() => _lowPerformanceAlerts = val),
+                      onChanged: (val) {
+                        setState(() => _lowPerformanceAlerts = val);
+                        _updateAlertSetting('alert_performance', val);
+                      },
                     ),
                     const Divider(height: 1, indent: 56),
                     // Toggle: alert when students leave very negative comments
@@ -475,7 +588,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       subtitle: 'Alert on detected negative student feedback.',
                       icon: Icons.psychology,
                       value: _negativeSentimentAlerts,
-                      onChanged: (val) => setState(() => _negativeSentimentAlerts = val),
+                      onChanged: (val) {
+                        setState(() => _negativeSentimentAlerts = val);
+                        _updateAlertSetting('alert_sentiment', val);
+                      },
                     ),
                     const Divider(height: 1, indent: 56),
                     // Toggle: get a weekly email digest — for the dean who love summary
@@ -484,7 +600,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       subtitle: 'Receive a summary of department activity.',
                       icon: Icons.summarize,
                       value: _weeklyDepartmentDigest,
-                      onChanged: (val) => setState(() => _weeklyDepartmentDigest = val),
+                      onChanged: (val) {
+                        setState(() => _weeklyDepartmentDigest = val);
+                        _updateAlertSetting('alert_digest', val);
+                      },
                     ),
                   ],
                 ),
@@ -500,6 +619,19 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   children: [
+                    // Edit Email row
+                    ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.email_outlined, color: AppColors.primary),
+                      ),
+                      title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                      onTap: _showEditEmailDialog,
+                    ),
+                    const Divider(height: 1, indent: 56),
                     // Change password row — tap to open the dialog
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -508,7 +640,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.lock, color: AppColors.primary),
                       ),
-                      title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog, // Pop the change password dialog
                     ),
@@ -539,6 +671,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     final navigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
+                      if (!mounted) return;
+                      showLoggingOutOverlay(context);
+                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut(); // End the session in Supabase
                       if (mounted) {
                         navigator.pushAndRemoveUntil(

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/evaluation_service.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
+import 'instructor_detail_page.dart';
 
 // The main widget — stateful because data is fetched async
 class SubjectAnalyticsScreen extends StatefulWidget {
@@ -19,6 +21,10 @@ class SubjectAnalyticsScreen extends StatefulWidget {
 class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
   final _evaluationService = EvaluationService();
   final _supabase = Supabase.instance.client;
+  
+  // ─── CACHE FOR INSTANT TAB SWITCHING ─────────────────────────────────────────
+  static final Map<String, List<SubjectAnalytic>> _analyticsCache = {};
+
   bool _isLoading = true; // Show spinner on first open
   List<SubjectAnalytic> _subjectAnalytics = []; // All subject data for this dept
 
@@ -33,17 +39,29 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
   // One API call and we get everything — scores, sentiment, difficulty, anomalies.
   // If userId is empty for some reason, we try the auth session as fallback — wala choice.
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    final userId = widget.userId.isNotEmpty
+        ? widget.userId
+        : (_supabase.auth.currentUser?.id ?? '');
+        
+    // Check cache first for instant load
+    if (_analyticsCache.containsKey(userId)) {
+      if (mounted) {
+        setState(() {
+          _subjectAnalytics = _analyticsCache[userId]!;
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() => _isLoading = true);
+    }
+    
     try {
-      // Prefer the passed userId, fallback to current auth user — belt and suspenders approach
-      final userId = widget.userId.isNotEmpty
-          ? widget.userId
-          : (_supabase.auth.currentUser?.id ?? '');
       if (userId.isNotEmpty) {
         // Get all subject analytics — the service handles all the complex queries
         final data = await _evaluationService.getSubjectAnalyticsForDept(userId);
         if (mounted) {
           setState(() {
+            _analyticsCache[userId] = data; // Save to cache
             _subjectAnalytics = data; // Store and display
             _isLoading = false; // Done loading — show content
           });
@@ -158,6 +176,10 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Subject Analytics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(

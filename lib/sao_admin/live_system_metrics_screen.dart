@@ -5,7 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../core/navigation/main_scaffold.dart';
 import '../core/services/system_settings_service.dart';
+
 
 class LiveSystemMetricsScreen extends StatefulWidget {
   const LiveSystemMetricsScreen({super.key});
@@ -244,6 +246,11 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
         backgroundColor: AppColors.textPrimary,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.surface),
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          tooltip: 'Open menu',
+          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+        ),
         title: const Text('Live System Metrics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         actions: [
           // refresh button — for when you want fresh data RIGHT NOW
