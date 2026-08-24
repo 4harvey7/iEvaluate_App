@@ -366,7 +366,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   // -- Premium filter row -----------------------------------
   Widget _buildFilterRow() {
     final filters = [
-      {'label': 'All',      'icon': Icons.all_inclusive_rounded,           'color': AppColors.primary,       'count': _subjectRemarks.length},
+      {'label': 'All',      'icon': Icons.all_inclusive_rounded,           'color': AppColors.primaryText,   'count': _subjectRemarks.length},
       {'label': 'Positive', 'icon': Icons.sentiment_very_satisfied_rounded, 'color': AppColors.success,       'count': _subjectRemarks.where((r) => r['tone'] == 'Positive').length},
       {'label': 'Neutral',  'icon': Icons.sentiment_neutral_rounded,        'color': AppColors.textSecondary, 'count': _subjectRemarks.where((r) => (r['tone'] ?? 'Neutral') == 'Neutral').length},
       {'label': 'Critical', 'icon': Icons.sentiment_dissatisfied_rounded,   'color': AppColors.error,         'count': _subjectRemarks.where((r) => r['tone'] == 'Critical').length},
@@ -479,7 +479,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     // Summary Cards
                     Row(
                       children: [
-                        _buildSummaryCard('Management', _mgmtScore, AppColors.primary),
+                        _buildSummaryCard('Management', _mgmtScore, AppColors.primaryText),
                         const SizedBox(width: 16),
                         _buildSummaryCard('Performance', _perfScore, AppColors.success),
                       ],
@@ -512,7 +512,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                       height: 220,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white, 
+                        color: AppColors.surface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.borderHairline),
                       ),
@@ -529,7 +529,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    Text(q['score'].toStringAsFixed(2), style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold)),
+                                    Text(q['score'].toStringAsFixed(2), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 4),
                                     Container(
                                       width: 14,
@@ -540,7 +540,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                       ),
                                     ),
                                     const SizedBox(height: 6),
-                                    Text(q['label'], style: const TextStyle(fontSize: 9, color: AppColors.textSecondary)),
+                                    Text(q['label'], style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                   ],
                                 ),
                               );
@@ -574,7 +574,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                         filled: true,
                         fillColor: AppColors.surface,
                       ),
-                      icon: const Icon(Icons.sort, color: AppColors.primary),
+                      icon: const Icon(Icons.sort, color: AppColors.primaryText),
                       items: _sortOptions.map((String option) {
                         return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
                       }).toList(),

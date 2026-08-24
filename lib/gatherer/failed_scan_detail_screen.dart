@@ -660,7 +660,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             const SizedBox(height: 4),
             Text(label,
                 style: const TextStyle(
-                    color: AppColors.textTertiary, fontSize: 10)),
+                    color: AppColors.textSecondary, fontSize: 11)),
           ],
         ),
       ),
@@ -708,7 +708,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     child: Text(
                       _initials(item['first_name'], item['last_name']), // e.g. "JD"
                       style: const TextStyle(
-                          color: AppColors.primary,
+                          color: AppColors.primaryText,
                           fontWeight: FontWeight.bold,
                           fontSize: 12),
                     ),
@@ -768,7 +768,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   child: Text(
                     item['subject_code']?.toString() ?? '',
                     style: const TextStyle(
-                        color: AppColors.primary,
+                        color: AppColors.primaryText,
                         fontWeight: FontWeight.bold,
                         fontSize: 12),
                   ),

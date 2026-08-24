@@ -257,7 +257,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       if (_checkingStatus)
                         const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                       else
-                        Text('tap to refresh', style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                        Text('tap to refresh', style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
                     ],
                   ),
                 ),
@@ -268,13 +268,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               // two big number cards to make admin feel in control
               Row(
                 children: [
-                  Expanded(child: _buildMetricCard('Total Users', '$_totalUsersCount', Icons.people, AppColors.primary)),
+                  Expanded(child: _buildMetricCard('Total Users', '$_totalUsersCount', Icons.people, AppColors.primaryText)),
                   const SizedBox(width: 16),
                   Expanded(child: _buildMetricCard(
                     'Files Scanned',
                     '$_filesScannedCount',
                     Icons.document_scanner_outlined,
-                    Colors.teal,
+                    AppColors.success,
                     sub: 'this term', // only counts current term, dili all-time
                   )),
                 ],
@@ -298,7 +298,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       // go to the full user management page to see everyone
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
                     },
-                    child: const Text('View All', style: TextStyle(color: AppColors.primary)),
+                    child: const Text('View All', style: TextStyle(color: AppColors.primaryText)),
                   )
                 ],
               ),

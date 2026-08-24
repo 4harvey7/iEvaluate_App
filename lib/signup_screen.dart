@@ -305,12 +305,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               onPressed: (canProceed && !_isLoading) ? _onContinue : null, // disabled if cant proceed or loading
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primary,
-                                foregroundColor: AppColors.textInverted,
+                                foregroundColor: AppColors.textPrimary,
                                 padding: const EdgeInsets.symmetric(vertical: 18),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               ),
                               child: _isLoading
-                                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5)) // spinning wheel of hope
+                                  ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2.5)) // spinning wheel of hope
                                   : Text(_currentPage == _totalSteps - 1 ? 'Register' : 'Continue',
                                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                             ),
@@ -501,7 +501,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: InputDecoration(
         hintText: hint,
         errorText: errorText,
-        prefixIcon: Icon(icon, color: AppColors.primary, size: 20),
+        prefixIcon: Icon(icon, color: AppColors.primaryText, size: 20),
         suffixIcon: isPass
             ? IconButton(icon: Icon((state ?? false) ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: toggle) // eye icon toggle
             : null,
@@ -523,7 +523,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(isMet ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isMet ? AppColors.success : AppColors.textTertiary), // green check or grey circle
+          Icon(isMet ? Icons.check_circle : Icons.circle_outlined, size: 14, color: isMet ? AppColors.success : AppColors.textSecondary), // green check or grey circle
           const SizedBox(width: 8),
           Text(label, style: TextStyle(fontSize: 12, color: isMet ? AppColors.success : AppColors.textSecondary)),
         ],
@@ -613,7 +613,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () { Navigator.of(context).pop(); Navigator.of(context).pop(); }, // close dialog then close signup screen, go back to login
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textInverted),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                 child: const Text('Return to Login'),
               ),
             ),

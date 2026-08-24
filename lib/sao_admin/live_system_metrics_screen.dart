@@ -328,7 +328,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
               Container(width: 1, height: 70, color: AppColors.borderHairline), // divider line
               Expanded(child: _aiStat('Manual Review', _manualCount, AppColors.warning, Icons.warning_amber_outlined)),
               Container(width: 1, height: 70, color: AppColors.borderHairline), // divider line
-              Expanded(child: _aiStat('Corrected', _correctedCount, AppColors.primary, Icons.edit_note)),
+              Expanded(child: _aiStat('Corrected', _correctedCount, AppColors.primaryText, Icons.edit_note)),
             ],
           ),
           const SizedBox(height: 16),
@@ -412,7 +412,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                     CircleAvatar(
                       radius: 18,
                       backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-                      child: Text(initials, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                      child: Text(initials, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -430,7 +430,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text('$total total', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                        Text('$total total', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryText)),
                         Text('$today today', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                       ],
                     ),
@@ -482,7 +482,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                   ),
                   child: Icon(
                     isTop ? Icons.star_rounded : Icons.domain, 
-                    color: isTop ? AppColors.success : AppColors.primary, 
+                    color: isTop ? AppColors.success : AppColors.primaryText, 
                     size: 20
                   ),
                 ),
@@ -503,7 +503,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                   ),
                   child: Text(
                     '$total forms',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: isTop ? AppColors.success : AppColors.primary, fontSize: 13),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: isTop ? AppColors.success : AppColors.primaryText, fontSize: 13),
                   ),
                 ),
               ],

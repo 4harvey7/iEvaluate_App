@@ -260,11 +260,11 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow SAO Admin to jump to Gatherer Screen
           if (widget.role == UserRole.saoAdmin && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.document_scanner_rounded, color: AppColors.primary),
+              leading: const Icon(Icons.document_scanner_rounded, color: AppColors.primaryText),
               title: const Text(
                 'Switch to Data Gatherer View',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -299,11 +299,11 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow Dept Head to jump into their own Instructor Dashboard
           if (widget.role == UserRole.deptHead && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.switch_account_rounded, color: AppColors.primary),
+              leading: const Icon(Icons.switch_account_rounded, color: AppColors.primaryText),
               title: const Text(
                 'Switch to Instructor View',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -341,11 +341,11 @@ class _MainScaffoldState extends State<MainScaffold> {
           // If they are currently viewing as an Instructor, let them go back
           if (widget.originalRole != null)
             ListTile(
-              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primary),
+              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primaryText),
               title: Text(
                 'Return to ${_roleDisplayName(widget.originalRole!)}',
                 style: const TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),

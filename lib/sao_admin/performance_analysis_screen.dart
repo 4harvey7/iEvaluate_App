@@ -176,7 +176,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   child: Row(children: [
-                    const Icon(Icons.leaderboard, color: AppColors.primary),
+                    const Icon(Icons.leaderboard, color: AppColors.primaryText),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text('All Instructors (${filtered.length})', // shows count including search results
@@ -217,7 +217,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       final inst = filtered[i];
                       final score = inst.overallScore;
                       // color based on score: green=great, yellow=okay, red=low, gray=no data
-                      final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textTertiary;
+                      final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textSecondary;
                       return Card(
                         color: AppColors.surface,
                         margin: const EdgeInsets.only(bottom: 8),
@@ -330,7 +330,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.zoom_out, color: AppColors.primary),
+                                    icon: const Icon(Icons.zoom_out, color: AppColors.primaryText),
                                     onPressed: () {
                                       // don't zoom out past 60% or the bars become invisible
                                       if (chartScale > 0.6) setSheetState(() => chartScale -= 0.2);
@@ -338,7 +338,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                   ),
                                   Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // current zoom %
                                   IconButton(
-                                    icon: const Icon(Icons.zoom_in, color: AppColors.primary),
+                                    icon: const Icon(Icons.zoom_in, color: AppColors.primaryText),
                                     onPressed: () {
                                       // max zoom is 250%, don't let them go nuts
                                       if (chartScale < 2.5) setSheetState(() => chartScale += 0.2);
@@ -499,7 +499,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                             // show spinner in dropdown while data loads, else arrow icon
                             icon: _isRefreshing
                                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                                : const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                                : const Icon(Icons.keyboard_arrow_down, color: AppColors.primaryText),
                             style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
                             items: _terms.map((t) => DropdownMenuItem<String>(
                               value: t['id'],
@@ -518,9 +518,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 // two stat cards: university average and total evaluations
                 Row(
                   children: [
-                    Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primary)),
+                    Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primaryText)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primary)),
+                    Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primaryText)),
                   ],
                 ),
                 const SizedBox(height: 32),
@@ -532,7 +532,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                     const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                     TextButton(
                       onPressed: () => _showAllInstructors(), // open the full list
-                      child: const Text('View All', style: TextStyle(color: AppColors.primary)),
+                      child: const Text('View All', style: TextStyle(color: AppColors.primaryText)),
                     ),
                   ],
                 ),

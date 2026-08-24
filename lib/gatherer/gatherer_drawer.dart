@@ -71,7 +71,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
   // isLogout = true makes it red, because logout is a destructive-ish action
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
       {bool isLogout = false, VoidCallback? onTap, int badge = 0}) {
-    final color = isLogout ? AppColors.error : (isSelected ? AppColors.primary : AppColors.textPrimary);
+    final color = isLogout ? AppColors.error : (isSelected ? AppColors.primaryText : AppColors.textPrimary);
     return ListTile(
       leading: Icon(icon, color: color),
       title: Text(
@@ -179,11 +179,11 @@ class _GathererDrawerState extends State<GathererDrawer> {
           // ── Role Switcher Return ─────────────────────────────────────────
           if (widget.originalRole != null)
             ListTile(
-              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primary),
+              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primaryText),
               title: const Text(
                 'Return to SAO Admin',
                 style: TextStyle(
-                  color: AppColors.primary,
+                  color: AppColors.primaryText,
                   fontWeight: FontWeight.w600,
                 ),
               ),

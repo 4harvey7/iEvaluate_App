@@ -259,7 +259,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Understood', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              child: const Text('Understood', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -304,7 +304,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
@@ -323,7 +323,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     }
                   },
                   child: isSaving 
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
                 ),
               ],
@@ -513,7 +513,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       obscureText: isPassword, // hide text if password field, importente for security
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null,
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -584,12 +584,12 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                             // Tap this to open the edit profile bottom sheet
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                             const SizedBox(height: 8),
                             GestureDetector(
                               onTap: _showEditAcademicInfoDialog,
-                              child: const Text('Edit Academic Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Academic Info', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -615,7 +615,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       color: AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.notifications_active, color: AppColors.primary),
+                    child: const Icon(Icons.notifications_active, color: AppColors.primaryText),
                   ),
                   title: const Text('Push Notifications', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                   subtitle: const Text('Receive evaluation updates and system alerts directly on your device.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
@@ -643,7 +643,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.email_outlined, color: AppColors.primary),
+                        child: const Icon(Icons.email_outlined, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
@@ -656,7 +656,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.lock, color: AppColors.primary),
+                        child: const Icon(Icons.lock, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),

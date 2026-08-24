@@ -34,7 +34,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
           children: [
             const Text(
               'Step 1: Set Sheet Name',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryText),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -72,8 +72,8 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 errorBuilder: (context, e, s) => Container(
                   height: 80,
                   width: double.infinity,
-                  color: Colors.grey[200],
-                  child: const Center(child: Text('Guide Image: Tab Name', style: TextStyle(color: Colors.grey))),
+                  color: AppColors.borderSubtle,
+                  child: const Center(child: Text('Guide Image: Tab Name', style: TextStyle(color: AppColors.textSecondary))),
                 ),
               ),
             ),
@@ -82,7 +82,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
             
             const Text(
               'Step 2: Column Headers',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryText),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -103,8 +103,8 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 errorBuilder: (context, e, s) => Container(
                   height: 120,
                   width: double.infinity,
-                  color: Colors.grey[200],
-                  child: const Center(child: Text('Guide Image: Column Headers', style: TextStyle(color: Colors.grey))),
+                  color: AppColors.borderSubtle,
+                  child: const Center(child: Text('Guide Image: Column Headers', style: TextStyle(color: AppColors.textSecondary))),
                 ),
               ),
             ),
@@ -113,7 +113,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
             
             const Text(
               'Step 3: Paste Link',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primaryText),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -123,7 +123,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 filled: true,
                 fillColor: AppColors.surface,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                prefixIcon: const Icon(Icons.link, color: AppColors.primary),
+                prefixIcon: const Icon(Icons.link, color: AppColors.primaryText),
               ),
             ),
             

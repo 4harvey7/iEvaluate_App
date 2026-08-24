@@ -252,7 +252,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
                     // time ago — so you know how long this error been waiting
                     Text(timeAgo,
                         style: const TextStyle(
-                            color: AppColors.textTertiary, fontSize: 11)),
+                            color: AppColors.textSecondary, fontSize: 11)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -279,7 +279,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
                         style: TextStyle(fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -321,7 +321,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
       child: Text(label,
           style: TextStyle(
               color: color,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.bold)),
     );
   }

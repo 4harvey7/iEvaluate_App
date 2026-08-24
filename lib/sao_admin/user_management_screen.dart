@@ -92,7 +92,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Failed to load user data. Please try again.'),
-            backgroundColor: Colors.red,
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -294,9 +294,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       const SizedBox(height: 16),
       // three info tiles: average score, instructor count, total responses
       Row(children: [
-        Expanded(child: _infoTile('Avg Score', (s['avgScore'] as double).toStringAsFixed(2), AppColors.primary)),
+        Expanded(child: _infoTile('Avg Score', (s['avgScore'] as double).toStringAsFixed(2), AppColors.primaryText)),
         const SizedBox(width: 10),
-        Expanded(child: _infoTile('Instructors', '${s['instructorCount']}', Colors.teal)),
+        Expanded(child: _infoTile('Instructors', '${s['instructorCount']}', AppColors.success)),
         const SizedBox(width: 10),
         Expanded(child: _infoTile('Responses', '${s['totalResponses']}', AppColors.success)),
       ]),
@@ -311,9 +311,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         const SizedBox(height: 12),
         // three scores: overall, management, performance — the holy trinity of evaluation
         Row(children: [
-          Expanded(child: _infoTile('Overall', (overall['combined_score_mean'] as num?)?.toStringAsFixed(2) ?? (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primary)),
+          Expanded(child: _infoTile('Overall', (overall['combined_score_mean'] as num?)?.toStringAsFixed(2) ?? (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primaryText)),
           const SizedBox(width: 10),
-          Expanded(child: _infoTile('Management', (overall['management_mean'] as num?)?.toStringAsFixed(2) ?? '-', Colors.teal)),
+          Expanded(child: _infoTile('Management', (overall['management_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.success)),
           const SizedBox(width: 10),
           Expanded(child: _infoTile('Performance', (overall['performance_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.success)),
         ]),
@@ -331,7 +331,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         child: ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          leading: const Icon(Icons.menu_book, color: AppColors.primary, size: 20),
+          leading: const Icon(Icons.menu_book, color: AppColors.primaryText, size: 20),
           title: Text('${s['subject_code']} — ${s['subject_name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
         ),
       )),
@@ -434,17 +434,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 final em = emailController.text.trim();
                 final id = idController.text.trim();
                 if (fn.isEmpty || ln.isEmpty || em.isEmpty || id.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: AppColors.error));
                   return;
                 }
                 // basic email format check — murag real email ba
                 if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(em)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: AppColors.error));
                   return;
                 }
                 // university ID must have at least 4 characters — reasonable requirement
                 if (id.length < 4) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: AppColors.error));
                   return;
                 }
                 final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
@@ -470,7 +470,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                      return;
                    } catch (e) {
                      setDialogState(() => isSaving = false);
-                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
                      return;
                    }
                 }
@@ -509,7 +509,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               },
               // show spinner when saving, show text otherwise
               child: isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
             ),
           ],
@@ -626,7 +626,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   scaffoldMessenger.showSnackBar(SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error));
                 }
               },
-              child: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Save Changes'),
+              child: isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary)) : const Text('Save Changes'),
             ),
           ],
         ),
@@ -679,7 +679,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
                         decoration: InputDecoration(
                           hintText: 'Search Name or ID...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                          prefixIcon: const Icon(Icons.search, color: AppColors.primaryText),
                           filled: true,
                           fillColor: AppColors.background,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -698,7 +698,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.filter_list, color: AppColors.primary),
+                              icon: const Icon(Icons.filter_list, color: AppColors.primaryText),
                               items: ['All', ..._roles.map((r) => r['Roles'].toString())].map((String role) {
                                 return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
                               }).toList(),
@@ -718,7 +718,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.sort, color: AppColors.primary),
+                              icon: const Icon(Icons.sort, color: AppColors.primaryText),
                               items: _sortOptions.map((String option) {
                                 return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
                               }).toList(),
@@ -765,7 +765,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   leading: CircleAvatar(
                                     // gray background if disabled, colored if active
                                     backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primaryText : AppColors.textSecondary)),
                                   ),
                                   // strikethrough name if user is disabled — visual cue
                                   title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),

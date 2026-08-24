@@ -205,7 +205,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           value: tempSelectedRole,
                           decoration: InputDecoration(
                             labelText: 'System Role',
-                            prefixIcon: const Icon(Icons.shield, color: AppColors.primary),
+                            prefixIcon: const Icon(Icons.shield, color: AppColors.primaryText),
                             filled: true,
                             fillColor: AppColors.surface,
                             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -359,7 +359,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
@@ -378,7 +378,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     }
                   },
                   child: isSaving 
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
                 ),
               ],
@@ -640,7 +640,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       obscureText: isPassword, // hide text if it's a password — privacy muna
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null, // icon optional
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null, // icon optional
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -709,7 +709,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       CircleAvatar(
                         radius: 32,
                         backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold)),
+                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primaryText, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -725,7 +725,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             // tap this to open the edit profile bottom sheet
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -797,7 +797,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                 children: [
                                   Text('Academic Year', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                                   // hint text explaining the search field below
-                                  Text('Search or choose below', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                  Text('Search or choose below', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                 ],
                               ),
                               // small text field to type a year and filter the dropdown
@@ -959,7 +959,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     // Edit Email option
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.email_outlined, color: AppColors.primary)),
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.email_outlined, color: AppColors.primaryText)),
                       title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showEditEmailDialog,
@@ -968,7 +968,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     // change password option — recommended to do regularly, dili kag bato
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.primary)),
+                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.primaryText)),
                       title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog, // opens the password change dialog

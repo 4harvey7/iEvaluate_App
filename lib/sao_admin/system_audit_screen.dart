@@ -71,7 +71,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
     action = action.toUpperCase(); // normalize to upper so matching works
     if (action.contains('CREATE')) return AppColors.success; // green — good, someone added something
     if (action.contains('UPDATE') || action.contains('ROLE')) return AppColors.warning; // yellow — changed something
-    if (action.contains('OTP')) return AppColors.primary; // blue — identity verification stuff
+    if (action.contains('OTP')) return AppColors.primaryText; // blue — identity verification stuff
     if (action.contains('DELETE') || action.contains('REJECT')) return AppColors.error; // red — uh oh
     return AppColors.textSecondary; // gray for anything else we didnt think of
   }

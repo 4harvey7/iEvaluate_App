@@ -166,7 +166,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                           labelText: 'Mandated Action',
                           prefixIcon: const Icon(
                             Icons.gavel, // The hammer icon — very official
-                            color: AppColors.primary,
+                            color: AppColors.primaryText,
                           ),
                           filled: true,
                           fillColor: AppColors.surface,
@@ -488,7 +488,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                   Text(
                                     report.actionType,
                                     style: const TextStyle(
-                                      color: AppColors.primary,
+                                      color: AppColors.primaryText,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 13,
                                     ),
@@ -595,7 +595,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
             Text('Instructor: ${report.instructorName}', style: TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
             SizedBox(height: 8),
             // What action was mandated
-            Text('Action: ${report.actionType}', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+            Text('Action: ${report.actionType}', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
             SizedBox(height: 8),
             // Dean's notes — could be empty if they didn't write any
             Text('Notes:', style: TextStyle(color: AppColors.textSecondary)),

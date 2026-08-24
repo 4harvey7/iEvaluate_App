@@ -319,7 +319,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                                   child: Text(
                                                     reason,
                                                     style: TextStyle(
-                                                        fontSize: 10,
+                                                        fontSize: 11,
                                                         fontWeight:
                                                             FontWeight.w600,
                                                         color: failColor),
@@ -354,7 +354,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                                   scan['created_at']?.toString()),
                                               style: const TextStyle(
                                                   fontSize: 11,
-                                                  color: AppColors.textTertiary),
+                                                  color: AppColors.textSecondary),
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ],
@@ -363,7 +363,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                       const SizedBox(width: 8),
                                       // chevron arrow — tells user this is tappable
                                       const Icon(Icons.chevron_right,
-                                          color: AppColors.primary),
+                                          color: AppColors.primaryText),
                                     ],
                                   ),
                                 ),

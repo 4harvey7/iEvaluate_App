@@ -137,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+            child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryText)),
           ),
         ],
       ),
@@ -267,7 +267,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
               },
               child: isUpdating 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : const Text('Update Password'),
             ),
           ],
@@ -319,7 +319,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: _showForgotPasswordDialog,
-                    style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.primaryText),
                     child: const Text('Forgot Password?', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),
@@ -335,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       children: [
                         const Expanded(child: Text('I agree to the NDA and DPA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textSecondary))),
                         IconButton(
-                          icon: const Icon(Icons.info_outline, color: AppColors.primary),
+                          icon: const Icon(Icons.info_outline, color: AppColors.primaryText),
                           onPressed: _showNdaDpaModal,
                           tooltip: 'Read Agreements',
                         ),
@@ -391,13 +391,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      foregroundColor: AppColors.textInverted,
+                      foregroundColor: AppColors.textPrimary,
                       disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: _isLoading
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2.5))
                         : const Text('Sign In', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -410,7 +410,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       Text("Need an account?", style: TextStyle(color: AppColors.textSecondary, fontSize: 15)),
                       TextButton(
                         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SignUpScreen())),
-                        child: const Text('Register Here', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 15)),
+                        child: const Text('Register Here', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w800, fontSize: 15)),
                       ),
                     ],
                   ),
@@ -441,11 +441,11 @@ class _LoginScreenState extends State<LoginScreen> {
       onSubmitted: isPassword ? (_) => _handleLogin() : null,
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: AppColors.textTertiary),
+        hintStyle: TextStyle(color: AppColors.textSecondary),
         prefixIcon: Icon(icon, color: AppColors.textPrimary.withValues(alpha: 0.7), size: 22),
         suffixIcon: isPassword
             ? IconButton(
-          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.textTertiary, size: 20),
+          icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: AppColors.textSecondary, size: 20),
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         )
             : null,

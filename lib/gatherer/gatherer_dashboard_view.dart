@@ -119,7 +119,7 @@ class GathererDashboardView extends StatelessWidget {
                           const SizedBox(width: 8),
                           // hint to user that they can tap to refresh status
                           Text('(tap to refresh)',
-                              style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
                         ],
                       ],
                     ),
@@ -173,7 +173,7 @@ class GathererDashboardView extends StatelessWidget {
                 label: const Text('IMPORT FROM GOOGLE SHEETS', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.surface,
-                  foregroundColor: AppColors.primary,
+                  foregroundColor: AppColors.primaryText,
                   side: const BorderSide(color: AppColors.primary, width: 2), // outlined style
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0, // no shadow — flat look
@@ -200,7 +200,7 @@ class GathererDashboardView extends StatelessWidget {
                   label: 'ENTRIES TODAY',
                   value: '$scanned',
                   sub: 'submitted today',
-                  color: AppColors.primary,
+                  color: AppColors.primaryText,
                   icon: Icons.today_rounded,
                 ),
                 const SizedBox(width: 12),
@@ -273,7 +273,7 @@ class GathererDashboardView extends StatelessWidget {
                 Flexible(
                   child: Text(
                     label,
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8)),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8)),
                     overflow: TextOverflow.ellipsis, // dont overflow on small screens
                   ),
                 ),
@@ -281,7 +281,7 @@ class GathererDashboardView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)), // big number
-            Text(sub, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)), // subtitle below number
+            Text(sub, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)), // subtitle below number
           ],
         ),
       ),

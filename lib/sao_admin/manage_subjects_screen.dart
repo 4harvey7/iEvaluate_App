@@ -492,7 +492,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
               child: AnimatedRotation(
                 duration: const Duration(milliseconds: 220),
                 turns: _isFabOpen ? 0.125 : 0, // rotate 45° when open
-                child: const Icon(Icons.add, color: Colors.white, size: 28),
+                child: const Icon(Icons.add, color: AppColors.textPrimary, size: 28),
               ),
             ),
           ],
@@ -709,8 +709,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                                   overflow: TextOverflow.ellipsis,
                                   maxLines: 1,
                                   style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 10,
+                                      color: AppColors.primaryText,
+                                      fontSize: 11,
                                       fontWeight: FontWeight.w600),
                                 ),
                               ),
@@ -752,7 +752,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                     isAssigned ? '${assignments.length} instr.' : 'Unassigned',
                     style: TextStyle(
                         color: statusColor,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -988,7 +988,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       hintText: hint,
       labelStyle: const TextStyle(color: AppColors.textSecondary),
       hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-      prefixIcon: Icon(icon, color: AppColors.primary),
+      prefixIcon: Icon(icon, color: AppColors.primaryText),
       filled: true,
       fillColor: AppColors.background.withValues(alpha: 0.5),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -1046,7 +1046,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                       ),
                       child: Icon(
                         isEditing ? Icons.edit_rounded : Icons.add_circle_rounded,
-                        color: AppColors.primary,
+                        color: AppColors.primaryText,
                         size: 22,
                       ),
                     ),
@@ -1189,7 +1189,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                                       ? (instr['name'] as String)[0].toUpperCase()
                                       : '?',
                                   style: const TextStyle(
-                                    color: AppColors.primary,
+                                    color: AppColors.primaryText,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
@@ -1198,13 +1198,13 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                               title: Text(
                                 instr['name'],
                                 style: TextStyle(
-                                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                                  color: isSelected ? AppColors.primaryText : AppColors.textPrimary,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   fontSize: 13,
                                 ),
                               ),
                               trailing: isSelected
-                                  ? const Icon(Icons.check, color: AppColors.primary, size: 18)
+                                  ? const Icon(Icons.check, color: AppColors.primaryText, size: 18)
                                   : null,
                               onTap: () => _selectInstructor(instr),
                             );
@@ -1257,12 +1257,12 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                             : Icon(isEditing ? Icons.save_rounded : Icons.check_rounded,
-                                color: Colors.white),
+                                color: AppColors.textPrimary),
                         label: Text(
                           _isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Assign Subject'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary,
@@ -1570,7 +1570,7 @@ class _SubjectDetailModal extends StatelessWidget {
                         ? subjectCode.substring(0, 2).toUpperCase()
                         : subjectCode.toUpperCase(),
                     style: const TextStyle(
-                        color: AppColors.primary,
+                        color: AppColors.primaryText,
                         fontWeight: FontWeight.bold,
                         fontSize: 18),
                   ),
@@ -1583,7 +1583,7 @@ class _SubjectDetailModal extends StatelessWidget {
                       Text(
                         subjectCode,
                         style: const TextStyle(
-                            color: AppColors.primary,
+                            color: AppColors.primaryText,
                             fontWeight: FontWeight.bold,
                             fontSize: 13),
                       ),
@@ -1606,7 +1606,7 @@ class _SubjectDetailModal extends StatelessWidget {
                           child: Text(
                             deptName,
                             style: const TextStyle(
-                                color: AppColors.primary,
+                                color: AppColors.primaryText,
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600),
                           ),
@@ -1627,7 +1627,7 @@ class _SubjectDetailModal extends StatelessWidget {
             child: Row(
               children: [
                 const Icon(Icons.people_outline_rounded,
-                    size: 16, color: AppColors.primary),
+                    size: 16, color: AppColors.primaryText),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -1653,11 +1653,11 @@ class _SubjectDetailModal extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.person_add_rounded,
-                            size: 14, color: AppColors.primary),
+                            size: 14, color: AppColors.primaryText),
                         SizedBox(width: 5),
                         Text('Add Instructor',
                             style: TextStyle(
-                                color: AppColors.primary,
+                                color: AppColors.primaryText,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
                       ],
@@ -1721,7 +1721,7 @@ class _SubjectDetailModal extends StatelessWidget {
                           child: Text(
                             initials,
                             style: const TextStyle(
-                                color: AppColors.primary,
+                                color: AppColors.primaryText,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12),
                           ),
@@ -1739,7 +1739,7 @@ class _SubjectDetailModal extends StatelessWidget {
                             // Edit this assignment
                             IconButton(
                               icon: const Icon(Icons.edit_outlined,
-                                  color: AppColors.primary, size: 18),
+                                  color: AppColors.primaryText, size: 18),
                               onPressed: () => onEdit(a),
                               tooltip: 'Edit',
                               visualDensity: VisualDensity.compact,

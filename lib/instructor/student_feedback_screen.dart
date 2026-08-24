@@ -379,11 +379,13 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
   // Maps a word to a color based on its length — simple but gives visual variety
   // Short words get one color, longer words get another. Murag random but consistent.
   Color _getWordColor(String word) {
+    // Bright-on-dark palette — these words render on the espresso gradient
+    // card, so they need LIGHT colors (matches dept_head's word cloud).
     final colors = [
-      AppColors.primary,
-      AppColors.success,
-      Colors.lightBlueAccent,
-      AppColors.warning,
+      AppColors.primary,      // vivid orange, 5.9:1 on espresso
+      const Color(0xFF4ADE80), // bright green
+      Colors.lightBlueAccent,  // bright blue
+      const Color(0xFFFACC15), // bright yellow
     ];
     return colors[word.length %
         colors.length]; // modulo gives predictable color per word
@@ -515,7 +517,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.pie_chart, color: AppColors.primary),
+                                Icon(Icons.pie_chart, color: AppColors.primaryText),
                                 SizedBox(width: 8),
                                 Text(
                                   'Emotional Tone Overview',
@@ -637,7 +639,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   ),
                                   child: const Icon(
                                     Icons.auto_awesome,
-                                    color: AppColors.primary,
+                                    color: AppColors.primaryText,
                                     size: 20,
                                   ),
                                 ),
@@ -1098,7 +1100,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                               ),
                               icon: const Icon(
                                 Icons.arrow_drop_down,
-                                color: AppColors.primary,
+                                color: AppColors.primaryText,
                               ),
                               items: _availableSubjects.map((String subject) {
                                 return DropdownMenuItem<String>(
@@ -1136,7 +1138,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                               ),
                               icon: const Icon(
                                 Icons.sort,
-                                color: AppColors.primary,
+                                color: AppColors.primaryText,
                               ),
                               items: _sortOptions.map((String option) {
                                 return DropdownMenuItem<String>(
@@ -1180,7 +1182,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                     ? AppColors.success
                                     : feedback['sentiment'] == 'Critical'
                                     ? AppColors.error
-                                    : AppColors.textTertiary;
+                                    : AppColors.textSecondary;
                                 IconData sentimentIcon =
                                     feedback['sentiment'] == 'Positive'
                                     ? Icons.sentiment_very_satisfied
@@ -1229,7 +1231,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 12,
-                                                    color: AppColors.primary,
+                                                    color: AppColors.primaryText,
                                                   ),
                                                   overflow:
                                                       TextOverflow.ellipsis,
@@ -1299,7 +1301,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
         'label': 'All',
         'icon': Icons.all_inclusive_rounded,
         'count': _allFeedback.length, // total count regardless of sentiment
-        'color': AppColors.primary,
+        'color': AppColors.primaryText,
       },
       {
         'label': 'Positive',

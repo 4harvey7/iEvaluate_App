@@ -92,7 +92,7 @@ class _SplashScreenState extends State<SplashScreen> {
               errorBuilder: (context, error, stackTrace) => const Icon(
                 Icons.school,
                 size: 80,
-                color: AppColors.primary,
+                color: AppColors.primaryText,
               ),
             ),
             const SizedBox(height: 32),

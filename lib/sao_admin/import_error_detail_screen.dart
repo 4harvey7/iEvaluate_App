@@ -717,7 +717,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 _isSheet
                     ? Icons.table_chart_outlined
                     : Icons.document_scanner_outlined,
-                color: AppColors.primary, size: 16,
+                color: AppColors.primaryText, size: 16,
               ),
               const SizedBox(width: 6),
               Text(
@@ -808,8 +808,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 ),
                 child: const Text('Read-only',
                     style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 9,
+                        color: AppColors.primaryText,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold)),
               ),
             ],
@@ -865,8 +865,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
             children: [
               Text(key.toUpperCase(), // label like "M1", "P3"
                   style: const TextStyle(
-                      color: AppColors.textTertiary,
-                      fontSize: 9,
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold)),
               Text(val, // the actual score value
                   style: TextStyle(
@@ -904,7 +904,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
           Row(
             children: [
               const Icon(Icons.edit_note,
-                  size: 16, color: AppColors.primary), // pencil icon — this is editable
+                  size: 16, color: AppColors.primaryText), // pencil icon — this is editable
               const SizedBox(width: 6),
               const Text('Scores (editable — from Scan)',
                   style: TextStyle(
@@ -922,8 +922,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 ),
                 child: const Text('Tap to edit',
                     style: TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 9,
+                        color: AppColors.primaryText,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold)),
               ),
             ],
@@ -977,7 +977,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
           ],
           decoration: InputDecoration(
             labelText: key.toUpperCase(), // label like "M1", "P5"
-            labelStyle: const TextStyle(fontSize: 10),
+            labelStyle: const TextStyle(fontSize: 11),
             filled: true,
             fillColor: AppColors.surface,
             contentPadding: EdgeInsets.zero, // no extra padding inside the cell
@@ -1083,7 +1083,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 child: Text(
                   item['subject_code']?.toString() ?? '',
                   style: const TextStyle(
-                      color: AppColors.primary,
+                      color: AppColors.primaryText,
                       fontWeight: FontWeight.bold,
                       fontSize: 12),
                 ),
@@ -1177,7 +1177,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                   Text(
                     'Select both instructor and subject to enable submit',
                     style: TextStyle(
-                        color: AppColors.textTertiary, fontSize: 11),
+                        color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],
               ),
@@ -1190,7 +1190,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                   ? const SizedBox(
                       width: 18, height: 18,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white)) // spinner while sending
+                          strokeWidth: 2, color: AppColors.textPrimary)) // spinner while sending
                   : const Icon(Icons.cloud_upload_outlined, size: 20), // upload icon
               label: Text(
                 _isSubmitting ? 'Sending to n8n…' : 'Submit & Re-Process', // label changes while busy
@@ -1202,7 +1202,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 // gray when disabled, primary blue when ready — visual feedback
                 backgroundColor:
                     canSubmit ? AppColors.primary : AppColors.borderSubtle,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
                 elevation: 0,
@@ -1229,7 +1229,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       child: Center(
         child: Text(initials,
             style: const TextStyle(
-                color: AppColors.primary,
+                color: AppColors.primaryText,
                 fontWeight: FontWeight.bold,
                 fontSize: 12)),
       ),

@@ -324,7 +324,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                     : Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: AppColors.surface.withValues(alpha: 0.05),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
@@ -357,7 +357,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 // Shows the college name — so we know whose dashboard this is
                 Text(
                   _deptInfo['college'] ?? 'Department',
-                  style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 24),
@@ -418,9 +418,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: AppColors.surface.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                          border: Border.all(color: AppColors.surface.withValues(alpha: 0.15)),
                         ),
                         child: Row(
                           children: [
@@ -457,7 +457,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 // --- DEPARTMENT HISTORY (GROWTH CHART) ---
                 const Row(
                   children: [
-                    Icon(Icons.trending_up, color: AppColors.primary),
+                    Icon(Icons.trending_up, color: AppColors.primaryText),
                     SizedBox(width: 8),
                     Text('Department Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
@@ -474,7 +474,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       border: Border.all(color: AppColors.borderHairline, width: 1), // Use hairline border to blend with app
                     ),
                     child: _deptHistory.isEmpty
-                        ? const Center(child: Text('No historical data available yet', style: TextStyle(color: AppColors.textTertiary, fontSize: 13)))
+                        ? const Center(child: Text('No historical data available yet', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)))
                       : LayoutBuilder(
                           builder: (context, constraints) {
                             bool isScrollable = _deptHistory.length > 5;
@@ -530,7 +530,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                         width: 50,
                                         child: Text(
                                           data['sem'].toString(),
-                                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, fontWeight: FontWeight.w600, height: 1.2),
+                                          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w600, height: 1.2),
                                           textAlign: TextAlign.center,
                                           maxLines: 2,
                                           overflow: TextOverflow.visible,

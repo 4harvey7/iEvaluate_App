@@ -268,7 +268,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // Green = great, blue = good, dark = okay, orange = meh, red = bad
   Color _scoreColor(double score) {
     if (score >= 4.20) return AppColors.success; // Outstanding — green light
-    if (score >= 3.40) return AppColors.primary; // Very Satisfactory — blue
+    if (score >= 3.40) return AppColors.primaryText; // Very Satisfactory — blue
     if (score >= 2.60) return AppColors.textPrimary; // Satisfactory — neutral dark
     if (score >= 1.80) return AppColors.warning; // Fair — orange, watch out
     if (score > 0) return AppColors.error; // Unsatisfactory — red, dean needs to act
@@ -365,7 +365,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                                     style: TextStyle(color: _scoreColor(score), fontSize: 22, fontWeight: FontWeight.bold),
                                   ),
                                   // Verbal desc below the number — e.g. "Outstanding"
-                                  Text(_verbalDesc(score), style: TextStyle(color: _scoreColor(score), fontSize: 9)),
+                                  Text(_verbalDesc(score), style: TextStyle(color: _scoreColor(score), fontSize: 11)),
                                 ],
                               ),
                             ),
@@ -500,8 +500,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             ),
           );
         },
-        icon: const Icon(Icons.description_rounded, color: Colors.white),
-        label: const Text('View Official SAST Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+        icon: const Icon(Icons.description_rounded, color: AppColors.textPrimary),
+        label: const Text('View Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15)),
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           padding: const EdgeInsets.symmetric(vertical: 16),
@@ -726,7 +726,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         // Section header with icon
         const Row(
           children: [
-            Icon(Icons.trending_up, color: AppColors.primary, size: 20),
+            Icon(Icons.trending_up, color: AppColors.primaryText, size: 20),
             SizedBox(width: 8),
             Text('Performance Trend', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
@@ -776,7 +776,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                               // Score label on top of each bar — small text
                               Text(
                                 ts.score > 0 ? ts.score.toStringAsFixed(2) : '—',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ts.isCurrent ? AppColors.primary : AppColors.textSecondary),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: ts.isCurrent ? AppColors.primaryText : AppColors.textSecondary),
                               ),
                               const SizedBox(height: 4),
                               // The actual bar — animated height when it first appears
@@ -808,8 +808,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                         ts.label,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontSize: 9,
-                          color: ts.isCurrent ? AppColors.primary : AppColors.textSecondary,
+                          fontSize: 11,
+                          color: ts.isCurrent ? AppColors.primaryText : AppColors.textSecondary,
                           fontWeight: ts.isCurrent ? FontWeight.bold : FontWeight.normal, // Bold for current term label
                         ),
                       ),
@@ -833,7 +833,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       children: [
         Row(
           children: [
-            const Icon(Icons.library_books_rounded, color: AppColors.primary, size: 20),
+            const Icon(Icons.library_books_rounded, color: AppColors.primaryText, size: 20),
             const SizedBox(width: 8),
             const Text('Subjects This Term', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
             const Spacer(),
@@ -841,7 +841,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text('${_subjects.length}', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+              child: Text('${_subjects.length}', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
             ),
           ],
         ),
@@ -901,7 +901,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                 color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.book_rounded, color: AppColors.primary, size: 22),
+              child: const Icon(Icons.book_rounded, color: AppColors.primaryText, size: 22),
             ),
             const SizedBox(width: 14),
             // Subject code and name — the identifying info
@@ -930,7 +930,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(score.toStringAsFixed(2), style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subject.verbalDescription, style: TextStyle(color: _scoreColor(score), fontSize: 10)), // e.g. "Very Satisfactory"
+                  Text(subject.verbalDescription, style: TextStyle(color: _scoreColor(score), fontSize: 11)), // e.g. "Very Satisfactory"
                 ],
               ),
             const SizedBox(width: 8),

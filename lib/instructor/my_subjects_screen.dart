@@ -185,7 +185,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                       _termName.toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white70,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,
                         overflow: TextOverflow.ellipsis,
@@ -242,7 +242,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     ),
                     const Text(
                       'Overall Weighted Mean',
-                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
                     ),
                   ],
                 ),
@@ -268,7 +268,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     ),
                     const Text(
                       'Assigned Subjects',
-                      style: TextStyle(color: Colors.white54, fontSize: 10),
+                      style: TextStyle(color: Colors.white54, fontSize: 11),
                     ),
                   ],
                 ),
@@ -306,7 +306,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
             'Your assignments for $_termName will appear here.',
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: AppColors.textTertiary,
+              color: AppColors.textSecondary,
               fontSize: 14,
             ),
           ),

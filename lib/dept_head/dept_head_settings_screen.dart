@@ -262,7 +262,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
@@ -281,7 +281,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     }
                   },
                   child: isSaving 
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
                 ),
               ],
@@ -463,7 +463,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       obscureText: isPassword, // Hide chars if this is a password field
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
+        prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null,
         filled: true,
         fillColor: AppColors.surface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -550,7 +550,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                             // Tap to open the edit bottom sheet — importente this is clickable
                             GestureDetector(
                               onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
+                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ],
                         ),
@@ -625,7 +625,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.email_outlined, color: AppColors.primary),
+                        child: const Icon(Icons.email_outlined, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
@@ -638,7 +638,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.lock, color: AppColors.primary),
+                        child: const Icon(Icons.lock, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
@@ -724,7 +724,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
-        child: Icon(icon, color: AppColors.primary), // Icon hint for the toggle's purpose
+        child: Icon(icon, color: AppColors.primaryText), // Icon hint for the toggle's purpose
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
       subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
@@ -734,7 +734,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
         onChanged: onChanged, // Calls setState in parent to reflect change
         activeThumbColor: AppColors.surface,
         activeTrackColor: AppColors.success, // Green track when enabled
-        inactiveThumbColor: Colors.white,
+        inactiveThumbColor: AppColors.surface,
         inactiveTrackColor: AppColors.borderHairline, // Gray when disabled
       ),
     );

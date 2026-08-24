@@ -16,6 +16,8 @@ library safe_button;
 
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal mixin -- shared loading-state logic used by all Safe button variants
 // this mixin is the secret sauce, importente kaayo, ayaw remove
@@ -39,7 +41,7 @@ mixin _SafeButtonMixin<T extends StatefulWidget> on State<T> {
 
   /// A small circular progress indicator styled to match button text colour.
   /// this is the little spinning thing that replace the button text while loading.
-  Widget loadingIndicator({Color color = Colors.white, double size = 20}) {
+  Widget loadingIndicator({Color color = AppColors.textPrimary, double size = 20}) {
     return SizedBox(
       height: size,
       width: size,

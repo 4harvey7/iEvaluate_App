@@ -578,7 +578,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                     child: Text(
                       '${_interventionReports.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -848,7 +848,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
+                                    Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 11)),
                                     const SizedBox(height: 4),
                                     Container(
                                       width: 20,
@@ -859,7 +859,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                     // Label fits inside whatever width Flexible assigns
                                     Text(
                                       data['sem'].toString(),
-                                      style: const TextStyle(fontSize: 8, color: AppColors.textSecondary),
+                                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                       textAlign: TextAlign.center,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
@@ -888,7 +888,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                           decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
                           // Show placeholder if no feedback, else show the scrollable list
                           child: _recentFeedback.isEmpty 
-                            ? const Center(child: Text('No feedback yet', style: TextStyle(color: AppColors.textTertiary, fontSize: 12)))
+                            ? const Center(child: Text('No feedback yet', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)))
                             : ListView.separated(
                             itemCount: _recentFeedback.length,
                             separatorBuilder: (context, index) => const Divider(height: 16),
@@ -896,7 +896,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               return Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Icon(Icons.format_quote, color: AppColors.primary, size: 16),
+                                  const Icon(Icons.format_quote, color: AppColors.primaryText, size: 16),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
@@ -984,7 +984,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 color: AppColors.primaryTint,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.menu_book_rounded, color: AppColors.primary),
+              child: const Icon(Icons.menu_book_rounded, color: AppColors.primaryText),
             ),
             const SizedBox(width: 16),
             const Expanded(
@@ -1051,7 +1051,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                   color: AppColors.primaryTint,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: const Icon(Icons.class_, color: AppColors.primary),
+                child: const Icon(Icons.class_, color: AppColors.primaryText),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -1066,7 +1066,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                             subject.code,
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
+                              color: AppColors.primaryText,
                               fontSize: 12,
                             ),
                             overflow: TextOverflow.ellipsis,

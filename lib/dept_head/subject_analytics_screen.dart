@@ -93,11 +93,11 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
           children: [
             // Drag handle — visual hint that this is a bottom sheet
             Center(
-              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderSubtle, borderRadius: BorderRadius.circular(2))),
             ),
             const SizedBox(height: 24),
             // Subject code in primary color — easy to identify at a glance
-            Text(subject.code, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+            Text(subject.code, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
             // Full subject name — big and bold
             Text(subject.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
             const SizedBox(height: 24),
@@ -134,8 +134,8 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     // Their average score — red if below 3.0, blue if okay
-                                    Text('${item.avgScore}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: item.avgScore < 3.0 ? AppColors.error : AppColors.primary)),
-                                    const Text('Avg Score', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                    Text('${item.avgScore}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: item.avgScore < 3.0 ? AppColors.error : AppColors.primaryText)),
+                                    const Text('Avg Score', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                                   ],
                                 ),
                               ],
@@ -231,7 +231,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                           decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
-                                          child: Text(subject.code, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12)),
+                                          child: Text(subject.code, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryText, fontSize: 12)),
                                         ),
                                         // Show anomaly badge only if AI flagged it — murag warning sign
                                         if (isAnomaly)
@@ -255,7 +255,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                         // Average score — the overall number for this subject
                                         _buildMiniStat('Avg Score', '${subject.avgScore}', isAnomaly ? AppColors.warning : AppColors.textPrimary),
                                         // Difficulty rating — how hard students find this subject
-                                        _buildMiniStat('Difficulty', subject.difficulty, AppColors.primary),
+                                        _buildMiniStat('Difficulty', subject.difficulty, AppColors.primaryText),
                                         // Sentiment — "Critical" turns red, others stay green
                                         _buildMiniStat('Sentiment', subject.sentiment, subject.sentiment == 'Critical' ? AppColors.error : AppColors.success),
                                       ],
@@ -298,9 +298,9 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                     Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        const Text('0.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                                        Text('Dept Avg: ${subject.deptAvg}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
-                                        const Text('5.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                                        const Text('0.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                                        Text('Dept Avg: ${subject.deptAvg}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontWeight: FontWeight.bold)),
+                                        const Text('5.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                                       ],
                                     ),
 
@@ -320,7 +320,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                     const SizedBox(height: 12),
                                     // Small tap hint at the bottom — so user know they can tap for more
                                     const Center(
-                                      child: Text('Tap to view instructor breakdown', style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w500)),
+                                      child: Text('Tap to view instructor breakdown', style: TextStyle(color: AppColors.primaryText, fontSize: 11, fontWeight: FontWeight.w500)),
                                     ),
                                   ],
                                 ),

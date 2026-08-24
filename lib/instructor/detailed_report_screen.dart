@@ -257,7 +257,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
 
   Color getVDColor(double score) {
     if (score >= 4.20) return AppColors.success;
-    if (score >= 3.40) return AppColors.primary;
+    if (score >= 3.40) return AppColors.primaryText;
     if (score >= 1.80) return AppColors.warning;
     return AppColors.error;
   }
@@ -265,7 +265,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.surface,
       appBar: AppBar(
         title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.textPrimary,
@@ -314,15 +314,15 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text('Republic of the Philippines', style: TextStyle(fontSize: 10)),
+                  Text('Republic of the Philippines', style: TextStyle(fontSize: 11)),
                   Text('CEBU TECHNOLOGICAL UNIVERSITY', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   Text('ARGAO CAMPUS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('Ed Kintanar Street, Lamacan, Argao, Cebu', style: TextStyle(fontSize: 10)),
+                  Text('Ed Kintanar Street, Lamacan, Argao, Cebu', style: TextStyle(fontSize: 11)),
                 ],
               ),
             ),
             const SizedBox(width: 16),
-            const Icon(Icons.verified_user, size: 40, color: AppColors.primary),
+            const Icon(Icons.verified_user, size: 40, color: AppColors.primaryText),
           ],
         ),
         const SizedBox(height: 16),
@@ -373,10 +373,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   Widget _buildSummaryTable() {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
+        border: Border.all(color: AppColors.textPrimary),
       ),
       child: Table(
-        border: TableBorder.all(color: Colors.black),
+        border: TableBorder.all(color: AppColors.textPrimary),
         columnWidths: const {
           0: FlexColumnWidth(1),
           1: FlexColumnWidth(2),
@@ -431,7 +431,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
           child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
         Table(
-          border: TableBorder.all(color: Colors.grey.shade300),
+          border: TableBorder.all(color: AppColors.borderSubtle),
           columnWidths: const {
             0: FlexColumnWidth(1),
             1: FlexColumnWidth(8),
@@ -452,10 +452,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
               double score = questionMeans[entry.key];
               return TableRow(
                 children: [
-                  TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text('${entry.key + 1}', style: const TextStyle(fontSize: 10)))),
-                  TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text(entry.value, style: const TextStyle(fontSize: 10)))),
-                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(score.toStringAsFixed(2), style: const TextStyle(fontSize: 10))))),
-                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(getVDCode(score), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: getVDColor(score)))))),
+                  TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text('${entry.key + 1}', style: const TextStyle(fontSize: 11)))),
+                  TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text(entry.value, style: const TextStyle(fontSize: 11)))),
+                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(score.toStringAsFixed(2), style: const TextStyle(fontSize: 11))))),
+                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(getVDCode(score), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: getVDColor(score)))))),
                 ],
               );
             }),
@@ -487,8 +487,8 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: AppColors.surfaceElevated,
+                  border: Border.all(color: AppColors.borderSubtle),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -502,7 +502,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
               flex: 2,
               child: Column(
                 children: [
-                  const Text('Top Feedback Terms', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  const Text('Top Feedback Terms', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
@@ -518,7 +518,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
                           '${w['word']} (${w['count']})',
                           style: TextStyle(
                             fontSize: (10 + (w['count'] as int).toDouble() * 0.5).clamp(10.0, 18.0),
-                            color: AppColors.primary,
+                            color: AppColors.primaryText,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -538,13 +538,13 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade400),
+        border: Border.all(color: AppColors.borderSubtle),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('RANGE & Verbal Description (VD):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10)),
+          const Text('RANGE & Verbal Description (VD):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -565,7 +565,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   }
 
   Widget _legendItem(String range, String desc) {
-    return Text('$range : $desc', style: const TextStyle(fontSize: 9), overflow: TextOverflow.ellipsis);
+    return Text('$range : $desc', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis);
   }
 
   static const List<String> _managementCriteria = [

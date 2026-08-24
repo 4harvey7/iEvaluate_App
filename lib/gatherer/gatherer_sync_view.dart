@@ -242,7 +242,7 @@ class GathererSyncView extends StatelessWidget {
       case SyncStatus.paused:
         return const Icon(Icons.pause_circle_outline, color: AppColors.warning, size: 20);
       case SyncStatus.pending:
-        return const Icon(Icons.hourglass_empty, color: AppColors.textTertiary, size: 20);
+        return const Icon(Icons.hourglass_empty, color: AppColors.textSecondary, size: 20);
     }
   }
 }

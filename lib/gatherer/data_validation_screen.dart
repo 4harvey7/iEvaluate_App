@@ -347,7 +347,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
             child: TabBar(
               controller: _tabController,
               indicatorColor: AppColors.primary,
-              labelColor: AppColors.primary,
+              labelColor: AppColors.primaryText,
               unselectedLabelColor: AppColors.textSecondary,
               dividerColor: AppColors.borderSubtle,
               tabs: [
@@ -414,7 +414,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
       child: Text(
         '$count',
         style: const TextStyle(
-            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+            color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -444,7 +444,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
             const SizedBox(height: 6),
             const Text('All records have been linked to an instructor.',
                 style: TextStyle(
-                    color: AppColors.textTertiary, fontSize: 12)),
+                    color: AppColors.textSecondary, fontSize: 12)),
           ],
         ),
       );
@@ -504,7 +504,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                 ],
               ),
               trailing: const Icon(Icons.chevron_right,
-                  color: AppColors.primary), // tap arrow to open detail sheet
+                  color: AppColors.primaryText), // tap arrow to open detail sheet
               onTap: () => _showValidationSheet(form), // open edit sheet on tap
             ),
           );

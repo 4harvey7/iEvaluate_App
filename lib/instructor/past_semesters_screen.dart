@@ -388,7 +388,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                     },
                     icon: const Icon(Icons.description, size: 18),
                     label: const Text('Full Term Report'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.primaryText),
                   ),
               ],
             ),
@@ -398,7 +398,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             if (_historicalData.isNotEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.textTertiary.withOpacity(0.2))),
+                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.textTertiary.withOpacity(0.2))),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedTermId,
@@ -431,7 +431,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                 const Text('Subjects Taught', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 // Show count of subjects for selected term when not loading
                 if (!_isTermLoading)
-                  Text('${_selectedTermSubjects.length} Subjects', style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+                  Text('${_selectedTermSubjects.length} Subjects', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 16),
@@ -495,7 +495,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           // Score label above the bar
-                          Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
+                          Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           // Tappable bar — clicking selects this term
                           GestureDetector(
@@ -537,7 +537,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                               final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
                               return Text(
                                 label,
-                                style: const TextStyle(color: Colors.white54, fontSize: 8),
+                                style: const TextStyle(color: Colors.white54, fontSize: 11),
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 2,

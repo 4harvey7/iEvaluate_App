@@ -291,9 +291,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       const SizedBox(height: 16),
       // three boxes: today, this term, all time — in order of recency
       Row(children: [
-        Expanded(child: _statBox('Today', '$today', AppColors.primary)),
+        Expanded(child: _statBox('Today', '$today', AppColors.primaryText)),
         const SizedBox(width: 10),
-        Expanded(child: _statBox('This Term', '$term', Colors.teal)),
+        Expanded(child: _statBox('This Term', '$term', AppColors.success)),
         const SizedBox(width: 10),
         Expanded(child: _statBox('All Time', '$total', AppColors.success)),
       ]),
@@ -308,7 +308,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(children: [
-        Icon(icon, color: AppColors.primary, size: 18), // colored icon on left
+        Icon(icon, color: AppColors.primaryText, size: 18), // colored icon on left
         const SizedBox(width: 12),
         Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)), // bold label
         Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)), // value text
@@ -429,7 +429,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                    } catch (e) {
                      setDialogState(() => isSaving = false);
                      scaffoldMessenger.showSnackBar(
-                       SnackBar(content: Text('Failed to send verification: $e'), backgroundColor: Colors.red)
+                       SnackBar(content: Text('Failed to send verification: $e'), backgroundColor: AppColors.error)
                      );
                      return;
                    }
@@ -480,7 +480,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               },
               // show spinner or button label depending on save state
               child: isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : Text(needsCode ? 'Verify & Save' : 'Save Changes'),
             ),
           ],
@@ -562,17 +562,17 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 final em = emailController.text.trim();
                 final id = idController.text.trim();
                 if (fn.isEmpty || ln.isEmpty || em.isEmpty || id.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: AppColors.error));
                   return;
                 }
                 // validate email format — looks murag real email
                 if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(em)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: AppColors.error));
                   return;
                 }
                 // university ID must have at least 4 chars — reasonable minimum
                 if (id.length < 4) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: AppColors.error));
                   return;
                 }
 
@@ -595,7 +595,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                      return;
                    } catch (e) {
                      setDialogState(() => isSaving = false);
-                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
+                     scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
                      return;
                    }
                 }
@@ -633,7 +633,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 }
               },
               child: isSaving
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
             ),
           ],
@@ -687,7 +687,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                         onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
                         decoration: InputDecoration(
                           hintText: 'Search Name or ID...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
+                          prefixIcon: const Icon(Icons.search, color: AppColors.primaryText),
                           filled: true,
                           fillColor: AppColors.background,
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -706,7 +706,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.filter_list, color: AppColors.primary),
+                              icon: const Icon(Icons.filter_list, color: AppColors.primaryText),
                               items: ['All', ..._saoRoles.map((r) => r['Roles'].toString())].map((String role) {
                                 return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
                               }).toList(),
@@ -726,7 +726,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.sort, color: AppColors.primary),
+                              icon: const Icon(Icons.sort, color: AppColors.primaryText),
                               items: _sortOptions.map((String option) {
                                 return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
                               }).toList(),
@@ -774,7 +774,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 leading: CircleAvatar(
                                   // gray if disabled, colored if active
                                   backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                  child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                                  child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primaryText : AppColors.textSecondary)),
                                 ),
                                 // strikethrough if disabled — visual cue that account is off
                                 title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),

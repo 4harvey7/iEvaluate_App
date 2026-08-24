@@ -1136,7 +1136,7 @@ class _PaperSizeToggle extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: active ? Colors.black54 : Colors.white38,
-                        fontSize: 10,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -1307,7 +1307,7 @@ class _ActionButton extends StatelessWidget {
                 child: Text('$badge',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold)),
               ),
             ),

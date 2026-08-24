@@ -362,7 +362,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
           if (_searchQuery.isNotEmpty)
             TextButton(
               onPressed: () => setState(() => _searchQuery = ''), // Reset search query
-              child: const Text('Clear Search', style: TextStyle(color: AppColors.primary)),
+              child: const Text('Clear Search', style: TextStyle(color: AppColors.primaryText)),
             ),
         ],
       ),
@@ -438,7 +438,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                           value: _sortBy,
                           icon: const Icon(
                             Icons.sort,
-                            color: AppColors.primary,
+                            color: AppColors.primaryText,
                             size: 18,
                           ),
                           style: const TextStyle(
@@ -506,7 +506,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                               width: 30,
                               child: Text(
                                 '#${index + 1}', // Rank number — #1 is best in current sort
-                                style: TextStyle(fontWeight: FontWeight.bold, color: isLowPerformer ? AppColors.error : AppColors.textTertiary, fontSize: 16),
+                                style: TextStyle(fontWeight: FontWeight.bold, color: isLowPerformer ? AppColors.error : AppColors.textSecondary, fontSize: 16),
                               ),
                             ),
 
@@ -552,7 +552,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 // Small eval count below the score — context for the number
-                                Text('${faculty['evals']} evals', style: const TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                                Text('${faculty['evals']} evals', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                               ],
                             ),
                           ],

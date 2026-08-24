@@ -96,7 +96,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(children: [
               Icon(isEditing ? Icons.edit_rounded : Icons.add_business,
-                  color: isEditing ? AppColors.warning : AppColors.primary),
+                  color: isEditing ? AppColors.warning : AppColors.primaryText),
               const SizedBox(width: 8),
               Text(isEditing ? 'Edit Department' : 'Add Department',
                   style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -138,7 +138,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         labelText: 'Department Name *',
                         hintText: 'e.g. College of Engineering...',
                         prefixIcon: const Icon(Icons.domain,
-                            color: AppColors.primary),
+                            color: AppColors.primaryText),
                         filled: true,
                         fillColor: AppColors.background,
                         border: OutlineInputBorder(
@@ -184,7 +184,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                   borderRadius: BorderRadius.circular(16)),
                               title: const Row(children: [
                                 Icon(Icons.help_outline,
-                                    color: AppColors.primary),
+                                    color: AppColors.primaryText),
                                 SizedBox(width: 8),
                                 Text('Confirm Add'),
                               ]),
@@ -201,7 +201,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                       text: '"$name"',
                                       style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          color: AppColors.primary),
+                                          color: AppColors.primaryText),
                                     ),
                                     const TextSpan(
                                         text: ' as a new department?'),
@@ -227,7 +227,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                   ),
                                   child: const Text('Yes, Add',
                                       style:
-                                          TextStyle(color: Colors.white)),
+                                          TextStyle(color: AppColors.textPrimary)),
                                 ),
                               ],
                             ),
@@ -275,13 +275,19 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                       borderRadius: BorderRadius.circular(8)),
                 ),
                 child: isSaving
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2,
+                            color: isEditing
+                                ? Colors.white
+                                : AppColors.textPrimary))
                     : Text(isEditing ? 'Save' : 'Add',
-                        style: const TextStyle(color: Colors.white)),
+                        style: TextStyle(
+                            color: isEditing
+                                ? Colors.white
+                                : AppColors.textPrimary)),
               ),
             ],
           );
@@ -450,7 +456,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                   children: [
                     Row(children: [
                       const Icon(Icons.list_alt_rounded,
-                          color: AppColors.primary, size: 22),
+                          color: AppColors.primaryText, size: 22),
                       const SizedBox(width: 8),
                       Text(
                         'All Departments (${_departments.length})',
@@ -522,7 +528,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         ? dept['d_name'].toString()[0].toUpperCase()
                         : '?',
                     style: const TextStyle(
-                      color: AppColors.primary,
+                      color: AppColors.primaryText,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
@@ -548,7 +554,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         'Tap to view details',
                         style: TextStyle(
                           fontSize: 11,
-                          color: AppColors.textTertiary,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -558,7 +564,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 IconButton(
                   icon: const Icon(
                     Icons.edit_outlined,
-                    color: AppColors.primary,
+                    color: AppColors.primaryText,
                     size: 20,
                   ),
                   onPressed: () => _startEdit(dept),
@@ -765,7 +771,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
     if (score >= 4.0) return AppColors.success;
     if (score >= 3.0) return AppColors.warning;
     if (score > 0) return AppColors.error;
-    return AppColors.textTertiary;
+    return AppColors.textSecondary;
   }
 
   @override
@@ -858,7 +864,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                                     ? AppColors.warning
                                     : _deptScore > 0
                                         ? AppColors.error
-                                        : AppColors.textTertiary,
+                                        : AppColors.textSecondary,
                             label: 'Dept. Average',
                             value: _deptScore > 0
                                 ? _deptScore.toStringAsFixed(2)
@@ -871,7 +877,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                         Expanded(
                           child: _infoCard(
                             icon: Icons.assignment_turned_in_outlined,
-                            iconColor: AppColors.primary,
+                            iconColor: AppColors.primaryText,
                             label: 'Total Evals',
                             value: '$_totalEvals',
                             sub: 'this term',
@@ -910,7 +916,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.person_pin,
-                                color: AppColors.primary, size: 22),
+                                color: AppColors.primaryText, size: 22),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
@@ -939,7 +945,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                       // ── Instructors List ──────────────────────
                       Row(children: [
                         const Icon(Icons.school_outlined,
-                            color: AppColors.primary, size: 20),
+                            color: AppColors.primaryText, size: 20),
                         const SizedBox(width: 8),
                         Text(
                           'Instructors (${_instructors.length})',
@@ -996,7 +1002,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                                         fontSize: 13,
                                         color: i == 0
                                             ? AppColors.success
-                                            : AppColors.textTertiary)),
+                                            : AppColors.textSecondary)),
                               ),
                               // Avatar
                               CircleAvatar(
@@ -1057,7 +1063,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                                   Text(
                                     evals > 0 ? '$evals evals' : 'No data',
                                     style: const TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 11,
                                         color: AppColors.textSecondary),
                                   ),
                                 ],
@@ -1097,7 +1103,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                 color: iconColor)),
         Text(sub,
             style: const TextStyle(
-                fontSize: 10, color: AppColors.textSecondary)),
+                fontSize: 11, color: AppColors.textSecondary)),
         const SizedBox(height: 2),
         Text(label,
             style: const TextStyle(

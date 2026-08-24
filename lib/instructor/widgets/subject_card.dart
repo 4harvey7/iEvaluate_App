@@ -53,7 +53,7 @@ class SubjectCard extends StatelessWidget {
                                 subject.code,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: AppColors.primary,
+                                  color: AppColors.primaryText,
                                   fontSize: 14,
                                 ),
                               ),
@@ -87,7 +87,7 @@ class SubjectCard extends StatelessWidget {
                       _buildMiniMetric(
                         Icons.settings_suggest_outlined, 
                         'Mgmt: ${subject.managementMean?.toStringAsFixed(2) ?? "N/A"}',
-                        AppColors.primary,
+                        AppColors.primaryText,
                       ),
                       const SizedBox(width: 16),
                       _buildMiniMetric(
@@ -125,7 +125,7 @@ class SubjectCard extends StatelessWidget {
           if (score > 0)
             Text(
               Subject.getVDCode(score),
-              style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 10),
+              style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 11),
             ),
         ],
       ),
