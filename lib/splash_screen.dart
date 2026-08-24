@@ -79,47 +79,93 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      backgroundColor: AppColors.textPrimary,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2E1608), AppColors.textPrimary],
+          ),
+        ),
+        child: Stack(
           children: [
-            // App Logo - if the image missing it show a school icon, fallback lang
-            Image.asset(
-              'assets/images/CTU_logo.png',
-              width: 120,
-              height: 120,
-              errorBuilder: (context, error, stackTrace) => const Icon(
-                Icons.school,
-                size: 80,
-                color: AppColors.primaryText,
+            Positioned(
+              top: -100,
+              right: -80,
+              child: Container(
+                width: 320,
+                height: 320,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.30),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 32),
-            // App Name
-            const Text(
-              'iEvaluate',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-                letterSpacing: 1.2,
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Logo on a white rounded tile so it pops on espresso
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                          blurRadius: 40,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Image.asset(
+                      'assets/images/CTU_logo.png',
+                      width: 96,
+                      height: 96,
+                      errorBuilder: (context, error, stackTrace) => const Icon(
+                        Icons.school,
+                        size: 80,
+                        color: AppColors.primaryText,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 36),
+                  const Text(
+                    'iEvaluate',
+                    style: TextStyle(
+                      fontSize: 40,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textInverted,
+                      letterSpacing: -1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Academic evaluation, beautifully measured.',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: AppColors.textInvertedDim,
+                    ),
+                  ),
+                  const SizedBox(height: 56),
+                  const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      strokeWidth: 3,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 8),
-            // subtitle text, just to make it look official and stuff
-            Text(
-              'Academic Evaluation System',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 48),
-            // loading spinner so user know something is happening and not frozen
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-              strokeWidth: 3,
             ),
           ],
         ),
