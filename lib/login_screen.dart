@@ -11,6 +11,8 @@ import 'main.dart' show screenForRole;
 import 'signup_screen.dart';
 import 'theme/app_colors.dart';
 import 'widgets/safe_button.dart';
+import 'widgets/motion.dart';
+import 'widgets/pressable.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -345,7 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // ── Brand row ────────────────────────────────────────
-                      Padding(
+                      Entrance(index: 0, child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Row(
                           children: [
@@ -378,11 +380,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 28),
 
                       // ── Display title ────────────────────────────────────
-                      const Padding(
+                      const Entrance(
+                        index: 1,
+                        child: Padding(
                         padding: EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
                           'iEvaluate',
@@ -394,9 +398,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             letterSpacing: -1.5,
                           ),
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 6),
-                      Padding(
+                      Entrance(index: 2, child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
                           'Academic evaluation, beautifully measured.',
@@ -407,11 +411,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             letterSpacing: -0.2,
                           ),
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 32),
 
                       // ── Floating form card ───────────────────────────────
-                      Container(
+                      Entrance(index: 3, child: Container(
                         padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -562,7 +566,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ],
 
                             // ── Gradient CTA ─────────────────────────────────
-                            Container(
+                            Pressable(child: Container(
                               height: 56,
                               width: double.infinity,
                               decoration: BoxDecoration(
@@ -608,13 +612,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                             letterSpacing: -0.2),
                                       ),
                               ),
-                            ),
+                            )),
                           ],
                         ),
-                      ),
+                      )),
 
                       const SizedBox(height: 24),
-                      Center(
+                      Entrance(index: 5, child: Center(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -638,7 +642,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ],
                         ),
-                      ),
+                      )),
                     ],
                   ),
                 ),

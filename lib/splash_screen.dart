@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/services/auth_service.dart';
 import 'login_screen.dart';
 import 'theme/app_colors.dart';
+import 'widgets/motion.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -112,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   // Logo on a white rounded tile so it pops on espresso
-                  Container(
+                  Entrance(index: 0, child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
@@ -135,9 +136,9 @@ class _SplashScreenState extends State<SplashScreen> {
                         color: AppColors.primaryText,
                       ),
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 36),
-                  const Text(
+                  const Entrance(index: 1, child: Text(
                     'iEvaluate',
                     style: TextStyle(
                       fontSize: 40,
@@ -145,15 +146,15 @@ class _SplashScreenState extends State<SplashScreen> {
                       color: AppColors.textInverted,
                       letterSpacing: -1.2,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 8),
-                  const Text(
+                  const Entrance(index: 2, child: Text(
                     'Academic evaluation, beautifully measured.',
                     style: TextStyle(
                       fontSize: 15,
                       color: AppColors.textInvertedDim,
                     ),
-                  ),
+                  )),
                   const SizedBox(height: 56),
                   const SizedBox(
                     width: 28,

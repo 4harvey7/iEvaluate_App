@@ -121,13 +121,26 @@ class _DataValidationScreenState extends State<DataValidationScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // grab handle — signals the sheet is draggable
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderSubtle,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Edit Record',
                         style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
                             color: AppColors.textPrimary)),
                     IconButton(
                         icon: const Icon(Icons.close,
@@ -141,10 +154,12 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Instructor & Remarks',
+                        const Text('INSTRUCTOR & REMARKS',
                             style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.bold)),
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
                         const SizedBox(height: 12),
                         _sheetField('Instructor Name (Raw)', instructorCtrl), // editable instructor name
                         const SizedBox(height: 12),
@@ -156,21 +171,33 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                             filled: true,
                             fillColor: AppColors.surface,
                             border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none),
+                            enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: BorderSide.none),
+                            focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                borderSide: const BorderSide(
+                                    color: AppColors.primary, width: 1.5)),
                           ),
                         ),
                         const SizedBox(height: 24),
-                        const Text('Management Scores (1–5)',
+                        const Text('MANAGEMENT SCORES (1–5)',
                             style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.bold)),
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
                         const SizedBox(height: 8),
                         _scoreGrid(scoreCtrl, 'm'), // grid of m1-m10 inputs
                         const SizedBox(height: 24),
-                        const Text('Performance Scores (1–5)',
+                        const Text('PERFORMANCE SCORES (1–5)',
                             style: TextStyle(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.bold)),
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
                         const SizedBox(height: 8),
                         _scoreGrid(scoreCtrl, 'p'), // grid of p1-p10 inputs
                         const SizedBox(height: 24),
@@ -181,36 +208,62 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                            side: const BorderSide(color: AppColors.error),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12))),
-                        onPressed: () => _handleDelete(form['id']), // delete this record entirely
-                        child: const Text('Discard',
-                            style: TextStyle(
-                                color: AppColors.error,
-                                fontWeight: FontWeight.bold)),
+                      // destructive — soft error tint pill, no hairline border
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                              side: BorderSide.none,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16))),
+                          onPressed: () => _handleDelete(form['id']), // delete this record entirely
+                          child: const Text('Discard',
+                              style: TextStyle(
+                                  color: AppColors.error,
+                                  fontWeight: FontWeight.w700)),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2, // save button is bigger — more important
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
-                            backgroundColor: AppColors.success,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12))),
-                        onPressed: () => _handleSave(form,
-                            instructorCtrl.text, remarksCtrl.text, scoreCtrl),
-                        child: const Text('Approve & Sync',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold)),
+                      // gradient CTA with warm glow — the primary action
+                      child: Container(
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [AppColors.primary, AppColors.primaryDeep],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              elevation: 0,
+                              foregroundColor: AppColors.textPrimary,
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16))),
+                          onPressed: () => _handleSave(form,
+                              instructorCtrl.text, remarksCtrl.text, scoreCtrl),
+                          child: const Text('Approve & Sync',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2)),
+                        ),
                       ),
                     ),
                   ],
@@ -231,7 +284,15 @@ class _DataValidationScreenState extends State<DataValidationScreen>
         labelText: label,
         filled: true,
         fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -261,7 +322,16 @@ class _DataValidationScreenState extends State<DataValidationScreen>
             filled: true,
             fillColor: AppColors.surface,
             contentPadding: EdgeInsets.zero, // compact — it a small grid cell
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: AppColors.primary, width: 1.5)),
           ),
           style:
               const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -343,14 +413,33 @@ class _DataValidationScreenState extends State<DataValidationScreen>
           // ── TabBar ────────────────────────────────────────────────────────
           // two tabs with badge counts — so user see at a glance how much work waiting
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: AppColors.primary,
-              labelColor: AppColors.primaryText,
-              unselectedLabelColor: AppColors.textSecondary,
-              dividerColor: AppColors.borderSubtle,
-              tabs: [
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                splashBorderRadius: BorderRadius.circular(12),
+                labelColor: AppColors.primaryText,
+                unselectedLabelColor: AppColors.textSecondary,
+                dividerColor: Colors.transparent,
+                labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+                tabs: [
                 Tab(
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -383,7 +472,8 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                     ],
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
 
@@ -406,15 +496,15 @@ class _DataValidationScreenState extends State<DataValidationScreen>
   // used on the tab labels to show how many items need attention
   Widget _badge(int count, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(30),
       ),
       child: Text(
         '$count',
-        style: const TextStyle(
-            color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+        style: TextStyle(
+            color: color, fontSize: 11, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -435,16 +525,28 @@ class _DataValidationScreenState extends State<DataValidationScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.verified,
-                color: AppColors.success.withValues(alpha: 0.5), size: 80),
-            const SizedBox(height: 16),
+            // soft icon in a tinted circle — friendly empty state
+            Container(
+              width: 88,
+              height: 88,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryTint,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.verified_outlined,
+                  color: AppColors.primaryText, size: 40),
+            ),
+            const SizedBox(height: 18),
             const Text('No pending verifications',
                 style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 16)),
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3)),
             const SizedBox(height: 6),
             const Text('All records have been linked to an instructor.',
                 style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                    color: AppColors.textSecondary, fontSize: 13)),
           ],
         ),
       );
@@ -454,58 +556,74 @@ class _DataValidationScreenState extends State<DataValidationScreen>
       color: AppColors.primary,
       onRefresh: _fetchFlaggedData, // pull down to refresh
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         itemCount: _flaggedForms.length,
         itemBuilder: (_, i) {
           final form = _flaggedForms[i];
-          // each flagged record shown as a card with warning border
-          return Card(
-            color: AppColors.surface,
-            elevation: 0,
+          // each flagged record shown as a soft floating card — no hairline borders
+          return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(
-                  color: AppColors.warning.withValues(alpha: 0.35), // subtle warning border
-                  width: 1.2),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
                 ),
-                child: const Icon(Icons.person_search,
-                    color: AppColors.warning, size: 20), // person with magnifier — searching for instructor
-              ),
-              title: Text(
-                  form['instructor'] ?? 'Unknown Instructor', // show instructor name or fallback
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                      overflow: TextOverflow.ellipsis)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text('Student ID: ${form['student_id'] ?? 'N/A'}',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          overflow: TextOverflow.ellipsis)),
-                  Text('Date: ${form['submitted_date'] ?? 'N/A'}',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              trailing: const Icon(Icons.chevron_right,
-                  color: AppColors.primaryText), // tap arrow to open detail sheet
+              ],
+            ),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
               onTap: () => _showValidationSheet(form), // open edit sheet on tap
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  children: [
+                    // warning icon — soft tinted circle
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.person_search,
+                          color: AppColors.warning, size: 22), // person with magnifier — searching for instructor
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                              form['instructor'] ?? 'Unknown Instructor', // show instructor name or fallback
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: AppColors.textPrimary,
+                                  overflow: TextOverflow.ellipsis)),
+                          const SizedBox(height: 4),
+                          Text('Student ID: ${form['student_id'] ?? 'N/A'}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                  overflow: TextOverflow.ellipsis)),
+                          Text('Date: ${form['submitted_date'] ?? 'N/A'}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary,
+                                  overflow: TextOverflow.ellipsis)),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right_rounded,
+                        color: AppColors.primaryText), // tap arrow to open detail sheet
+                  ],
+                ),
+              ),
             ),
           );
         },

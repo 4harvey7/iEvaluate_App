@@ -65,43 +65,106 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.textPrimary, // Use the Midnight Espresso for a premium theatrical feel
-      body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(widget.targetIcon, size: 80, color: AppColors.primary),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Switching to\n${widget.targetRoleName} View...',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.surface,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    const CircularProgressIndicator(color: AppColors.primary),
-                  ],
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFF2E1608), AppColors.textPrimary],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // soft orange glow, upper right
+            Positioned(
+              top: -80,
+              right: -60,
+              child: Container(
+                width: 260,
+                height: 260,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.35),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
                 ),
               ),
-            );
-          },
+            ),
+            // deeper glow, lower left
+            Positioned(
+              bottom: -60,
+              left: -70,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primaryDeep.withValues(alpha: 0.25),
+                      AppColors.primaryDeep.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Center(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return FadeTransition(
+                    opacity: _fadeAnimation,
+                    child: ScaleTransition(
+                      scale: _scaleAnimation,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // icon on a white rounded tile with warm orange glow
+                          Container(
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(32),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.45),
+                                  blurRadius: 40,
+                                  offset: const Offset(0, 12),
+                                ),
+                              ],
+                            ),
+                            child: Icon(widget.targetIcon,
+                                size: 80, color: AppColors.primary),
+                          ),
+                          const SizedBox(height: 36),
+                          Text(
+                            'Switching to\n${widget.targetRoleName} View...',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textInverted,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 48),
+                          const CircularProgressIndicator(
+                              color: AppColors.primary),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

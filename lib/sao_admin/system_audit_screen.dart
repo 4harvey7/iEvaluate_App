@@ -81,15 +81,29 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Security Audit Logs', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Security Audit Logs',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           // Sort Toggle Button — switches between newest/oldest first
           SafeIconButton(
@@ -108,7 +122,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
               : RefreshIndicator(
                   onRefresh: _fetchLogs, // pull down to refresh, like a news feed
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                     itemCount: _logs.length,
                     itemBuilder: (context, index) {
                       final log = _logs[index];
@@ -120,12 +134,26 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                           ? '${userInfo['first_name']} ${userInfo['last_name']}'
                           : 'System';
 
-                      return Card(
+                      return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
                         // expandable card — tap to reveal the JSON metadata inside
                         child: ExpansionTile(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20)),
+                          collapsedShape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20)),
                           leading: CircleAvatar(
                             backgroundColor: _getActionColor(action).withValues(alpha: 0.1), // tinted circle
                             child: Icon(Icons.history, color: _getActionColor(action), size: 20),
@@ -150,16 +178,15 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                                 children: [
                                   const Divider(),
                                   // label for the raw JSON block below
-                                  const Text('METADATA (JSON):', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.textSecondary)),
+                                  const Text('METADATA (JSON):', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 11, letterSpacing: 0.5, color: AppColors.textSecondary)),
                                   const SizedBox(height: 8),
                                   // monospaced container showing raw metadata — looks like a terminal
                                   Container(
                                     width: double.infinity,
-                                    padding: const EdgeInsets.all(12),
+                                    padding: const EdgeInsets.all(14),
                                     decoration: BoxDecoration(
                                       color: AppColors.background,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(color: AppColors.textSecondary.withValues(alpha: 0.2)),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
                                       log['metadata'].toString(), // raw dump of the metadata map
@@ -191,9 +218,24 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.shield_outlined, size: 64, color: AppColors.textTertiary), // big shield — nothing to see here
+          Container(
+            width: 88,
+            height: 88,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.shield_outlined, size: 40, color: AppColors.primaryText), // big shield — nothing to see here
+          ),
           const SizedBox(height: 16),
-          const Text('No security logs found', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+          const Text('No security logs found',
+              style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
+          const Text('Admin actions will be recorded here.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         ],
       ),
     );

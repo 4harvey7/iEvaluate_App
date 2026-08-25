@@ -519,23 +519,36 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('My Dashboard', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('My Dashboard',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           // Sync button — shows spinner when syncing, shows icon when idle
           IconButton(
             tooltip: 'Manual Sync',
             icon: _isSyncing 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.surface))
-              : const Icon(Icons.sync_rounded, color: AppColors.surface),
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverted))
+              : const Icon(Icons.sync_rounded, color: AppColors.textInverted),
             onPressed: _isSyncing ? null : _handleManualSync, // disabled while already syncing
           ),
           // Notification bell — shows badge count if there are active intervention notices
@@ -543,7 +556,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             alignment: Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications, color: AppColors.surface),
+                icon: const Icon(Icons.notifications_rounded, color: AppColors.textInverted),
                 tooltip: _interventionReports.isEmpty ? 'No active notices' : '${_interventionReports.length} active notice(s)',
                 onPressed: () {
                   if (_interventionReports.isEmpty) {
@@ -600,7 +613,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         child: SafeArea(
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(), // always scrollable for pull-to-refresh
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -623,18 +636,32 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                   // Render the intervention notice card — red and scary on purpose
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
-                      color: AppColors.error.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.5), width: 1.5),
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.error.withValues(alpha: 0.14),
+                          blurRadius: 24,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 22),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.error.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Icon(Icons.warning_amber_rounded,
+                                  color: AppColors.error, size: 20),
+                            ),
                             const SizedBox(width: 10),
                             const Expanded(
                               child: Text(
@@ -670,23 +697,58 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               // The big gradient hero card at the top — shows overall score and greetings
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: AppColors.heroGradient,
+                  gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
+                    colors: [Color(0xFF2E1608), AppColors.textPrimary],
                   ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.3),
+                      blurRadius: 24,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
                 ),
-                child: Column(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Stack(
+                    children: [
+                      // soft orange glow, upper right — echoes the login hero
+                      Positioned(
+                        top: -70,
+                        right: -50,
+                        child: Container(
+                          width: 220,
+                          height: 220,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.primary.withValues(alpha: 0.35),
+                                AppColors.primary.withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Greeting with first name only — "Welcome back, Juan!" type energy
                     Text('Welcome back, ${_instructorName.split(' ')[0]}!', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 16, overflow: TextOverflow.ellipsis)),
                     const SizedBox(height: 8),
-                    const Text('Your Performance Overview', style: TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold)),
+                    const Text('Your Performance Overview',
+                        style: TextStyle(
+                            color: AppColors.textInverted,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            height: 1.1)),
                     const SizedBox(height: 4),
                     // Show the current active semester and year
                     Text('Active Term: $_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13, fontWeight: FontWeight.w500, overflow: TextOverflow.ellipsis)),
@@ -707,9 +769,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                 Text(
                                   hasData ? overall.toStringAsFixed(2) : 'N/A',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.primary,
                                     fontSize: 52, // big number = big ego boost
-                                    fontWeight: FontWeight.bold,
+                                    fontWeight: FontWeight.w800,
                                     height: 1.0,
                                     letterSpacing: -1,
                                   ),
@@ -727,15 +789,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+                                color: AppColors.primary.withValues(alpha: 0.25),
+                                borderRadius: BorderRadius.circular(100),
                               ),
                               child: Text(
                                 vd,
                                 style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textInverted,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 13,
                                 ),
                               ),
@@ -745,7 +806,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     }),
 
                     const SizedBox(height: 16),
-                    Divider(color: Colors.white.withValues(alpha: 0.15), thickness: 1, height: 1),
+                    const Divider(color: AppColors.textInvertedFaint, thickness: 1, height: 1),
                     const SizedBox(height: 16),
 
                     // Three stats side by side: Management, Performance, Evaluations
@@ -761,8 +822,22 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     ),
                     const SizedBox(height: 20),
                     // Button to open the full official SAST report — the formal paperwork
-                    SizedBox(
+                    Container(
                       width: double.infinity,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, AppColors.primaryDeep],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
                       child: ElevatedButton.icon(
                         onPressed: () => Navigator.push(
                           context,
@@ -782,27 +857,36 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                           ),
                         ),
                         icon: const Icon(Icons.description_outlined, size: 18),
-                        label: const Text('View Official SAST Report'),
+                        label: const Text('View Official SAST Report',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          foregroundColor: Colors.white,
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: AppColors.textPrimary,
+                          shadowColor: Colors.transparent,
                           elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Colors.white.withValues(alpha: 0.3)),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
                       ),
                     ),
-                  ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 32),
 
               // --- SUBJECT BREAKDOWN ---
               // Shows list of current subjects — each tappable for detail
-              const Text('Current Classes', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Current Classes'.toUpperCase(),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
               Consumer<SubjectsProvider>(
                 builder: (context, provider, _) {
@@ -830,12 +914,27 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Growth'.toUpperCase(),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
                         const SizedBox(height: 12),
                         Container(
                           height: 180,
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.textPrimary.withValues(alpha: 0.08),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             crossAxisAlignment: CrossAxisAlignment.end,
@@ -853,7 +952,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                     Container(
                                       width: 20,
                                       height: barHeight,
-                                      decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(4)),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [AppColors.primary, AppColors.primaryDeep],
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
                                     ),
                                     const SizedBox(height: 8),
                                     // Label fits inside whatever width Flexible assigns
@@ -880,12 +986,27 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Recent Feedback', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Text('Recent Feedback'.toUpperCase(),
+                            style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.5)),
                         const SizedBox(height: 12),
                         Container(
                           height: 180,
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.textPrimary.withValues(alpha: 0.08),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
                           // Show placeholder if no feedback, else show the scrollable list
                           child: _recentFeedback.isEmpty 
                             ? const Center(child: Text('No feedback yet', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)))
@@ -946,7 +1067,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       children: [
         Text(label, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        Text(value, style: const TextStyle(color: AppColors.primary, fontSize: 20, fontWeight: FontWeight.w800)),
       ],
     );
   }
@@ -954,7 +1075,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   // Empty state card when no subjects are assigned yet — tap it to go to subjects screen
   Widget _buildEmptySubjectsCard(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       onTap: () {
         // ChangeNotifierProvider.value forwards the EXISTING instance into the new route.
         final subjectsProvider = context.read<SubjectsProvider>();
@@ -973,8 +1094,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderHairline, width: 1),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Row(
           children: [
@@ -1034,14 +1161,22 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           ),
         ),
       ),
-      borderRadius: BorderRadius.circular(12),
-      child: Card(
-        color: AppColors.surface,
-        elevation: 1,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(18.0),
           child: Row(
             children: [
               // Icon container on the left side
@@ -1049,7 +1184,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.primaryTint,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(Icons.class_, color: AppColors.primaryText),
               ),
@@ -1065,9 +1200,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                           child: Text(
                             subject.code,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                               color: AppColors.primaryText,
                               fontSize: 12,
+                              letterSpacing: 0.2,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -1078,9 +1214,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     Text(
                       subject.name,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                         fontSize: 15,
+                        letterSpacing: -0.3,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1088,7 +1225,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 ),
               ),
               // Arrow icon on the right — signals it's tappable
-              const Icon(Icons.chevron_right, color: AppColors.textTertiary),
+              const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
             ],
           ),
         ),

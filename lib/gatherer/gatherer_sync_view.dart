@@ -30,10 +30,12 @@ class GathererSyncView extends StatelessWidget {
   Widget build(BuildContext context) {
     final pendingCount = queue.where((t) => t.status == SyncStatus.pending || t.status == SyncStatus.failed).length;
     final successCount = queue.where((t) => t.status == SyncStatus.success).length;
+    // gradient CTA only lights up when there is actually something to sync
+    final bool canSync = !isPaused && queue.any((t) => t.status != SyncStatus.success);
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -44,26 +46,41 @@ class GathererSyncView extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Sync Queue', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                      Text('Upload scanned forms to the n8n backend', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                      Text('Sync Queue',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5)),
+                      Text('Upload scanned forms to the n8n backend',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                     ],
                   ),
                 ),
-                // Pause / Resume button
+                // Pause / Resume button — soft tinted pill
                 if (queue.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: isPaused ? onResume : onPause,
-                    icon: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                        color: isPaused ? AppColors.success : AppColors.warning, size: 20),
-                    label: Text(isPaused ? 'Resume' : 'Pause',
-                        style: TextStyle(color: isPaused ? AppColors.success : AppColors.warning, fontWeight: FontWeight.bold)),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: (isPaused ? AppColors.success : AppColors.warning)
+                          .withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    child: TextButton.icon(
+                      onPressed: isPaused ? onResume : onPause,
+                      icon: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
+                          color: isPaused ? AppColors.success : AppColors.warning, size: 20),
+                      label: Text(isPaused ? 'Resume' : 'Pause',
+                          style: TextStyle(
+                              color: isPaused ? AppColors.success : AppColors.warning,
+                              fontWeight: FontWeight.w700)),
+                    ),
                   ),
               ],
             ),
 
             // Status summary chips
             if (queue.isNotEmpty) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   _statusChip('$pendingCount pending', AppColors.warning),
@@ -82,13 +99,31 @@ class GathererSyncView extends StatelessWidget {
             // Queue List
             Expanded(
               child: queue.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.cloud_done, color: AppColors.success, size: 64),
-                          SizedBox(height: 16),
-                          Text('All forms have been synced!', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
+                          // soft icon in a tinted circle — friendly empty state
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryTint,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.cloud_done,
+                                color: AppColors.primaryText, size: 40),
+                          ),
+                          const SizedBox(height: 18),
+                          const Text('All forms have been synced!',
+                              style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 6),
+                          const Text('New scans will appear here while they upload.',
+                              style: TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 13)),
                         ],
                       ),
                     )
@@ -102,9 +137,10 @@ class GathererSyncView extends StatelessWidget {
                           background: Container(
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.only(right: 20),
+                            margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
+                              color: AppColors.error.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: const Icon(Icons.delete_outline, color: AppColors.error),
                           ),
@@ -113,13 +149,16 @@ class GathererSyncView extends StatelessWidget {
                               context: context,
                               builder: (_) => AlertDialog(
                                 backgroundColor: AppColors.surface,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                                 title: const Text('Remove from queue?'),
                                 content: const Text('This will remove the item from the queue. The image file will remain on device.'),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
                                   ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                                    style: ElevatedButton.styleFrom(
+                                        backgroundColor: AppColors.error,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(12))),
                                     onPressed: () => Navigator.pop(context, true),
                                     child: const Text('Remove', style: TextStyle(color: Colors.white)),
                                   ),
@@ -128,15 +167,25 @@ class GathererSyncView extends StatelessWidget {
                             ) ?? false;
                           },
                           onDismissed: (_) => onDelete(task),
-                          child: Card(
-                            color: AppColors.surface,
-                            elevation: 1,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.textPrimary.withValues(alpha: 0.08),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
                             child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20)),
                               leading: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
+                                borderRadius: BorderRadius.circular(10),
                                 child: Image.file(
                                   File(task.localPath),
                                   width: 40,
@@ -145,8 +194,15 @@ class GathererSyncView extends StatelessWidget {
                                   errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: AppColors.textSecondary),
                                 ),
                               ),
-                              title: Text(task.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),
-                              subtitle: _buildSubtitle(task),
+                              title: Text(task.id,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      color: AppColors.textPrimary)),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: _buildSubtitle(task),
+                              ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -157,7 +213,7 @@ class GathererSyncView extends StatelessWidget {
                                     tooltip: 'Remove from queue',
                                     onPressed: () => onDelete(task),
                                     constraints: const BoxConstraints(),
-                                    padding: const EdgeInsets.only(left: 4),
+                                    padding: const EdgeInsets.only(left: 8),
                                   ),
                                 ],
                               ),
@@ -170,24 +226,54 @@ class GathererSyncView extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Sync All Button
-            SizedBox(
+            // Sync All Button — gradient CTA when there is work to do
+            Container(
               width: double.infinity,
-              height: 54,
+              height: 56,
+              decoration: BoxDecoration(
+                gradient: canSync
+                    ? const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [AppColors.primary, AppColors.primaryDeep],
+                      )
+                    : null,
+                color: canSync ? null : AppColors.borderSubtle,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: canSync
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                    : null,
+              ),
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isPaused
-                      ? AppColors.textSecondary
-                      : (queue.any((t) => t.status != SyncStatus.success) ? AppColors.textPrimary : AppColors.textSecondary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  backgroundColor: Colors.transparent,
+                  disabledBackgroundColor: Colors.transparent,
+                  shadowColor: Colors.transparent,
+                  elevation: 0,
+                  foregroundColor: AppColors.textPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
                 onPressed: isSyncing || isPaused || queue.every((t) => t.status == SyncStatus.success) ? null : onSync,
                 icon: isSyncing
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.cloud_upload, color: Colors.white),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: AppColors.textPrimary, strokeWidth: 2))
+                    : Icon(Icons.cloud_upload,
+                        color: canSync ? AppColors.textPrimary : AppColors.textSecondary),
                 label: Text(
                   isPaused ? 'Sync Paused' : (isSyncing ? 'Syncing...' : 'Sync All Pending'),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  style: TextStyle(
+                      color: canSync ? AppColors.textPrimary : AppColors.textSecondary,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16),
                 ),
               ),
             ),
@@ -197,32 +283,69 @@ class GathererSyncView extends StatelessWidget {
     );
   }
 
+  // soft tinted pill chip — dark accessible label on a light fill
   Widget _statusChip(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(30),
       ),
-      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(label,
+          style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
     );
   }
 
   Widget _buildSubtitle(ScanTask task) {
     if (task.status == SyncStatus.failed) {
-      return Text(task.errorMessage ?? 'Upload failed', style: const TextStyle(color: AppColors.error, fontSize: 11));
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(task.errorMessage ?? 'Upload failed',
+                  style: const TextStyle(
+                      color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ),
+        ],
+      );
     }
     if (task.status == SyncStatus.paused) {
-      return const Text('PAUSED', style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold));
+      return _statusPill('PAUSED', AppColors.warning);
     }
-    return Text(
-      task.status.name.toUpperCase(),
-      style: TextStyle(
-        color: task.status == SyncStatus.success ? AppColors.success : AppColors.textSecondary,
-        fontSize: 11,
-        fontWeight: FontWeight.bold,
-      ),
+    final color = task.status == SyncStatus.success
+        ? AppColors.success
+        : (task.status == SyncStatus.uploading
+            ? AppColors.primaryText
+            : AppColors.textSecondary);
+    return _statusPill(task.status.name.toUpperCase(), color);
+  }
+
+  // small tinted pill for the sync state under each row
+  Widget _statusPill(String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+        ),
+      ],
     );
   }
 

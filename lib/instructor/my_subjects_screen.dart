@@ -74,20 +74,29 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'My Subjects',
           style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            color: AppColors.textInverted,
+            fontWeight: FontWeight.w800,
             fontSize: 18,
+            letterSpacing: -0.5,
           ),
         ),
       ),
@@ -121,7 +130,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
             onRefresh: () => provider.load(termId: _currentTermId), // pull to reload subjects
             color: AppColors.primary,
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              padding: const EdgeInsets.all(20),
               // +1 for the summary header row at the top
               itemCount: subjects.length + 1,
               itemBuilder: (context, index) {
@@ -158,20 +167,56 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     final color = Subject.getScoreColor(average); // green = good, red = time to reflect
     
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: AppColors.textPrimary,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E1608), AppColors.textPrimary],
+        ),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppColors.textPrimary.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: Column(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // soft orange glow, upper right — echoes the login hero
+            Positioned(
+              top: -60,
+              right: -50,
+              child: Container(
+                width: 190,
+                height: 190,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.35),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: _buildSummaryContent(average, totalSubjects, color),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryContent(double average, int totalSubjects, Color color) {
+    return Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -184,9 +229,9 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     Text(
                       _termName.toUpperCase(),
                       style: const TextStyle(
-                        color: Colors.white70,
+                        color: AppColors.textInvertedDim,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -195,9 +240,10 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     const Text(
                       'Term Performance',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.textInverted,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
                       ),
                     ),
                   ],
@@ -208,15 +254,14 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                  color: color.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(100),
                 ),
                 child: Text(
                   Subject.getVerbalDescription(average),
                   style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.bold,
+                    color: Color.lerp(color, Colors.white, 0.55),
+                    fontWeight: FontWeight.w700,
                     fontSize: 12,
                   ),
                 ),
@@ -235,14 +280,17 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     Text(
                       average > 0 ? average.toStringAsFixed(2) : 'N/A',
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1,
+                        height: 1.1,
                       ),
                     ),
                     const Text(
                       'Overall Weighted Mean',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.textInvertedDim, fontSize: 11),
                     ),
                   ],
                 ),
@@ -251,7 +299,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
               Container(
                 width: 1,
                 height: 40,
-                color: Colors.white12,
+                color: AppColors.textInvertedFaint,
               ),
               Expanded(
                 child: Column(
@@ -261,14 +309,17 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
                     Text(
                       '$totalSubjects',
                       style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.textInverted,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -1,
+                        height: 1.1,
                       ),
                     ),
                     const Text(
                       'Assigned Subjects',
-                      style: TextStyle(color: Colors.white54, fontSize: 11),
+                      style: TextStyle(
+                          color: AppColors.textInvertedDim, fontSize: 11),
                     ),
                   ],
                 ),
@@ -276,7 +327,6 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
             ],
           ),
         ],
-      ),
     );
   }
 
@@ -287,18 +337,27 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.subject_rounded,
-            size: 80,
-            color: AppColors.textPrimary.withValues(alpha: 0.1), // very faded, murag ghost
+          Container(
+            width: 96,
+            height: 96,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.subject_rounded,
+              size: 44,
+              color: AppColors.primaryText,
+            ),
           ),
-          const SizedBox(height: 16),
-          Text(
+          const SizedBox(height: 20),
+          const Text(
             'No subjects assigned yet',
             style: TextStyle(
-              color: AppColors.textPrimary.withValues(alpha: 0.5),
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 8),

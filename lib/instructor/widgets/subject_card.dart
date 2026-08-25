@@ -17,55 +17,62 @@ class SubjectCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: AppColors.borderHairline),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                subject.code,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryText,
-                                  fontSize: 14,
-                                ),
+                          // Subject code badge — tinted brand pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTint,
+                              borderRadius: BorderRadius.circular(100),
+                            ),
+                            child: Text(
+                              subject.code,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primaryText,
+                                fontSize: 12,
+                                letterSpacing: 0.2,
                               ),
-                            ],
+                            ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 10),
                           Text(
                             subject.name,
                             style: const TextStyle(
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w700,
                               color: AppColors.textPrimary,
                               fontSize: 16,
+                              letterSpacing: -0.3,
+                              height: 1.2,
                             ),
                             overflow: TextOverflow.ellipsis,
                             maxLines: 1,
@@ -78,23 +85,25 @@ class SubjectCard extends StatelessWidget {
                   ],
                 ),
                 if (showMetrics) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1),
-                  ),
+                  const SizedBox(height: 14),
+                  Container(height: 1, color: AppColors.borderHairline),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       _buildMiniMetric(
-                        Icons.settings_suggest_outlined, 
+                        Icons.settings_suggest_outlined,
                         'Mgmt: ${subject.managementMean?.toStringAsFixed(2) ?? "N/A"}',
                         AppColors.primaryText,
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 8),
                       _buildMiniMetric(
-                        Icons.psychology_outlined, 
+                        Icons.psychology_outlined,
                         'Perf: ${subject.performanceMean?.toStringAsFixed(2) ?? "N/A"}',
                         AppColors.success,
                       ),
+                      const Spacer(),
+                      const Icon(Icons.chevron_right_rounded,
+                          size: 20, color: AppColors.textTertiary),
                     ],
                   ),
                 ],
@@ -110,22 +119,26 @@ class SubjectCard extends StatelessWidget {
     Color color = Subject.getScoreColor(score);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         children: [
           Text(
             score > 0 ? score.toStringAsFixed(2) : 'N/A',
-            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
+            style: TextStyle(
+                fontWeight: FontWeight.w800, color: color, fontSize: 15),
           ),
           if (score > 0)
             Text(
               Subject.getVDCode(score),
-              style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 11),
+              style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  fontSize: 10,
+                  letterSpacing: 0.5),
             ),
         ],
       ),
@@ -133,15 +146,26 @@ class SubjectCard extends StatelessWidget {
   }
 
   Widget _buildMiniMetric(IconData icon, String label, Color color) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: color),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
-        ),
-      ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+                fontSize: 11,
+                color: color,
+                fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 }

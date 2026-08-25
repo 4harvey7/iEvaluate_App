@@ -4,6 +4,8 @@
 // Also shows n8n status — is the automation server alive or naa bay problema?
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // pure StatelessWidget — all data is passed in from parent, no own state
 // parent (DataGathererScreen) manages the state, we just display what we receive
@@ -44,204 +46,352 @@ class GathererDashboardView extends StatelessWidget {
   // build the entire dashboard scroll content
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    return SingleChildScrollView(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
 
-            // ==========================================
-            // 1. WELCOME & STATUS CARD
-            // Shows user name, current term, role, and n8n status
-            // ==========================================
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5))],
+          // ==========================================
+          // 1. ESPRESSO HERO HEADER
+          // Gradient block with warm glow — shows user name, term, role,
+          // and the live n8n status pill
+          // ==========================================
+          Entrance(
+            index: 0,
+            child: Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // greet the user by name — personalised touch
-                  Text('Welcome, $userName',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  const SizedBox(height: 4),
-                  // Current term — shows semester and academic year
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textSecondary),
-                      const SizedBox(width: 4),
-                      Text(currentTerm, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  // Role display — badge icon with the user role text
-                  Row(
-                    children: [
-                      const Icon(Icons.badge_outlined, size: 14, color: AppColors.textSecondary),
-                      const SizedBox(width: 4),
-                      Text(userRole, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // N8N System Status (live check)
-                  // tap this to re-ping n8n — if offline, uploads will fail
-                  GestureDetector(
-                    onTap: checkingN8n ? null : onCheckN8n, // disable tap while already checking
-                    child: Row(
-                      children: [
-                        Text('System Status: ',
-                            style: TextStyle(fontSize: 12, color: AppColors.textPrimary.withValues(alpha: 0.7))),
-                        if (checkingN8n)
-                          // tiny spinner while checking — murag kasagaran sa life
-                          const SizedBox(
-                            width: 10, height: 10,
-                            child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary),
-                          )
-                        else ...[
-                          // show "Online" or "Offline" text with matching color
-                          Text(
-                            n8nOnline ? 'Online' : 'Offline',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: n8nOnline ? AppColors.success : AppColors.error,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          // small dot indicator — green or red
-                          CircleAvatar(
-                              radius: 5,
-                              backgroundColor: n8nOnline ? AppColors.success : AppColors.error),
-                          const SizedBox(width: 8),
-                          // hint to user that they can tap to refresh status
-                          Text('(tap to refresh)',
-                              style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(28),
+                bottomRight: Radius.circular(28),
+              ),
+            ),
+            child: Stack(
+              children: [
+                // soft orange glow, upper right — login's signature accent
+                Positioned(
+                  top: -70,
+                  right: -50,
+                  child: Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.35),
+                          AppColors.primary.withValues(alpha: 0.0),
                         ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 26),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // greet the user by name — personalised touch
+                      const Text(
+                        'Welcome,',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textInvertedDim,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        userName,
+                        style: const TextStyle(
+                          fontSize: 30,
+                          height: 1.1,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textInverted,
+                          letterSpacing: -0.5,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 10),
+                      // Current term — shows semester and academic year
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_outlined,
+                              size: 13, color: AppColors.textInvertedDim),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(currentTerm,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textInvertedDim),
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 14),
+                          // Role display — badge icon with the user role text
+                          const Icon(Icons.badge_outlined,
+                              size: 14, color: AppColors.textInvertedDim),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(userRole,
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textInvertedDim),
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // N8N System Status (live check)
+                      // tap this to re-ping n8n — if offline, uploads will fail
+                      GestureDetector(
+                        onTap: checkingN8n ? null : onCheckN8n, // disable tap while already checking
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.textInvertedFaint,
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('System Status: ',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textInvertedDim)),
+                              if (checkingN8n)
+                                // tiny spinner while checking — murag kasagaran sa life
+                                const SizedBox(
+                                  width: 10, height: 10,
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 1.5,
+                                      color: AppColors.primary),
+                                )
+                              else ...[
+                                // small dot indicator — green or red
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: n8nOnline
+                                        ? const Color(0xFF6EE7B7)
+                                        : const Color(0xFFFCA5A5),
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                // show "Online" or "Offline" text with matching color
+                                Text(
+                                  n8nOnline ? 'Online' : 'Offline',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: n8nOnline
+                                        ? const Color(0xFF6EE7B7)
+                                        : const Color(0xFFFCA5A5),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                // hint to user that they can tap to refresh status
+                                const Text('(tap to refresh)',
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textInvertedDim)),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+
+                // ==========================================
+                // 2. SCAN BUTTON
+                // The biggest, most important button on this screen
+                // Tap it to go to the camera scanner tab — this the main job
+                // ==========================================
+                Entrance(
+                  index: 1,
+                  child: Pressable(
+                  child: Container(
+                  width: double.infinity,
+                  height: 120, // big button, hard to miss
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primary, AppColors.primaryDeep],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: onStartScan, // jump to scanner tab
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: AppColors.textPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24)),
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.camera_alt_outlined, size: 40),
+                        SizedBox(height: 8),
+                        Text('START SCAN',
+                            style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0)),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // ==========================================
-            // 2. SCAN BUTTON
-            // The biggest, most important button on this screen
-            // Tap it to go to the camera scanner tab — this the main job
-            // ==========================================
-            SizedBox(
-              width: double.infinity,
-              height: 120, // big button, hard to miss
-              child: ElevatedButton(
-                onPressed: onStartScan, // jump to scanner tab
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 5,
                 ),
-                child: const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // ==========================================
+                // GOOGLE SHEET IMPORT BUTTON
+                // Alternative to scanning — import from a Google Sheet link
+                // Useful when forms are already digitized, dili na need scan
+                // ==========================================
+                Entrance(
+                  index: 2,
+                  child: Pressable(
+                  child: Container(
+                  width: double.infinity,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.textPrimary.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: ElevatedButton.icon(
+                    onPressed: onImportData, // navigate to Google Sheet import screen
+                    icon: const Icon(Icons.table_chart_outlined),
+                    label: const Text('IMPORT FROM GOOGLE SHEETS',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, letterSpacing: 0.3)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: AppColors.primaryText,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
+                      elevation: 0, // no shadow on the button itself — container carries it
+                    ),
+                  ),
+                ),
+                ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ==========================================
+                // 3. SUPABASE CONNECTION STATS — 4 Cards
+                // Shows numbers pulled from actual database — not just local estimates
+                // ==========================================
+                const Text('Supabase Connection',
+                    style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5)),
+                const SizedBox(height: 12),
+
+                // Row 1: Entries Today + Pending
+                // "Entries Today" = how many forms actually made it to supabase today
+                // "Pending" = how many are queued but not uploaded yet
+                Entrance(
+                  index: 3,
+                  child: Row(
                   children: [
-                    Icon(Icons.camera_alt_outlined, size: 40),
-                    SizedBox(height: 8),
-                    Text('START SCAN', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                    _buildStatCard(
+                      label: 'ENTRIES TODAY',
+                      value: '$scanned',
+                      sub: 'submitted today',
+                      color: AppColors.primaryText,
+                      icon: Icons.today_rounded,
+                    ),
+                    const SizedBox(width: 12),
+                    _buildStatCard(
+                      label: 'PENDING',
+                      value: '$pendingCount',
+                      sub: 'not yet synced',
+                      color: AppColors.warning, // orange = caution, needs upload
+                      icon: Icons.hourglass_empty_rounded,
+                    ),
                   ],
                 ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ==========================================
-            // GOOGLE SHEET IMPORT BUTTON
-            // Alternative to scanning — import from a Google Sheet link
-            // Useful when forms are already digitized, dili na need scan
-            // ==========================================
-            SizedBox(
-              width: double.infinity,
-              height: 60,
-              child: ElevatedButton.icon(
-                onPressed: onImportData, // navigate to Google Sheet import screen
-                icon: const Icon(Icons.table_chart_outlined),
-                label: const Text('IMPORT FROM GOOGLE SHEETS', style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.surface,
-                  foregroundColor: AppColors.primaryText,
-                  side: const BorderSide(color: AppColors.primary, width: 2), // outlined style
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0, // no shadow — flat look
                 ),
-              ),
-            ),
 
-            const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
-            // ==========================================
-            // 3. SUPABASE CONNECTION STATS — 4 Cards
-            // Shows numbers pulled from actual database — not just local estimates
-            // ==========================================
-            const Text('Supabase Connection',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-            const SizedBox(height: 10),
-
-            // Row 1: Entries Today + Pending
-            // "Entries Today" = how many forms actually made it to supabase today
-            // "Pending" = how many are queued but not uploaded yet
-            Row(
-              children: [
-                _buildStatCard(
-                  label: 'ENTRIES TODAY',
-                  value: '$scanned',
-                  sub: 'submitted today',
-                  color: AppColors.primaryText,
-                  icon: Icons.today_rounded,
+                // Row 2: Success + Overall
+                // "Success" = how many uploaded this session (may reset on reload)
+                // "Overall Surveys" = total count for the whole current term
+                Entrance(
+                  index: 4,
+                  child: Row(
+                  children: [
+                    _buildStatCard(
+                      label: 'SUCCESS',
+                      value: '$successCount',
+                      sub: 'synced this session',
+                      color: AppColors.success, // green = good
+                      icon: Icons.cloud_done_rounded,
+                    ),
+                    const SizedBox(width: 12),
+                    _buildStatCard(
+                      label: 'OVERALL SURVEYS',
+                      value: '$overallSurveyCount',
+                      sub: 'gathered this term',
+                      color: AppColors.textPrimary,
+                      icon: Icons.bar_chart_rounded,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                  label: 'PENDING',
-                  value: '$pendingCount',
-                  sub: 'not yet synced',
-                  color: AppColors.warning, // orange = caution, needs upload
-                  icon: Icons.hourglass_empty_rounded,
                 ),
+
+                const SizedBox(height: 40), // bottom breathing room so nothing cut off
               ],
             ),
-
-            const SizedBox(height: 12),
-
-            // Row 2: Success + Overall
-            // "Success" = how many uploaded this session (may reset on reload)
-            // "Overall Surveys" = total count for the whole current term
-            Row(
-              children: [
-                _buildStatCard(
-                  label: 'SUCCESS',
-                  value: '$successCount',
-                  sub: 'synced this session',
-                  color: AppColors.success, // green = good
-                  icon: Icons.cloud_done_rounded,
-                ),
-                const SizedBox(width: 12),
-                _buildStatCard(
-                  label: 'OVERALL SURVEYS',
-                  value: '$overallSurveyCount',
-                  sub: 'gathered this term',
-                  color: AppColors.textPrimary,
-                  icon: Icons.bar_chart_rounded,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 40), // bottom breathing room so nothing cut off
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -257,31 +407,57 @@ class GathererDashboardView extends StatelessWidget {
   }) {
     return Expanded( // both cards share equal width in the row
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 14, color: color), // small icon with card color
-                const SizedBox(width: 4),
+                // icon in soft tinted circle — matches the card accent color
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 15, color: color),
+                ),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     label,
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8)),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: AppColors.textSecondary),
                     overflow: TextOverflow.ellipsis, // dont overflow on small screens
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)), // big number
-            Text(sub, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)), // subtitle below number
+            const SizedBox(height: 12),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: color)), // big number
+            Text(sub,
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)), // subtitle below number
           ],
         ),
       ),

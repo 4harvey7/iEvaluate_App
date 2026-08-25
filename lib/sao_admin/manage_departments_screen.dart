@@ -93,13 +93,27 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
           return AlertDialog(
             backgroundColor: AppColors.surface,
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             title: Row(children: [
-              Icon(isEditing ? Icons.edit_rounded : Icons.add_business,
-                  color: isEditing ? AppColors.warning : AppColors.primaryText),
-              const SizedBox(width: 8),
-              Text(isEditing ? 'Edit Department' : 'Add Department',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isEditing
+                      ? AppColors.warning.withValues(alpha: 0.12)
+                      : AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(isEditing ? Icons.edit_rounded : Icons.add_business,
+                    size: 20,
+                    color:
+                        isEditing ? AppColors.warning : AppColors.primaryText),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(isEditing ? 'Edit Department' : 'Add Department',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+              ),
             ]),
             content: SingleChildScrollView(
               child: Form(
@@ -110,12 +124,10 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                     if (!isEditing)
                       Container(
                         margin: const EdgeInsets.only(bottom: 16),
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: AppColors.warning.withValues(alpha: 0.3)),
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,8 +154,15 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         filled: true,
                         fillColor: AppColors.background,
                         border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none),
+                        enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(
+                                color: AppColors.primary, width: 1.5)),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Required';
@@ -181,12 +200,15 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                             context: context,
                             builder: (ctx) => AlertDialog(
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
+                                  borderRadius: BorderRadius.circular(24)),
                               title: const Row(children: [
                                 Icon(Icons.help_outline,
                                     color: AppColors.primaryText),
                                 SizedBox(width: 8),
-                                Text('Confirm Add'),
+                                Text('Confirm Add',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.3)),
                               ]),
                               content: RichText(
                                 text: TextSpan(
@@ -410,11 +432,21 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
@@ -423,8 +455,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
           children: [
             Text('Department Management',
                 style: TextStyle(
-                    color: AppColors.surface,
-                    fontWeight: FontWeight.bold)),
+                    color: AppColors.textInverted,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
             Text('Add, edit or remove departments',
                 style: TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
           ],
@@ -450,29 +483,25 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
               color: AppColors.primary,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      const Icon(Icons.list_alt_rounded,
-                          color: AppColors.primaryText, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        'All Departments (${_departments.length})',
-                        style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ]),
+                    Text(
+                      'ALL DEPARTMENTS (${_departments.length})',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5),
+                    ),
                     const SizedBox(height: 6),
                     const Text(
                       'Tap a department to view its score, head, and instructors.',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 12),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     _departments.isEmpty
                         ? _buildEmptyState()
                         : _buildDepartmentList(),
@@ -496,33 +525,31 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: AppColors.borderHairline,
-              width: 1,
-            ),
+            borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: AppColors.textPrimary.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+            borderRadius: BorderRadius.circular(20),
             onTap: () => _showDepartmentDetail(dept),
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 10),
+                  horizontal: 16, vertical: 12),
               child: Row(children: [
                 // Avatar
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                  backgroundColor: AppColors.primaryTint,
                   child: Text(
                     dept['d_name'].toString().isNotEmpty
                         ? dept['d_name'].toString()[0].toUpperCase()
@@ -542,15 +569,15 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                     children: [
                       Text(
                         dept['d_name'],
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
                           fontSize: 14,
                           color: AppColors.textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 2),
-                      Text(
+                      const Text(
                         'Tap to view details',
                         style: TextStyle(
                           fontSize: 11,
@@ -579,6 +606,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
               ]),
             ),
           ),
+          ),
         );
       },
     );
@@ -589,17 +617,24 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 48),
         child: Column(children: [
-          Icon(Icons.domain_disabled_outlined,
-              size: 72,
-              color: AppColors.textSecondary.withValues(alpha: 0.3)),
+          Container(
+            width: 72,
+            height: 72,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.domain_disabled_outlined,
+                size: 34, color: AppColors.primaryText),
+          ),
           const SizedBox(height: 16),
           const Text('No departments yet',
               style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Use the form above to add your first department.',
+                  color: AppColors.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          const Text('Use the + button above to add your first department.',
               style: TextStyle(
                   color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center),
@@ -800,44 +835,73 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
 
           // Header
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            clipBehavior: Clip.antiAlias,
             decoration: const BoxDecoration(
-              color: AppColors.textPrimary,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
+              ),
               borderRadius:
                   BorderRadius.vertical(top: Radius.circular(28)),
             ),
-            child: Row(children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.domain,
-                    color: AppColors.primary, size: 24),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(widget.deptName,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis),
-                    const Text('Department Overview',
-                        style: TextStyle(
-                            color: Colors.white60, fontSize: 12)),
-                  ],
+            child: Stack(children: [
+              Positioned(
+                top: -60,
+                right: -40,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppColors.primary.withValues(alpha: 0.35),
+                        AppColors.primary.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.close, color: Colors.white60),
-                onPressed: () => Navigator.pop(context),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(Icons.domain,
+                        color: AppColors.primary, size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.deptName,
+                            style: const TextStyle(
+                                color: AppColors.textInverted,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
+                                fontSize: 16),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                        const Text('Department Overview',
+                            style: TextStyle(
+                                color: AppColors.textInvertedDim,
+                                fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close,
+                        color: AppColors.textInvertedDim),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ]),
               ),
             ]),
           ),
@@ -899,20 +963,24 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
 
                       // ── Department Head ───────────────────────
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.3)),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.textPrimary
+                                  .withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: Row(children: [
                           Container(
                             padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary
-                                  .withValues(alpha: 0.1),
+                            decoration: const BoxDecoration(
+                              color: AppColors.primaryTint,
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(Icons.person_pin,
@@ -924,11 +992,12 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                               crossAxisAlignment:
                                   CrossAxisAlignment.start,
                               children: [
-                                const Text('Department Head',
+                                const Text('DEPARTMENT HEAD',
                                     style: TextStyle(
                                         fontSize: 11,
                                         color: AppColors.textSecondary,
-                                        fontWeight: FontWeight.w500)),
+                                        letterSpacing: 0.5,
+                                        fontWeight: FontWeight.w700)),
                                 const SizedBox(height: 2),
                                 Text(_headName,
                                     style: const TextStyle(
@@ -943,18 +1012,14 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                       const SizedBox(height: 24),
 
                       // ── Instructors List ──────────────────────
-                      Row(children: [
-                        const Icon(Icons.school_outlined,
-                            color: AppColors.primaryText, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Instructors (${_instructors.length})',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: AppColors.textPrimary),
-                        ),
-                      ]),
+                      Text(
+                        'INSTRUCTORS (${_instructors.length})',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                            color: AppColors.textSecondary),
+                      ),
                       const SizedBox(height: 10),
                       if (_instructors.isEmpty)
                         Padding(
@@ -980,17 +1045,25 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                           final color = _scoreColor(score);
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
+                            margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
+                                horizontal: 16, vertical: 14),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: score > 0 && score < 3.0
-                                      ? AppColors.error
-                                          .withValues(alpha: 0.3)
-                                      : AppColors.borderHairline),
+                              borderRadius: BorderRadius.circular(20),
+                              border: score > 0 && score < 3.0
+                                  ? Border.all(
+                                      color: AppColors.error
+                                          .withValues(alpha: 0.3))
+                                  : null,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.textPrimary
+                                      .withValues(alpha: 0.08),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
                             ),
                             child: Row(children: [
                               // Rank badge
@@ -1090,11 +1163,26 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderHairline),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(children: [
-        Icon(icon, color: iconColor, size: 22),
+        Container(
+          width: 38,
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
         const SizedBox(height: 6),
         Text(value,
             style: TextStyle(

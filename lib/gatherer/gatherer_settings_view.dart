@@ -108,17 +108,29 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.background,
+                    color: AppColors.surface,
                     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // grab handle — signals the sheet is draggable
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.borderSubtle,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          const Text('Edit Profile', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.textPrimary)),
                           IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
@@ -126,9 +138,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,13 +160,33 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          // gradient CTA with warm glow — the sheet's primary action
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [AppColors.primary, AppColors.primaryDeep],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            foregroundColor: AppColors.textPrimary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           onPressed: isSaving ? null : () async {
                             final navigator = Navigator.of(context);
@@ -184,9 +215,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                               }
                             }
                           },
-                          child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                          child: isSaving
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
+                            : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.2)),
                         ),
                       ),
                     ],
@@ -221,8 +252,12 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primaryText),
+                      filled: true,
+                      fillColor: AppColors.background, // tonal field
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                     ),
                   ),
                 ],
@@ -415,9 +450,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
         labelText: label,
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null,
         filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+        fillColor: AppColors.background, // tonal field — vanilla fill on white sheets/dialogs
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -432,35 +468,58 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       }
     }
 
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) {
+      return const Center(
+          child: CircularProgressIndicator(color: AppColors.primary));
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            // content header — embedded view inside the gatherer shell, no fake app bar
+            const Text('Settings',
+                style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
+            const SizedBox(height: 2),
+            const Text('Manage your profile, preferences, and account',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 24),
+
+            const Text('PROFILE', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Card(
-              color: AppColors.surface,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(18.0),
                 child: Row(
                   children: [
                     CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold))
+                        backgroundColor: AppColors.primaryTint,
+                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primaryText, fontSize: 24, fontWeight: FontWeight.w800))
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                          Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18, letterSpacing: -0.3, color: AppColors.textPrimary)),
                           const SizedBox(height: 4),
                           Text(_userTitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                           const SizedBox(height: 8),
@@ -477,12 +536,20 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             ),
             const SizedBox(height: 32),
 
-            const Text('Scanner Preferences', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('SCANNER PREFERENCES', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Card(
-              color: AppColors.surface,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
               child: _buildSwitchTile(
                 title: 'Haptic Feedback',
                 subtitle: 'Vibrate phone on successful scan.',
@@ -493,19 +560,28 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             ),
             const SizedBox(height: 32),
 
-            const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('SECURITY & DANGER ZONE', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Card(
-              color: AppColors.surface,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.textPrimary.withValues(alpha: 0.08),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
               child: Column(
                 children: [
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     leading: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      decoration: const BoxDecoration(color: AppColors.primaryTint, shape: BoxShape.circle),
                       child: const Icon(Icons.email_outlined, color: AppColors.primaryText),
                     ),
                     title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -517,7 +593,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     leading: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      decoration: const BoxDecoration(color: AppColors.primaryTint, shape: BoxShape.circle),
                       child: const Icon(Icons.lock, color: AppColors.primaryText),
                     ),
                     title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -529,7 +605,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     leading: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                      decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), shape: BoxShape.circle),
                       child: const Icon(Icons.delete_forever, color: AppColors.error),
                     ),
                     title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
@@ -541,9 +617,25 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             ),
             const SizedBox(height: 32),
 
-            SizedBox(
+            Container(
               width: double.infinity,
               height: 54,
+              decoration: BoxDecoration(
+                // destructive CTA — error gradient with soft red glow
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.error, Color(0xFF9A3412)],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.error.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
                 child: SafeOutlinedButton(
                   onPressed: () async {
                     final rootNavigator = Navigator.of(context);
@@ -562,15 +654,16 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.error, width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    side: BorderSide.none,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.logout, color: AppColors.error),
+                      Icon(Icons.logout, color: Colors.white),
                       SizedBox(width: 8),
-                      Text('End Shift & Log Out', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('End Shift & Log Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: 0.2)),
                     ],
                   ),
                 ),
@@ -587,7 +680,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+        decoration: const BoxDecoration(color: AppColors.primaryTint, shape: BoxShape.circle),
         child: Icon(icon, color: AppColors.primaryText),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),

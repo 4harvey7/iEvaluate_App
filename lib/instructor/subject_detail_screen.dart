@@ -388,19 +388,15 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
               decoration: BoxDecoration(
-                color: selected ? color : AppColors.surface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: selected ? color : color.withValues(alpha: 0.3),
-                  width: selected ? 2 : 1,
-                ),
+                color: selected ? color : color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(100),
                 boxShadow: selected
-                    ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))]
+                    ? [BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))]
                     : [],
               ),
               child: InkWell(
                 onTap: () => setState(() => _selectedFilter = label),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(100),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   child: Row(
@@ -411,8 +407,8 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                       Text(
                         label,
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                           color: selected ? Colors.white : color,
                         ),
                       ),
@@ -423,13 +419,13 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                           color: selected
                               ? Colors.white.withValues(alpha: 0.25)
                               : color.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(100),
                         ),
                         child: Text(
                           '$count',
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             color: selected ? Colors.white : color,
                           ),
                         ),
@@ -450,28 +446,66 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
-        title: Text(widget.subject.code, style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
+        title: Text(widget.subject.code,
+            style: const TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                overflow: TextOverflow.ellipsis)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : RefreshIndicator(
               onRefresh: _fetchSubjectDetails,
+              color: AppColors.primary,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.subject.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(height: 8),
+                    Text(widget.subject.name,
+                        style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.8,
+                            height: 1.1,
+                            color: AppColors.textPrimary,
+                            overflow: TextOverflow.ellipsis)),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text('Total Respondents: $_totalResponses', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryTint,
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.people_outline, size: 14, color: AppColors.primaryText),
+                              const SizedBox(width: 5),
+                              Text('Total Respondents: $_totalResponses',
+                                  style: const TextStyle(
+                                      color: AppColors.primaryText,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -513,8 +547,14 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.borderHairline),
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.textPrimary.withValues(alpha: 0.08),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
                       ),
                       child: _questionMeans.isEmpty 
                         ? const Center(child: Text("No question data available"))
@@ -535,8 +575,15 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                                       width: 14,
                                       height: barHeight,
                                       decoration: BoxDecoration(
-                                        color: q['category'] == 'Management' ? AppColors.primary : AppColors.success,
-                                        borderRadius: BorderRadius.circular(3),
+                                        gradient: q['category'] == 'Management'
+                                            ? const LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [AppColors.primary, AppColors.primaryDeep],
+                                              )
+                                            : null,
+                                        color: q['category'] == 'Management' ? null : AppColors.success,
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
                                     ),
                                     const SizedBox(height: 6),
@@ -569,8 +616,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                       value: _sortOrder,
                       isExpanded: true,
                       decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                         filled: true,
                         fillColor: AppColors.surface,
                       ),
@@ -585,26 +634,66 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     const SizedBox(height: 16),
                     if (_subjectRemarks.isEmpty)
                       Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: const Center(
-                          child: Text('No feedback yet for this subject.',
-                              style: TextStyle(color: AppColors.textSecondary)),
+                        child: const Column(
+                          children: [
+                            CircleAvatar(
+                              radius: 26,
+                              backgroundColor: AppColors.primaryTint,
+                              child: Icon(Icons.chat_bubble_outline_rounded,
+                                  color: AppColors.primaryText, size: 24),
+                            ),
+                            SizedBox(height: 12),
+                            Text('No feedback yet for this subject.',
+                                style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ],
                         ),
                       )
                     else if (_filteredRemarks.isEmpty)
                       Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: Center(
-                          child: Text('No ${_selectedFilter.toLowerCase()} feedback for this subject.',
-                              style: const TextStyle(color: AppColors.textSecondary)),
+                        child: Column(
+                          children: [
+                            const CircleAvatar(
+                              radius: 26,
+                              backgroundColor: AppColors.primaryTint,
+                              child: Icon(Icons.filter_alt_outlined,
+                                  color: AppColors.primaryText, size: 24),
+                            ),
+                            const SizedBox(height: 12),
+                            Text('No ${_selectedFilter.toLowerCase()} feedback for this subject.',
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13)),
+                          ],
                         ),
                       )
                     else
@@ -618,32 +707,51 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   Widget _buildSectionHeader(String title) {
     return Text(
-      title, 
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+      title.toUpperCase(),
+      style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          color: AppColors.textSecondary),
     );
   }
 
   Widget _buildCriteriaTable(List<String> criteria, Map<String, dynamic>? data, String prefix, Color themeColor) {
     if (data == null) {
       return Container(
-        padding: const EdgeInsets.all(16),
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderHairline),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: const Center(child: Text("No detailed data available for this section")),
+        child: const Center(
+            child: Text("No detailed data available for this section",
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13))),
       );
     }
 
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderHairline),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(20),
         child: Table(
           columnWidths: const {
             0: FixedColumnWidth(40),
@@ -707,68 +815,111 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
             ? Icons.sentiment_dissatisfied_rounded
             : Icons.sentiment_neutral_rounded;
 
-    return Card(
-      color: AppColors.surface,
-      elevation: 1,
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: toneColor.withValues(alpha: 0.3), width: 1),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '"${remark['remark']}"',
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 14,
-                fontStyle: FontStyle.italic,
-                height: 1.5,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '"${remark['remark']}"',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontStyle: FontStyle.italic,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: toneColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(100),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(toneIcon, color: toneColor, size: 14),
+                    const SizedBox(width: 5),
+                    Text(
+                      tone,
+                      style: TextStyle(color: toneColor, fontWeight: FontWeight.w700, fontSize: 11),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(toneIcon, color: toneColor, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  tone,
-                  style: TextStyle(color: toneColor, fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-                const Spacer(),
-                Text(
-                  remark['created_at'] != null ? DateTime.parse(remark['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ],
-        ),
+              const Spacer(),
+              Text(
+                remark['created_at'] != null ? DateTime.parse(remark['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
+                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSummaryCard(String title, double score, Color color, {bool isFullWidth = false}) {
     final card = Container(
-      padding: const EdgeInsets.all(16),
+      width: isFullWidth ? double.infinity : null,
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(isFullWidth ? 24 : 20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(title.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11,
+                  letterSpacing: 0.5)),
           const SizedBox(height: 8),
-          Text(score.toStringAsFixed(2), style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-          if (isFullWidth)
-            Text(
-              Subject.getVerbalDescription(score),
-              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+          Text(score.toStringAsFixed(2),
+              style: TextStyle(
+                  color: color,
+                  fontSize: isFullWidth ? 34 : 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1,
+                  height: 1.0)),
+          if (isFullWidth) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                Subject.getVerbalDescription(score),
+                style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
+          ],
         ],
       ),
     );

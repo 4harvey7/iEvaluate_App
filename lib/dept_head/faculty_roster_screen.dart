@@ -350,13 +350,24 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Faded people icon — hint that there should be people here
-          Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
+          // Soft icon in a primary-tint circle — friendly empty state
+          Container(
+            width: 88,
+            height: 88,
+            decoration: const BoxDecoration(color: AppColors.primaryTint, shape: BoxShape.circle),
+            child: const Icon(Icons.people_outline, size: 40, color: AppColors.primaryText),
+          ),
+          const SizedBox(height: 18),
           Text(
             // Different message depending on whether they searched or not
             _searchQuery.isEmpty ? 'No instructors found in your department.' : 'No instructors match "$_searchQuery"',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.w700),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Pull to refresh or adjust your search.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           // Only show clear button if a search is active — no point showing it if search is empty
           if (_searchQuery.isNotEmpty)
@@ -378,14 +389,23 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
       ),
       body: SafeArea(
         child: _isLoading 
@@ -397,21 +417,31 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             // Fixed at top — not scrollable with the list
             // ==========================================
             Container(
-              padding: const EdgeInsets.all(24.0),
-              color: AppColors.surface,
+              padding: const EdgeInsets.all(20.0),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Search input — updates _searchQuery on every keystroke
+                  // Search input — tonal, borderless, focus ring in primary
                   TextField(
                     onChanged: (value) => setState(() => _searchQuery = value),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
                       hintText: 'Search instructor name...',
+                      hintStyle: const TextStyle(color: AppColors.textSecondary),
                       prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
                       filled: true,
                       fillColor: AppColors.background,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -420,10 +450,12 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                       // Count label — shows how many instructors match the current filter
                       Expanded(
                         child: Text(
-                          '${roster.length} Instructors Found',
+                          '${roster.length} Instructors Found'.toUpperCase(),
                           style: const TextStyle(
                             color: AppColors.textSecondary,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -478,45 +510,50 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
               child: roster.isEmpty 
                 ? _buildEmptyState() // No results — show friendly empty state
                 : ListView.builder(
-                    padding: const EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(20),
                     itemCount: roster.length,
                 itemBuilder: (context, index) {
                   final faculty = roster[index];
                   // Flag low performers with a red border — so dean know who to worry about
                   bool isLowPerformer = faculty['score'] < 3.0;
 
-                  return Card(
-                    color: AppColors.surface,
-                    elevation: 1,
+                  return Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      // Red border for low performers, transparent for good ones
-                      side: BorderSide(color: isLowPerformer ? AppColors.error.withValues(alpha: 0.5) : Colors.transparent, width: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                      ],
                     ),
                     child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(20),
                       onTap: () => _showInstructorDetails(faculty), // Go to full detail view
                       child: Padding(
-                        padding: const EdgeInsets.all(16.0),
+                        padding: const EdgeInsets.all(18.0),
                         child: Row(
                           children: [
-                            // Rank / Status Indicator — shows position in sorted list
-                            SizedBox(
-                              width: 30,
+                            // Rank pill — shows position in sorted list
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isLowPerformer ? AppColors.error.withValues(alpha: 0.10) : AppColors.primaryTint,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
                               child: Text(
                                 '#${index + 1}', // Rank number — #1 is best in current sort
-                                style: TextStyle(fontWeight: FontWeight.bold, color: isLowPerformer ? AppColors.error : AppColors.textSecondary, fontSize: 16),
+                                style: TextStyle(fontWeight: FontWeight.w700, color: isLowPerformer ? AppColors.error : AppColors.primaryText, fontSize: 12),
                               ),
                             ),
+                            const SizedBox(width: 10),
 
-                            // Profile Avatar — just a circle with first letter
+                            // Profile Avatar — primary-tint circle with first letter
                             CircleAvatar(
                               radius: 20,
-                              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                              child: Text(faculty['name'].isNotEmpty ? faculty['name'][0] : '?', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                              backgroundColor: AppColors.primaryTint,
+                              child: Text(faculty['name'].isNotEmpty ? faculty['name'][0] : '?', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 14),
 
                             // Name & Title — the who and what of this person
                             Expanded(

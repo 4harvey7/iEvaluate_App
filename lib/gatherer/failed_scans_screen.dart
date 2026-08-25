@@ -130,18 +130,19 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
         children: [
           // ── Header ───────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    // warning icon container — eye-catching red badge
+                    // warning icon container — soft tinted circle
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
+                        color: AppColors.error.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
                       ),
                       child: const Icon(Icons.warning_amber_rounded,
                           color: AppColors.error, size: 20),
@@ -150,8 +151,9 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                     const Text(
                       'Failed Scans',
                       style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
                           color: AppColors.textPrimary),
                     ),
                   ],
@@ -171,27 +173,29 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
           // show how many scans need correction — only when there are some
           if (!_isLoading && _failedScans.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.08), // subtle red background
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.error.withValues(alpha: 0.25)),
+                  color: AppColors.error.withValues(alpha: 0.10), // soft red pill banner
+                  borderRadius: BorderRadius.circular(30),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.pending_actions,
                         color: AppColors.error, size: 16),
                     const SizedBox(width: 8),
                     // pluralize "scan" vs "scans" properly
-                    Text(
-                      '${_failedScans.length} scan${_failedScans.length == 1 ? '' : 's'} need manual correction',
-                      style: const TextStyle(
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13),
+                    Flexible(
+                      child: Text(
+                        '${_failedScans.length} scan${_failedScans.length == 1 ? '' : 's'} need manual correction',
+                        style: const TextStyle(
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -210,16 +214,25 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.check_circle_outline,
-                                color: AppColors.success.withValues(alpha: 0.5),
-                                size: 80),
-                            const SizedBox(height: 16),
+                            // soft icon in a tinted circle — friendly empty state
+                            Container(
+                              width: 88,
+                              height: 88,
+                              decoration: const BoxDecoration(
+                                color: AppColors.primaryTint,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.check_circle_outline,
+                                  color: AppColors.primaryText, size: 40),
+                            ),
+                            const SizedBox(height: 18),
                             const Text(
                               'No failed scans!',
                               style: TextStyle(
-                                  color: AppColors.textSecondary,
+                                  color: AppColors.textPrimary,
                                   fontSize: 18,
-                                  fontWeight: FontWeight.bold),
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.3),
                             ),
                             const SizedBox(height: 6),
                             const Text(
@@ -235,7 +248,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                         color: AppColors.primary,
                         onRefresh: _fetchFailedScans, // pull down to reload
                         child: ListView.builder(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
                           itemCount: _failedScans.length,
                           itemBuilder: (context, index) {
                             final scan = _failedScans[index];
@@ -250,30 +263,34 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                             final instructor =
                                 partial['instructor']?.toString() ?? '';
 
-                            return Card(
-                              color: AppColors.surface,
-                              elevation: 0,
+                            return Container(
                               margin: const EdgeInsets.only(bottom: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: BorderSide(
-                                    color: failColor.withValues(alpha: 0.25), // colored border = severity indicator
-                                    width: 1.5),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.textPrimary
+                                        .withValues(alpha: 0.08),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
                               ),
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(20),
                                 onTap: () => _openDetail(scan), // tap to open correction screen
                                 child: Padding(
-                                  padding: const EdgeInsets.all(16),
+                                  padding: const EdgeInsets.all(18),
                                   child: Row(
                                     children: [
-                                      // Fail icon — square container with colored icon
+                                      // Fail icon — soft tinted circle, severity color
                                       Container(
                                         width: 44,
                                         height: 44,
                                         decoration: BoxDecoration(
                                           color: failColor.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(12),
+                                          shape: BoxShape.circle,
                                         ),
                                         child: Icon(failIcon,
                                             color: failColor, size: 22),
@@ -308,20 +325,20 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                                 Container(
                                                   padding:
                                                       const EdgeInsets.symmetric(
-                                                          horizontal: 8,
+                                                          horizontal: 9,
                                                           vertical: 3),
                                                   decoration: BoxDecoration(
                                                     color: failColor.withValues(
                                                         alpha: 0.12),
                                                     borderRadius:
-                                                        BorderRadius.circular(20),
+                                                        BorderRadius.circular(30),
                                                   ),
                                                   child: Text(
                                                     reason,
                                                     style: TextStyle(
                                                         fontSize: 11,
                                                         fontWeight:
-                                                            FontWeight.w600,
+                                                            FontWeight.w700,
                                                         color: failColor),
                                                   ),
                                                 ),
@@ -362,7 +379,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                       ),
                                       const SizedBox(width: 8),
                                       // chevron arrow — tells user this is tappable
-                                      const Icon(Icons.chevron_right,
+                                      const Icon(Icons.chevron_right_rounded,
                                           color: AppColors.primaryText),
                                     ],
                                   ),

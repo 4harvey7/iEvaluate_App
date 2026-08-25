@@ -243,15 +243,29 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Live System Metrics',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           // refresh button — for when you want fresh data RIGHT NOW
           IconButton(icon: const Icon(Icons.refresh, color: AppColors.primary), onPressed: _loadAllMetrics),
@@ -263,7 +277,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
               onRefresh: _loadAllMetrics, // pull down to refresh — same as the button
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(), // allow scroll even with short content
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -302,8 +316,12 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   }
 
   // simple bold section title widget — reused three times in the build method
-  Widget _buildSectionTitle(String title) =>
-      Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold));
+  Widget _buildSectionTitle(String title) => Text(title,
+      style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5));
 
   // the AI accuracy card showing three stat columns and a progress bar
   // higher auto rate = AI is doing good, lower = AI needs help (and maybe therapy)
@@ -316,8 +334,14 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -373,9 +397,17 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, color: color, size: 20), // colored icon for visual context
-        const SizedBox(height: 6),
-        Text('$count', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // big number
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color, size: 20), // colored icon for visual context
+        ),
+        const SizedBox(height: 8),
+        Text('$count', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.textPrimary)), // big number
         Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600), textAlign: TextAlign.center), // label below
       ],
     );
@@ -396,13 +428,21 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
         // generate initials from name — take first letter of each word, max 2 letters
         final initials = name.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase();
 
-        return Card(
-          color: AppColors.surface,
-          elevation: 1,
+        return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(18.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -411,7 +451,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                     // circle avatar with initials — no photos, we are professional
                     CircleAvatar(
                       radius: 18,
-                      backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+                      backgroundColor: AppColors.primaryTint,
                       child: Text(initials, style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(width: 12),
@@ -455,8 +495,14 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         children: _deptProgress.map((dept) {
@@ -466,18 +512,19 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
 
           return Container(
             margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: AppColors.background,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: isTop ? AppColors.success.withValues(alpha: 0.3) : AppColors.borderSubtle, width: isTop ? 1.5 : 0.5),
+              color: isTop
+                  ? AppColors.success.withValues(alpha: 0.08)
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: isTop ? AppColors.success.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.05),
+                    color: isTop ? AppColors.success.withValues(alpha: 0.12) : AppColors.primaryTint,
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -497,13 +544,12 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: isTop ? AppColors.success.withValues(alpha: 0.1) : AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: isTop ? AppColors.success.withValues(alpha: 0.2) : AppColors.primary.withValues(alpha: 0.2)),
+                    color: isTop ? AppColors.success.withValues(alpha: 0.12) : AppColors.primaryTint,
+                    borderRadius: BorderRadius.circular(100),
                   ),
                   child: Text(
                     '$total forms',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: isTop ? AppColors.success : AppColors.primaryText, fontSize: 13),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: isTop ? AppColors.success : AppColors.primaryText, fontSize: 12),
                   ),
                 ),
               ],
@@ -518,9 +564,38 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   // used in multiple places so we dont repeat the same Container+Text combo
   Widget _emptyCard(String msg) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-      child: Center(child: Text(msg, style: const TextStyle(color: AppColors.textSecondary))),
+      width: double.infinity,
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.insights_rounded,
+                color: AppColors.primaryText, size: 30),
+          ),
+          const SizedBox(height: 12),
+          Text(msg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 13)),
+        ],
+      ),
     );
   }
 }

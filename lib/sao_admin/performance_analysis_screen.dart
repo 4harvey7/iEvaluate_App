@@ -198,10 +198,20 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                     }),
                     decoration: InputDecoration(
                       hintText: 'Search by name or department...',
-                      prefixIcon: const Icon(Icons.search, size: 20),
+                      hintStyle: const TextStyle(color: AppColors.textSecondary),
+                      prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.primaryText),
                       filled: true,
                       fillColor: AppColors.surface,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: const BorderSide(
+                              color: AppColors.primary, width: 1.5)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     ),
                   ),
@@ -218,11 +228,23 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       final score = inst.overallScore;
                       // color based on score: green=great, yellow=okay, red=low, gray=no data
                       final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textSecondary;
-                      return Card(
-                        color: AppColors.surface,
-                        margin: const EdgeInsets.only(bottom: 8),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.textPrimary
+                                  .withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
                         child: ListTile(
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20)),
                           onTap: () {
                             Navigator.pop(ctx); // close this sheet first
                             _showInstructorDetailsSheet(inst); // then show details for this instructor
@@ -282,32 +304,60 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 children: [
                   // Sticky Header — name, dept, and close button
                   Container(
-                    padding: const EdgeInsets.all(24),
+                    clipBehavior: Clip.antiAlias,
                     decoration: const BoxDecoration(
-                      color: AppColors.surface,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFF2E1608), AppColors.textPrimary],
+                      ),
                       borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
                     ),
-                    child: Row(
+                    child: Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                          child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24)),
+                        Positioned(
+                          top: -60,
+                          right: -40,
+                          child: Container(
+                            width: 160,
+                            height: 160,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppColors.primary.withValues(alpha: 0.35),
+                                  AppColors.primary.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Row(
                             children: [
-                              Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                              Text(instructor.department, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), overflow: TextOverflow.ellipsis),
+                              CircleAvatar(
+                                radius: 30,
+                                backgroundColor: AppColors.primary.withValues(alpha: 0.3),
+                                child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.bold, fontSize: 24)),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20, color: AppColors.textInverted, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
+                                    Text(instructor.department, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 14), overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: AppColors.textInvertedDim),
+                                onPressed: () => Navigator.pop(context), // close the sheet
+                              )
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                          onPressed: () => Navigator.pop(context), // close the sheet
-                        )
                       ],
                     ),
                   ),
@@ -353,8 +403,19 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                           Container(
                             height: 220,
                             width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.textPrimary
+                                      .withValues(alpha: 0.08),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
                             child: history.isEmpty 
                               ? const Center(child: Text("No historical data available", style: TextStyle(color: AppColors.textSecondary)))
                               : SingleChildScrollView(
@@ -405,16 +466,27 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                 children: subjects.map<Widget>((subject) {
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
+                                    padding: const EdgeInsets.all(18),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surface,
+                                      borderRadius: BorderRadius.circular(20),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppColors.textPrimary
+                                              .withValues(alpha: 0.08),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 8),
+                                        ),
+                                      ],
+                                    ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)), // subject name
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                                          child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)), // score badge
+                                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(100)),
+                                          child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.success)), // score badge
                                         ),
                                       ],
                                     ),
@@ -444,15 +516,29 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Performance Analysis',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           SafeIconButton(
             icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
@@ -472,7 +558,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
         child: RefreshIndicator(
           onRefresh: () => _loadAllData(isRefresh: true), // pull down to reload everything smoothly
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -480,17 +566,29 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text('Dashboard',
+                        style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 28,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5)),
                     if (_terms.isNotEmpty) ...[
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       // the term dropdown — pick any semester to view its data
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.borderHairline),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
@@ -529,10 +627,18 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Text('Instructor Leaderboard',
+                        style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5)),
                     TextButton(
                       onPressed: () => _showAllInstructors(), // open the full list
-                      child: const Text('View All', style: TextStyle(color: AppColors.primaryText)),
+                      child: const Text('View All',
+                          style: TextStyle(
+                              color: AppColors.primaryText,
+                              fontWeight: FontWeight.w700)),
                     ),
                   ],
                 ),
@@ -542,19 +648,30 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                   children: _topInstructors.isEmpty
                     ? [const Center(child: Text("No instructors found"))]
                     : _topInstructors.map((instructor) {
-                        return Card(
-                          color: AppColors.surface,
-                          elevation: 2,
+                        return Container(
                           margin: const EdgeInsets.only(bottom: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.textPrimary
+                                    .withValues(alpha: 0.08),
+                                blurRadius: 24,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(20),
                             onTap: () => _showInstructorDetailsSheet(instructor), // tap for details
                             child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20)),
                               leading: CircleAvatar(
-                                backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                                child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                                backgroundColor: AppColors.primaryTint,
+                                child: Text(instructor.name[0], style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
                               ),
                               title: Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                               subtitle: Text('${instructor.subjectCount} Subject(s) • ${instructor.department}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
@@ -588,18 +705,32 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   // reused for 'University Avg' and 'Total Evals' cards at the top
   Widget _buildStatCard(String title, String value, IconData icon, Color iconColor) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 28), // icon at top
-          const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)), // the big number/value
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: iconColor, size: 24), // icon at top
+          ),
+          const SizedBox(height: 14),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)), // the big number/value
           const SizedBox(height: 4),
           Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)), // label below
         ],

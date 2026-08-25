@@ -10,6 +10,8 @@ import '../theme/app_colors.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/services/evaluation_service.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
 
@@ -249,130 +251,241 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     Color(0xFFF87171),           // Bright Coral/Red
   ];
 
+  // ─── Hero header ── espresso gradient block replacing the flat AppBar ────────
+  // Carries the menu button, the notification pill, and the big display title.
+  Widget _buildHeroHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E1608), AppColors.textPrimary],
+        ),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.25),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
+        child: Stack(
+          children: [
+            // Soft orange glow, upper right — same pattern as the login hero
+            Positioned(
+              top: -70,
+              right: -50,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.35),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 4, 20, 26),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
+                        IconButton(
+                          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
+                          tooltip: 'Open menu',
+                          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
+                        ),
+                        const Spacer(),
+                        // Notification Pill — much more premium than a boring icon
+                        InkWell(
+                          borderRadius: BorderRadius.circular(20),
+                          onTap: () {
+                            if (_dynamicAlerts.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('✅ All clear! No active alerts.'),
+                                  backgroundColor: AppColors.success,
+                                  behavior: SnackBarBehavior.floating,
+                                )
+                              );
+                            } else {
+                              // Smoothly scroll down to the alerts section!
+                              if (_alertsKey.currentContext != null) {
+                                Scrollable.ensureVisible(
+                                  _alertsKey.currentContext!,
+                                  duration: const Duration(milliseconds: 600),
+                                  curve: Curves.easeOutQuart,
+                                  alignment: 0.1, // Leave a little padding at the top
+                                );
+                              }
+                            }
+                          },
+                          child: _dynamicAlerts.isNotEmpty
+                              ? Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.error.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.notifications_active, color: AppColors.error, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${_dynamicAlerts.length} Alerts',
+                                        style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface.withValues(alpha: 0.05),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
+                                ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Department Overview',
+                            style: TextStyle(
+                              color: AppColors.textInvertedDim,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Big title — "Executive Dashboard" sounds fancy, dean will like
+                          const Text(
+                            'Executive Dashboard',
+                            style: TextStyle(
+                              color: AppColors.textInverted,
+                              fontSize: 30,
+                              height: 1.05,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // Shows the college name — so we know whose dashboard this is
+                          Text(
+                            _deptInfo['college'] ?? 'Department',
+                            style: const TextStyle(color: AppColors.primary, fontSize: 15, fontWeight: FontWeight.w700),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          // Shows current semester and year — so dean know which term they looking at
+                          Text(
+                            '$_currentSemester, $_currentYear',
+                            style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // The main build method — builds the entire screen UI.
   // Its long but thats because there is a LOT of info to show. dili ta complain.
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
-        // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
-        leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
-          tooltip: 'Open menu',
-          onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Department Overview', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-            // Shows current semester and year — so dean know which term they looking at
-            Text('$_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
-          ],
-        ),
-        actions: [
-          // Notification Pill — much more premium than a boring icon
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Center(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: () {
-                  if (_dynamicAlerts.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('✅ All clear! No active alerts.'),
-                        backgroundColor: AppColors.success,
-                        behavior: SnackBarBehavior.floating,
-                      )
-                    );
-                  } else {
-                    // Smoothly scroll down to the alerts section!
-                    if (_alertsKey.currentContext != null) {
-                      Scrollable.ensureVisible(
-                        _alertsKey.currentContext!,
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.easeOutQuart,
-                        alignment: 0.1, // Leave a little padding at the top
-                      );
-                    }
-                  }
-                },
-                child: _dynamicAlerts.isNotEmpty
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.error.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.notifications_active, color: AppColors.error, size: 16),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${_dynamicAlerts.length} Alerts',
-                              style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface.withValues(alpha: 0.05),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
-                      ),
-              ),
-            ),
-          ),
-        ],
-      ),
-
 
       // drawer removed — MainScaffold now owns the side drawer for all roles
 
       // ==========================================
       // MAIN CONTENT
-      // The scrollable body — everything below the appbar
+      // Hero header scrolls with the content — everything in one scroll view
       // ==========================================
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadInitialData, // Pull down to reload — the classic trick
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(), // Always scrollable so refresh work even if content is short
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
+      body: RefreshIndicator(
+        onRefresh: _loadInitialData, // Pull down to reload — the classic trick
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(), // Always scrollable so refresh work even if content is short
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeroHeader(context),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Big title — "Executive Dashboard" sounds fancy, dean will like
-                const Text('Executive Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
-                // Shows the college name — so we know whose dashboard this is
-                Text(
-                  _deptInfo['college'] ?? 'Department',
-                  style: const TextStyle(color: AppColors.primaryText, fontSize: 16, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 24),
 
                 // --- TOP SUMMARY CARD ---
                 // The hero card — shows overall score, faculty count, and completion rate
                 // Looks nice with gradient background. importente kaayo first impression.
-                Container(
-                  padding: const EdgeInsets.all(24),
+                Entrance(
+                  index: 0,
+                  child: Container(
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: AppColors.heroGradient),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))],
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF2E1608), AppColors.textPrimary],
+                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 24, offset: const Offset(0, 10))],
                   ),
-                  child: Column(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Stack(
+                      children: [
+                        // Warm orange glow accent — keeps the stat card on-brand
+                        Positioned(
+                          top: -60,
+                          right: -40,
+                          child: Container(
+                            width: 180,
+                            height: 180,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: RadialGradient(
+                                colors: [
+                                  AppColors.primary.withValues(alpha: 0.30),
+                                  AppColors.primary.withValues(alpha: 0.0),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -450,28 +563,34 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                       ),
                     ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 32),
+                ),
+                const SizedBox(height: 28),
                 
                 // --- DEPARTMENT HISTORY (GROWTH CHART) ---
-                const Row(
-                  children: [
-                    Icon(Icons.trending_up, color: AppColors.primaryText),
-                    SizedBox(width: 8),
-                    Text('Department Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
+                const Text(
+                  'DEPARTMENT GROWTH',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
                 ),
                 const SizedBox(height: 12),
-                RepaintBoundary(
+                Entrance(
+                  index: 1,
+                  child: RepaintBoundary(
                   child: Container(
                     height: 200, // Slightly shorter for a tighter look
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderHairline, width: 1), // Use hairline border to blend with app
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                      ],
                     ),
                     child: _deptHistory.isEmpty
                         ? const Center(child: Text('No historical data available yet', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)))
@@ -558,6 +677,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                   ),
                 ),
+                ),
                 const SizedBox(height: 32),
 
                 // --- ACTION REQUIRED ALERTS ---
@@ -565,17 +685,15 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 Row(
                   key: _alertsKey,
                   children: const [
-                    Icon(Icons.assignment_late, color: AppColors.textPrimary),
-                    SizedBox(width: 8),
-                    Text('Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text('ACTION REQUIRED', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 // If no alerts — show green "all good" message. Rare but nice.
                 if (_dynamicAlerts.isEmpty)
                   Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
                     child: const Row(
                       children: [
                         Icon(Icons.check_circle, color: AppColors.success),
@@ -589,16 +707,18 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                   Column(
                     children: _dynamicAlerts.map((alert) {
                       final color = _getAlertColor(alert.type); // Red or orange base on severity
-                      return Card(
-                        color: AppColors.surface,
-                        elevation: 1,
+                      return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: color.withValues(alpha: 0.3), width: 1), // Colored border hint
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                          ],
                         ),
                         child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                           leading: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(color: color.withValues(alpha: 0.1), shape: BoxShape.circle),
@@ -633,26 +753,51 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 // --- DEPARTMENT AI WORD CLOUD ---
                 // Shows common words from student feedback — AI-processed, looks fancy
                 // murag a real word cloud but we just use Wrap widget. smart shortcut.
-                const Text('Department Voice (AI Analysis)', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text('DEPARTMENT VOICE (AI ANALYSIS)', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                 const SizedBox(height: 4),
                 const Text('Aggregated themes from all student comments across the college.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                 const SizedBox(height: 16),
                 RepaintBoundary(
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [AppColors.textPrimary, Color(0xFF0F172A)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))
-                    ],
-                  ),
-                  child: _wordCloudData.isEmpty
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.25), blurRadius: 24, offset: const Offset(0, 8))
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Stack(
+                        children: [
+                          // Orange glow accent, upper right — matches the hero header
+                          Positioned(
+                            top: -50,
+                            right: -40,
+                            child: Container(
+                              width: 170,
+                              height: 170,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    AppColors.primary.withValues(alpha: 0.28),
+                                    AppColors.primary.withValues(alpha: 0.0),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: _wordCloudData.isEmpty
                   ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(
@@ -709,11 +854,18 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       return wordText;
                     }),
                   ),
-                ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 32),
               ],
-            ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

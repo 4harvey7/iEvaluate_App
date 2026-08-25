@@ -384,16 +384,27 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true, // resize when keyboard open so fields not hidden
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        // espresso hero gradient — matches the module's redesigned headers
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Correct Failed Scan',
                 style: TextStyle(
-                    color: AppColors.surface,
-                    fontWeight: FontWeight.bold)),
+                    color: AppColors.textInverted,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
             Text(taskId, // show which scan task this is
                 style: const TextStyle(
                     color: AppColors.textInvertedDim, fontSize: 11),
@@ -401,12 +412,13 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           ],
         ),
         actions: [
-          // discard button in top-right — red because destructive action
+          // discard button in top-right — light red so it reads on the dark hero
           TextButton.icon(
-            icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
+            icon: const Icon(Icons.delete_outline,
+                color: Color(0xFFFCA5A5), size: 18),
             label: const Text('Discard',
                 style: TextStyle(
-                    color: AppColors.error, fontWeight: FontWeight.bold)),
+                    color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700)),
             onPressed: _discard, // triggers confirmation dialog first
           ),
         ],
@@ -452,11 +464,11 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     const SizedBox(height: 24),
 
                     // Management scores — 10 small inputs in a grid
-                    _buildScoreSection('Management Scores (M1–M10)', 'm'),
+                    _buildScoreSection('MANAGEMENT SCORES (M1–M10)', 'm'),
                     const SizedBox(height: 20),
 
                     // Performance scores — another 10
-                    _buildScoreSection('Performance Scores (P1–P10)', 'p'),
+                    _buildScoreSection('PERFORMANCE SCORES (P1–P10)', 'p'),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -482,18 +494,31 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     final icon = tableFound ? Icons.grid_off_rounded : Icons.crop_free;
     return Container(
       width: double.infinity,
-      color: color.withValues(alpha: 0.12), // subtle colored background
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12), // soft tinted pill banner
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 8),
+          // icon in a soft tinted circle — matches banner severity color
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 16),
+          ),
+          const SizedBox(width: 10),
           Expanded(
               child: Text(msg,
                   style: TextStyle(
                       color: color,
                       fontSize: 12,
-                      fontWeight: FontWeight.w500))),
+                      fontWeight: FontWeight.w600))),
         ],
       ),
     );
@@ -506,8 +531,19 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   Widget _buildImagesRow() {
     if (!_localImageAvailable || _localImageFile == null) return const SizedBox.shrink(); // no image, show nothing
     return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       child: GestureDetector(
         onTap: () => _showZoomedImage(
           Image.file(_localImageFile!, fit: BoxFit.contain),
@@ -517,7 +553,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           alignment: Alignment.bottomRight,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(14),
               child: Image.file(
                 _localImageFile!,
                 width: double.infinity,
@@ -799,20 +835,19 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     required void Function(Map<String, dynamic>) onTap,
   }) {
     return Container(
-      margin: const EdgeInsets.only(top: 2, bottom: 4),
+      margin: const EdgeInsets.only(top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 4)) // small shadow to lift it above content
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8)) // soft shadow lifts it above content
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           children: items.asMap().entries.map((entry) {
             final isLast = entry.key == items.length - 1;
@@ -862,14 +897,21 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       {required String label, IconData? prefix, Widget? suffix}) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: prefix != null ? Icon(prefix, size: 18) : null,
+      prefixIcon: prefix != null
+          ? Icon(prefix, size: 18, color: AppColors.primaryText)
+          : null,
       suffixIcon: suffix,
       filled: true,
-      fillColor: AppColors.surface,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      fillColor: AppColors.surface, // tonal field — soft white on vanilla
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2), // blue border when focused
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5), // orange border when focused
       ),
     );
   }
@@ -884,9 +926,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       children: [
         Text(title,
             style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 14)),
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+                letterSpacing: 0.5)),
         const SizedBox(height: 8),
         GridView.builder(
           shrinkWrap: true, // dont take extra space
@@ -910,12 +953,16 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 filled: true,
                 fillColor: AppColors.surface,
                 contentPadding: EdgeInsets.zero, // compact cell padding
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
+                enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide:
-                      const BorderSide(color: AppColors.primary, width: 2),
+                      const BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -932,29 +979,61 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   // disabled and shows spinner while submitting — ayaw mag-double submit
   Widget _buildSubmitBar() {
     return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: SizedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -8), // shadow points up — bar floats above content
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
+      child: Container(
         width: double.infinity,
+        height: 56,
+        decoration: BoxDecoration(
+          // gradient CTA with warm glow — the primary action of this screen
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primary, AppColors.primaryDeep],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.4),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: ElevatedButton.icon(
           icon: _isSubmitting
               ? const SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white)) // spinner while submitting
+                      strokeWidth: 2,
+                      color: AppColors.textPrimary)) // spinner while submitting
               : const Icon(Icons.cloud_upload_outlined, size: 20),
           label: Text(
             _isSubmitting ? 'Submitting…' : 'Submit & Validate',
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 16,
+                letterSpacing: 0.2),
           ),
           style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: AppColors.success, // green because it a positive action
-            foregroundColor: Colors.white,
+            backgroundColor: Colors.transparent,
+            disabledBackgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: AppColors.textPrimary,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(16)),
           ),
           onPressed: _isSubmitting ? null : _submit, // null disables the button
         ),

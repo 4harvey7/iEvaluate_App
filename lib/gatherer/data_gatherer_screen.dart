@@ -373,7 +373,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       context: context,
       barrierDismissible: false, // user cannot close this — they must wait
       builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: const Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -435,7 +436,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(children: [
           // green check if success, red error icon if fail — very visual, importente
           Icon(isSuccess ? Icons.check_circle : Icons.error_outline, color: isSuccess ? AppColors.success : AppColors.error),
@@ -443,7 +445,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
         ]),
         content: Text(message),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)))],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryText)))],
       ),
     );
   }
@@ -652,15 +654,28 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       key: _scaffoldKey, // need this key to programmatically open the drawer
       backgroundColor: AppColors.background,
       appBar: _currentIndex == 4 ? null : AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        foregroundColor: AppColors.textInverted,
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // show the current tab name — updates when tab changes
             Text(tabTitles[_currentIndex],
-                style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                style: const TextStyle(
+                    color: AppColors.textInverted,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
             // show semester and year below — always visible for context
             Text('$_currentSemester, $_currentYear',
                 style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
@@ -676,12 +691,12 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.surface,
+                      color: AppColors.textInverted,
                     ),
                   ),
                 )
               : IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: AppColors.surface),
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textInverted),
                   tooltip: 'Refresh',
                   onPressed: () async {
                     final messenger = ScaffoldMessenger.of(context);

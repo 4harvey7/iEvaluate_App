@@ -36,6 +36,7 @@ import '../../login_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
+import '../../widgets/motion.dart';
 import 'role_nav_config.dart';
 import 'role_switch_screen.dart';
 import '../../gatherer/data_gatherer_screen.dart';
@@ -178,6 +179,11 @@ class _MainScaffoldState extends State<MainScaffold> {
   }) {
     final color = isLogout ? AppColors.error : AppColors.textPrimary;
     return ListTile(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      visualDensity: const VisualDensity(vertical: -1),
+      hoverColor: AppColors.primaryTint.withValues(alpha: 0.4),
+      splashColor: AppColors.primaryTint.withValues(alpha: 0.6),
       leading: Icon(item.icon, color: color),
       title: Text(
         item.label,
@@ -212,42 +218,104 @@ class _MainScaffoldState extends State<MainScaffold> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ── Header ──────────────────────────────────────────────────────
-          DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.textPrimary),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+          // ── Header — espresso gradient with warm brand glow ─────────────
+          Container(
+            height: 210,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
+              ),
+            ),
+            child: Stack(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
-                  child: Text(
-                    initials.toUpperCase(),
-                    style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold),
+                // soft orange glow, upper right
+                Positioned(
+                  top: -70,
+                  right: -50,
+                  child: Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.35),
+                          AppColors.primary.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: AppColors.surface,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      // avatar on a glowing white tile
+                      Entrance(
+                        index: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.45),
+                                blurRadius: 18,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 28,
+                            backgroundColor: AppColors.primaryTint,
+                            child: Text(
+                              initials.toUpperCase(),
+                              style: const TextStyle(
+                                  color: AppColors.primaryDeep,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Entrance(
+                        index: 1,
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            color: AppColors.textInverted,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Entrance(
+                        index: 1,
+                        child: Text(
+                          _roleDisplayName(widget.originalRole ?? widget.role),
+                          style: const TextStyle(
+                            color: AppColors.textInvertedDim,
+                            fontSize: 12.5,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  _roleDisplayName(widget.originalRole ?? widget.role),
-                  style: const TextStyle(
-                    color: AppColors.textInvertedDim,
-                    fontSize: 12,
-                  ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
 
           // ── Drawer nav items ────────────────────────────────────────────
           ...config.drawerItems.map(
@@ -260,7 +328,16 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow SAO Admin to jump to Gatherer Screen
           if (widget.role == UserRole.saoAdmin && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.document_scanner_rounded, color: AppColors.primaryText),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.document_scanner_rounded,
+                    color: AppColors.primaryText, size: 20),
+              ),
               title: const Text(
                 'Switch to Data Gatherer View',
                 style: TextStyle(
@@ -299,7 +376,16 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow Dept Head to jump into their own Instructor Dashboard
           if (widget.role == UserRole.deptHead && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.switch_account_rounded, color: AppColors.primaryText),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.switch_account_rounded,
+                    color: AppColors.primaryText, size: 20),
+              ),
               title: const Text(
                 'Switch to Instructor View',
                 style: TextStyle(
@@ -341,7 +427,16 @@ class _MainScaffoldState extends State<MainScaffold> {
           // If they are currently viewing as an Instructor, let them go back
           if (widget.originalRole != null)
             ListTile(
-              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primaryText),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.keyboard_return_rounded,
+                    color: AppColors.primaryText, size: 20),
+              ),
               title: Text(
                 'Return to ${_roleDisplayName(widget.originalRole!)}',
                 style: const TextStyle(
@@ -375,7 +470,16 @@ class _MainScaffoldState extends State<MainScaffold> {
 
           // ── Logout — always pinned at the bottom ────────────────────────
           ListTile(
-            leading: const Icon(Icons.logout_rounded, color: AppColors.error),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.logout_rounded,
+                  color: AppColors.error, size: 20),
+            ),
             title: const Text(
               'Log Out',
               style: TextStyle(
@@ -440,8 +544,14 @@ class _MainScaffoldState extends State<MainScaffold> {
                     (i) => _buildTabNavigator(i, config.bottomNavItems[i]),
                   ),
                 ),
-          bottomNavigationBar: NavigationBar(
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // subtle top hairline separating content from the bar
+              Container(height: 1, color: AppColors.borderHairline),
+              NavigationBar(
             backgroundColor: AppColors.surface,
+            surfaceTintColor: Colors.transparent,
             indicatorColor: AppColors.primaryTint,
             selectedIndex: _selectedIndex,
             onDestinationSelected: (index) {
@@ -465,6 +575,8 @@ class _MainScaffoldState extends State<MainScaffold> {
                   ),
                 )
                 .toList(),
+              ),
+            ],
           ),
         ),
       ),

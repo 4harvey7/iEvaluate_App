@@ -144,16 +144,28 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
         title: Text(
           widget.termName,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: AppColors.textInverted,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.textInverted),
             tooltip: 'Refresh',
             onPressed: _fetchTermSubjects,
           ),
@@ -171,7 +183,7 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
                     )
                   : ListView.builder(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(20),
                       itemCount: _subjects.length,
                       itemBuilder: (context, index) {
                         final subject = _subjects[index];
@@ -199,9 +211,31 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.subject_rounded, size: 80, color: AppColors.textPrimary.withValues(alpha: 0.1)),
-          const SizedBox(height: 16),
-          const Text('No subjects found for this term.', style: TextStyle(color: AppColors.textSecondary)),
+          Container(
+            width: 96,
+            height: 96,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryTint,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.subject_rounded,
+                size: 44, color: AppColors.primaryText),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'No subjects here yet',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'No subjects found for this term.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+          ),
         ],
       ),
     );

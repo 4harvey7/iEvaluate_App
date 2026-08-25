@@ -155,8 +155,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -166,18 +166,17 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           // title changes depending on if we're in OTP step or not
-                          Text(needsOTP ? 'Verify Role Change' : 'Edit Admin Profile', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          Text(needsOTP ? 'Verify Role Change' : 'Edit Admin Profile', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.textPrimary)),
                           IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 16),
                       if (!needsOTP) ...[
                         Container(
-                          padding: const EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                            color: AppColors.warning.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,8 +206,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             labelText: 'System Role',
                             prefixIcon: const Icon(Icons.shield, color: AppColors.primaryText),
                             filled: true,
-                            fillColor: AppColors.surface,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                            fillColor: AppColors.background,
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                           ),
                           items: ['SAO_ADMIN', 'SAO_STAFF'].map((role) => DropdownMenuItem(value: role, child: Text(role))).toList(),
                           onChanged: (val) => setSheetState(() => tempSelectedRole = val!),
@@ -230,13 +230,29 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       ],
 
                       const SizedBox(height: 24),
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.primaryDeep]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           onPressed: isSaving ? null : () async {
                             final navigator = Navigator.of(context);
@@ -308,8 +324,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           },
                           // show spinner while saving, otherwise show appropriate label
                           child: isSaving
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : Text(needsOTP ? 'Verify & Update' : 'Save Changes', style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                            : Text(needsOTP ? 'Verify & Update' : 'Save Changes', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -335,8 +351,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3, color: AppColors.textPrimary)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -347,8 +364,12 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primaryText),
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                     ),
                   ),
                 ],
@@ -407,8 +428,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+              title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -535,13 +556,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           // warning icon + title to scare the user a little before they proceed
           title: const Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: AppColors.error), // red warning — serious kaayo ni
               SizedBox(width: 8),
-              Text("Delete Account?"),
+              Text("Delete Account?",
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800, letterSpacing: -0.3)),
             ],
           ),
           // very clear disclaimer — they can't say we didn't warn them
@@ -550,7 +574,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
             // cancel — the sensible choice
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
             SafeElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
                 final navigator = Navigator.of(context);
@@ -640,11 +664,13 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       obscureText: isPassword, // hide text if it's a password — privacy muna
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null, // icon optional
         filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+        fillColor: AppColors.background,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -664,15 +690,29 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('System Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('System Settings',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         // show a thin progress bar at the bottom of appbar while loading
         bottom: _isLoading
             ? const PreferredSize(
@@ -687,7 +727,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -695,20 +735,33 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // 1. PROFILE SECTION
               // shows the admin's name, title and a link to edit
               // ==========================================
-              const Text('Administrator Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('ADMINISTRATOR PROFILE',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Row(
                     children: [
                       // circle avatar showing the initials — no profile picture, this is not facebook
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+                        backgroundColor: AppColors.primaryTint,
                         child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primaryText, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
@@ -717,7 +770,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             // full name of the logged-in admin
-                            Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                            Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3, fontSize: 18, color: AppColors.textPrimary)),
                             const SizedBox(height: 4),
                             // title and office in smaller text below the name
                             Text('$_userTitle • $_userOffice', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
@@ -741,12 +794,25 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // lets admin pick which semester and year is currently active
               // affects ALL dashboards, reports, and analytics — no pressure
               // ==========================================
-              const Text('Academic Term Management', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('ACADEMIC TERM MANAGEMENT',
+                  style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: Column(
                   children: [
                     // The Dropdowns — for semester and academic year selection
@@ -813,7 +879,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                     filled: true,
                                     fillColor: AppColors.background,
-                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                                   ),
                                   onChanged: (val) => setState(() {}), // rebuild on each keystroke to filter dropdown
                                 ),
@@ -881,9 +949,21 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: SizedBox(
+                      child: Container(
                         width: double.infinity,
-                        height: 48,
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.primaryDeep]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton.icon(
                           onPressed: _isUpdatingSettings ? null : () async {
                             // Confirmation dialog before applying changes — dili ta mag-yolo
@@ -891,12 +971,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               context: context,
                               builder: (dialogContext) => AlertDialog(
                                 backgroundColor: AppColors.surface,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                                 title: const Row(
                                   children: [
                                     Icon(Icons.warning_amber_rounded, color: AppColors.warning), // yellow warning — serious but not critical
                                     SizedBox(width: 8),
-                                    Flexible(child: Text('Confirm Term Change')),
+                                    Flexible(
+                                        child: Text('Confirm Term Change',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: -0.3))),
                                   ],
                                 ),
                                 // warn user this change is global — affects everyone, bahala na
@@ -927,12 +1011,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           },
                           // spinner or icon depending on update status
                           icon: _isUpdatingSettings
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.sync_problem, color: Colors.white),
-                          label: const Text('Update System Configuration', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                            : const Icon(Icons.sync_problem, color: AppColors.textPrimary),
+                          label: const Text('Update System Configuration', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                         ),
                       ),
@@ -948,18 +1036,32 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // 4. SECURITY & DANGER ZONE
               // red title because it means business — change password or nuke account
               // ==========================================
-              const Text('Security & Administration', style: TextStyle(color: AppColors.error, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('SECURITY & ADMINISTRATION',
+                  style: TextStyle(
+                      color: AppColors.error,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: Column(
                   children: [
                     // Edit Email option
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.email_outlined, color: AppColors.primaryText)),
+                      leading: Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.email_outlined, color: AppColors.primaryText)),
                       title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showEditEmailDialog,
@@ -968,7 +1070,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     // change password option — recommended to do regularly, dili kag bato
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.lock, color: AppColors.primaryText)),
+                      leading: Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.lock, color: AppColors.primaryText)),
                       title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog, // opens the password change dialog
@@ -977,7 +1079,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     // delete account — the point of no return, red because danger
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_forever, color: AppColors.error)),
+                      leading: Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)), child: const Icon(Icons.delete_forever, color: AppColors.error)),
                       title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                       onTap: _showDeleteAccountDialog, // opens the "are you sure" dialog
@@ -1011,7 +1113,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   },
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.error, width: 2), // red border — logout is serious
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

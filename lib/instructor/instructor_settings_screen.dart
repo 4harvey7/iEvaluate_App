@@ -147,8 +147,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -164,11 +164,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       ),
                       const SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          color: AppColors.warning.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(14),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,13 +188,29 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
-                      SizedBox(
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.primary, AppColors.primaryDeep],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           // Disable button while saving to avoid double-click disaster
                           onPressed: isSaving ? null : () async {
@@ -226,9 +241,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                             }
                           },
                           // Show spinner while saving, text when idle
-                          child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                          child: isSaving
+                            ? const CircularProgressIndicator(color: AppColors.textPrimary)
+                            : const Text('Save Changes', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                         ),
                       ),
                     ],
@@ -515,9 +530,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
         labelText: label,
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null,
         filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+        fillColor: AppColors.background,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -536,40 +552,66 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Account Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Account Settings',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+      body: _isLoading
+        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
         : SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Section: Profile — shows avatar, name, title, and edit link
-              const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Profile'.toUpperCase(),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(18.0),
                   child: Row(
                     children: [
                       // Circle avatar with initials — no photo upload yet, bahala na
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                        backgroundColor: AppColors.primaryTint,
+                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primaryText, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -601,19 +643,33 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               const SizedBox(height: 32),
 
               // Section: Notifications — manage push notification preferences
-              const Text('Notifications', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Notifications'.toUpperCase(),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   leading: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.primaryTint,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.notifications_active, color: AppColors.primaryText),
                   ),
@@ -629,20 +685,34 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               const SizedBox(height: 32),
 
               // Section: Security & Danger Zone — where the brave (and reckless) go
-              const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              Text('Security & Danger Zone'.toUpperCase(),
+                  style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
                   children: [
                     // Edit Email tile
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.email_outlined, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -654,8 +724,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.lock, color: AppColors.primaryText),
                       ),
                       title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
@@ -667,8 +737,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.delete_forever, color: AppColors.error),
                       ),
                       title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
@@ -703,8 +773,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.error, width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    side: const BorderSide(color: AppColors.error, width: 1.5),
+                    backgroundColor: AppColors.surface,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,

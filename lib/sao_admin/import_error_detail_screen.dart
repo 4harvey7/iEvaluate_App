@@ -333,10 +333,12 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('Discard Error?',
             style: TextStyle(
-                color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3)),
         // note: original scan data stays in DB even after discard — it's not deleted
         content: const Text(
             'This will mark the record as discarded. The original scan stays in the database.',
@@ -349,10 +351,11 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8))),
+                    borderRadius: BorderRadius.circular(12))),
             onPressed: () => Navigator.pop(context, true), // confirm discard
-            child:
-                const Text('Discard', style: TextStyle(color: Colors.white)),
+            child: const Text('Discard',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -392,20 +395,32 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true, // important — form shifts up when keyboard appears
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Fix Import Error',
                 style: TextStyle(
-                    color: AppColors.surface,
-                    fontWeight: FontWeight.bold)),
+                    color: AppColors.textInverted,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5)),
             // shows source type in subtitle — sheet or scan
             Text(
               _isSheet ? '📊 From Google Sheet' : '📷 From Scan',
-              style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 11),
+              style: const TextStyle(
+                  color: AppColors.textInvertedDim, fontSize: 11),
             ),
           ],
         ),
@@ -459,11 +474,12 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                     const SizedBox(height: 20),
 
                     // Correction section heading
-                    const Text('Correct the Assignment',
+                    const Text('CORRECT THE ASSIGNMENT',
                         style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold)),
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            letterSpacing: 0.5,
+                            fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
                     // brief instructions on what to do — different message for sheet vs scan
                     Text(
@@ -519,8 +535,12 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
     return Container(
       width: double.infinity,
-      color: color.withValues(alpha: 0.08), // very light background tint
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10), // very light background tint
+        borderRadius: BorderRadius.circular(16),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -545,25 +565,36 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   // has three states: loading, image available (tappable), image not available
   Widget _buildImageSection() {
     return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Scanned Form Image',
+          const Text('SCANNED FORM IMAGE',
               style: TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 11,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
+                  letterSpacing: 0.5,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(height: 8),
           if (_isLoadingImage)
             // loading state — image is being fetched from DB
             Container(
               height: 130,
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.borderHairline),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: const Center(
                 child: CircularProgressIndicator(
@@ -578,7 +609,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                 alignment: Alignment.bottomRight,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(16),
                     child: Image.memory(
                       _imageBytes!,
                       width: double.infinity,
@@ -614,8 +645,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               height: 80,
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.borderHairline),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: const Center(
                 child: Row(
@@ -701,11 +731,17 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     final studentId = widget.error['raw_student_id']?.toString() ?? '—'; // the student's ID
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderHairline),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -778,11 +814,17 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     if (!hasM && !hasP) return const SizedBox.shrink(); // no scores — hide this section entirely
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderHairline),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -801,16 +843,16 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               // "Read-only" badge on the right — so nobody tries to edit
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text('Read-only',
                     style: TextStyle(
                         color: AppColors.primaryText,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -892,11 +934,17 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     if (_scoreCtrlMap.isEmpty) return const SizedBox.shrink(); // no controllers — hide section
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)), // blue border — editable
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -915,16 +963,16 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               // "Tap to edit" badge — tell the admin they can change these
               Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: const Text('Tap to edit',
                     style: TextStyle(
                         color: AppColors.primaryText,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -979,14 +1027,18 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
             labelText: key.toUpperCase(), // label like "M1", "P5"
             labelStyle: const TextStyle(fontSize: 11),
             filled: true,
-            fillColor: AppColors.surface,
+            fillColor: AppColors.background,
             contentPadding: EdgeInsets.zero, // no extra padding inside the cell
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8)),
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               borderSide:
-                  const BorderSide(color: AppColors.primary, width: 2), // blue when focused
+                  const BorderSide(color: AppColors.primary, width: 1.5), // orange when focused
             ),
           ),
           style: const TextStyle(
@@ -997,11 +1049,12 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   }
 
   // tiny section label — lighter gray text used as subheadings in score sections
-  Widget _sectionLabel(String text) => Text(text,
+  Widget _sectionLabel(String text) => Text(text.toUpperCase(),
       style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 11,
-          fontWeight: FontWeight.w600));
+          letterSpacing: 0.5,
+          fontWeight: FontWeight.w700));
 
   // ── Autocomplete fields ────────────────────────────────────────────────────
 
@@ -1073,18 +1126,18 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
           _buildSuggestions(
             _subjectSuggestions,
             itemBuilder: (item) => Row(children: [
-              // subject code in a blue chip — easier to scan
+              // subject code in an orange chip — easier to scan
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+                  color: AppColors.primaryTint,
+                  borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   item['subject_code']?.toString() ?? '',
                   style: const TextStyle(
                       color: AppColors.primaryText,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                       fontSize: 12),
                 ),
               ),
@@ -1113,20 +1166,19 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     required void Function(Map<String, dynamic>) onTap,         // what to do on tap
   }) {
     return Container(
-      margin: const EdgeInsets.only(top: 2, bottom: 4),
+      margin: const EdgeInsets.only(top: 6, bottom: 4),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)), // blue border
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 4)) // shadow below — floating panel feel
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8)) // shadow below — floating panel feel
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         child: Column(
           // map each item to a tappable row, separated by thin borders except the last
           children: items.asMap().entries.map((entry) {
@@ -1160,8 +1212,19 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     final canSubmit =
         _selectedInstructorId != null && _selectedSubjectId != null; // both required to enable
     return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius:
+            const BorderRadius.vertical(top: Radius.circular(24)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -8),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
       child: Column(
         children: [
           // reminder hint shown when submit is disabled — tells user what they're missing
@@ -1183,8 +1246,26 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               ),
             ),
           // the big submit button — sends correction to n8n for re-processing
-          SizedBox(
+          Container(
             width: double.infinity,
+            height: 54,
+            decoration: BoxDecoration(
+              gradient: canSubmit
+                  ? const LinearGradient(
+                      colors: [AppColors.primary, AppColors.primaryDeep])
+                  : null,
+              color: canSubmit ? null : AppColors.borderSubtle,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: canSubmit
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ]
+                  : null,
+            ),
             child: ElevatedButton.icon(
               icon: _isSubmitting
                   ? const SizedBox(
@@ -1198,13 +1279,13 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                     fontWeight: FontWeight.bold, fontSize: 16),
               ),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                // gray when disabled, primary blue when ready — visual feedback
-                backgroundColor:
-                    canSubmit ? AppColors.primary : AppColors.borderSubtle,
+                backgroundColor: Colors.transparent,
+                disabledBackgroundColor: Colors.transparent,
                 foregroundColor: AppColors.textPrimary,
+                disabledForegroundColor: AppColors.textSecondary,
+                shadowColor: Colors.transparent,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                    borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
               ),
               onPressed: (_isSubmitting || !canSubmit) ? null : _submit, // disabled if not ready
@@ -1222,8 +1303,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   Widget _avatar(String initials) {
     return Container(
       width: 34, height: 34,
-      decoration: BoxDecoration(
-        color: AppColors.primary.withValues(alpha: 0.12), // light blue background
+      decoration: const BoxDecoration(
+        color: AppColors.primaryTint, // light orange background
         shape: BoxShape.circle,
       ),
       child: Center(
@@ -1250,14 +1331,22 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       {required String label, IconData? prefix, Widget? suffix}) {
     return InputDecoration(
       labelText: label,
-      prefixIcon: prefix != null ? Icon(prefix, size: 18) : null, // optional left icon
+      labelStyle: const TextStyle(color: AppColors.textSecondary),
+      prefixIcon: prefix != null
+          ? Icon(prefix, size: 18, color: AppColors.primaryText)
+          : null, // optional left icon
       suffixIcon: suffix, // optional right widget (e.g. checkmark)
       filled: true,
       fillColor: AppColors.surface,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2), // blue when focused
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5), // orange when focused
       ),
     );
   }

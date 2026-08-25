@@ -311,14 +311,34 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             iconTheme: const IconThemeData(color: AppColors.surface),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: AppColors.heroGradient, // Nice gradient — looks professional
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
+                    colors: [Color(0xFF2E1608), AppColors.textPrimary], // Espresso hero — matches login
                   ),
                 ),
-                child: SafeArea(
+                child: Stack(
+                  children: [
+                    // Soft orange glow, upper right — login's Positioned glow pattern
+                    Positioned(
+                      top: -70,
+                      right: -50,
+                      child: Container(
+                        width: 220,
+                        height: 220,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              AppColors.primary.withValues(alpha: 0.35),
+                              AppColors.primary.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(20, 56, 20, 20),
                     child: Column(
@@ -341,12 +361,12 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Full name — bold and white on the dark gradient
-                                  Text(name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                                  Text(title, style: const TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                  // Full name — heavy vanilla display type on the dark gradient
+                                  Text(name, style: const TextStyle(color: AppColors.textInverted, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5), overflow: TextOverflow.ellipsis),
+                                  Text(title, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13), overflow: TextOverflow.ellipsis),
                                   // Show department name if it exists
                                   if (dept.isNotEmpty)
-                                    Text(dept, style: const TextStyle(color: Colors.white54, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                    Text(dept, style: const TextStyle(color: AppColors.textInvertedFaint, fontSize: 12), overflow: TextOverflow.ellipsis),
                                 ],
                               ),
                             ),
@@ -354,9 +374,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: BoxDecoration(
-                                color: _scoreColor(score).withValues(alpha: 0.15), // Tinted background
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _scoreColor(score).withValues(alpha: 0.4)),
+                                color: _scoreColor(score).withValues(alpha: 0.18), // Tinted pill — no hairline border
+                                borderRadius: BorderRadius.circular(16),
                               ),
                               child: Column(
                                 children: [
@@ -374,6 +393,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                       ],
                     ),
                   ),
+                ),
+                  ],
                 ),
               ),
             ),
@@ -430,11 +451,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         // Eval count chip — shows how many students actually rated them
         Expanded(
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(18),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
             ),
             child: Column(
               children: [
@@ -453,11 +474,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   Widget _scoreChip(String label, double score) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
         ),
         child: Column(
           children: [
@@ -477,8 +498,16 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // The "View Official SAST Report" button — opens the detailed report screen
   // Passes all the scores and metadata needed for the report. importente all params are set.
   Widget _buildReportButton(Map<String, dynamic> instructor) {
-    return SizedBox(
+    return Container(
+      height: 54,
       width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+        ],
+      ),
       child: ElevatedButton.icon(
         onPressed: () {
           // Navigate to DetailedReportScreen — pass all required data
@@ -501,11 +530,13 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           );
         },
         icon: const Icon(Icons.description_rounded, color: AppColors.textPrimary),
-        label: const Text('View Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15)),
+        label: const Text('View Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 15, letterSpacing: -0.2)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          foregroundColor: AppColors.textPrimary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
     );
@@ -515,14 +546,23 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   Widget _buildDeactivateButton(Map<String, dynamic> instructor) {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: SizedBox(
+      child: Container(
+        height: 54,
         width: double.infinity,
-        child: OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.error,
-            side: const BorderSide(color: AppColors.error),
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [AppColors.error, Color(0xFF9A3412)]),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(color: AppColors.error.withValues(alpha: 0.35), blurRadius: 16, offset: const Offset(0, 6)),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            elevation: 0,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           ),
           onPressed: () async {
             // Confirm first
@@ -584,13 +624,14 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          padding: EdgeInsets.only(bottom: 12),
           child: Text(
-            'Sentiment Analysis',
+            'SENTIMENT ANALYSIS',
             style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF333333),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              color: AppColors.textSecondary,
             ),
           ),
         ),
@@ -598,8 +639,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFFF3F2EE), // Light beige from mockup
-            borderRadius: BorderRadius.circular(16),
+            color: AppColors.surface, // Clean white card — soft shadow, no border
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -608,7 +652,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                 'Comment Polarity Distribution',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Color(0xFF888888), // Light gray text
+                  color: AppColors.textSecondary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -621,17 +665,17 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                     if (posPct > 0)
                       Expanded(
                         flex: posPct,
-                        child: Container(height: 10, color: const Color(0xFF457962)), // Green
+                        child: Container(height: 10, color: AppColors.success), // Green
                       ),
                     if (neuPct > 0)
                       Expanded(
                         flex: neuPct,
-                        child: Container(height: 10, color: const Color(0xFFBC7631)), // Gold/Orange
+                        child: Container(height: 10, color: AppColors.warning), // Gold/Orange
                       ),
                     if (negPct > 0)
                       Expanded(
                         flex: negPct,
-                        child: Container(height: 10, color: const Color(0xFFC34A2C)), // Red/Deep Orange
+                        child: Container(height: 10, color: AppColors.error), // Red/Deep Orange
                       ),
                   ],
                 ),
@@ -641,21 +685,21 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSentimentLegendItem('Positive', '${hasData ? posPct : 0}%', const Color(0xFF457962)),
-                  _buildSentimentLegendItem('Neutral', '${hasData ? neuPct : 0}%', const Color(0xFFBC7631)),
-                  _buildSentimentLegendItem('Negative', '${hasData ? negPct : 0}%', const Color(0xFFC34A2C)),
+                  _buildSentimentLegendItem('Positive', '${hasData ? posPct : 0}%', AppColors.success),
+                  _buildSentimentLegendItem('Neutral', '${hasData ? neuPct : 0}%', AppColors.warning),
+                  _buildSentimentLegendItem('Negative', '${hasData ? negPct : 0}%', AppColors.error),
                 ],
               ),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
-                child: Divider(color: Color(0xFFE0DFDC), height: 1),
+                child: Divider(color: AppColors.borderHairline, height: 1),
               ),
               const Text(
                 'Key Sentiment Tags',
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF333333),
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
@@ -682,14 +726,14 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         const SizedBox(width: 4),
         Text(
           '$label: ',
-          style: const TextStyle(fontSize: 11, color: Color(0xFF888888)),
+          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
         Text(
           percent,
           style: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF333333),
+            color: AppColors.textPrimary,
           ),
         ),
       ],
@@ -700,16 +744,15 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDE8DB), // Light orange background
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5B59F)), // Orange border
+        color: AppColors.primaryTint, // Tonal pill fill — no border
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          color: Color(0xFFC34A2C), // Deep orange text
+          color: AppColors.primaryText, // Accessible orange on the tint
           fontSize: 12,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -723,14 +766,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header with icon
-        const Row(
-          children: [
-            Icon(Icons.trending_up, color: AppColors.primaryText, size: 20),
-            SizedBox(width: 8),
-            Text('Performance Trend', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
+        // Section header — small caps overline
+        const Text('PERFORMANCE TREND', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
         const SizedBox(height: 4),
         const Text('Historical score across all evaluation terms', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
         const SizedBox(height: 16),
@@ -740,7 +777,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
             ),
             child: const Center(
               child: Text('No historical data available.', style: TextStyle(color: AppColors.textSecondary)),
@@ -748,11 +786,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           )
         else
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 14),
             decoration: BoxDecoration(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
             ),
             child: Column(
               children: [
@@ -833,15 +871,13 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       children: [
         Row(
           children: [
-            const Icon(Icons.library_books_rounded, color: AppColors.primaryText, size: 20),
-            const SizedBox(width: 8),
-            const Text('Subjects This Term', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text('SUBJECTS THIS TERM', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const Spacer(),
-            // Subject count badge — so dean can see at a glance how many subjects
+            // Subject count badge — tonal pill, so dean can see at a glance how many subjects
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-              child: Text('${_subjects.length}', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
+              decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(20)),
+              child: Text('${_subjects.length}', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700, fontSize: 12)),
             ),
           ],
         ),
@@ -850,7 +886,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         if (_subjects.isEmpty)
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
+            ),
             child: const Center(
               child: Text('No subjects found for this term.', style: TextStyle(color: AppColors.textSecondary)),
             ),
@@ -884,22 +924,22 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8))],
         ),
         child: Row(
           children: [
-            // Book icon container — gives the tile some visual character
+            // Book icon container — primary-tint square, gives the tile some visual character
             Container(
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: AppColors.primaryTint,
+                borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.book_rounded, color: AppColors.primaryText, size: 22),
             ),

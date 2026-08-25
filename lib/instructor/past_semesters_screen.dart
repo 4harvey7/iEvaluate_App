@@ -324,38 +324,58 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Past Terms', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Past Terms',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.surface),
+            icon: const Icon(Icons.refresh, color: AppColors.textInverted),
             tooltip: 'Refresh',
             onPressed: _fetchHistory,
           ),
         ],
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+      body: _isLoading
+        ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
         : RefreshIndicator(
         onRefresh: _fetchHistory, // pull-to-refresh also re-fetches history
         color: AppColors.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(), // needed for pull-to-refresh even on short content
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Page title and subtitle
-            const Text('Historical Growth', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const Text('Historical Growth',
+                style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1.1,
+                    color: AppColors.textPrimary)),
             const SizedBox(height: 8),
-            const Text('Track your evaluation scores across previous academic terms.', style: TextStyle(color: AppColors.textSecondary)),
+            const Text('Track your evaluation scores across previous academic terms.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4)),
             const SizedBox(height: 24),
 
             // Interactive bar chart showing all historical term scores
@@ -365,7 +385,12 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Term Filter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text('Term Filter'.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: AppColors.textSecondary)),
                 // Show "Full Term Report" button only when a term with data is selected
                 if (termData != null && termData.isNotEmpty)
                   TextButton.icon(
@@ -386,9 +411,16 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         totalEvaluations: (termData['evaluations'] as int?) ?? 0,
                       )));
                     },
-                    icon: const Icon(Icons.description, size: 18),
-                    label: const Text('Full Term Report'),
-                    style: TextButton.styleFrom(foregroundColor: AppColors.primaryText),
+                    icon: const Icon(Icons.description, size: 16),
+                    label: const Text('Full Term Report',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryText,
+                      backgroundColor: AppColors.primaryTint,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(100)),
+                    ),
                   ),
               ],
             ),
@@ -398,7 +430,17 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             if (_historicalData.isNotEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.textTertiary.withOpacity(0.2))),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.textPrimary.withValues(alpha: 0.08),
+                      blurRadius: 24,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _selectedTermId,
@@ -422,25 +464,87 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               )
             else
               // No history at all — maybe the instructor is brand new
-              const Center(child: Text('No historical data found.')),
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryTint,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.history_rounded,
+                            color: AppColors.primaryText, size: 26),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('No historical data found.',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ),
 
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Subjects Taught', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text('Subjects Taught'.toUpperCase(),
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: AppColors.textSecondary)),
                 // Show count of subjects for selected term when not loading
                 if (!_isTermLoading)
-                  Text('${_selectedTermSubjects.length} Subjects', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryTint,
+                      borderRadius: BorderRadius.circular(100),
+                    ),
+                    child: Text('${_selectedTermSubjects.length} Subjects',
+                        style: const TextStyle(
+                            color: AppColors.primaryText,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12)),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
 
             // Either show loading, empty message, or list of subject cards
             if (_isTermLoading)
-              const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+              const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: AppColors.primary)))
             else if (_selectedTermSubjects.isEmpty)
-              const Center(child: Padding(padding: EdgeInsets.all(32), child: Text('No subjects found for this term.')))
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: const BoxDecoration(
+                          color: AppColors.primaryTint,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.menu_book_rounded,
+                            color: AppColors.primaryText, size: 26),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text('No subjects found for this term.',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14)),
+                    ],
+                  ),
+                ),
+              )
             else
               // Map each subject data into a Subject model and render a SubjectCard
               ..._selectedTermSubjects.map((s) {
@@ -468,88 +572,146 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
   Widget _buildTrendGraph() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.textPrimary, const Color(0xFF1E293B)]),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF2E1608), AppColors.textPrimary],
+        ),
         borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Performance Trend', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 32),
-          SizedBox(
-            height: 180,
-            child: _historicalData.isEmpty
-                // No data at all — cannot draw bars, show placeholder text
-                ? const Center(child: Text('No data available', style: TextStyle(color: Colors.white54)))
-                : Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: _historicalData.map((data) {
-                      double score = (data['overallScore'] as num?)?.toDouble() ?? 0.0;
-                      // Bar height proportional to score out of 5 — max 120px
-                      double h = (score / 5.0) * 120;
-                      bool isSel = data['termId'] == _selectedTermId; // highlight selected term
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // Score label above the bar
-                          Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          // Tappable bar — clicking selects this term
-                          GestureDetector(
-                            onTap: () {
-                              setState(() => _selectedTermId = data['termId']);
-                              _loadSelectedTermData(data['termId']); // load this term's subjects
-                            },
-                            child: Container(
-                              width: 30,
-                              height: h.clamp(5, 120), // minimum height 5px so it's always visible
-                              decoration: BoxDecoration(
-                                color: isSel ? AppColors.primary : Colors.white24, // highlight selected
-                                borderRadius: BorderRadius.circular(4),
-                                border: isSel ? Border.all(color: Colors.white, width: 1) : null,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Short label below bar: "1st\n25-26" so different years are distinguishable
-                          SizedBox(
-                            width: 40,
-                            child: Builder(builder: (_) {
-                              final full = data['semester']?.toString() ?? '';
-                              // full = "1st Semester 2025-2026"
-                              final parts = full.split(' ');
-                              final ordinal = parts.isNotEmpty ? parts[0] : full; // "1st"
-                              // academic_year is the last token e.g. "2025-2026" → shorten to "25-26"
-                              String yearShort = '';
-                              if (parts.length >= 3) {
-                                final ay = parts.last; // "2025-2026"
-                                final ayParts = ay.split('-');
-                                if (ayParts.length == 2) {
-                                  yearShort = '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
-                                      '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}';
-                                } else {
-                                  yearShort = ay;
-                                }
-                              }
-                              final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
-                              return Text(
-                                label,
-                                style: const TextStyle(color: Colors.white54, fontSize: 11),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              );
-                            }),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                  ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.3),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Stack(
+          children: [
+            // soft orange glow, upper right — echoes the login hero
+            Positioned(
+              top: -70,
+              right: -50,
+              child: Container(
+                width: 220,
+                height: 220,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      AppColors.primary.withValues(alpha: 0.30),
+                      AppColors.primary.withValues(alpha: 0.0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Performance Trend',
+                      style: TextStyle(
+                          color: AppColors.textInverted,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 18,
+                          letterSpacing: -0.5)),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    height: 180,
+                    child: _historicalData.isEmpty
+                        // No data at all — cannot draw bars, show placeholder text
+                        ? const Center(child: Text('No data available', style: TextStyle(color: AppColors.textInvertedDim)))
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: _historicalData.map((data) {
+                              double score = (data['overallScore'] as num?)?.toDouble() ?? 0.0;
+                              // Bar height proportional to score out of 5 — max 120px
+                              double h = (score / 5.0) * 120;
+                              bool isSel = data['termId'] == _selectedTermId; // highlight selected term
+                              return Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  // Score label above the bar
+                                  Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  // Tappable bar — clicking selects this term
+                                  GestureDetector(
+                                    onTap: () {
+                                      setState(() => _selectedTermId = data['termId']);
+                                      _loadSelectedTermData(data['termId']); // load this term's subjects
+                                    },
+                                    child: Container(
+                                      width: 30,
+                                      height: h.clamp(5, 120), // minimum height 5px so it's always visible
+                                      decoration: BoxDecoration(
+                                        gradient: isSel
+                                            ? const LinearGradient(
+                                                begin: Alignment.topCenter,
+                                                end: Alignment.bottomCenter,
+                                                colors: [AppColors.primary, AppColors.primaryDeep],
+                                              )
+                                            : null,
+                                        color: isSel ? null : AppColors.textInvertedFaint, // highlight selected
+                                        borderRadius: BorderRadius.circular(6),
+                                        boxShadow: isSel
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppColors.primary.withValues(alpha: 0.4),
+                                                  blurRadius: 16,
+                                                  offset: const Offset(0, 6),
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  // Short label below bar: "1st\n25-26" so different years are distinguishable
+                                  SizedBox(
+                                    width: 40,
+                                    child: Builder(builder: (_) {
+                                      final full = data['semester']?.toString() ?? '';
+                                      // full = "1st Semester 2025-2026"
+                                      final parts = full.split(' ');
+                                      final ordinal = parts.isNotEmpty ? parts[0] : full; // "1st"
+                                      // academic_year is the last token e.g. "2025-2026" → shorten to "25-26"
+                                      String yearShort = '';
+                                      if (parts.length >= 3) {
+                                        final ay = parts.last; // "2025-2026"
+                                        final ayParts = ay.split('-');
+                                        if (ayParts.length == 2) {
+                                          yearShort = '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                                              '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}';
+                                        } else {
+                                          yearShort = ay;
+                                        }
+                                      }
+                                      final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
+                                      return Text(
+                                        label,
+                                        style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11),
+                                        textAlign: TextAlign.center,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 2,
+                                      );
+                                    }),
+                                  ),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

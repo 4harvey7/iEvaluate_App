@@ -267,10 +267,23 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
-        title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.textPrimary,
+        title: const Text('Official Evaluation Report',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded),
@@ -281,7 +294,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(20.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -372,11 +385,23 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
 
   Widget _buildSummaryTable() {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.textPrimary),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Table(
-        border: TableBorder.all(color: AppColors.textPrimary),
+        border: const TableBorder(
+          horizontalInside: BorderSide(color: AppColors.borderSubtle),
+          verticalInside: BorderSide(color: AppColors.borderSubtle),
+        ),
         columnWidths: const {
           0: FlexColumnWidth(1),
           1: FlexColumnWidth(2),
@@ -385,7 +410,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         },
         children: [
           const TableRow(
-            decoration: BoxDecoration(color: Color(0xFFEEEEEE)),
+            decoration: BoxDecoration(color: AppColors.primaryTint),
             children: [
               TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text('N', style: TextStyle(fontWeight: FontWeight.bold))))),
               TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text('MANAGEMENT', style: TextStyle(fontWeight: FontWeight.bold))))),
@@ -426,9 +451,20 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(8),
-          color: AppColors.textPrimary,
-          child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+          ),
+          child: Text(title,
+              style: const TextStyle(
+                  color: AppColors.textInverted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3)),
         ),
         Table(
           border: TableBorder.all(color: AppColors.borderSubtle),
@@ -440,7 +476,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
           },
           children: [
             const TableRow(
-              decoration: BoxDecoration(color: Color(0xFFF9F9F9)),
+              decoration: BoxDecoration(color: AppColors.background),
               children: [
                 TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text('No.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)))),
                 TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text('Criteria', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)))),
@@ -485,11 +521,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
             Expanded(
               flex: 3,
               child: Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
-                  border: Border.all(color: AppColors.borderSubtle),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(
                   _summaryText,
@@ -506,10 +541,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
                   const SizedBox(height: 8),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryTint.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.primaryTint,
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Column(
                       children: _wordCloudData.take(5).map((w) => Padding(
@@ -536,10 +571,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
 
   Widget _buildLegend() {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.borderSubtle),
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

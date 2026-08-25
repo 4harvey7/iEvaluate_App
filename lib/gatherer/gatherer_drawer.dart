@@ -72,32 +72,37 @@ class _GathererDrawerState extends State<GathererDrawer> {
   Widget _buildDrawerItem(BuildContext context, IconData icon, String title, bool isSelected,
       {bool isLogout = false, VoidCallback? onTap, int badge = 0}) {
     final color = isLogout ? AppColors.error : (isSelected ? AppColors.primaryText : AppColors.textPrimary);
-    return ListTile(
-      leading: Icon(icon, color: color),
-      title: Text(
-        title,
-        style: TextStyle(color: color, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal),
-        overflow: TextOverflow.ellipsis,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        selectedTileColor: AppColors.primaryTint,
+        leading: Icon(icon, color: color),
+        title: Text(
+          title,
+          style: TextStyle(color: color, fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500),
+          overflow: TextOverflow.ellipsis,
+        ),
+        // show badge only if count > 0 — tinted pill with accessible dark label
+        trailing: badge > 0
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12), // soft pill — something needs attention
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  '$badge',
+                  style: const TextStyle(
+                      color: AppColors.warning,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                ),
+              )
+            : null, // no badge when count is 0
+        selected: isSelected,
+        onTap: onTap,
       ),
-      // show badge only if count > 0 — orange pill with white number
-      trailing: badge > 0
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.warning, // orange badge — something needs attention
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$badge',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold),
-              ),
-            )
-          : null, // no badge when count is 0
-      selected: isSelected,
-      onTap: onTap,
     );
   }
 
@@ -116,36 +121,78 @@ class _GathererDrawerState extends State<GathererDrawer> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
-          // ── Header — same style as instructor/dept head ──────────────
+          // ── Header — espresso gradient with warm brand glow ──────────
           // dark header with avatar, name, and role
           DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.textPrimary),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.end,
+            margin: EdgeInsets.zero,
+            padding: EdgeInsets.zero,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
+              ),
+            ),
+            child: Stack(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
-                  child: Text(
-                    initials.toUpperCase(),
-                    style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold),
+                // soft orange glow, upper right — login's signature accent
+                Positioned(
+                  top: -60,
+                  right: -50,
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primary.withValues(alpha: 0.35),
+                          AppColors.primary.withValues(alpha: 0.0),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  displayName,
-                  style: const TextStyle(color: AppColors.surface, fontSize: 18, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  widget.userRole,
-                  style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      CircleAvatar(
+                        radius: 28,
+                        backgroundColor: AppColors.primaryTint,
+                        child: Text(
+                          initials.toUpperCase(),
+                          style: const TextStyle(
+                              color: AppColors.primaryText,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                            color: AppColors.textInverted,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        widget.userRole,
+                        style: const TextStyle(
+                            color: AppColors.textInvertedDim, fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
           ),
+          const SizedBox(height: 8),
 
           // ── Navigation Items ─────────────────────────────────────────
           
@@ -179,6 +226,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
           // ── Role Switcher Return ─────────────────────────────────────────
           if (widget.originalRole != null)
             ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primaryText),
               title: const Text(
                 'Return to SAO Admin',

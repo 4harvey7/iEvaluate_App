@@ -88,13 +88,23 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: widget.showBackButton
-            ? const BackButton(color: AppColors.surface)
+            ? const BackButton(color: AppColors.textInverted)
             : IconButton(
-                icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+                icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
                 tooltip: 'Open menu',
                 onPressed: widget.onMenuPressed ?? () => MainScaffold.drawerKey.currentState?.openDrawer(),
               ),
@@ -105,12 +115,13 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
             const Text(
               'Import Errors',
               style: TextStyle(
-                  color: AppColors.surface,
-                  fontWeight: FontWeight.bold),
+                  color: AppColors.textInverted,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5),
             ),
             Text(
               '${_allErrors.length} pending resolution', // how many still need fixing
-              style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 11),
+              style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11),
             ),
           ],
         ),
@@ -127,10 +138,10 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
           controller: _tabController,
           indicatorColor: AppColors.primary,
           indicatorWeight: 3,
-          labelColor: AppColors.surface, // selected tab label color
-          unselectedLabelColor: const Color(0xFF888888), // dimmed for unselected
+          labelColor: AppColors.textInverted, // selected tab label color
+          unselectedLabelColor: AppColors.textInvertedDim, // dimmed for unselected
           labelStyle:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
           tabs: [
             Tab(text: 'All (${_allErrors.length})'), // all errors combined
             Tab(text: 'Instructor (${_instructorErrors.length})'), // instructor mismatch count
@@ -164,8 +175,16 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle_outline,
-                color: AppColors.success, size: 60), // big green check — all good
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle_outline,
+                  color: AppColors.success, size: 40), // big green check — all good
+            ),
             const SizedBox(height: 14),
             const Text('No pending errors',
                 style: TextStyle(
@@ -185,7 +204,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
       onRefresh: _fetch, // pull to refresh — fetch fresh errors from DB
       color: AppColors.primary,
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), // bottom padding so last card visible
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32), // bottom padding so last card visible
         itemCount: items.length,
         itemBuilder: (_, i) => _buildErrorCard(items[i]), // build one card per error
       ),
@@ -209,25 +228,22 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        // subtle colored border based on error type — visual cue for severity
-        border: Border.all(
-            color: errorColor.withValues(alpha: 0.25), width: 1.2),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2)),
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8)),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => _openDetail(error), // tap anywhere on the card to open detail screen
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -271,18 +287,33 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
 
                 // ── Fix button ──────────────────────────────────────────
                 // the big "Fix This" button — opens the correction screen
-                SizedBox(
+                Container(
                   width: double.infinity,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.primary, AppColors.primaryDeep],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.4),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.edit_note, size: 18),
                     label: const Text('Fix This',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
                       foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(16)),
                       elevation: 0,
                     ),
                     onPressed: () => _openDetail(error), // same as tapping the card
@@ -312,17 +343,16 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
   // colored border and background based on the given color parameter
   Widget _badge(String label, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1), // light tint background
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3)), // subtle border
+        color: color.withValues(alpha: 0.12), // light tint background
+        borderRadius: BorderRadius.circular(100),
       ),
       child: Text(label,
           style: TextStyle(
               color: color,
               fontSize: 11,
-              fontWeight: FontWeight.bold)),
+              fontWeight: FontWeight.w700)),
     );
   }
 

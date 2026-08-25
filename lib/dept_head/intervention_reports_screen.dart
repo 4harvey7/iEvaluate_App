@@ -136,26 +136,32 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Drag handle — signals this is a sheet
+                      Center(
+                        child: Container(width: 44, height: 5, decoration: BoxDecoration(color: AppColors.borderSubtle, borderRadius: BorderRadius.circular(100))),
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Draft Intervention', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          const Text('Draft Intervention', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.textPrimary)),
                           // X to close without saving — ayaw submit if not ready
                           IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 8),
                       // Show who this intervention is for — no confusion
-                      Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                      Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
                       // Show why they were flagged — gives context to the action
-                      Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                      Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 24),
 
                       // Dropdown for Action Type — pick what mandated action to apply
@@ -164,21 +170,22 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'Mandated Action',
+                          labelStyle: const TextStyle(color: AppColors.textSecondary),
                           prefixIcon: const Icon(
                             Icons.gavel, // The hammer icon — very official
                             color: AppColors.primaryText,
                           ),
                           filled: true,
-                          fillColor: AppColors.surface,
+                          fillColor: AppColors.background,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             borderSide: BorderSide.none,
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(16),
                             borderSide: const BorderSide(
                               color: AppColors.primary,
-                              width: 2,
+                              width: 1.5,
                             ),
                           ),
                         ),
@@ -216,23 +223,34 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                         maxLines: 3,
                         decoration: InputDecoration(
                           labelText: "Dean's Remarks / Notes",
+                          labelStyle: const TextStyle(color: AppColors.textSecondary),
                           alignLabelWithHint: true,
                           filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                          fillColor: AppColors.background,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                         ),
                       ),
                       const SizedBox(height: 24),
 
                       // Submit Button — the actual "file the report" action
-                      SizedBox(
+                      // Gradient CTA with a warm glow — the premium treatment
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                          ],
+                        ),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           // Disabled while submitting to prevent duplicate inserts
                           onPressed: isSubmitting ? null : () async {
@@ -264,8 +282,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                           },
                           // Spinner while submitting, text when idle
                           child: isSubmitting
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text('Submit Official Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
+                              : const Text('Submit Official Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
                         ),
                       ),
                     ],
@@ -285,31 +303,41 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
       ),
       body: SafeArea(
         child: _isLoading 
-          ? const Center(child: CircularProgressIndicator()) // Loading state
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primary)) // Loading state
           : RefreshIndicator(
               onRefresh: _loadData, // Pull to refresh — reload both lists
+              color: AppColors.primary,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(), // Always scrollable for pull-to-refresh
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(20.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Page title and description — sets the serious tone
-                    const Text('Administrative Actions', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    const Text('Manage formal warnings and track mandated training for flagged faculty members.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                    const SizedBox(height: 24),
+                    const Text('Administrative Actions', style: TextStyle(color: AppColors.textPrimary, fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                    const SizedBox(height: 6),
+                    const Text('Manage formal warnings and track mandated training for flagged faculty members.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.4)),
+                    const SizedBox(height: 28),
 
                     // ==========================================
                     // PENDING INTERVENTIONS
@@ -318,12 +346,12 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Pending Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                        // Red badge showing how many pending — like a notification count
+                        const Text('Pending Action Required', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                        // Red pill showing how many pending — like a notification count
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(12)),
-                          child: Text('${_pendingInterventions.length}', style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                          decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(100)),
+                          child: Text('${_pendingInterventions.length}', style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w700, fontSize: 12)),
                         )
                       ],
                     ),
@@ -333,14 +361,27 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     if (_pendingInterventions.isEmpty)
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
-                        child: const Column(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                          ],
+                        ),
+                        child: Column(
                           children: [
-                            Icon(Icons.check_circle_outline, color: AppColors.success, size: 40),
-                            SizedBox(height: 8),
-                            Text('All caught up!', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                            Text('No pending interventions required.', style: TextStyle(color: AppColors.success, fontSize: 12)),
+                            // Soft green circle — the good-news icon treatment
+                            Container(
+                              width: 64,
+                              height: 64,
+                              decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.12), shape: BoxShape.circle),
+                              child: const Icon(Icons.check_circle_outline, color: AppColors.success, size: 32),
+                            ),
+                            const SizedBox(height: 14),
+                            const Text('All caught up!', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            const Text('No pending interventions required.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                           ],
                         ),
                       )
@@ -348,35 +389,39 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                       // Got pending items — show each as a card with a "Draft" button
                       Column(
                         children: _pendingInterventions.map((alert) {
-                          return Card(
-                            color: AppColors.surface,
-                            elevation: 1,
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(color: AppColors.error.withValues(alpha: 0.5), width: 1) // Red border — look urgent
+                            padding: const EdgeInsets.all(18.0),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                              ],
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
+                            child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      // PENDING badge — very visible red text
-                                      const Text('PENDING', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error, fontSize: 12)),
+                                      // PENDING badge — soft red pill, very visible
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(100)),
+                                        child: const Text('PENDING', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.error, fontSize: 11, letterSpacing: 0.5)),
+                                      ),
                                       // Date when this instructor was flagged — for record
                                       Text('Flagged: ${DateFormat('MMM dd, yyyy').format(alert.dateFlagged)}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                                     ],
                                   ),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 14),
                                   Row(
                                     children: [
-                                      // Warning icon in red circle — clear visual indicator of trouble
+                                      // Warning icon in soft red circle — clear visual indicator of trouble
                                       CircleAvatar(
-                                        radius: 20,
-                                        backgroundColor: AppColors.error.withValues(alpha: 0.1),
+                                        radius: 22,
+                                        backgroundColor: AppColors.error.withValues(alpha: 0.10),
                                         child: const Icon(Icons.warning_amber_rounded, color: AppColors.error),
                                       ),
                                       const SizedBox(width: 12),
@@ -385,31 +430,39 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             // Instructor name — who is flagged
-                                            Text(alert.instructorName ?? 'Unknown Instructor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16), overflow: TextOverflow.ellipsis),
+                                            Text(alert.instructorName ?? 'Unknown Instructor', style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textPrimary, fontSize: 16, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
                                             const SizedBox(height: 4),
                                             // Description — why they were flagged
-                                            Text(alert.desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                            Text(alert.desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.35), overflow: TextOverflow.ellipsis),
                                           ],
                                         ),
                                       ),
                                     ],
                                   ),
                                   const SizedBox(height: 16),
-                                  // Draft button — opens the bottom sheet form to record action
-                                  SizedBox(
+                                  // Draft button — gradient CTA that opens the bottom sheet form
+                                  Container(
                                     width: double.infinity,
-                                    child: OutlinedButton(
+                                    height: 52,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: [
+                                        BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                                      ],
+                                    ),
+                                    child: ElevatedButton(
                                       onPressed: () => _showDraftingSheet(alert), // Open drafting form
-                                      style: OutlinedButton.styleFrom(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
                                         foregroundColor: AppColors.textPrimary,
-                                        side: const BorderSide(color: AppColors.textPrimary),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                       ),
-                                      child: const Text('Draft Intervention Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      child: const Text('Draft Intervention Report', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                                     ),
                                   )
                                 ],
-                              ),
                             ),
                           );
                         }).toList(),
@@ -425,41 +478,59 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     const Text(
                       'Intervention Log',
                       style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
                       ),
                     ),
                     const SizedBox(height: 12),
 
                     // No logs yet — either new dept or nobody has been flagged
                     if (_completedInterventions.isEmpty)
-                      const Center(child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Text("No previous interventions recorded.", style: TextStyle(color: AppColors.textSecondary)),
-                      ))
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 32),
+                          child: Column(
+                            children: [
+                              // Soft tinted circle — friendly empty state
+                              Container(
+                                width: 64,
+                                height: 64,
+                                decoration: const BoxDecoration(color: AppColors.primaryTint, shape: BoxShape.circle),
+                                child: const Icon(Icons.history_rounded, color: AppColors.primaryText, size: 30),
+                              ),
+                              const SizedBox(height: 14),
+                              const Text("No previous interventions recorded.", style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                            ],
+                          ),
+                        ),
+                      )
                     else
                       // Show each logged intervention as a list tile card
                       Column(
                         children: _completedInterventions.map((report) {
-                          return Card(
-                            color: AppColors.surface,
-                            elevation: 1,
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                              ],
                             ),
                             child: ListTile(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                               contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
+                                horizontal: 18,
+                                vertical: 10,
                               ),
 
                               // Green gavel icon — indicates this was formally recorded
                               leading: Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  color: AppColors.success.withValues(alpha: 0.12),
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -472,8 +543,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               title: Text(
                                 report.instructorName,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w800,
                                   color: AppColors.textPrimary,
+                                  letterSpacing: -0.3,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -489,7 +561,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                     report.actionType,
                                     style: const TextStyle(
                                       color: AppColors.primaryText,
-                                      fontWeight: FontWeight.bold,
+                                      fontWeight: FontWeight.w700,
                                       fontSize: 13,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -514,12 +586,17 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.success,
                                       foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      // Resolved (disabled) state gets the soft-pill treatment
+                                      disabledBackgroundColor: AppColors.success.withValues(alpha: 0.12),
+                                      disabledForegroundColor: AppColors.success,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 14,
                                         vertical: 10,
                                       ),
+                                      textStyle: const TextStyle(fontWeight: FontWeight.w700),
                                       shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
+                                        borderRadius: BorderRadius.circular(100),
                                       ),
                                     ),
 
@@ -586,28 +663,30 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Intervention Report Details'),
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Intervention Report Details', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3, color: AppColors.textPrimary)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Who was this intervention for
-            Text('Instructor: ${report.instructorName}', style: TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-            SizedBox(height: 8),
+            Text('Instructor: ${report.instructorName}', style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
             // What action was mandated
-            Text('Action: ${report.actionType}', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-            SizedBox(height: 8),
+            Text('Action: ${report.actionType}', style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700), overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 8),
             // Dean's notes — could be empty if they didn't write any
-            Text('Notes:', style: TextStyle(color: AppColors.textSecondary)),
+            const Text('Notes:', style: TextStyle(color: AppColors.textSecondary)),
             Text(report.notes.isNotEmpty ? report.notes : 'No notes provided.'), // Fallback if blank
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             // Status — green if resolved, orange if still pending
-            Text('Status: ${report.status}', style: TextStyle(color: report.status == 'Resolved' ? AppColors.success : AppColors.warning), overflow: TextOverflow.ellipsis),
+            Text('Status: ${report.status}', style: TextStyle(fontWeight: FontWeight.w700, color: report.status == 'Resolved' ? AppColors.success : AppColors.warning), overflow: TextOverflow.ellipsis),
           ],
         ),
         actions: [
           // Just a close button — this dialog is read-only
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Close')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.w700))),
         ],
       ),
     );

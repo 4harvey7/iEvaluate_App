@@ -194,18 +194,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'Dashboard',
-          style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.textInverted,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.5,
+          ),
         ),
         actions: [
           SafeIconButton(
@@ -227,26 +241,94 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(), // always scrollable even if content is short
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.zero,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'System Overview', // the header of the whole situation
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+              // ── Espresso hero header with warm glow ──────────────────
+              Container(
+                width: double.infinity,
+                clipBehavior: Clip.antiAlias,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF2E1608), AppColors.textPrimary],
+                  ),
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(28),
+                    bottomRight: Radius.circular(28),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: -70,
+                      right: -50,
+                      child: Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              AppColors.primary.withValues(alpha: 0.35),
+                              AppColors.primary.withValues(alpha: 0.0),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 24, 20, 28),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'System Overview', // the header of the whole situation
+                            style: TextStyle(
+                              color: AppColors.textInverted,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            'Everything across iEvaluate, at a glance.',
+                            style: TextStyle(
+                              color: AppColors.textInvertedDim,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
 
               // ── System Status Row ────────────────────────────────────
               // tap this to manually re-check if servers are alive or resting in peace
               GestureDetector(
                 onTap: _checkingStatus ? null : _checkSystemStatus, // disabled while checking
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderHairline),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.textPrimary.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
                   child: Row(
                     children: [
@@ -290,7 +372,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   const Expanded(
                     child: Text(
                       'Pending Account Approvals', // people in the waiting room
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                   TextButton(
@@ -298,7 +385,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       // go to the full user management page to see everyone
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
                     },
-                    child: const Text('View All', style: TextStyle(color: AppColors.primaryText)),
+                    child: const Text('View All',
+                        style: TextStyle(
+                            color: AppColors.primaryText,
+                            fontWeight: FontWeight.w700)),
                   )
                 ],
               ),
@@ -307,6 +397,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               _isPendingLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _buildPendingList(),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -340,10 +433,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildPendingList() {
     if (_livePendingApprovals.isEmpty) {
       // wala pending, everyone been approved or nobody signed up
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Text("No pending approvals.", style: TextStyle(color: AppColors.textSecondary)),
+          padding: const EdgeInsets.all(28.0),
+          child: Column(
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryTint,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.how_to_reg_rounded,
+                    color: AppColors.primaryText, size: 34),
+              ),
+              const SizedBox(height: 14),
+              const Text("No pending approvals.",
+                  style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              const Text("New sign-ups will appear here for review.",
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 13)),
+            ],
+          ),
         ),
       );
     }
@@ -379,17 +495,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
 
         // each pending user gets a card with approve/reject buttons
-        return Card(
-          color: AppColors.surface,
-          elevation: 2,
+        return Container(
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             leading: CircleAvatar(
-              backgroundColor: AppColors.background,
+              backgroundColor: AppColors.primaryTint,
               child: Text(firstName.isNotEmpty ? firstName[0] : '?', // first letter of name as avatar
-                  style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold)),
             ),
             title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
             subtitle: Text(subDetail, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis),
@@ -448,15 +573,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: iconColor, size: 28), // the icon on top
-          const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis), // the big number
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(icon, color: iconColor, size: 24), // the icon on top
+          ),
+          const SizedBox(height: 14),
+          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5), overflow: TextOverflow.ellipsis), // the big number
           const SizedBox(height: 2),
           Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis), // the label below
           if (sub != null)

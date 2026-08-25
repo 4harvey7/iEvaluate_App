@@ -252,17 +252,46 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         child: Column(children: [
           // top header with user's name, role, and dept
           Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-            child: Row(children: [
-              CircleAvatar(radius: 26, backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                  child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
-              const SizedBox(width: 16),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
-                Text(deptName, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11), overflow: TextOverflow.ellipsis),
-              ])),
+            clipBehavior: Clip.antiAlias,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
+              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Stack(children: [
+              Positioned(
+                top: -60,
+                right: -40,
+                child: Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        AppColors.primary.withValues(alpha: 0.35),
+                        AppColors.primary.withValues(alpha: 0.0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(children: [
+                  CircleAvatar(radius: 26, backgroundColor: AppColors.primary.withValues(alpha: 0.3),
+                      child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: AppColors.textInverted, fontSize: 22, fontWeight: FontWeight.bold))),
+                  const SizedBox(width: 16),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(fullName, style: const TextStyle(color: AppColors.textInverted, fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.3), overflow: TextOverflow.ellipsis),
+                    Text(roleName, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
+                    Text(deptName, style: TextStyle(color: AppColors.textInverted.withValues(alpha: 0.6), fontSize: 11), overflow: TextOverflow.ellipsis),
+                  ])),
+                ]),
+              ),
             ]),
           ),
           // scrollable content — dept summary (if applicable) AND instructor scores (for everyone)
@@ -326,10 +355,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       const SizedBox(height: 12),
       // show subject cards or empty message if none assigned
       if (subjects.isEmpty) const Text('No subjects assigned.', style: TextStyle(color: AppColors.textSecondary))
-      else ...subjects.map((s) => Card(
-        color: AppColors.surface, margin: const EdgeInsets.only(bottom: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      else ...subjects.map((s) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           leading: const Icon(Icons.menu_book, color: AppColors.primaryText, size: 20),
           title: Text('${s['subject_code']} — ${s['subject_name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
@@ -342,10 +382,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // reusable mini card, used all over the modals
   Widget _infoTile(String label, String value, Color color) {
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.2))),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(16)),
       child: Column(children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis), // the big number
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color), overflow: TextOverflow.ellipsis), // the big number
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis), // label below the number
       ]),
@@ -644,15 +686,29 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textInverted,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('User Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('User Management',
+            style: TextStyle(
+                color: AppColors.textInverted,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
@@ -671,18 +727,40 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               children: [
                 // search bar + inline dropdowns for filters
                 Container(
-                  color: AppColors.surface,
+                  margin: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                   padding: const EdgeInsets.all(16.0),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.textPrimary.withValues(alpha: 0.08),
+                        blurRadius: 24,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
                   child: Column(
                     children: [
                       TextField(
                         onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
+                        style: const TextStyle(fontWeight: FontWeight.w500),
                         decoration: InputDecoration(
                           hintText: 'Search Name or ID...',
+                          hintStyle: const TextStyle(color: AppColors.textSecondary),
                           prefixIcon: const Icon(Icons.search, color: AppColors.primaryText),
                           filled: true,
                           fillColor: AppColors.background,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: const BorderSide(
+                                  color: AppColors.primary, width: 1.5)),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -694,7 +772,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary, width: 1.5)),
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
@@ -714,7 +801,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                        color: AppColors.primary, width: 1.5)),
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
@@ -740,32 +836,73 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     child: users.isEmpty
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            children: const [
-                              Center(child: Padding(
-                                padding: EdgeInsets.all(48),
-                                child: Text('No academic users found.'),
+                            children: [
+                              Center(
+                                  child: Padding(
+                                padding: const EdgeInsets.all(48),
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 72,
+                                      height: 72,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.primaryTint,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.group_off_rounded,
+                                          color: AppColors.primaryText,
+                                          size: 34),
+                                    ),
+                                    const SizedBox(height: 14),
+                                    const Text('No academic users found.',
+                                        style: TextStyle(
+                                            color: AppColors.textPrimary,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700)),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                        'Try adjusting your search or filters.',
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13)),
+                                  ],
+                                ),
                               )),
                             ],
                           )
                         : ListView.builder(
                             physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                             itemCount: users.length,
                             itemBuilder: (context, index) {
                               final user = users[index];
                               final ui = user['user_info'];
                               final isActive = ui['account_status'] == 'approved'; // active or disabled
 
-                              return Card(
-                                color: AppColors.surface,
+                              return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.textPrimary
+                                          .withValues(alpha: 0.08),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
                                 child: ListTile(
                                   onTap: () => _showUserDetailsModal(user), // tap to see details
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 18, vertical: 6),
                                   leading: CircleAvatar(
                                     // gray background if disabled, colored if active
-                                    backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primaryText : AppColors.textSecondary)),
+                                    backgroundColor: isActive ? AppColors.primaryTint : AppColors.borderHairline,
+                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primaryText : AppColors.textSecondary, fontWeight: FontWeight.bold)),
                                   ),
                                   // strikethrough name if user is disabled — visual cue
                                   title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),

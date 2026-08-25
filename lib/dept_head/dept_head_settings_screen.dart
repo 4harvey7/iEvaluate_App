@@ -127,38 +127,42 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(24),
                   decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Drag handle — signals this is a sheet
+                      Center(
+                        child: Container(width: 44, height: 5, decoration: BoxDecoration(color: AppColors.borderSubtle, borderRadius: BorderRadius.circular(100))),
+                      ),
+                      const SizedBox(height: 16),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Edit Executive Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                          const Text('Edit Executive Profile', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: AppColors.textPrimary)),
                           // X button to dismiss without saving — ayaw forget this
                           IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
                         ],
                       ),
                       const SizedBox(height: 16),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Icon(Icons.info_outline, color: AppColors.warning, size: 20),
-                            SizedBox(width: 8),
+                            SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary, height: 1.4),
                               ),
                             ),
                           ],
@@ -171,13 +175,23 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       // Last name input field
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
-                      SizedBox(
+                      // Save button — gradient CTA with warm glow
+                      Container(
                         width: double.infinity,
-                        height: 50,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.primaryDeep]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(color: AppColors.primary.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                          ],
+                        ),
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                           // Disabled while save is in progress — dili ta allow double tap
                           onPressed: isSaving ? null : () async {
@@ -211,8 +225,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                           },
                           // Show spinner while saving, text when idle
                           child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
+                            : const Text('Save Changes', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
                         ),
                       ),
                     ],
@@ -238,20 +252,25 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              backgroundColor: AppColors.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3, color: AppColors.textPrimary)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: emailController,
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      labelStyle: const TextStyle(color: AppColors.textSecondary),
+                      prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primaryText),
+                      filled: true,
+                      fillColor: AppColors.background,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
                     ),
                   ),
                 ],
@@ -262,7 +281,14 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
@@ -302,23 +328,30 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: const Row(
             children: [
               Icon(Icons.warning_amber_rounded, color: AppColors.error), // Scary red icon
               SizedBox(width: 8),
-              Text("Delete Account?"),
+              Text("Delete Account?", style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3, color: AppColors.textPrimary)),
             ],
           ),
           // Clear warning — no vague language. User must understand what they doing.
-          content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
+          content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system.", style: TextStyle(color: AppColors.textSecondary, height: 1.4)),
           actions: [
             // Cancel — the safe choice. ayaw delete if not sure.
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
             // Delete button — red, bold, and final. wala choice after this.
             SafeElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
               onPressed: () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
@@ -358,8 +391,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -382,7 +415,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    foregroundColor: AppColors.textPrimary,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   // Disabled while request is in flight — ayaw double tap
                   onPressed: isUpdating ? null : () async {
@@ -445,7 +481,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   // Show spinner or "Update" text based on loading state
                   child: isUpdating 
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
-                    : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                 ),
               ],
             );
@@ -463,12 +499,13 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       obscureText: isPassword, // Hide chars if this is a password field
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primaryText) : null,
         filled: true,
-        fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        // Blue border on focus — so user know which field is active
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+        fillColor: AppColors.background,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+        // Orange border on focus — so user know which field is active
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       ),
     );
   }
@@ -500,57 +537,107 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        foregroundColor: AppColors.textInverted,
+        iconTheme: const IconThemeData(color: AppColors.textInverted),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF2E1608), AppColors.textPrimary],
+            ),
+          ),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Executive Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Executive Settings', style: TextStyle(color: AppColors.textInverted, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+        ? const Center(child: CircularProgressIndicator(color: AppColors.primary)) 
         : SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Profile section header
-              const Text('Executive Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Executive Profile', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              // Profile card — shows avatar, name, title, and edit link
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Row(
+              // Profile card — espresso hero with a warm orange glow accent
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF2E1608), AppColors.textPrimary],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.3), blurRadius: 24, offset: const Offset(0, 10)),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Stack(
                     children: [
-                      // Circle avatar with initials — quick visual identifier
-                      CircleAvatar(
-                        radius: 32,
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
-                        child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                      // Soft orange radial glow, upper right — matches the dashboard hero
+                      Positioned(
+                        top: -60,
+                        right: -40,
+                        child: Container(
+                          width: 180,
+                          height: 180,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.primary.withValues(alpha: 0.30),
+                                AppColors.primary.withValues(alpha: 0.0),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                      Padding(
+                        padding: const EdgeInsets.all(20.0),
+                        child: Row(
                           children: [
-                            // Full name display — hopefully correct after the data loads
-                            Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
-                            const SizedBox(height: 4),
-                            // Title and college — e.g. "Dean • College of Engineering"
-                            Text('$_userTitle • $_userCollege', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                            const SizedBox(height: 8),
-                            // Tap to open the edit bottom sheet — importente this is clickable
-                            GestureDetector(
-                              onTap: _showEditProfileSheet,
-                              child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
+                            // Circle avatar with initials — quick visual identifier
+                            CircleAvatar(
+                              radius: 32,
+                              backgroundColor: AppColors.primary.withValues(alpha: 0.18),
+                              child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.primary, fontSize: 22, fontWeight: FontWeight.w800)),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Full name display — hopefully correct after the data loads
+                                  Text('$_firstName $_lastName', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 19, letterSpacing: -0.3, color: AppColors.textInverted), overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 4),
+                                  // Title and college — e.g. "Dean • College of Engineering"
+                                  Text('$_userTitle • $_userCollege', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                  const SizedBox(height: 10),
+                                  // Tap to open the edit bottom sheet — importente this is clickable
+                                  GestureDetector(
+                                    onTap: _showEditProfileSheet,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(100),
+                                      ),
+                                      child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -559,15 +646,19 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               // Notification toggles section — dean can turn things on/off
-              const Text('Executive Intelligence', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Executive Intelligence', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                  ],
+                ),
                 child: Column(
                   children: [
                     // Toggle: alert when instructor rating drops below 3.0
@@ -581,7 +672,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         _updateAlertSetting('alert_performance', val);
                       },
                     ),
-                    const Divider(height: 1, indent: 56),
+                    const Divider(height: 1, indent: 64, color: AppColors.borderHairline),
                     // Toggle: alert when students leave very negative comments
                     _buildSwitchTile(
                       title: 'Sentiment Analysis',
@@ -593,7 +684,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                         _updateAlertSetting('alert_sentiment', val);
                       },
                     ),
-                    const Divider(height: 1, indent: 56),
+                    const Divider(height: 1, indent: 64, color: AppColors.borderHairline),
                     // Toggle: get a weekly email digest — for the dean who love summary
                     _buildSwitchTile(
                       title: 'Weekly Digest',
@@ -608,52 +699,58 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
               // Security section — change password or nuke the account
-              const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Card(
-                color: AppColors.surface,
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.08), blurRadius: 24, offset: const Offset(0, 8)),
+                  ],
+                ),
                 child: Column(
                   children: [
                     // Edit Email row
                     ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.email_outlined, color: AppColors.primaryText),
                       ),
-                      title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showEditEmailDialog,
                     ),
-                    const Divider(height: 1, indent: 56),
+                    const Divider(height: 1, indent: 64, color: AppColors.borderHairline),
                     // Change password row — tap to open the dialog
                     ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.lock, color: AppColors.primaryText),
                       ),
-                      title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      title: const Text('Edit Password', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                       onTap: _showChangePasswordDialog, // Pop the change password dialog
                     ),
-                    const Divider(height: 1, indent: 56),
+                    const Divider(height: 1, indent: 64, color: AppColors.borderHairline),
                     // Delete account — the big red button. use with extreme caution.
                     ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(bottom: Radius.circular(20))),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.delete_forever, color: AppColors.error),
                       ),
-                      title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                      title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.error)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                       onTap: _showDeleteAccountDialog, // Opens confirmation dialog first
                     ),
@@ -662,10 +759,17 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Logout button — big, red, full width. Hard to miss.
-              SizedBox(
+              // Logout button — full-width destructive CTA with red gradient + glow
+              Container(
                 width: double.infinity,
-                height: 54,
+                height: 56,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [AppColors.error, Color(0xFF9A3412)]),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.error.withValues(alpha: 0.4), blurRadius: 16, offset: const Offset(0, 6)),
+                  ],
+                ),
                 child: SafeOutlinedButton(
                   onPressed: () async {
                     final navigator = Navigator.of(context);
@@ -684,15 +788,16 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     }
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.error, width: 2),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    foregroundColor: Colors.white,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.logout, color: AppColors.error),
+                      Icon(Icons.logout, color: Colors.white),
                       SizedBox(width: 8),
-                      Text('Sign Out Securely', style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text('Sign Out Securely', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                     ],
                   ),
                 ),
@@ -720,13 +825,13 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
     required Function(bool) onChanged,
   }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: AppColors.primaryTint, borderRadius: BorderRadius.circular(12)),
         child: Icon(icon, color: AppColors.primaryText), // Icon hint for the toggle's purpose
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
       subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       // The actual switch — green when on, gray when off
       trailing: Switch(

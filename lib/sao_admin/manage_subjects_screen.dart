@@ -221,8 +221,9 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Remove Assignment'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Remove Assignment',
+            style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: -0.3)),
         content: const Text('Remove this instructor from this subject for the current term? The subject will remain available for other terms.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -361,18 +362,32 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.textPrimary,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF2E1608), AppColors.textPrimary],
+              ),
+            ),
+          ),
+          backgroundColor: Colors.transparent,
+          foregroundColor: AppColors.textInverted,
           elevation: 0,
-          iconTheme: const IconThemeData(color: AppColors.surface),
+          iconTheme: const IconThemeData(color: AppColors.textInverted),
           leading: IconButton(
-            icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+            icon: const Icon(Icons.menu_rounded, color: AppColors.textInverted),
             tooltip: 'Open menu',
             onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Subject Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+              const Text('Subject Management',
+                  style: TextStyle(
+                      color: AppColors.textInverted,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5)),
               Text(_currentTermLabel, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
             ],
           ),
@@ -386,60 +401,85 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                 children: [
                   // ── Search bar ──────────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: TextField(
-                      onChanged: (val) => setState(() => _searchQuery = val.trim()),
-                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
-                      decoration: InputDecoration(
-                        hintText: 'Search subject or instructor...',
-                        hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear_rounded, color: AppColors.textSecondary, size: 18),
-                                onPressed: () => setState(() => _searchQuery = ''),
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: AppColors.surface,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 4),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.textPrimary.withValues(alpha: 0.08),
+                            blurRadius: 24,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        onChanged: (val) => setState(() => _searchQuery = val.trim()),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                        decoration: InputDecoration(
+                          hintText: 'Search subject or instructor...',
+                          hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear_rounded, color: AppColors.textSecondary, size: 18),
+                                  onPressed: () => setState(() => _searchQuery = ''),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.transparent,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                          ),
                         ),
                       ),
                     ),
                   ),
                   // ── Filter chips ───────────────────────────────
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       child: Row(
                         children: [
                           _buildFilterChip('With Instructor', 'assigned', Icons.person_rounded,
-                              activeColor: const Color(0xFF27AE60)),
+                              activeColor: AppColors.success),
                           const SizedBox(width: 8),
                           _buildFilterChip('No Instructor', 'unassigned', Icons.person_off_rounded,
-                              activeColor: const Color(0xFFE67E22)),
+                              activeColor: AppColors.warning),
                         ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 14),
                   // ── Count label ────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        '${_filteredGroups.length} subject${_filteredGroups.length == 1 ? '' : 's'}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        '${_filteredGroups.length} subject${_filteredGroups.length == 1 ? '' : 's'}'.toUpperCase(),
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   // ── List ───────────────────────────────────────
                   Expanded(
                     child: RefreshIndicator(
@@ -448,7 +488,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                       child: _filteredGroups.isEmpty
                           ? _buildEmptyState()
                           : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                               itemCount: _filteredGroups.length,
                               itemBuilder: (context, index) =>
                                   _buildSubjectCard(_filteredGroups[index]),
@@ -552,14 +592,19 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       onTap: () => setState(() => _filterMode = mode),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isActive ? activeColor.withValues(alpha: 0.15) : AppColors.surface,
+          color: isActive ? activeColor.withValues(alpha: 0.12) : AppColors.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isActive ? activeColor : AppColors.borderSubtle,
-            width: isActive ? 1.5 : 1,
-          ),
+          boxShadow: isActive
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppColors.textPrimary.withValues(alpha: 0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -571,7 +616,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
               style: TextStyle(
                 color: isActive ? activeColor : AppColors.textSecondary,
                 fontSize: 12,
-                fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
               ),
             ),
           ],
@@ -588,23 +633,31 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isFiltered ? Icons.search_off_rounded : Icons.library_books_outlined,
-              size: 64,
-              color: AppColors.textSecondary.withValues(alpha: 0.35),
+            Container(
+              width: 72,
+              height: 72,
+              decoration: const BoxDecoration(
+                color: AppColors.primaryTint,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isFiltered ? Icons.search_off_rounded : Icons.library_books_outlined,
+                size: 34,
+                color: AppColors.primaryText,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
               isFiltered ? 'No results found' : 'No subjects to show',
               style: const TextStyle(
-                  color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+                  color: AppColors.textPrimary, fontWeight: FontWeight.w700, fontSize: 17),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               isFiltered
                   ? 'Try a different search or filter.'
                   : 'Tap the + button to add a subject\nor bulk import from Google Sheets.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -625,8 +678,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     final deptName = deptInfo is Map ? deptInfo['d_name']?.toString() : null;
 
     // Color palette: green = assigned, amber = unassigned
-    const assignedColor  = Color(0xFF27AE60);
-    const unassignedColor = Color(0xFFE67E22);
+    const assignedColor  = AppColors.success;
+    const unassignedColor = AppColors.warning;
     final statusColor = isAssigned ? assignedColor : unassignedColor;
 
     // Build instructor preview text
@@ -644,36 +697,45 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           : firstName;
     }
 
-    return Card(
-      color: AppColors.surface,
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _openSubjectDetailModal(group),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border(
-              left: BorderSide(color: statusColor, width: 4), // color-coded left stripe
-            ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
           ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openSubjectDetailModal(group),
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
             child: Row(
               children: [
                 // Avatar with status color
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: statusColor.withValues(alpha: 0.12),
+                Container(
+                  width: 44,
+                  height: 44,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                   child: Text(
                     subjectCode.length >= 2
                         ? subjectCode.substring(0, 2).toUpperCase()
                         : subjectCode.toUpperCase(),
                     style: TextStyle(
                         color: statusColor,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w700,
                         fontSize: 12),
                   ),
                 ),
@@ -699,10 +761,10 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                             ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 80),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(6),
+                                  color: AppColors.primaryTint,
+                                  borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
                                   deptName,
@@ -711,7 +773,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                                   style: const TextStyle(
                                       color: AppColors.primaryText,
                                       fontSize: 11,
-                                      fontWeight: FontWeight.w600),
+                                      fontWeight: FontWeight.w700),
                                 ),
                               ),
                             ),
@@ -743,7 +805,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                 const SizedBox(width: 8),
                 // Status badge pill
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -753,7 +815,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                     style: TextStyle(
                         color: statusColor,
                         fontSize: 11,
-                        fontWeight: FontWeight.bold),
+                        fontWeight: FontWeight.w700),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -990,14 +1052,15 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
       prefixIcon: Icon(icon, color: AppColors.primaryText),
       filled: true,
-      fillColor: AppColors.background.withValues(alpha: 0.5),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      fillColor: AppColors.background,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+          borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
       errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1)),
+          borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.error, width: 1)),
       focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 2)),
+          borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
     );
   }
 
@@ -1041,8 +1104,8 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
+                        color: AppColors.primaryTint,
+                        borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(
                         isEditing ? Icons.edit_rounded : Icons.add_circle_rounded,
@@ -1156,16 +1219,16 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                     // Suggestion dropdown
                     if (_showSuggestions && _filteredInstructors.isNotEmpty)
                       Container(
-                        margin: const EdgeInsets.only(top: 4),
+                        margin: const EdgeInsets.only(top: 6),
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.borderSubtle),
+                          borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
+                              color: AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
                             ),
                           ],
                         ),
@@ -1213,12 +1276,18 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                       ),
                     if (_showSuggestions && _filteredInstructors.isEmpty)
                       Container(
-                        margin: const EdgeInsets.only(top: 4),
+                        margin: const EdgeInsets.only(top: 6),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.borderSubtle),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.textPrimary.withValues(alpha: 0.08),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: const Row(
                           children: [
@@ -1237,38 +1306,57 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: AppColors.borderSubtle),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                      child: SizedBox(
+                        height: 54,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.borderSubtle),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: const Text('Cancel',
+                              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                         ),
-                        child: const Text('Cancel',
-                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: ElevatedButton.icon(
-                        onPressed: _isSaving ? null : _save,
-                        icon: _isSaving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
-                            : Icon(isEditing ? Icons.save_rounded : Icons.check_rounded,
-                                color: AppColors.textPrimary),
-                        label: Text(
-                          _isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Assign Subject'),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      child: Container(
+                        height: 54,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.primaryDeep]),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
+                        child: ElevatedButton.icon(
+                          onPressed: _isSaving ? null : _save,
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+                              : Icon(isEditing ? Icons.save_rounded : Icons.check_rounded,
+                                  color: AppColors.textPrimary),
+                          label: Text(
+                            _isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Assign Subject'),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            disabledBackgroundColor: Colors.transparent,
+                            foregroundColor: AppColors.textPrimary,
+                            shadowColor: Colors.transparent,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
                         ),
                       ),
                     ),
@@ -1402,11 +1490,10 @@ class _BulkImportModalState extends State<_BulkImportModal> {
               const SizedBox(height: 20),
               // Info box
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1433,14 +1520,15 @@ class _BulkImportModalState extends State<_BulkImportModal> {
                   hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                   prefixIcon: const Icon(Icons.link_rounded, color: AppColors.warning),
                   filled: true,
-                  fillColor: AppColors.background.withValues(alpha: 0.5),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  fillColor: AppColors.background,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                   focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.warning, width: 2)),
+                      borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.warning, width: 1.5)),
                   errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1)),
+                      borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.error, width: 1)),
                   focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 2)),
+                      borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.error, width: 1.5)),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return 'Please enter a Google Sheet link';
@@ -1453,37 +1541,58 @@ class _BulkImportModalState extends State<_BulkImportModal> {
               Row(
                 children: [
                   Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.borderSubtle),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
+                    child: SizedBox(
+                      height: 54,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.borderSubtle),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Text('Cancel',
+                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                       ),
-                      child: const Text('Cancel',
-                          style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     flex: 2,
-                    child: ElevatedButton.icon(
-                      onPressed: _isImporting ? null : _import,
-                      icon: _isImporting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.cloud_sync_rounded, color: Colors.white),
-                      label: Text(
-                        _isImporting ? 'Importing...' : 'Import via n8n',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    child: Container(
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [
+                          AppColors.warning,
+                          AppColors.warning.withValues(alpha: 0.85),
+                        ]),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.warning.withValues(alpha: 0.4),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.warning,
-                        disabledBackgroundColor: AppColors.warning.withValues(alpha: 0.5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 15),
+                      child: ElevatedButton.icon(
+                        onPressed: _isImporting ? null : _import,
+                        icon: _isImporting
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.cloud_sync_rounded, color: Colors.white),
+                        label: Text(
+                          _isImporting ? 'Importing...' : 'Import via n8n',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          disabledBackgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
                       ),
                     ),
                   ),
@@ -1561,8 +1670,8 @@ class _SubjectDetailModal extends StatelessWidget {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(14),
+                    color: AppColors.primaryTint,
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -1598,17 +1707,17 @@ class _SubjectDetailModal extends StatelessWidget {
                       if (deptName != null) ...[
                         const SizedBox(height: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppColors.primaryTint,
+                            borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
                             deptName,
                             style: const TextStyle(
                                 color: AppColors.primaryText,
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600),
+                                fontWeight: FontWeight.w700),
                           ),
                         ),
                       ],
@@ -1642,12 +1751,10 @@ class _SubjectDetailModal extends StatelessWidget {
                 GestureDetector(
                   onTap: onAddInstructor,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withValues(alpha: 0.1),
+                      color: AppColors.primaryTint,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3)),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -1659,7 +1766,7 @@ class _SubjectDetailModal extends StatelessWidget {
                             style: TextStyle(
                                 color: AppColors.primaryText,
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                                fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -1716,8 +1823,7 @@ class _SubjectDetailModal extends StatelessWidget {
                         dense: true,
                         leading: CircleAvatar(
                           radius: 20,
-                          backgroundColor:
-                              AppColors.primary.withValues(alpha: 0.1),
+                          backgroundColor: AppColors.primaryTint,
                           child: Text(
                             initials,
                             style: const TextStyle(
@@ -1773,8 +1879,8 @@ class _SubjectDetailModal extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.borderSubtle),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                      borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(vertical: 15),
                 ),
                 child: const Text('Close',
                     style: TextStyle(
