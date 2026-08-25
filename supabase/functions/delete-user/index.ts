@@ -37,9 +37,21 @@ serve(async (req) => {
         }
     }
 
-    // 1. Delete from auth.users (This cascades if FKs are set to CASCADE, but we'll be explicit if needed)
-    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
-    if (deleteError) throw deleteError
+    // 1. Soft Delete: Update user_info status to 'deleted'
+    const { error: updateError } = await supabaseAdmin
+        .from('user_info')
+        .update({ account_status: 'deleted' })
+        .eq('id', userId)
+    
+    if (updateError) throw updateError
+
+    // 2. Ban the user in auth so they cannot log in again
+    // We set a very long ban duration to effectively disable the account
+    const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { ban_duration: '87600h' } // 10 years ban
+    )
+    if (banError) throw banError
 
     // 2. Audit Log
     await supabaseAdmin.from('audit_logs').insert({

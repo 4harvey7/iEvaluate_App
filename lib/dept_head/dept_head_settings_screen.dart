@@ -360,18 +360,20 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Current password — for verification (Supabase uses session, but good practice)
-                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  // New password — must be at least 6 chars
-                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  // Confirm — must match new password or we reject
-                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Current password — for verification (Supabase uses session, but good practice)
+                    _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    // New password — must be at least 6 chars
+                    _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    // Confirm — must match new password or we reject
+                    _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
+                  ],
+                ),
               ),
               actions: [
                 // Cancel — no changes made

@@ -55,29 +55,29 @@ class Subject {
   String get verbalDescription => getVerbalDescription(overallMean);
 
   static String getVerbalDescription(double score) {
-    if (score >= 4.20) return 'Outstanding';
-    if (score >= 3.40) return 'Very Satisfactory';
-    if (score >= 2.60) return 'Satisfactory';
-    if (score >= 1.80) return 'Fair';
-    if (score > 0) return 'Unsatisfactory';
+    if (score >= 4.21) return 'Outstanding';
+    if (score >= 3.41) return 'Very Satisfactory';
+    if (score >= 2.61) return 'Satisfactory';
+    if (score >= 1.81) return 'Fair';
+    if (score >= 1.00) return 'Unsatisfactory';
     return 'N/A';
   }
 
   static String getVDCode(double score) {
-    if (score >= 4.20) return 'O';
-    if (score >= 3.40) return 'VS';
-    if (score >= 2.60) return 'S';
-    if (score >= 1.80) return 'F';
-    if (score > 0) return 'US';
+    if (score >= 4.21) return 'O';
+    if (score >= 3.41) return 'VS';
+    if (score >= 2.61) return 'S';
+    if (score >= 1.81) return 'F';
+    if (score >= 1.00) return 'US';
     return '-';
   }
 
   static Color getScoreColor(double score) {
-    if (score >= 4.20) return AppColors.success;
-    if (score >= 3.40) return AppColors.primary;
-    if (score >= 2.60) return AppColors.textPrimary;
-    if (score >= 1.80) return AppColors.warning;
-    if (score > 0) return AppColors.error;
+    if (score >= 4.21) return AppColors.success;
+    if (score >= 3.41) return AppColors.primary;
+    if (score >= 2.61) return AppColors.textPrimary;
+    if (score >= 1.81) return AppColors.warning;
+    if (score >= 1.00) return AppColors.error;
     return AppColors.textPrimary;
   }
 }

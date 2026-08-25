@@ -136,16 +136,20 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     });
   }
 
+  bool _isLoadingData = false;
+
   // The big data loader — fetches everything the dashboard need in one go.
   // If something fail, it catch the error and show empty state. dili ta crash.
   Future<void> _loadInitialData() async {
+    if (_isLoadingData) return;
+    _isLoadingData = true;
     try {
       // Get the dept summary — overall score, completion rate, etc.
       final summary = await _evaluationService.getDepartmentSummary(widget.userId);
       // Use dept average as threshold: show instructors below the dept mean
       // If no average yet, default to 3.0 so alerts still work — smart move
       final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0;
-      final alerts = await _evaluationService.getDepartmentAlerts(widget.userId, threshold: deptAvg);
+      final alerts = await _evaluationService.getDepartmentAlerts(widget.userId, threshold: 3.0); // Strict 3.0 benchmark as requested
       final wordCloud = await _evaluationService.getDeptWordCloud(widget.userId);
       // Fetch the historical performance of the whole department
       final history = await _evaluationService.getDepartmentHistory(widget.userId);
@@ -223,6 +227,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
       // If anything fails, just print it and show empty state — wala choice
       debugPrint('Error loading initial data: $e');
       if (mounted) setState(() {});
+    } finally {
+      _isLoadingData = false;
     }
   }
 
@@ -675,10 +681,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       final maxCount = (_wordCloudData.first['total_count'] as num?)?.toInt() ?? 1;
                       final double ratio = maxCount > 0 ? (count / maxCount) : 1.0;
                       
-                      // Scale between 12px and 32px based on frequency
-                      final double fontSize = 12.0 + (ratio * 20.0);
+                      // Scale between 10px and 25px based on frequency
+                      final double fontSize = 10.0 + (ratio * 15.0);
                       
-                      final String word = wordData['word'] ?? '';
+                      final String rawWord = wordData['word'] ?? '';
+                      final String word = rawWord.replaceAll(' ', '');
                       final color = _cloudColors[i % _cloudColors.length];
                       
                       final Widget wordText = Text(

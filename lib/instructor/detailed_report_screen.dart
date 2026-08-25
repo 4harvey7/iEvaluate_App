@@ -240,25 +240,25 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   }
 
   String getVerbalDescription(double score) {
-    if (score >= 4.20) return 'Outstanding';
-    if (score >= 3.40) return 'Very Satisfactory';
-    if (score >= 2.60) return 'Satisfactory';
-    if (score >= 1.80) return 'Fair';
+    if (score >= 4.21) return 'Outstanding';
+    if (score >= 3.41) return 'Very Satisfactory';
+    if (score >= 2.61) return 'Satisfactory';
+    if (score >= 1.81) return 'Fair';
     return 'Unsatisfactory';
   }
 
   String getVDCode(double score) {
-    if (score >= 4.20) return 'O';
-    if (score >= 3.40) return 'VS';
-    if (score >= 2.60) return 'S';
-    if (score >= 1.80) return 'F';
+    if (score >= 4.21) return 'O';
+    if (score >= 3.41) return 'VS';
+    if (score >= 2.61) return 'S';
+    if (score >= 1.81) return 'F';
     return 'US';
   }
 
   Color getVDColor(double score) {
-    if (score >= 4.20) return AppColors.success;
-    if (score >= 3.40) return AppColors.primary;
-    if (score >= 1.80) return AppColors.warning;
+    if (score >= 4.21) return AppColors.success;
+    if (score >= 3.41) return AppColors.primary;
+    if (score >= 1.81) return AppColors.warning;
     return AppColors.error;
   }
 
@@ -548,17 +548,17 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              Expanded(child: _legendItem('4.20 - 5.00', 'Outstanding (O)')),
-              Expanded(child: _legendItem('2.60 - 3.39', 'Satisfactory (S)')),
+              Expanded(child: _legendItem('4.21 - 5.00', 'Outstanding (O)')),
+              Expanded(child: _legendItem('2.61 - 3.40', 'Satisfactory (S)')),
             ],
           ),
           Row(
             children: [
-              Expanded(child: _legendItem('3.40 - 4.19', 'Very Satisfactory (VS)')),
-              Expanded(child: _legendItem('1.80 - 2.59', 'Fair (F)')),
+              Expanded(child: _legendItem('3.41 - 4.20', 'Very Satisfactory (VS)')),
+              Expanded(child: _legendItem('1.81 - 2.60', 'Fair (F)')),
             ],
           ),
-          _legendItem('1.00 - 1.79', 'Unsatisfactory (US)'),
+          _legendItem('1.00 - 1.80', 'Unsatisfactory (US)'),
         ],
       ),
     );
