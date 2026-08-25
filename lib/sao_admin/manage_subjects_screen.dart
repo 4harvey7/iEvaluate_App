@@ -11,6 +11,8 @@ import '../core/navigation/main_scaffold.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 // outer widget — just holds the state, nothing interesting yet
@@ -227,10 +229,12 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         content: const Text('Remove this instructor from this subject for the current term? The subject will remain available for other terms.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
+          Pressable(
+            child: ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Remove', style: TextStyle(color: Colors.white)),
+          ),
           ),
         ],
       ),
@@ -402,7 +406,9 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                   // ── Search bar ──────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                    child: Container(
+                    child: Entrance(
+                      index: 0,
+                      child: Container(
                       decoration: BoxDecoration(
                         color: AppColors.surface,
                         borderRadius: BorderRadius.circular(16),
@@ -445,11 +451,14 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                         ),
                       ),
                     ),
+                    ),
                   ),
                   // ── Filter chips ───────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                    child: SingleChildScrollView(
+                    child: Entrance(
+                      index: 1,
+                      child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       child: Row(
@@ -461,6 +470,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                               activeColor: AppColors.warning),
                         ],
                       ),
+                    ),
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -490,8 +500,9 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                           : ListView.builder(
                               padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                               itemCount: _filteredGroups.length,
-                              itemBuilder: (context, index) =>
-                                  _buildSubjectCard(_filteredGroups[index]),
+                              itemBuilder: (context, index) => Entrance(
+                                  index: index.clamp(0, 8),
+                                  child: _buildSubjectCard(_filteredGroups[index])),
                             ),
                     ),
                   ),
@@ -505,27 +516,32 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
             // Mini FAB: Bulk Import — shows only when open
             ScaleTransition(
               scale: _fabScaleAnim,
-              child: _buildMiniFab(
+              child: Pressable(
+                child: _buildMiniFab(
                 icon: Icons.table_chart_rounded,
                 label: 'Send Bulk',
                 color: AppColors.warning,
                 onTap: _openBulkImportModal,
+              ),
               ),
             ),
             const SizedBox(height: 10),
             // Mini FAB: Add Subject — shows only when open
             ScaleTransition(
               scale: _fabScaleAnim,
-              child: _buildMiniFab(
+              child: Pressable(
+                child: _buildMiniFab(
                 icon: Icons.add_circle_outline_rounded,
                 label: 'Add Subject',
                 color: AppColors.success,
                 onTap: () => _openAddSubjectModal(),
               ),
+              ),
             ),
             const SizedBox(height: 12),
             // Main FAB — always visible
-            FloatingActionButton(
+            Pressable(
+              child: FloatingActionButton(
               onPressed: _toggleFab,
               backgroundColor: AppColors.primary,
               elevation: 4,
@@ -534,6 +550,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                 turns: _isFabOpen ? 0.125 : 0, // rotate 45° when open
                 child: const Icon(Icons.add, color: AppColors.textPrimary, size: 28),
               ),
+            ),
             ),
           ],
         ),
@@ -588,7 +605,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
   Widget _buildFilterChip(String label, String mode, IconData icon,
       {Color activeColor = AppColors.primary}) {
     final isActive = _filterMode == mode;
-    return GestureDetector(
+    return Pressable(
+      child: GestureDetector(
       onTap: () => setState(() => _filterMode = mode),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
@@ -621,6 +639,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -697,7 +716,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           : firstName;
     }
 
-    return Container(
+    return Pressable(
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -825,6 +845,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
             ),
           ),
         ),
+      ),
       ),
     );
   }
@@ -1322,7 +1343,8 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                     const SizedBox(width: 12),
                     Expanded(
                       flex: 2,
-                      child: Container(
+                      child: Pressable(
+                        child: Container(
                         height: 54,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1358,6 +1380,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           ),
                         ),
+                      ),
                       ),
                     ),
                   ],
@@ -1557,7 +1580,8 @@ class _BulkImportModalState extends State<_BulkImportModal> {
                   const SizedBox(width: 12),
                   Expanded(
                     flex: 2,
-                    child: Container(
+                    child: Pressable(
+                      child: Container(
                       height: 54,
                       decoration: BoxDecoration(
                         gradient: LinearGradient(colors: [
@@ -1594,6 +1618,7 @@ class _BulkImportModalState extends State<_BulkImportModal> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                       ),
+                    ),
                     ),
                   ),
                 ],
@@ -1748,7 +1773,8 @@ class _SubjectDetailModal extends StatelessWidget {
                   ),
                 ),
                 // ── Add Instructor button ──
-                GestureDetector(
+                Pressable(
+                  child: GestureDetector(
                   onTap: onAddInstructor,
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -1770,6 +1796,7 @@ class _SubjectDetailModal extends StatelessWidget {
                       ],
                     ),
                   ),
+                ),
                 ),
               ],
             ),

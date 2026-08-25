@@ -5,6 +5,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'failed_scan_detail_screen.dart';
 
 // shows a list of failed scans that need manual correction
@@ -129,7 +131,9 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header ───────────────────────────────────────────────────
-          Padding(
+          Entrance(
+            index: 0,
+            child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,11 +172,14 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
               ],
             ),
           ),
+          ),
 
           // ── Stats bar ────────────────────────────────────────────────
           // show how many scans need correction — only when there are some
           if (!_isLoading && _failedScans.isNotEmpty)
-            Padding(
+            Entrance(
+              index: 1,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -200,6 +207,7 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                   ],
                 ),
               ),
+            ),
             ),
 
           // ── List ─────────────────────────────────────────────────────
@@ -263,7 +271,8 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                             final instructor =
                                 partial['instructor']?.toString() ?? '';
 
-                            return Container(
+                            final card = Pressable(
+                              child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
@@ -385,7 +394,12 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
                                   ),
                                 ),
                               ),
+                              ),
                             );
+                            // entrance stagger only for the first items — long
+                            // lists should not animate forever
+                            if (index >= 6) return card;
+                            return Entrance(index: index + 2, child: card);
                           },
                         ),
                       ),

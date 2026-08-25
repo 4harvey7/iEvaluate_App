@@ -9,6 +9,8 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 class SaoAdminSettings extends StatefulWidget {
@@ -230,7 +232,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       ],
 
                       const SizedBox(height: 24),
-                      Container(
+                      Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 54,
                         decoration: BoxDecoration(
@@ -328,6 +331,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             : Text(needsOTP ? 'Verify & Update' : 'Save Changes', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                         ),
                       ),
+                      ),
                     ],
                   ),
                 ),
@@ -379,7 +383,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   onPressed: isSaving ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
@@ -398,9 +403,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       );
                     }
                   },
-                  child: isSaving 
+                  child: isSaving
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
+                ),
                 ),
               ],
             );
@@ -446,7 +452,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   onPressed: isUpdating ? null : () => Navigator.pop(context), // cancel while not loading
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -538,6 +545,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                     : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 ),
+                ),
               ],
             );
           }
@@ -573,7 +581,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           actions: [
             // cancel — the sensible choice
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            SafeElevatedButton(
+            Pressable(
+              child: SafeElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
@@ -589,6 +598,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                    if (mounted) scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
+            ),
             ),
           ],
         );
@@ -742,7 +752,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 0,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(24),
@@ -776,9 +788,11 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             Text('$_userTitle • $_userOffice', style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                             const SizedBox(height: 8),
                             // tap this to open the edit profile bottom sheet
-                            GestureDetector(
+                            Pressable(
+                              child: GestureDetector(
                               onTap: _showEditProfileSheet,
                               child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primaryText, fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
                             ),
                           ],
                         ),
@@ -786,6 +800,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     ],
                   ),
                 ),
+              ),
               ),
               const SizedBox(height: 32),
 
@@ -801,7 +816,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 1,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -949,7 +966,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: Container(
+                      child: Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 54,
                         decoration: BoxDecoration(
@@ -993,13 +1011,15 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                     onPressed: () => Navigator.pop(dialogContext, false),
                                     child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                                   ),
-                                  ElevatedButton(
+                                  Pressable(
+                                    child: ElevatedButton(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.textPrimary,
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                     ),
                                     onPressed: () => Navigator.pop(dialogContext, true), // confirmed — go ahead
                                     child: const Text('Yes, Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  ),
                                   ),
                                 ],
                               ),
@@ -1024,9 +1044,11 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           ),
                         ),
                       ),
+                      ),
                     ),
                   ],
                 ),
+              ),
               ),
               const SizedBox(height: 32),
 
@@ -1043,7 +1065,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 2,
+                child: Container(
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.surface,
@@ -1087,13 +1111,17 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   ],
                 ),
               ),
+              ),
               const SizedBox(height: 32),
 
               // ==========================================
               // 5. LOG OUT BUTTON
               // the exit door — signs out and kicks user to login screen
               // ==========================================
-              SizedBox(
+              Entrance(
+                index: 3,
+                child: Pressable(
+                child: SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: SafeOutlinedButton(
@@ -1124,6 +1152,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     ],
                   ),
                 ),
+              ),
+              ),
               ),
               const SizedBox(height: 32),
 

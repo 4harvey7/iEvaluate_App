@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 class DetailedReportScreen extends StatefulWidget {
   final String userId;
@@ -285,9 +287,11 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         ),
         iconTheme: const IconThemeData(color: AppColors.textInverted),
         actions: [
-          IconButton(
+          Pressable(
+            child: IconButton(
             icon: const Icon(Icons.download_rounded),
             onPressed: _generatePDF,
+          ),
           )
         ],
       ),
@@ -298,17 +302,17 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildOfficialHeader(),
+                  Entrance(child: _buildOfficialHeader()),
                   const Divider(height: 32),
-                  _buildSummaryTable(),
+                  Entrance(index: 1, child: _buildSummaryTable()),
                   const SizedBox(height: 24),
-                  _buildCriteriaSection('I. Management', _managementCriteria, _mgmtScore, _managementMeans),
+                  Entrance(index: 2, child: _buildCriteriaSection('I. Management', _managementCriteria, _mgmtScore, _managementMeans)),
                   const SizedBox(height: 24),
-                  _buildCriteriaSection('II. Performance', _performanceCriteria, _perfScore, _performanceMeans),
+                  Entrance(index: 3, child: _buildCriteriaSection('II. Performance', _performanceCriteria, _perfScore, _performanceMeans)),
                   const SizedBox(height: 32),
-                  _buildCommentsSection(),
+                  Entrance(index: 4, child: _buildCommentsSection()),
                   const SizedBox(height: 32),
-                  _buildLegend(),
+                  Entrance(index: 5, child: _buildLegend()),
                 ],
               ),
             ),

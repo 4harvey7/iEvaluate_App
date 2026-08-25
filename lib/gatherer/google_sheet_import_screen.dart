@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 class GoogleSheetImportScreen extends StatefulWidget {
   final String userId;
@@ -89,7 +91,9 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _stepCard(children: [
+            Entrance(
+              index: 0,
+              child: _stepCard(children: [
               _stepHeader(1, 'Step 1: Set Sheet Name'),
               const SizedBox(height: 12),
               const Text(
@@ -136,10 +140,13 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 ),
               ),
             ]),
+            ),
 
             const SizedBox(height: 16),
 
-            _stepCard(children: [
+            Entrance(
+              index: 1,
+              child: _stepCard(children: [
               _stepHeader(2, 'Step 2: Column Headers'),
               const SizedBox(height: 12),
               const Text(
@@ -166,10 +173,13 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 ),
               ),
             ]),
+            ),
 
             const SizedBox(height: 16),
 
-            _stepCard(children: [
+            Entrance(
+              index: 2,
+              child: _stepCard(children: [
               _stepHeader(3, 'Step 3: Paste Link'),
               const SizedBox(height: 14),
               TextField(
@@ -194,11 +204,15 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 ),
               ),
             ]),
+            ),
 
             const SizedBox(height: 24),
 
             // gradient CTA — the one button that matters on this screen
-            Container(
+            Entrance(
+              index: 3,
+              child: Pressable(
+              child: Container(
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
@@ -240,6 +254,8 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                         fontSize: 16,
                         letterSpacing: 0.3)),
               ),
+            ),
+            ),
             ),
             const SizedBox(height: 40),
           ],

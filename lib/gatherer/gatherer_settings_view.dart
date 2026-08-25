@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
@@ -160,7 +162,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
-                      Container(
+                      Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 52,
                         decoration: BoxDecoration(
@@ -219,6 +222,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                             : const Text('Save Changes', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 0.2)),
                         ),
+                      ),
                       ),
                     ],
                   ),
@@ -493,7 +497,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
 
             const Text('PROFILE', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Container(
+            Entrance(
+              index: 0,
+              child: Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
@@ -534,11 +540,14 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 ),
               ),
             ),
+            ),
             const SizedBox(height: 32),
 
             const Text('SCANNER PREFERENCES', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Container(
+            Entrance(
+              index: 1,
+              child: Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(20),
@@ -558,11 +567,14 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 onChanged: _setHaptic,
               ),
             ),
+            ),
             const SizedBox(height: 32),
 
             const Text('SECURITY & DANGER ZONE', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
             const SizedBox(height: 12),
-            Container(
+            Entrance(
+              index: 2,
+              child: Container(
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -615,9 +627,13 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 ],
               ),
             ),
+            ),
             const SizedBox(height: 32),
 
-            Container(
+            Entrance(
+              index: 3,
+              child: Pressable(
+              child: Container(
               width: double.infinity,
               height: 54,
               decoration: BoxDecoration(
@@ -667,6 +683,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     ],
                   ),
                 ),
+            ),
+            ),
             ),
           ],
         ),

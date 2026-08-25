@@ -9,6 +9,8 @@ import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // the outer shell widget — just a box, nothing special yet
 class PersonnelManagementScreen extends StatefulWidget {
@@ -419,7 +421,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            SafeElevatedButton(
+            Pressable(
+              child: SafeElevatedButton(
               onPressed: () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
@@ -514,6 +517,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : Text(needsCode ? 'Verify & Save' : 'Save Changes'),
             ),
+            ),
           ],
         ),
       ),
@@ -582,7 +586,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            ElevatedButton(
+            Pressable(
+              child: ElevatedButton(
               onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
@@ -667,6 +672,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
             ),
+            ),
           ],
         ),
       ),
@@ -723,7 +729,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
           : Column(
               children: [
                 // search + inline dropdowns for filters
-                Container(
+                Entrance(
+                  index: 0,
+                  child: Container(
                   margin: const EdgeInsets.fromLTRB(20, 16, 20, 4),
                   padding: const EdgeInsets.all(16.0),
                   decoration: BoxDecoration(
@@ -825,6 +833,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     ],
                   ),
                 ),
+                ),
                 Expanded(
                   child: RefreshIndicator(
                     onRefresh: _fetchData,
@@ -878,7 +887,10 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                             final isActive = ui['account_status'] == 'approved'; // is this person enabled?
                             final isTargetAdmin = person['role_data']?['Roles'] == 'SAO_ADMIN'; // admins have shield icon, cannot edit by others
 
-                            return Container(
+                            return Entrance(
+                              index: index.clamp(0, 8),
+                              child: Pressable(
+                              child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               decoration: BoxDecoration(
                                 color: AppColors.surface,
@@ -925,6 +937,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                     const PopupMenuItem(value: 'reset', child: Row(children: [Icon(Icons.lock_reset, size: 18), SizedBox(width: 8), Text('Reset Password')])),
                                   ],
                                 ),
+                              ),
+                              ),
                               ),
                             );
                           },

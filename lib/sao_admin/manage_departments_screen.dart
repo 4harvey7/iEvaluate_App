@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 class ManageDepartmentsScreen extends StatefulWidget {
@@ -185,7 +187,8 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 child: const Text('Cancel',
                     style: TextStyle(color: AppColors.textSecondary)),
               ),
-              ElevatedButton(
+              Pressable(
+                child: ElevatedButton(
                 onPressed: isSaving
                     ? null
                     : () async {
@@ -238,7 +241,8 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                       style: TextStyle(
                                           color: AppColors.textSecondary)),
                                 ),
-                                ElevatedButton(
+                                Pressable(
+                                  child: ElevatedButton(
                                   onPressed: () =>
                                       Navigator.pop(ctx, true),
                                   style: ElevatedButton.styleFrom(
@@ -250,6 +254,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                   child: const Text('Yes, Add',
                                       style:
                                           TextStyle(color: AppColors.textPrimary)),
+                                ),
                                 ),
                               ],
                             ),
@@ -310,6 +315,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                             color: isEditing
                                 ? Colors.white
                                 : AppColors.textPrimary)),
+              ),
               ),
             ],
           );
@@ -377,7 +383,8 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
               onPressed: () => Navigator.pop(context, false),
               child: const Text('Cancel',
                   style: TextStyle(color: AppColors.textSecondary))),
-          ElevatedButton(
+          Pressable(
+            child: ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(
@@ -386,6 +393,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
             child: const Text('Delete',
                 style: TextStyle(
                     color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
           ),
         ],
       ),
@@ -487,7 +495,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    Entrance(
+                      index: 0,
+                      child: Text(
                       'ALL DEPARTMENTS (${_departments.length})',
                       style: const TextStyle(
                           color: AppColors.textSecondary,
@@ -495,11 +505,15 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.5),
                     ),
+                    ),
                     const SizedBox(height: 6),
-                    const Text(
+                    const Entrance(
+                      index: 1,
+                      child: Text(
                       'Tap a department to view its score, head, and instructors.',
                       style: TextStyle(
                           color: AppColors.textSecondary, fontSize: 12),
+                    ),
                     ),
                     const SizedBox(height: 14),
                     _departments.isEmpty
@@ -523,7 +537,10 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
         final dept = _departments[index];
         final isCurrentlyEditing = _editing?['id'] == dept['id'];
 
-        return AnimatedContainer(
+        return Entrance(
+          index: index.clamp(0, 8),
+          child: Pressable(
+          child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
@@ -605,6 +622,8 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 ),
               ]),
             ),
+          ),
+          ),
           ),
           ),
         );

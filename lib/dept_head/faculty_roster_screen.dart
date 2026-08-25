@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
 
@@ -416,7 +418,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             // SEARCH & SORT HEADER
             // Fixed at top — not scrollable with the list
             // ==========================================
-            Container(
+            Entrance(
+              index: 0,
+              child: Container(
               padding: const EdgeInsets.all(20.0),
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -500,6 +504,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                   )
                 ],
               ),
+              ),
             ),
 
             // ==========================================
@@ -517,7 +522,10 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                   // Flag low performers with a red border — so dean know who to worry about
                   bool isLowPerformer = faculty['score'] < 3.0;
 
-                  return Container(
+                  return Entrance(
+                    index: index.clamp(0, 8).toInt(),
+                    child: Pressable(
+                      child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
                       color: AppColors.surface,
@@ -594,6 +602,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ),
                       ),
                     ),
                   );

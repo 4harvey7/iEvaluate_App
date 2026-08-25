@@ -6,6 +6,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'failed_scans_screen.dart';
 
 // StatefulWidget with two tabs — we need state for loading and tab controller
@@ -209,7 +211,8 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                   children: [
                     Expanded(
                       // destructive — soft error tint pill, no hairline border
-                      child: Container(
+                      child: Pressable(
+                        child: Container(
                         height: 52,
                         decoration: BoxDecoration(
                           color: AppColors.error.withValues(alpha: 0.10),
@@ -227,12 +230,14 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                                   fontWeight: FontWeight.w700)),
                         ),
                       ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2, // save button is bigger — more important
                       // gradient CTA with warm glow — the primary action
-                      child: Container(
+                      child: Pressable(
+                        child: Container(
                         height: 52,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -264,6 +269,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 0.2)),
                         ),
+                      ),
                       ),
                     ),
                   ],
@@ -414,7 +420,9 @@ class _DataValidationScreenState extends State<DataValidationScreen>
           // two tabs with badge counts — so user see at a glance how much work waiting
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-            child: Container(
+            child: Entrance(
+              index: 0,
+              child: Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -474,6 +482,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                 ),
                 ],
               ),
+            ),
             ),
           ),
 
@@ -561,7 +570,8 @@ class _DataValidationScreenState extends State<DataValidationScreen>
         itemBuilder: (_, i) {
           final form = _flaggedForms[i];
           // each flagged record shown as a soft floating card — no hairline borders
-          return Container(
+          final card = Pressable(
+            child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
               color: AppColors.surface,
@@ -625,7 +635,12 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                 ),
               ),
             ),
+            ),
           );
+          // entrance stagger only for the first items — long lists
+          // should not animate forever
+          if (i >= 6) return card;
+          return Entrance(index: i + 1, child: card);
         },
       ),
     );

@@ -11,6 +11,7 @@ import 'providers/subjects_provider.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/motion.dart';
 
 // StatefulWidget because it needs to load term data before showing anything useful
 class MySubjectsScreen extends StatefulWidget {
@@ -28,7 +29,8 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
 
   // Current term ID and display name — starts null/generic until loaded
   String? _currentTermId;
-  String _termName = 'Current Semester'; // placeholder until real term is fetched
+  String _termName =
+      'Current Semester'; // placeholder until real term is fetched
 
   @override
   void initState() {
@@ -43,9 +45,9 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     try {
       final settings = await _settingsService.getSettings();
       if (!mounted) return; // widget might be gone by the time this completes
-      
+
       setState(() => _currentTermId = settings.termId); // save term ID to state
-      
+
       // If we have a term ID, also fetch its human-readable name
       if (_currentTermId != null) {
         final termData = await _supabase
@@ -53,7 +55,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
             .select('semester, academic_year')
             .eq('id', _currentTermId!)
             .maybeSingle();
-        
+
         if (termData != null && mounted) {
           setState(() {
             // Combine semester and year into a nice display name
@@ -61,7 +63,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
           });
         }
       }
-      
+
       // Tell the subjects provider to load subjects for this term
       provider.load(termId: _currentTermId);
     } catch (e) {
@@ -112,13 +114,15 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
 
           // Use true term average if available, otherwise fallback to unweighted average
           double termAverage = 0.0;
-          if (provider.trueTermAverage != null && provider.trueTermAverage! > 0) {
+          if (provider.trueTermAverage != null &&
+              provider.trueTermAverage! > 0) {
             termAverage = provider.trueTermAverage!;
           } else {
             double totalMean = 0;
             int count = 0;
             for (var s in subjects) {
-              if (s.overallMean > 0) { // skip subjects with no score yet
+              if (s.overallMean > 0) {
+                // skip subjects with no score yet
                 totalMean += s.overallMean;
                 count++;
               }
@@ -127,7 +131,9 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
           }
 
           return RefreshIndicator(
-            onRefresh: () => provider.load(termId: _currentTermId), // pull to reload subjects
+            onRefresh: () => provider.load(
+              termId: _currentTermId,
+            ), // pull to reload subjects
             color: AppColors.primary,
             child: ListView.builder(
               padding: const EdgeInsets.all(20),
@@ -136,19 +142,24 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
               itemBuilder: (context, index) {
                 if (index == 0) {
                   // First item is always the summary header card — not a subject card
-                  return _buildSummaryHeader(termAverage, subjects.length);
+                  return Entrance(
+                    child: _buildSummaryHeader(termAverage, subjects.length),
+                  );
                 }
                 // The rest are subject cards (offset by 1 because of the header)
                 final subject = subjects[index - 1];
-                return SubjectCard(
-                  subject: subject,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => SubjectDetailScreen(
-                        subject: subject,
-                        userId: widget.userId,
-                        termId: _currentTermId,
+                return Entrance(
+                  index: index.clamp(0, 8),
+                  child: SubjectCard(
+                    subject: subject,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => SubjectDetailScreen(
+                          subject: subject,
+                          userId: widget.userId,
+                          termId: _currentTermId,
+                        ),
                       ),
                     ),
                   ),
@@ -164,8 +175,10 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
   // Builds the summary header card at the top of the list — shows term average and subject count.
   // The color of the verbal description badge changes based on the average score.
   Widget _buildSummaryHeader(double average, int totalSubjects) {
-    final color = Subject.getScoreColor(average); // green = good, red = time to reflect
-    
+    final color = Subject.getScoreColor(
+      average,
+    ); // green = good, red = time to reflect
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -217,116 +230,116 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
 
   Widget _buildSummaryContent(double average, int totalSubjects, Color color) {
     return Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Term name in small uppercase label — like a badge
-                    Text(
-                      _termName.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.textInvertedDim,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Term name in small uppercase label — like a badge
+                  Text(
+                    _termName.toUpperCase(),
+                    style: const TextStyle(
+                      color: AppColors.textInvertedDim,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Term Performance',
-                      style: TextStyle(
-                        color: AppColors.textInverted,
-                        fontSize: 19,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Verbal description badge — "Outstanding", "Satisfactory", etc.
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Text(
-                  Subject.getVerbalDescription(average),
-                  style: TextStyle(
-                    color: Color.lerp(color, Colors.white, 0.55),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
                   ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Term Performance',
+                    style: TextStyle(
+                      color: AppColors.textInverted,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Verbal description badge — "Outstanding", "Satisfactory", etc.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(100),
+              ),
+              child: Text(
+                Subject.getVerbalDescription(average),
+                style: TextStyle(
+                  color: Color.lerp(color, Colors.white, 0.55),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Big average number — the main KPI of this screen
-                    Text(
-                      average > 0 ? average.toStringAsFixed(2) : 'N/A',
-                      style: const TextStyle(
-                        color: AppColors.primary,
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1,
-                        height: 1.1,
-                      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Big average number — the main KPI of this screen
+                  Text(
+                    average > 0 ? average.toStringAsFixed(2) : 'N/A',
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
+                      height: 1.1,
                     ),
-                    const Text(
-                      'Overall Weighted Mean',
-                      style: TextStyle(
-                          color: AppColors.textInvertedDim, fontSize: 11),
+                  ),
+                  const Text(
+                    'Overall Weighted Mean',
+                    style: TextStyle(
+                      color: AppColors.textInvertedDim,
+                      fontSize: 11,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              // Thin vertical divider between the two numbers
-              Container(
-                width: 1,
-                height: 40,
-                color: AppColors.textInvertedFaint,
-              ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    // Total number of assigned subjects
-                    Text(
-                      '$totalSubjects',
-                      style: const TextStyle(
-                        color: AppColors.textInverted,
-                        fontSize: 38,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -1,
-                        height: 1.1,
-                      ),
+            ),
+            // Thin vertical divider between the two numbers
+            Container(width: 1, height: 40, color: AppColors.textInvertedFaint),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  // Total number of assigned subjects
+                  Text(
+                    '$totalSubjects',
+                    style: const TextStyle(
+                      color: AppColors.textInverted,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
+                      height: 1.1,
                     ),
-                    const Text(
-                      'Assigned Subjects',
-                      style: TextStyle(
-                          color: AppColors.textInvertedDim, fontSize: 11),
+                  ),
+                  const Text(
+                    'Assigned Subjects',
+                    style: TextStyle(
+                      color: AppColors.textInvertedDim,
+                      fontSize: 11,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 

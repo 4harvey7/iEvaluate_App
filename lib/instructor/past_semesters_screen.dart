@@ -9,6 +9,8 @@ import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'detailed_report_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
@@ -379,7 +381,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             const SizedBox(height: 24),
 
             // Interactive bar chart showing all historical term scores
-            _buildTrendGraph(),
+            Entrance(child: _buildTrendGraph()),
 
             const SizedBox(height: 32),
             Row(
@@ -393,7 +395,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                         color: AppColors.textSecondary)),
                 // Show "Full Term Report" button only when a term with data is selected
                 if (termData != null && termData.isNotEmpty)
-                  TextButton.icon(
+                  Pressable(
+                    child: TextButton.icon(
                     onPressed: () {
                       // Get instructor name from user metadata — not ideal but wala pa better source here
                       final name = _supabase.auth.currentUser?.userMetadata?['full_name'] ?? 'Instructor';
@@ -422,13 +425,16 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                           borderRadius: BorderRadius.circular(100)),
                     ),
                   ),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
 
             // Dropdown to select which term to view subjects for
             if (_historicalData.isNotEmpty)
-              Container(
+              Entrance(
+                index: 1,
+                child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
@@ -461,6 +467,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                     },
                   ),
                 ),
+              ),
               )
             else
               // No history at all — maybe the instructor is brand new
@@ -547,7 +554,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
               )
             else
               // Map each subject data into a Subject model and render a SubjectCard
-              ..._selectedTermSubjects.map((s) {
+              ..._selectedTermSubjects.asMap().entries.map((entry) {
+                final s = entry.value;
                 final subjectObj = Subject.fromJson({
                   ...s,
                   'management_mean': s['management_mean'],
@@ -555,9 +563,12 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                   // Use fallback date if created_at is missing — dili null ang date pls
                   'created_at': s['created_at'] ?? termData?['created_at'] ?? DateTime.now().toIso8601String(),
                 });
-                return SubjectCard(
+                return Entrance(
+                  index: entry.key.clamp(0, 8),
+                  child: SubjectCard(
                   subject: subjectObj,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubjectDetailScreen(subject: subjectObj, userId: widget.userId, termId: _selectedTermId!))),
+                ),
                 );
               }),
           ],
@@ -641,7 +652,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                                   Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w700)),
                                   const SizedBox(height: 4),
                                   // Tappable bar — clicking selects this term
-                                  GestureDetector(
+                                  Pressable(
+                                    child: GestureDetector(
                                     onTap: () {
                                       setState(() => _selectedTermId = data['termId']);
                                       _loadSelectedTermData(data['termId']); // load this term's subjects
@@ -670,6 +682,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                                             : null,
                                       ),
                                     ),
+                                  ),
                                   ),
                                   const SizedBox(height: 8),
                                   // Short label below bar: "1st\n25-26" so different years are distinguishable

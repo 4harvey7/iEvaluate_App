@@ -12,6 +12,8 @@ import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
 
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 // This widget is the throne of the admin. Very holy. Dili ta puwede diri if not admin.
@@ -246,7 +248,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // ── Espresso hero header with warm glow ──────────────────
-              Container(
+              Entrance(
+                index: 0,
+                child: Container(
                 width: double.infinity,
                 clipBehavior: Clip.antiAlias,
                 decoration: const BoxDecoration(
@@ -307,6 +311,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ],
                 ),
               ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
                 child: Column(
@@ -315,7 +320,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // ── System Status Row ────────────────────────────────────
               // tap this to manually re-check if servers are alive or resting in peace
-              GestureDetector(
+              Entrance(
+                index: 1,
+                child: Pressable(
+                child: GestureDetector(
                 onTap: _checkingStatus ? null : _checkSystemStatus, // disabled while checking
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -344,21 +352,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ),
               ),
+              ),
+              ),
               const SizedBox(height: 16),
 
               // ── Metric Cards ─────────────────────────────────────────
               // two big number cards to make admin feel in control
               Row(
                 children: [
-                  Expanded(child: _buildMetricCard('Total Users', '$_totalUsersCount', Icons.people, AppColors.primaryText)),
+                  Expanded(child: Entrance(index: 2, child: _buildMetricCard('Total Users', '$_totalUsersCount', Icons.people, AppColors.primaryText))),
                   const SizedBox(width: 16),
-                  Expanded(child: _buildMetricCard(
+                  Expanded(child: Entrance(index: 3, child: _buildMetricCard(
                     'Files Scanned',
                     '$_filesScannedCount',
                     Icons.document_scanner_outlined,
                     AppColors.success,
                     sub: 'this term', // only counts current term, dili all-time
-                  )),
+                  ))),
                 ],
               ),
               const SizedBox(height: 32),
@@ -366,7 +376,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // ── Pending Approvals ─────────────────────────────────────
               // list of people who registered but still waiting for admin's blessing
-              Row(
+              Entrance(
+                index: 4,
+                child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Expanded(
@@ -380,7 +392,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                   ),
-                  TextButton(
+                  Pressable(
+                    child: TextButton(
                     onPressed: () {
                       // go to the full user management page to see everyone
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
@@ -389,8 +402,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         style: TextStyle(
                             color: AppColors.primaryText,
                             fontWeight: FontWeight.w700)),
+                  ),
                   )
                 ],
+              ),
               ),
               const SizedBox(height: 12),
               // show spinner while loading, show list when done
@@ -495,7 +510,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
 
         // each pending user gets a card with approve/reject buttons
-        return Container(
+        return Entrance(
+          index: index.clamp(0, 8),
+          child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: AppColors.surface,
@@ -531,6 +548,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ],
             ),
+          ),
           ),
         );
       },

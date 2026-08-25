@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../core/services/evaluation_service.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // The main widget — needs userId to find the right dept
 class InterventionReportsScreen extends StatefulWidget {
@@ -235,7 +237,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
                       // Submit Button — the actual "file the report" action
                       // Gradient CTA with a warm glow — the premium treatment
-                      Container(
+                      Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 52,
                         decoration: BoxDecoration(
@@ -285,6 +288,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                               : const Text('Submit Official Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
                         ),
+                      ),
                       ),
                     ],
                   ),
@@ -359,7 +363,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
                     // No pending interventions — rare and wonderful
                     if (_pendingInterventions.isEmpty)
-                      Container(
+                      Entrance(
+                        index: 0,
+                        child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(28),
                         decoration: BoxDecoration(
@@ -384,12 +390,17 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                             const Text('No pending interventions required.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                           ],
                         ),
+                        ),
                       )
                     else
                       // Got pending items — show each as a card with a "Draft" button
                       Column(
-                        children: _pendingInterventions.map((alert) {
-                          return Container(
+                        children: _pendingInterventions.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final alert = entry.value;
+                          return Entrance(
+                            index: index.clamp(0, 8).toInt(),
+                            child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             padding: const EdgeInsets.all(18.0),
                             decoration: BoxDecoration(
@@ -441,7 +452,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                   ),
                                   const SizedBox(height: 16),
                                   // Draft button — gradient CTA that opens the bottom sheet form
-                                  Container(
+                                  Pressable(
+                                    child: Container(
                                     width: double.infinity,
                                     height: 52,
                                     decoration: BoxDecoration(
@@ -461,8 +473,10 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                       ),
                                       child: const Text('Draft Intervention Report', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
                                     ),
+                                    ),
                                   )
                                 ],
+                            ),
                             ),
                           );
                         }).toList(),
@@ -509,8 +523,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     else
                       // Show each logged intervention as a list tile card
                       Column(
-                        children: _completedInterventions.map((report) {
-                          return Container(
+                        children: _completedInterventions.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final report = entry.value;
+                          return Entrance(
+                            index: index.clamp(0, 8).toInt(),
+                            child: Pressable(
+                              child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
@@ -582,7 +601,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                   const SizedBox(height: 10),
 
                                   // BUTTON — Mark as Resolved or show "Resolved" if already done
-                                  ElevatedButton.icon(
+                                  Pressable(
+                                    child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.success,
                                       foregroundColor: Colors.white,
@@ -631,6 +651,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                       }
                                     },
                                   ),
+                                  ),
                                 ],
                               ),
 
@@ -645,6 +666,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                               onTap: () {
                                 _showReportDetails(report);
                               },
+                            ),
+                              ),
                             ),
                           );
                         }).toList(),

@@ -11,6 +11,8 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 // Simple StatefulWidget — needs state because profile data loads after build
@@ -188,7 +190,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
-                      Container(
+                      Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 52,
                         decoration: BoxDecoration(
@@ -245,6 +248,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                             ? const CircularProgressIndicator(color: AppColors.textPrimary)
                             : const Text('Save Changes', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
                         ),
+                      ),
                       ),
                     ],
                   ),
@@ -318,7 +322,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   onPressed: isSaving ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: AppColors.textPrimary),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
@@ -340,6 +345,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   child: isSaving 
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
+                ),
                 ),
               ],
             );
@@ -371,7 +377,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           actions: [
             // Cancel button — the safe exit when the user realizes it was a bad idea
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            SafeElevatedButton(
+            Pressable(
+              child: SafeElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
               child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               onPressed: () async {
@@ -386,6 +393,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                    if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
+            ),
             ),
           ],
         );
@@ -428,7 +436,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   onPressed: isUpdating ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -513,6 +522,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                     : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                 ),
+                ),
               ],
             );
           }
@@ -591,7 +601,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -640,6 +651,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   ),
                 ),
               ),
+              ),
               const SizedBox(height: 32),
 
               // Section: Notifications — manage push notification preferences
@@ -650,7 +662,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 1,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -682,6 +696,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   ),
                 ),
               ),
+              ),
               const SizedBox(height: 32),
 
               // Section: Security & Danger Zone — where the brave (and reckless) go
@@ -692,7 +707,9 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 2,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -748,10 +765,14 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                   ],
                 ),
               ),
+              ),
               const SizedBox(height: 32),
 
               // Big red sign-out button at the bottom — clear and hard to miss
-              SizedBox(
+              Entrance(
+                index: 3,
+                child: Pressable(
+                child: SizedBox(
                 width: double.infinity,
                 height: 54,
                 child: SafeOutlinedButton(
@@ -786,6 +807,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     ],
                   ),
                 ),
+              ),
+              ),
               ),
               const SizedBox(height: 32),
 

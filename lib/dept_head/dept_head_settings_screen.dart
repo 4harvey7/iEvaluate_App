@@ -9,6 +9,8 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 // The settings widget — stateful because we load and change user info here
@@ -176,7 +178,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
                       const SizedBox(height: 24),
                       // Save button — gradient CTA with warm glow
-                      Container(
+                      Pressable(
+                        child: Container(
                         width: double.infinity,
                         height: 52,
                         decoration: BoxDecoration(
@@ -229,6 +232,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                             : const Text('Save Changes', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w800, fontSize: 15)),
                         ),
                       ),
+                      ),
                     ],
                   ),
                 ),
@@ -280,7 +284,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   onPressed: isSaving ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.textPrimary,
@@ -309,6 +314,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   child: isSaving 
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.textPrimary, strokeWidth: 2))
                       : const Text('Update'),
+                ),
                 ),
               ],
             );
@@ -343,7 +349,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
             // Cancel — the safe choice. ayaw delete if not sure.
             TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
             // Delete button — red, bold, and final. wala choice after this.
-            SafeElevatedButton(
+            Pressable(
+              child: SafeElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
                 foregroundColor: Colors.white,
@@ -365,6 +372,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                    scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
                 }
               },
+            ),
             ),
           ],
         );
@@ -412,7 +420,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   onPressed: isUpdating ? null : () => Navigator.pop(context),
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
-                ElevatedButton(
+                Pressable(
+                  child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: AppColors.textPrimary,
@@ -482,6 +491,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   child: isUpdating 
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
                     : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
+                ),
                 ),
               ],
             );
@@ -568,7 +578,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               const Text('Executive Profile', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
               // Profile card — espresso hero with a warm orange glow accent
-              Container(
+              Entrance(
+                index: 0,
+                child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -625,7 +637,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                                   Text('$_userTitle • $_userCollege', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 13), overflow: TextOverflow.ellipsis),
                                   const SizedBox(height: 10),
                                   // Tap to open the edit bottom sheet — importente this is clickable
-                                  GestureDetector(
+                                  Pressable(
+                                    child: GestureDetector(
                                     onTap: _showEditProfileSheet,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -635,6 +648,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                                       ),
                                       child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 12)),
                                     ),
+                                  ),
                                   ),
                                 ],
                               ),
@@ -646,12 +660,15 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ),
                 ),
               ),
+              ),
               const SizedBox(height: 28),
 
               // Notification toggles section — dean can turn things on/off
               const Text('Executive Intelligence', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 1,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -699,12 +716,15 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ],
                 ),
               ),
+              ),
               const SizedBox(height: 28),
 
               // Security section — change password or nuke the account
               const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
               const SizedBox(height: 12),
-              Container(
+              Entrance(
+                index: 2,
+                child: Container(
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(20),
@@ -757,10 +777,14 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                   ],
                 ),
               ),
+              ),
               const SizedBox(height: 32),
 
               // Logout button — full-width destructive CTA with red gradient + glow
-              Container(
+              Entrance(
+                index: 3,
+                child: Pressable(
+                  child: Container(
                 width: double.infinity,
                 height: 56,
                 decoration: BoxDecoration(
@@ -800,6 +824,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       Text('Sign Out Securely', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
                     ],
                   ),
+                ),
+              ),
                 ),
               ),
               const SizedBox(height: 32),

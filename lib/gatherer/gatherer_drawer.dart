@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/pressable.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import 'failed_scans_screen.dart';
@@ -74,7 +75,8 @@ class _GathererDrawerState extends State<GathererDrawer> {
     final color = isLogout ? AppColors.error : (isSelected ? AppColors.primaryText : AppColors.textPrimary);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-      child: ListTile(
+      child: Pressable(
+        child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         selectedTileColor: AppColors.primaryTint,
         leading: Icon(icon, color: color),
@@ -102,6 +104,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
             : null, // no badge when count is 0
         selected: isSelected,
         onTap: onTap,
+      ),
       ),
     );
   }
@@ -225,7 +228,8 @@ class _GathererDrawerState extends State<GathererDrawer> {
 
           // ── Role Switcher Return ─────────────────────────────────────────
           if (widget.originalRole != null)
-            ListTile(
+            Pressable(
+              child: ListTile(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primaryText),
               title: const Text(
@@ -254,6 +258,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
                   ),
                 );
               },
+            ),
             ),
 
           if (widget.originalRole != null)

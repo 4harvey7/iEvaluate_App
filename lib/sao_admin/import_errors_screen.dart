@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'import_error_detail_screen.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 class ImportErrorsScreen extends StatefulWidget {
@@ -206,7 +208,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32), // bottom padding so last card visible
         itemCount: items.length,
-        itemBuilder: (_, i) => _buildErrorCard(items[i]), // build one card per error
+        itemBuilder: (_, i) => Entrance(index: i.clamp(0, 8), child: _buildErrorCard(items[i])), // build one card per error
       ),
     );
   }
@@ -224,7 +226,8 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
     final timeAgo =
         createdAt != null ? _timeAgo(createdAt) : '—'; // how long ago this error showed up
 
-    return Container(
+    return Pressable(
+      child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -323,6 +326,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
             ),
           ),
         ),
+      ),
       ),
     );
   }

@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 
 class SystemAuditScreen extends StatefulWidget {
@@ -134,7 +136,10 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                           ? '${userInfo['first_name']} ${userInfo['last_name']}'
                           : 'System';
 
-                      return Container(
+                      return Entrance(
+                        index: index.clamp(0, 8),
+                        child: Pressable(
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -203,6 +208,8 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                               ),
                             )
                           ],
+                        ),
+                        ),
                         ),
                       );
                     },

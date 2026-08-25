@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/motion.dart';
 
 class TermSubjectsScreen extends StatefulWidget {
   final String userId;
@@ -39,7 +40,9 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       // 1. Get subjects for this instructor+term via instructor_subjects junction table
       final assignmentRows = await _supabase
           .from('instructor_subjects')
-          .select('subject_id, subjects(id, subject_code, subject_name, created_at, department_id)')
+          .select(
+            'subject_id, subjects(id, subject_code, subject_name, created_at, department_id)',
+          )
           .eq('instructor_id', widget.userId)
           .eq('term_id', widget.termId);
 
@@ -57,7 +60,11 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       }
 
       if (subjectById.isEmpty) {
-        if (mounted) setState(() { _subjects = []; _isLoading = false; });
+        if (mounted)
+          setState(() {
+            _subjects = [];
+            _isLoading = false;
+          });
         return;
       }
 
@@ -65,12 +72,14 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
 
       // 2. Fetch pre-computed results
       final results = await Future.wait<dynamic>([
-        _supabase.from('management_results')
+        _supabase
+            .from('management_results')
             .select('subject_id, overall_management_mean')
             .eq('instructor_id', widget.userId)
             .eq('term_id', widget.termId)
             .filter('subject_id', 'in', validSubjectIds),
-        _supabase.from('performance_results')
+        _supabase
+            .from('performance_results')
             .select('subject_id, overall_performance_mean')
             .eq('instructor_id', widget.userId)
             .eq('term_id', widget.termId)
@@ -80,12 +89,16 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       final Map<String, double> mgmtMap = {};
       for (var row in (results[0] as List)) {
         final sid = row['subject_id']?.toString();
-        if (sid != null) mgmtMap[sid] = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+        if (sid != null)
+          mgmtMap[sid] =
+              (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
       }
       final Map<String, double> perfMap = {};
       for (var row in (results[1] as List)) {
         final sid = row['subject_id']?.toString();
-        if (sid != null) perfMap[sid] = (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+        if (sid != null)
+          perfMap[sid] =
+              (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
       }
 
       // 3. Build subject list
@@ -98,7 +111,8 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
 
         // Fallback to raw if no pre-computed
         if (mMean == 0.0 && pMean == 0.0) {
-          final rawData = await _supabase.from('sast_all_raw_data_survey')
+          final rawData = await _supabase
+              .from('sast_all_raw_data_survey')
               .select()
               .eq('subject_id', id)
               .eq('instructor_ID', widget.userId)
@@ -117,12 +131,14 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
           }
         }
 
-        processedSubjects.add(Subject.fromJson({
-          ...meta,
-          'management_mean': mMean,
-          'performance_mean': pMean,
-          'all_ids': <String>{id},
-        }));
+        processedSubjects.add(
+          Subject.fromJson({
+            ...meta,
+            'management_mean': mMean,
+            'performance_mean': pMean,
+            'all_ids': <String>{id},
+          }),
+        );
       }
 
       processedSubjects.sort((a, b) => a.code.compareTo(b.code));
@@ -165,14 +181,19 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: AppColors.textInverted),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: AppColors.textInverted,
+            ),
             tooltip: 'Refresh',
             onPressed: _fetchTermSubjects,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : RefreshIndicator(
               onRefresh: _fetchTermSubjects,
               color: AppColors.primary,
@@ -187,15 +208,18 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
                       itemCount: _subjects.length,
                       itemBuilder: (context, index) {
                         final subject = _subjects[index];
-                        return SubjectCard(
-                          subject: subject,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => SubjectDetailScreen(
-                                subject: subject,
-                                userId: widget.userId,
-                                termId: widget.termId,
+                        return Entrance(
+                          index: index.clamp(0, 8),
+                          child: SubjectCard(
+                            subject: subject,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SubjectDetailScreen(
+                                  subject: subject,
+                                  userId: widget.userId,
+                                  termId: widget.termId,
+                                ),
                               ),
                             ),
                           ),
@@ -218,8 +242,11 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
               color: AppColors.primaryTint,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.subject_rounded,
-                size: 44, color: AppColors.primaryText),
+            child: const Icon(
+              Icons.subject_rounded,
+              size: 44,
+              color: AppColors.primaryText,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -240,5 +267,4 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       ),
     );
   }
-
 }

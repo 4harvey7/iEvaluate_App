@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // StatefulWidget — lots of dynamic data (feedback, AI analysis, word cloud, filters)
 class StudentFeedbackScreen extends StatefulWidget {
@@ -507,7 +509,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       // SENTIMENT ANALYSIS DASHBOARD
                       // ==========================================
                       // Card showing the breakdown of positive/neutral/critical feedback percentages
-                      Container(
+                      Entrance(
+                        child: Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -609,6 +612,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           ],
                         ),
                       ),
+                      ),
                       const SizedBox(height: 32),
 
                       // ==========================================
@@ -628,7 +632,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       const SizedBox(height: 12),
 
                       // --- Main Insight Card — dark espresso hero treatment ---
-                      Container(
+                      Entrance(
+                        index: 1,
+                        child: Container(
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
                             begin: Alignment.topLeft,
@@ -772,6 +778,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                             ],
                           ),
                         ),
+                      ),
                       ),
                       const SizedBox(height: 16),
 
@@ -1010,7 +1017,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Container(
+                      Entrance(
+                        index: 2,
+                        child: Container(
                         width: double.infinity,
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
@@ -1114,6 +1123,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           ),
                         ),
                       ),
+                      ),
                       const SizedBox(height: 32),
 
                       // ==========================================
@@ -1156,7 +1166,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                       const SizedBox(height: 12),
 
                       // Filter chips row — All, Positive, Neutral, Critical
-                      _buildFilterRow(),
+                      Entrance(index: 3, child: _buildFilterRow()),
                       const SizedBox(height: 12),
 
                       // Dropdowns for Subject Filter and Sort Order
@@ -1294,7 +1304,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                             )
                           // Otherwise show each feedback item as a colored card
                           : Column(
-                              children: _filteredFeedback.map((feedback) {
+                              children: _filteredFeedback.asMap().entries.map((entry) {
+                                final feedback = entry.value;
                                 // Determine visual style based on sentiment — color-coded for quick reading
                                 Color sentimentColor =
                                     feedback['sentiment'] == 'Positive'
@@ -1309,7 +1320,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                     ? Icons.sentiment_dissatisfied
                                     : Icons.sentiment_neutral;
 
-                                return Container(
+                                return Entrance(
+                                  index: entry.key.clamp(0, 8),
+                                  child: Container(
                                   margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
                                     color: AppColors.surface,
@@ -1423,6 +1436,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                       ],
                                     ),
                                   ),
+                                  ),
                                 );
                               }).toList(),
                             ),
@@ -1477,11 +1491,12 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
 
           return Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: AnimatedContainer(
+            child: Pressable(
+              child: AnimatedContainer(
               duration: const Duration(
                 milliseconds: 200,
               ), // smooth transition when selected
-              curve: Curves.easeInOut,
+              curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
                 color: selected
                     ? color
@@ -1550,6 +1565,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   ),
                 ),
               ),
+            ),
             ),
           );
         }).toList(),

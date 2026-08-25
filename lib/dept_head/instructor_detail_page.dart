@@ -6,6 +6,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import '../instructor/detailed_report_screen.dart';
 import '../instructor/subject_detail_screen.dart';
 import '../instructor/models/subject.dart';
@@ -411,20 +413,20 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       // Score breakdown row — management, performance, and eval count
-                      _buildScoreRow(instructor),
+                      Entrance(index: 0, child: _buildScoreRow(instructor)),
                       const SizedBox(height: 28),
 
                       // Official Report Button — goes to the full SAST report page
-                      _buildReportButton(instructor),
-                      _buildDeactivateButton(instructor),
+                      Entrance(index: 1, child: _buildReportButton(instructor)),
+                      Entrance(index: 2, child: _buildDeactivateButton(instructor)),
                       const SizedBox(height: 24),
-                      _buildSentimentAnalysis(), // NEW: Sentiment analysis widget
+                      Entrance(index: 3, child: _buildSentimentAnalysis()), // NEW: Sentiment analysis widget
                       const SizedBox(height: 24),
-                      _buildTrendSection(),
+                      Entrance(index: 4, child: _buildTrendSection()),
                       const SizedBox(height: 32),
 
                       // Subjects — list of subjects this instructor teaches this term
-                      _buildSubjectsSection(instructor),
+                      Entrance(index: 5, child: _buildSubjectsSection(instructor)),
                       const SizedBox(height: 32),
                     ]),
                   ),
@@ -498,7 +500,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // The "View Official SAST Report" button — opens the detailed report screen
   // Passes all the scores and metadata needed for the report. importente all params are set.
   Widget _buildReportButton(Map<String, dynamic> instructor) {
-    return Container(
+    return Pressable(
+      child: Container(
       height: 54,
       width: double.infinity,
       decoration: BoxDecoration(
@@ -539,6 +542,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
       ),
+      ),
     );
   }
 
@@ -546,7 +550,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   Widget _buildDeactivateButton(Map<String, dynamic> instructor) {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: Container(
+      child: Pressable(
+        child: Container(
         height: 54,
         width: double.infinity,
         decoration: BoxDecoration(
@@ -604,6 +609,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           icon: const Icon(Icons.person_off_rounded),
           label: const Text('Deactivate Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         ),
+      ),
       ),
     );
   }
@@ -909,7 +915,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     final hasScore = subject.managementMean != null || subject.performanceMean != null;
     final score = hasScore ? subject.overallMean : 0.0;
 
-    return GestureDetector(
+    return Pressable(
+      child: GestureDetector(
       onTap: () {
         // Navigate to subject detail — pass the subject, instructor ID, and term
         Navigator.push(
@@ -977,6 +984,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20), // Tap hint arrow
           ],
         ),
+      ),
       ),
     );
   }

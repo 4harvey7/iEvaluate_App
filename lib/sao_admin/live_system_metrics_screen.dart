@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../core/services/system_settings_service.dart';
+import '../widgets/motion.dart';
 
 
 class LiveSystemMetricsScreen extends StatefulWidget {
@@ -282,9 +283,12 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // subtitle explaining what this screen is about
-                    Text(
+                    Entrance(
+                      index: 0,
+                      child: Text(
                       'Real-time tracking for AI processing, staff productivity, and evaluation progress.',
                       style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                    ),
                     ),
                     const SizedBox(height: 24),
 
@@ -292,21 +296,21 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                     // shows how many records the AI got right vs wrong
                     _buildSectionTitle('AI Processing Accuracy'),
                     const SizedBox(height: 12),
-                    _buildAiAccuracyCard(),
+                    Entrance(index: 1, child: _buildAiAccuracyCard()),
                     const SizedBox(height: 32),
 
                     // ── Staff Productivity ─────────────────────────
                     // shows how many records each data gatherer uploaded
                     _buildSectionTitle('Data Gatherer Productivity'),
                     const SizedBox(height: 12),
-                    _buildProductivitySection(),
+                    Entrance(index: 2, child: _buildProductivitySection()),
                     const SizedBox(height: 32),
 
                     // ── Campus Evaluation Progress ─────────────────
                     // shows which departments have the most survey responses
                     _buildSectionTitle('Campus Evaluation Progress'),
                     const SizedBox(height: 12),
-                    _buildDeptProgressCard(),
+                    Entrance(index: 3, child: _buildDeptProgressCard()),
                     const SizedBox(height: 24),
                   ],
                 ),

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'models/subject.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
@@ -384,9 +386,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
           return Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: AnimatedContainer(
+            child: Pressable(
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
-              curve: Curves.easeInOut,
+              curve: Curves.easeOutCubic,
               decoration: BoxDecoration(
                 color: selected ? color : color.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(100),
@@ -434,6 +437,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                   ),
                 ),
               ),
+            ),
             ),
           );
         }).toList(),
@@ -511,38 +515,45 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     const SizedBox(height: 24),
 
                     // Summary Cards
-                    Row(
+                    Entrance(
+                      child: Row(
                       children: [
                         _buildSummaryCard('Management', _mgmtScore, AppColors.primaryText),
                         const SizedBox(width: 16),
                         _buildSummaryCard('Performance', _perfScore, AppColors.success),
                       ],
                     ),
+                    ),
                     const SizedBox(height: 16),
-                    _buildSummaryCard(
+                    Entrance(
+                      index: 1,
+                      child: _buildSummaryCard(
                       'Overall Weighted Mean', 
                       _overallScore, 
                       Subject.getScoreColor(_overallScore),
                       isFullWidth: true,
+                    ),
                     ),
                     const SizedBox(height: 32),
 
                     // Management Table
                     _buildSectionHeader('I. Management Breakdown'),
                     const SizedBox(height: 12),
-                    _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
+                    Entrance(index: 2, child: _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary)),
                     const SizedBox(height: 32),
 
                     // Performance Table
                     _buildSectionHeader('II. Performance Breakdown'),
                     const SizedBox(height: 12),
-                    _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
+                    Entrance(index: 3, child: _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success)),
                     const SizedBox(height: 32),
 
                     // Question Chart
                     _buildSectionHeader('Per-Question Visualization'),
                     const SizedBox(height: 16),
-                    Container(
+                    Entrance(
+                      index: 4,
+                      child: Container(
                       height: 220,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -594,6 +605,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                             }).toList(),
                           ),
                         ),
+                    ),
                     ),
                     const SizedBox(height: 32),
 
@@ -697,7 +709,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                         ),
                       )
                     else
-                      ..._filteredRemarks.map((remark) => _buildRemarkCard(remark)),
+                      ..._filteredRemarks.map((remark) => Entrance(child: _buildRemarkCard(remark))),
                   ],
                 ),
               ),

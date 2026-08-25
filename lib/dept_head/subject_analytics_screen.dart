@@ -7,6 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/evaluation_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'instructor_detail_page.dart';
 
 // The main widget — stateful because data is fetched async
@@ -247,11 +249,16 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                       )
                     else
                       Column(
-                        children: _subjectAnalytics.map((subject) {
+                        children: _subjectAnalytics.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final subject = entry.value;
                           // If aiNote is not null, the AI detected something unusual about this subject
                           bool isAnomaly = subject.aiNote != null;
 
-                          return Container(
+                          return Entrance(
+                            index: index.clamp(0, 8).toInt(),
+                            child: Pressable(
+                              child: Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(20),
@@ -382,6 +389,8 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                     ],
                                   ),
                                 ),
+                              ),
+                            ),
                               ),
                             ),
                           );

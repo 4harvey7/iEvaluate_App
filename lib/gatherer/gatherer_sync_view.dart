@@ -2,6 +2,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import 'models/scan_task.dart';
 
 class GathererSyncView extends StatelessWidget {
@@ -40,7 +42,9 @@ class GathererSyncView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Row(
+            Entrance(
+              index: 0,
+              child: Row(
               children: [
                 const Expanded(
                   child: Column(
@@ -77,11 +81,14 @@ class GathererSyncView extends StatelessWidget {
                   ),
               ],
             ),
+            ),
 
             // Status summary chips
             if (queue.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Row(
+              Entrance(
+                index: 1,
+                child: Row(
                 children: [
                   _statusChip('$pendingCount pending', AppColors.warning),
                   const SizedBox(width: 8),
@@ -91,6 +98,7 @@ class GathererSyncView extends StatelessWidget {
                     _statusChip('⏸ Paused', AppColors.textSecondary),
                   ],
                 ],
+              ),
               ),
             ],
 
@@ -131,7 +139,7 @@ class GathererSyncView extends StatelessWidget {
                       itemCount: queue.length,
                       itemBuilder: (context, index) {
                         final task = queue[index];
-                        return Dismissible(
+                        final item = Dismissible(
                           key: Key(task.id),
                           direction: DismissDirection.endToStart,
                           background: Container(
@@ -167,7 +175,8 @@ class GathererSyncView extends StatelessWidget {
                             ) ?? false;
                           },
                           onDismissed: (_) => onDelete(task),
-                          child: Container(
+                          child: Pressable(
+                            child: Container(
                             margin: const EdgeInsets.only(bottom: 12),
                             decoration: BoxDecoration(
                               color: AppColors.surface,
@@ -219,7 +228,12 @@ class GathererSyncView extends StatelessWidget {
                               ),
                             ),
                           ),
+                          ),
                         );
+                        // entrance stagger only for the first items — long
+                        // lists should not animate forever
+                        if (index >= 6) return item;
+                        return Entrance(index: index + 2, child: item);
                       },
                     ),
             ),
@@ -227,7 +241,8 @@ class GathererSyncView extends StatelessWidget {
             const SizedBox(height: 16),
 
             // Sync All Button — gradient CTA when there is work to do
-            Container(
+            Pressable(
+              child: Container(
               width: double.infinity,
               height: 56,
               decoration: BoxDecoration(
@@ -276,6 +291,7 @@ class GathererSyncView extends StatelessWidget {
                       fontSize: 16),
                 ),
               ),
+            ),
             ),
           ],
         ),

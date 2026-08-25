@@ -11,6 +11,8 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 import '../core/config/env.dart';
 import 'models/scan_task.dart';
 
@@ -413,7 +415,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         ),
         actions: [
           // discard button in top-right — light red so it reads on the dark hero
-          TextButton.icon(
+          Pressable(
+            child: TextButton.icon(
             icon: const Icon(Icons.delete_outline,
                 color: Color(0xFFFCA5A5), size: 18),
             label: const Text('Discard',
@@ -421,12 +424,13 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     color: Color(0xFFFCA5A5), fontWeight: FontWeight.w700)),
             onPressed: _discard, // triggers confirmation dialog first
           ),
+          ),
         ],
       ),
       body: Column(
         children: [
-          _buildFailureBanner(tableFound, gridSource), // show what went wrong
-          _buildImagesRow(), // show the original scan image if available
+          Entrance(index: 0, child: _buildFailureBanner(tableFound, gridSource)), // show what went wrong
+          Entrance(index: 1, child: _buildImagesRow()), // show the original scan image if available
           Expanded(
             child: AnimatedPadding(
               duration: const Duration(milliseconds: 150),
@@ -450,25 +454,37 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     const SizedBox(height: 16),
 
                     // Instructor with autocomplete — type 2+ chars to search
-                    _buildInstructorField(),
+                    Entrance(index: 2, child: _buildInstructorField()),
 
                     // Subject with autocomplete — same pattern
-                    _buildSubjectField(),
+                    Entrance(index: 3, child: _buildSubjectField()),
 
                     // Other fields — remarks and student ID, no autocomplete
-                    _buildSimpleField('Remarks & Suggestions', _remarksCtrl,
-                        maxLines: 3),
-                    _buildSimpleField('Student ID', _studentIdCtrl,
-                        keyboardType: TextInputType.number, digitsOnly: true), // numbers only
+                    Entrance(
+                        index: 4,
+                        child: _buildSimpleField(
+                            'Remarks & Suggestions', _remarksCtrl,
+                            maxLines: 3)),
+                    Entrance(
+                        index: 5,
+                        child: _buildSimpleField('Student ID', _studentIdCtrl,
+                            keyboardType: TextInputType.number,
+                            digitsOnly: true)), // numbers only
 
                     const SizedBox(height: 24),
 
                     // Management scores — 10 small inputs in a grid
-                    _buildScoreSection('MANAGEMENT SCORES (M1–M10)', 'm'),
+                    Entrance(
+                        index: 6,
+                        child:
+                            _buildScoreSection('MANAGEMENT SCORES (M1–M10)', 'm')),
                     const SizedBox(height: 20),
 
                     // Performance scores — another 10
-                    _buildScoreSection('PERFORMANCE SCORES (P1–P10)', 'p'),
+                    Entrance(
+                        index: 7,
+                        child:
+                            _buildScoreSection('PERFORMANCE SCORES (P1–P10)', 'p')),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -991,7 +1007,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         ],
       ),
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-      child: Container(
+      child: Pressable(
+        child: Container(
         width: double.infinity,
         height: 56,
         decoration: BoxDecoration(
@@ -1037,6 +1054,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           ),
           onPressed: _isSubmitting ? null : _submit, // null disables the button
         ),
+      ),
       ),
     );
   }

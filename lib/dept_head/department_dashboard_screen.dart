@@ -310,7 +310,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                         const Spacer(),
                         // Notification Pill — much more premium than a boring icon
-                        InkWell(
+                        Pressable(
+                          child: InkWell(
                           borderRadius: BorderRadius.circular(20),
                           onTap: () {
                             if (_dynamicAlerts.isEmpty) {
@@ -361,6 +362,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                   ),
                                   child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
                                 ),
+                        ),
                         ),
                       ],
                     ),
@@ -707,7 +709,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                   Column(
                     children: _dynamicAlerts.map((alert) {
                       final color = _getAlertColor(alert.type); // Red or orange base on severity
-                      return Container(
+                      return Pressable(
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -745,6 +748,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                             }
                           },
                         ),
+                        ),
                       );
                     }).toList(),
                   ),
@@ -757,7 +761,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 const SizedBox(height: 4),
                 const Text('Aggregated themes from all student comments across the college.', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
                 const SizedBox(height: 16),
-                RepaintBoundary(
+                Entrance(
+                  index: 2,
+                  child: RepaintBoundary(
                   child: Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -860,6 +866,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       ),
                     ),
                   ),
+                ),
                 ),
                 const SizedBox(height: 32),
               ],

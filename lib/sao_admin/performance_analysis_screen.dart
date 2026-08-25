@@ -8,6 +8,8 @@ import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 // outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
@@ -228,7 +230,8 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       final score = inst.overallScore;
                       // color based on score: green=great, yellow=okay, red=low, gray=no data
                       final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textSecondary;
-                      return Container(
+                      return Pressable(
+                        child: Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         decoration: BoxDecoration(
                           color: AppColors.surface,
@@ -260,6 +263,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                             score > 0 ? score.toStringAsFixed(2) : '—', // show score or dash if no data
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
                           ),
+                        ),
                         ),
                       );
                     },
@@ -563,7 +567,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // header area with term selector dropdown
-                Column(
+                Entrance(
+                  index: 0,
+                  child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text('Dashboard',
@@ -612,19 +618,22 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                       Text(_selectedLabel, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis), // fallback if no terms loaded
                   ],
                 ),
+                ),
                 const SizedBox(height: 24),
                 // two stat cards: university average and total evaluations
                 Row(
                   children: [
-                    Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primaryText)),
+                    Expanded(child: Entrance(index: 1, child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primaryText))),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primaryText)),
+                    Expanded(child: Entrance(index: 2, child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primaryText))),
                   ],
                 ),
                 const SizedBox(height: 32),
 
                 // instructor leaderboard section header with "View All" button
-                Row(
+                Entrance(
+                  index: 3,
+                  child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Instructor Leaderboard',
@@ -633,14 +642,17 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.5)),
-                    TextButton(
+                    Pressable(
+                      child: TextButton(
                       onPressed: () => _showAllInstructors(), // open the full list
                       child: const Text('View All',
                           style: TextStyle(
                               color: AppColors.primaryText,
                               fontWeight: FontWeight.w700)),
                     ),
+                    ),
                   ],
+                ),
                 ),
                 const SizedBox(height: 8),
                 // the actual leaderboard cards — top instructors by score
@@ -648,7 +660,8 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                   children: _topInstructors.isEmpty
                     ? [const Center(child: Text("No instructors found"))]
                     : _topInstructors.map((instructor) {
-                        return Container(
+                        return Pressable(
+                          child: Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
                             color: AppColors.surface,
@@ -689,6 +702,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                                 ],
                               ),
                             ),
+                          ),
                           ),
                         );
                       }).toList(),

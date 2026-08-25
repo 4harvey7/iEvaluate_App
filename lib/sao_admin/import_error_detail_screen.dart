@@ -12,6 +12,8 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/config/env.dart';
+import '../widgets/motion.dart';
+import '../widgets/pressable.dart';
 
 class ImportErrorDetailScreen extends StatefulWidget {
   final Map<String, dynamic> error; // the error record from the parent screen
@@ -347,7 +349,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
           TextButton(
               onPressed: () => Navigator.pop(context, false), // cancel — go back
               child: const Text('Cancel')),
-          ElevatedButton(
+          Pressable(
+            child: ElevatedButton(
             style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.error,
                 shape: RoundedRectangleBorder(
@@ -356,6 +359,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
             child: const Text('Discard',
                 style: TextStyle(
                     color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
           ),
         ],
       ),
@@ -426,7 +430,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
         ),
         actions: [
           // discard button in top right — with spinner while in progress
-          TextButton.icon(
+          Pressable(
+            child: TextButton.icon(
             icon: _isDiscarding
                 ? const SizedBox(
                     width: 16,
@@ -440,17 +445,18 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                     color: AppColors.error, fontWeight: FontWeight.bold)),
             onPressed: _isDiscarding ? null : _discard, // disabled while discarding
           ),
+          ),
         ],
       ),
       body: Column(
         children: [
           // ── Error type banner ───────────────────────────────────────────
           // colored banner at the top explaining what is wrong — hard to miss
-          _buildErrorBanner(),
+          Entrance(index: 0, child: _buildErrorBanner()),
 
           // ── Scanned image (scan errors only) ────────────────────────────
           // only show the image section if it came from a scan — sheet has no image
-          if (!_isSheet) _buildImageSection(),
+          if (!_isSheet) Entrance(index: 1, child: _buildImageSection()),
 
           // ── Scrollable form ─────────────────────────────────────────────
           // the main correction form — instructor search, subject search, scores
@@ -470,7 +476,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Original data reference card — shows what the importer received
-                    _buildOriginalDataCard(raw),
+                    Entrance(index: 2, child: _buildOriginalDataCard(raw)),
                     const SizedBox(height: 20),
 
                     // Correction section heading
@@ -498,9 +504,12 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
                     // Scores section — editable for scan source, read-only for sheet
                     // sheet scores are trusted as-is — importente to remember this
-                    _isSheet
+                    Entrance(
+                      index: 3,
+                      child: _isSheet
                         ? _buildScoresReadOnly(raw)   // locked view for sheet data
                         : _buildScoresEditable(),      // editable grid for scan data
+                    ),
 
                     const SizedBox(height: 20),
                   ],
@@ -1246,7 +1255,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               ),
             ),
           // the big submit button — sends correction to n8n for re-processing
-          Container(
+          Pressable(
+            child: Container(
             width: double.infinity,
             height: 54,
             decoration: BoxDecoration(
@@ -1290,6 +1300,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               ),
               onPressed: (_isSubmitting || !canSubmit) ? null : _submit, // disabled if not ready
             ),
+          ),
           ),
         ],
       ),
