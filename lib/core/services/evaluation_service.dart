@@ -688,14 +688,32 @@ class EvaluationService {
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds);
 
-      // also fetch performance results for the same faculty -- we combine mgmt + perf later
       final perfResults = await _supabase
           .from('performance_results')
           .select('overall_performance_mean, instructor_id, subject_id')
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds);
 
+      // fetch remarks to calculate sentiment based on tones
+      final remarkResults = await _supabase
+          .from('student_remarks')
+          .select('subject_id, tone')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', facultyIds);
+
       if ((mgmtResults as List).isEmpty) return []; // no data at all
+
+      final Map<String, Map<String, int>> remarksBySubject = {};
+      for (var r in (remarkResults as List)) {
+        final subId = r['subject_id'] as String?;
+        final tone = r['tone'] as String?;
+        if (subId != null && tone != null) {
+          remarksBySubject.putIfAbsent(subId, () => {'Positive': 0, 'Neutral': 0, 'Critical': 0});
+          if (remarksBySubject[subId]!.containsKey(tone)) {
+            remarksBySubject[subId]![tone] = remarksBySubject[subId]![tone]! + 1;
+          }
+        }
+      }
 
       // Create a map for quick performance lookup: "instructorId_subjectId" -> mean
       // key combines instructor and subject so we can find it fast by two IDs
@@ -741,11 +759,22 @@ class EvaluationService {
         final Map<String, String> instructorNames = {};
         final Map<String, Set<String>> instructorSections = {};
         final Map<String, int> instructorResponses = {};
+        final Set<String> processedSubIds = {};
+        int posTone = 0;
+        int neuTone = 0;
+        int critTone = 0;
 
         for (var row in rows) {
           final instId = row['instructor_id'] as String;
           final subId = row['subject_id'] as String;
           
+          if (!processedSubIds.contains(subId) && remarksBySubject.containsKey(subId)) {
+            posTone += remarksBySubject[subId]!['Positive']!;
+            neuTone += remarksBySubject[subId]!['Neutral']!;
+            critTone += remarksBySubject[subId]!['Critical']!;
+            processedSubIds.add(subId);
+          }
+
           double mgmt = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
           double perf = perfMap['${instId}_${subId}'] ?? 0.0; // look up perf from our map
 
@@ -791,13 +820,23 @@ class EvaluationService {
         final totalScore = breakdowns.map((b) => b.avgScore).reduce((a, b) => a + b);
         final avgScore = totalScore / breakdowns.length;
 
+        // Calculate dominant sentiment from remarks
+        String dominantSentiment = 'Neutral';
+        if (posTone == 0 && neuTone == 0 && critTone == 0) {
+           dominantSentiment = avgScore < 3.0 ? 'Critical' : (avgScore < 4.0 ? 'Neutral' : 'Positive'); // fallback to score
+        } else {
+           if (posTone > neuTone && posTone > critTone) dominantSentiment = 'Positive';
+           else if (critTone > posTone && critTone > neuTone) dominantSentiment = 'Critical';
+           else dominantSentiment = 'Neutral'; // if tied or neutral is highest, consider it neutral
+        }
+
         analytics.add(SubjectAnalytic(
           code: code,
           name: name,
           avgScore: double.parse(avgScore.toStringAsFixed(2)),
           deptAvg: double.parse(deptAvg.toStringAsFixed(2)),
           difficulty: avgScore < 3.5 ? 'High' : (avgScore < 4.5 ? 'Moderate' : 'Low'), // lower score = harder to do well
-          sentiment: avgScore < 3.0 ? 'Critical' : (avgScore < 4.0 ? 'Neutral' : 'Positive'), // sentiment based on score range
+          sentiment: dominantSentiment, // sentiment based on student remarks tone
           // Trend: compare subject avg to dept avg — no extra query needed.
           // >0.1 above dept avg = up (subject doing well), >0.1 below = down (needs attention).
           trend: avgScore - deptAvg > 0.1
@@ -863,66 +902,78 @@ class EvaluationService {
           ''')
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds)
-          .lt('overall_mean', threshold); // only get rows below the threshold score
+          ; // Filtering moved to Dart below
 
       final List<ActionAlert> alerts = [];
-      for (var row in (stats as List)) {
-        final userInfo = row['user_info'];
-        final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown'; // fallback name
-        final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-        
-        // create one alert per underperforming instructor
-        alerts.add(ActionAlert(
-          type: 'Performance',
-          title: 'Low Performance Alert',
-          desc: "Score (${score.toStringAsFixed(2)}) is below the department average of ${threshold.toStringAsFixed(2)}.",
-          instructorId: row['instructor_id'],
-          instructorName: name,
-          dateFlagged: DateTime.now(), // flag date is now, murag fresh alert
-        ));
+        for (var row in (stats as List)) {
+          final userInfo = row['user_info'];
+          final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+          final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+          
+          // Strict filter: only flag if strictly below threshold (3.0) and > 0
+          if (score > 0 && score < threshold) {
+            alerts.add(ActionAlert(
+              type: 'Performance',
+              title: 'Low Performance Alert',
+              desc: "Instructor scored ${score.toStringAsFixed(2)}, which is below the strict 3.0 benchmark.",
+              instructorId: row['instructor_id'],
+              instructorName: name,
+              dateFlagged: DateTime.now(),
+            ));
+          }
+        }
+
+        // --- ADD NEGATIVE SENTIMENT FLAGS (> 50% Critical) ---
+      // 1. Get instructor names safely without relying on Foreign Keys
+      final usersData = await _supabase
+          .from('user_info')
+          .select('id, first_name, last_name')
+          .filter('id', 'in', facultyIds);
+          
+      final Map<String, String> instructorNames = {};
+      for (var u in (usersData as List)) {
+         instructorNames[u['id']] = '${u['first_name']} ${u['last_name']}';
       }
 
-      // --- ADD NEGATIVE SENTIMENT FLAGS (GROUPED) ---
-      // Fetch all highly negative remarks for the department's faculty in the current term
+      // 2. Fetch ALL remarks for the department's faculty in the current term
       final sentimentData = await _supabase
-          .from('evaluation_remarks')
-          .select('''
-            instructor_id,
-            user_info!instructor_id(first_name, last_name)
-          ''')
+          .from('student_remarks')
+          .select('instructor_id, tone') // Removed user_info join to prevent PGRST200 foreign key crash
           .eq('term_id', termId)
-          .eq('tone', 'Critical')
           .filter('instructor_id', 'in', facultyIds);
       
       // Group them by instructor id
+      final Map<String, int> totalReviewCounts = {};
       final Map<String, int> badReviewCounts = {};
-      final Map<String, String> instructorNames = {};
       
       for (var row in (sentimentData as List)) {
         final iId = row['instructor_id'] as String;
-        badReviewCounts[iId] = (badReviewCounts[iId] ?? 0) + 1;
-        if (!instructorNames.containsKey(iId)) {
-          final userInfo = row['user_info'];
-          instructorNames[iId] = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+        final tone = row['tone'] as String?;
+        
+        totalReviewCounts[iId] = (totalReviewCounts[iId] ?? 0) + 1;
+        
+        if (tone == 'Critical') {
+          badReviewCounts[iId] = (badReviewCounts[iId] ?? 0) + 1;
         }
       }
 
-      // Generate one grouped alert per instructor who has negative feedback
-      for (final entry in badReviewCounts.entries) {
+      // Generate alert only if Critical > 50% (and there's at least 2 remarks total)
+      for (final entry in totalReviewCounts.entries) {
         final instructorId = entry.key;
-        final count = entry.value;
+        final total = entry.value;
+        final badCount = badReviewCounts[instructorId] ?? 0;
         final name = instructorNames[instructorId] ?? 'Unknown';
 
-        alerts.add(ActionAlert(
-          type: 'Sentiment',
-          title: 'Highly Negative Feedback Detected',
-          desc: count == 1 
-              ? "A student has left highly negative feedback for this instructor."
-              : "Multiple students ($count) have left highly negative feedback for this instructor.",
-          instructorId: instructorId,
-          instructorName: name,
-          dateFlagged: DateTime.now(),
-        ));
+        if (total >= 2 && (badCount / total) > 0.50) {
+          alerts.add(ActionAlert(
+            type: 'Sentiment',
+            title: 'Highly Negative Feedback Detected',
+            desc: "$badCount out of $total remarks (>50%) are highly negative.",
+            instructorId: instructorId,
+            instructorName: name,
+            dateFlagged: DateTime.now(),
+          ));
+        }
       }
 
       // --- ADD 3-STRIKE TERMINATION FLAGS ---
@@ -979,7 +1030,11 @@ class EvaluationService {
         }
       }
 
-      return alerts;
+              // Filter out duplicate Performance alerts if they already have a Termination alert
+        final Set<String> terminationIds = alerts.where((a) => a.type == 'Termination').map((a) => a.instructorId!).toSet();
+        alerts.removeWhere((a) => a.type == 'Performance' && terminationIds.contains(a.instructorId));
+
+        return alerts;
     } catch (e) {
       debugPrint('Error fetching alerts: $e');
       return []; // error occurred, return empty list

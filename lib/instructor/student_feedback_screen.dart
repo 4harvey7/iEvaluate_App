@@ -997,7 +997,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           spacing: 8.0,
                           runSpacing: 6.0,
                           children: _wordCloud.map((wordData) {
-                            // Scale font: weight 14–58 maps to 10–22px readable range
+                            // Scale font: weight 14–58 maps to 8–18px readable range
                             // High count words = bigger, rare words = smaller
                             final double rawWeight =
                                 (wordData['weight'] as double).clamp(
@@ -1005,14 +1005,16 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   58.0,
                                 );
                             final double fontSize =
-                                10.0 + ((rawWeight - 14.0) / 44.0) * 12.0;
+                                8.0 + ((rawWeight - 14.0) / 44.0) * 10.0;
+                                
+                            final String displayWord = (wordData['word'] as String).replaceAll(' ', '');
 
                             final Widget wordText = Text(
-                              wordData['word'],
+                              displayWord,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: fontSize,
-                                fontWeight: fontSize > 18
+                                fontWeight: fontSize > 16
                                     ? FontWeight.w800
                                     : FontWeight.w600, // bold if large
                                 color: wordData['color'],

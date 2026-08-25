@@ -72,7 +72,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
       final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0; // Default 3.0 if no data
 
       // Get all current alerts for this department
-      final alerts = await _evaluationService.getDepartmentAlerts(userId, threshold: deptAvg);
+      final alerts = await _evaluationService.getDepartmentAlerts(userId, threshold: 3.0); // Strict 3.0 benchmark as requested
       // Get all previously recorded intervention logs
       final logs = await _evaluationService.getInterventionLog(userId);
 
@@ -155,7 +155,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                       // Show who this intervention is for — no confusion
                       Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                       // Show why they were flagged — gives context to the action
-                      Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                      Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), maxLines: 4, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 24),
 
                       // Dropdown for Action Type — pick what mandated action to apply
@@ -356,9 +356,12 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                 borderRadius: BorderRadius.circular(12),
                                 side: BorderSide(color: AppColors.error.withValues(alpha: 0.5), width: 1) // Red border — look urgent
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => _showDraftingSheet(alert), // Click whole card to open drafting sheet!
+                              child: Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
@@ -388,7 +391,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                             Text(alert.instructorName ?? 'Unknown Instructor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16), overflow: TextOverflow.ellipsis),
                                             const SizedBox(height: 4),
                                             // Description — why they were flagged
-                                            Text(alert.desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                            Text(alert.desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
                                           ],
                                         ),
                                       ),
@@ -411,8 +414,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                 ],
                               ),
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        );
+                      }).toList(),
                       ),
 
                     const SizedBox(height: 32),

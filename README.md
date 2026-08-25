@@ -1,4 +1,4 @@
-﻿# ievaluateapp_final
+# ievaluateapp_final
 
 A cross-platform Flutter application for educational evaluation and performance tracking, empowering Instructors, Data Gatherers, Department Heads, and SAO Admins with real-time analytics, automated performance alerts, and intelligent workflows.
 
@@ -162,8 +162,6 @@ The application uses a Flutter client communicating directly with a Supabase bac
 - **AdminDashboardScreen** (`lib/sao_admin/admin_dashboard.dart`): Main SAO overview.
 - **UserManagementScreen** (`lib/sao_admin/user_management_screen.dart`):
   - Approves, adds, and manages system users.
-- **ManageDepartmentsScreen** (`lib/sao_admin/manage_departments_screen.dart`):
-  - Adds, edits, and deletes department entities.
 - **ManageSubjectsScreen** (`lib/sao_admin/manage_subjects_screen.dart`):
   - Maps subjects, bulk imports subjects, and manages assignments.
 - **PersonnelManagementScreen** (`lib/sao_admin/personnel_management_screen.dart`):

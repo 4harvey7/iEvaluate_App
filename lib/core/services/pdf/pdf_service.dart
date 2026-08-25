@@ -433,8 +433,8 @@ class PdfService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text('RANGE & Verbal Description (VD):', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-        pw.Text('4.20 - 5.00 : Outstanding (O)  |  3.40 - 4.19 : Very Satisfactory (VS)  |  2.60 - 3.39 : Satisfactory (S)', style: const pw.TextStyle(fontSize: 7)),
-        pw.Text('1.80 - 2.59 : Fair (F)  |  1.00 - 1.79 : Unsatisfactory (US)', style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('4.21 - 5.00 : Outstanding (O)  |  3.41 - 4.20 : Very Satisfactory (VS)  |  2.61 - 3.40 : Satisfactory (S)', style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('1.81 - 2.60 : Fair (F)  |  1.00 - 1.80 : Unsatisfactory (US)', style: const pw.TextStyle(fontSize: 7)),
       ],
     );
   }
@@ -466,18 +466,18 @@ class PdfService {
   }
 
   String _getVerbalDescription(double score) {
-    if (score >= 4.20) return 'Outstanding';
-    if (score >= 3.40) return 'Very Satisfactory';
-    if (score >= 2.60) return 'Satisfactory';
-    if (score >= 1.80) return 'Fair';
+    if (score >= 4.21) return 'Outstanding';
+    if (score >= 3.41) return 'Very Satisfactory';
+    if (score >= 2.61) return 'Satisfactory';
+    if (score >= 1.81) return 'Fair';
     return 'Unsatisfactory';
   }
 
   String _getVDCode(double score) {
-    if (score >= 4.20) return 'O';
-    if (score >= 3.40) return 'VS';
-    if (score >= 2.60) return 'S';
-    if (score >= 1.80) return 'F';
+    if (score >= 4.21) return 'O';
+    if (score >= 3.41) return 'VS';
+    if (score >= 2.61) return 'S';
+    if (score >= 1.81) return 'F';
     return 'US';
   }
 

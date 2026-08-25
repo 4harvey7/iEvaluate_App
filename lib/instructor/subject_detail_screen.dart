@@ -35,6 +35,9 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   String _sortOrder = 'Date (Newest)';
   final List<String> _sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Sentiment (Positive First)', 'Sentiment (Critical First)'];
 
+  bool _isManagementExpanded = true;
+  bool _isPerformanceExpanded = true;
+
   // Management criteria — SS Form 2 (Feb 4, 2009, Revision 3)
   static const List<String> _managementCriteria = [
     'Gives reasonable course / subject assignments',
@@ -494,15 +497,51 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     const SizedBox(height: 32),
 
                     // Management Table
-                    _buildSectionHeader('I. Management Breakdown'),
-                    const SizedBox(height: 12),
-                    _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isManagementExpanded = !_isManagementExpanded;
+                        });
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader('I. Management Breakdown'),
+                          Icon(
+                            _isManagementExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: AppColors.textPrimary,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_isManagementExpanded) ...[
+                      const SizedBox(height: 12),
+                      _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
+                    ],
                     const SizedBox(height: 32),
 
                     // Performance Table
-                    _buildSectionHeader('II. Performance Breakdown'),
-                    const SizedBox(height: 12),
-                    _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _isPerformanceExpanded = !_isPerformanceExpanded;
+                        });
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildSectionHeader('II. Performance Breakdown'),
+                          Icon(
+                            _isPerformanceExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                            color: AppColors.textPrimary,
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_isPerformanceExpanded) ...[
+                      const SizedBox(height: 12),
+                      _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
+                    ],
                     const SizedBox(height: 32),
 
                     // Question Chart
