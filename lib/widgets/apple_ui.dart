@@ -6,6 +6,81 @@ import 'package:flutter/physics.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 
+/// A calm, fixed field of color behind every route. Translucent page and
+/// content materials pick up these hues, producing depth without moving the
+/// background or competing with data.
+class AppleAmbientBackground extends StatelessWidget {
+  const AppleAmbientBackground({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final highContrast = MediaQuery.maybeOf(context)?.highContrast ?? false;
+    return ColoredBox(
+      color: highContrast ? AppColors.solidSurface : const Color(0xFFF2F7FD),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (!highContrast) ...[
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: AppColors.ambientGradient,
+                ),
+              ),
+            ),
+            const Positioned(
+              top: -170,
+              right: -130,
+              width: 430,
+              height: 430,
+              child: _AmbientOrb(color: AppColors.accent),
+            ),
+            const Positioned(
+              top: 360,
+              left: -210,
+              width: 470,
+              height: 470,
+              child: _AmbientOrb(color: AppColors.primary),
+            ),
+            const Positioned(
+              bottom: -190,
+              right: -170,
+              width: 460,
+              height: 460,
+              child: _AmbientOrb(color: AppColors.purple),
+            ),
+          ],
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _AmbientOrb extends StatelessWidget {
+  const _AmbientOrb({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color.withValues(alpha: 0.18), Colors.transparent],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A press interaction that responds on pointer-down and settles from its
 /// current presentation value, so interrupted touches never jump.
 class ApplePressable extends StatefulWidget {
@@ -140,18 +215,23 @@ class AppleGlass extends StatelessWidget {
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: highContrast ? AppColors.surface : AppColors.glass,
+        color: highContrast ? AppColors.solidSurface : null,
+        gradient: highContrast
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.glassStrong, AppColors.glassSubtle],
+              ),
         borderRadius: borderRadius,
         border: Border.all(
-          color: highContrast
-              ? AppColors.textSecondary
-              : AppColors.borderHairline,
+          color: highContrast ? AppColors.textSecondary : AppColors.glassBorder,
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x140B2540),
-            blurRadius: 28,
-            offset: Offset(0, 10),
+            color: AppColors.glassShadow,
+            blurRadius: 30,
+            offset: Offset(0, 12),
           ),
         ],
       ),
@@ -185,37 +265,41 @@ class ApplePageHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (eyebrow != null) ...[
-                Text(
-                  eyebrow!.toUpperCase(),
-                  style: AppTextStyles.labelSmall.copyWith(
-                    color: AppColors.primary,
+    return AppleGlass(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+      borderRadius: BorderRadius.circular(22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (eyebrow != null) ...[
+                  Text(
+                    eyebrow!.toUpperCase(),
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.primary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 5),
-              ],
-              Text(title, style: AppTextStyles.displayMedium),
-              if (subtitle != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  subtitle!,
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textSecondary,
+                  const SizedBox(height: 5),
+                ],
+                Text(title, style: AppTextStyles.displayMedium),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    subtitle!,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        if (trailing != null) ...[const SizedBox(width: 16), trailing!],
-      ],
+          if (trailing != null) ...[const SizedBox(width: 16), trailing!],
+        ],
+      ),
     );
   }
 }
@@ -272,24 +356,43 @@ class AppleSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final highContrast = MediaQuery.maybeOf(context)?.highContrast ?? false;
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: highContrast ? AppColors.solidSurface : null,
+        gradient: highContrast
+            ? null
+            : const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.glassStrong, AppColors.glass],
+              ),
         borderRadius: borderRadius,
-        border: Border.all(color: AppColors.borderHairline),
+        border: Border.all(
+          color: highContrast ? AppColors.textSecondary : AppColors.glassBorder,
+        ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x0D0B2540),
-            blurRadius: 18,
-            offset: Offset(0, 5),
+            color: AppColors.glassShadow,
+            blurRadius: 22,
+            offset: Offset(0, 8),
           ),
         ],
       ),
       child: child,
     );
-    if (onTap == null) return surface;
-    return ApplePressable(onTap: onTap, child: surface);
+    final material = highContrast
+        ? surface
+        : ClipRRect(
+            borderRadius: borderRadius,
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+              child: surface,
+            ),
+          );
+    if (onTap == null) return material;
+    return ApplePressable(onTap: onTap, child: material);
   }
 }
 

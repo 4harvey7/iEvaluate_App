@@ -45,7 +45,7 @@ class AppTheme {
     return base.copyWith(
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
-      canvasColor: AppColors.surface,
+      canvasColor: AppColors.glassStrong,
       dividerColor: AppColors.borderHairline,
       disabledColor: AppColors.textTertiary,
       highlightColor: AppColors.primaryTint.withValues(alpha: 0.55),
@@ -61,7 +61,7 @@ class AppTheme {
         },
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.glass,
+        backgroundColor: AppColors.glassStrong,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -71,14 +71,15 @@ class AppTheme {
         actionsIconTheme: const IconThemeData(color: AppColors.textPrimary),
       ),
       drawerTheme: const DrawerThemeData(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
+        backgroundColor: AppColors.glassStrong,
+        elevation: 2,
+        shadowColor: AppColors.glassShadow,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.horizontal(right: Radius.circular(24)),
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: AppColors.glass,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
@@ -162,7 +163,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.glassStrong,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 16,
@@ -196,8 +197,10 @@ class AppTheme {
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
+        backgroundColor: AppColors.glassStrong,
+        modalBackgroundColor: AppColors.glassStrong,
+        elevation: 2,
+        shadowColor: AppColors.glassShadow,
         showDragHandle: true,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -233,8 +236,9 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.surface,
-        elevation: 0,
+        backgroundColor: AppColors.glassStrong,
+        elevation: 3,
+        shadowColor: AppColors.glassShadow,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         titleTextStyle: AppTextStyles.titleLarge,
         contentTextStyle: AppTextStyles.bodyMedium,
@@ -249,7 +253,7 @@ class AppTheme {
         unselectedLabelStyle: AppTextStyles.labelLarge,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.surfaceMuted,
+        backgroundColor: AppColors.glassSubtle,
         selectedColor: AppColors.primaryTint,
         disabledColor: AppColors.surfaceMuted,
         side: const BorderSide(color: AppColors.borderHairline),
@@ -262,14 +266,14 @@ class AppTheme {
         checkmarkColor: AppColors.primary,
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: AppColors.glass,
+        color: AppColors.glassStrong,
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         textStyle: AppTextStyles.bodyMedium,
       ),
       menuTheme: MenuThemeData(
         style: MenuStyle(
-          backgroundColor: const WidgetStatePropertyAll(AppColors.glass),
+          backgroundColor: const WidgetStatePropertyAll(AppColors.glassStrong),
           elevation: const WidgetStatePropertyAll(3),
           shape: WidgetStatePropertyAll(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -280,7 +284,7 @@ class AppTheme {
         textStyle: AppTextStyles.bodyMedium,
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: AppColors.surface,
+          fillColor: AppColors.glassStrong,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: AppColors.borderHairline),
@@ -288,7 +292,7 @@ class AppTheme {
         ),
       ),
       searchBarTheme: SearchBarThemeData(
-        backgroundColor: const WidgetStatePropertyAll(AppColors.surface),
+        backgroundColor: const WidgetStatePropertyAll(AppColors.glassStrong),
         elevation: const WidgetStatePropertyAll(0),
         shape: WidgetStatePropertyAll(
           RoundedRectangleBorder(
@@ -311,7 +315,7 @@ class AppTheme {
           backgroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
                 ? AppColors.primaryTint
-                : AppColors.surface,
+                : AppColors.glass,
           ),
           side: const WidgetStatePropertyAll(
             BorderSide(color: AppColors.borderHairline),
@@ -323,8 +327,8 @@ class AppTheme {
         ),
       ),
       expansionTileTheme: const ExpansionTileThemeData(
-        backgroundColor: AppColors.surface,
-        collapsedBackgroundColor: AppColors.surface,
+        backgroundColor: AppColors.glass,
+        collapsedBackgroundColor: AppColors.glassSubtle,
         iconColor: AppColors.primary,
         collapsedIconColor: AppColors.textTertiary,
         shape: RoundedRectangleBorder(
@@ -351,7 +355,7 @@ class AppTheme {
         thickness: const WidgetStatePropertyAll(4),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.glass,
+        backgroundColor: AppColors.glassStrong,
         indicatorColor: AppColors.primaryTint,
         elevation: 0,
         height: 68,

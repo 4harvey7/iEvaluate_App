@@ -5,8 +5,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/env.dart';
 import 'login_screen.dart';
 import 'splash_screen.dart';
-import 'theme/app_colors.dart';
 import 'theme/app_theme.dart';
+import 'widgets/apple_ui.dart';
 
 // Role-based navigation — all routing now goes through MainScaffold.
 // role_nav_config.dart is the single source of truth for what each role sees.
@@ -80,8 +80,7 @@ class MyApp extends StatelessWidget {
       builder: (context, child) {
         // Global tablet/iPad responsiveness fix
         // Constrain the entire app's width so no screen stretches beyond 800 pixels
-        return Container(
-          color: AppColors.background, // Fills the empty side-space on tablets
+        return AppleAmbientBackground(
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),

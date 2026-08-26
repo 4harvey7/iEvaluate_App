@@ -14,11 +14,27 @@ class AppColors {
   static const Color rose = Color(0xFFE54872);
 
   // Surfaces
-  static const Color background = Color(0xFFF2F4F8);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceElevated = Color(0xFFF8FAFD);
-  static const Color surfaceMuted = Color(0xFFE9EDF3);
-  static const Color glass = Color(0xE8FFFFFF);
+  // The page tint stays translucent so the ambient backdrop can softly show
+  // through without exposing the previous route at full strength.
+  static const Color background = Color(0xD9EDF4FC);
+  // `surface` is intentionally translucent so legacy screen containers also
+  // participate in the glass system. Use `solidSurface` only as an
+  // accessibility fallback or where compositing would reduce legibility.
+  static const Color solidSurface = Color(0xFFFFFFFF);
+  static const Color surface = Color(0xD9FFFFFF);
+  static const Color surfaceElevated = Color(0xD9F8FAFD);
+  static const Color surfaceMuted = Color(0xB8E4ECF6);
+  static const Color glass = Color(0xB8FFFFFF);
+  static const Color glassStrong = Color(0xD9FFFFFF);
+  static const Color glassSubtle = Color(0x8FFFFFFF);
+  static const Color glassBorder = Color(0xD0FFFFFF);
+  static const Color glassShadow = Color(0x1F173B63);
+
+  static const List<Color> ambientGradient = [
+    Color(0xFFF6FAFF),
+    Color(0xFFE7F2FF),
+    Color(0xFFF2EDFF),
+  ];
 
   // Text — all pre-baked as const Color so they can sit inside
   // `const TextStyle(...)`, `const Icon(...)`, `const DrawerHeader(...)`
