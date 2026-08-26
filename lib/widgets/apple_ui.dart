@@ -197,59 +197,64 @@ class AppleFloatingTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SafeArea(
+      top: false,
       minimum: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-      child: AppleGlass(
-        padding: const EdgeInsets.all(5),
-        borderRadius: BorderRadius.circular(22),
-        child: Row(
-          children: List.generate(items.length, (index) {
-            final item = items[index];
-            final selected = index == selectedIndex;
-            return Expanded(
-              child: ApplePressable(
-                semanticLabel: item.label,
-                onTap: () => onSelected(index),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  constraints: const BoxConstraints(minHeight: 54),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.primaryTint
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        selected ? item.selectedIcon : item.icon,
-                        size: 21,
-                        color: selected
-                            ? AppColors.primary
-                            : AppColors.textTertiary,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.label,
-                        maxLines: 1,
-                        overflow: TextOverflow.fade,
-                        style: AppTextStyles.labelSmall.copyWith(
+      child: SizedBox(
+        height: 64,
+        child: AppleGlass(
+          padding: const EdgeInsets.all(5),
+          borderRadius: BorderRadius.circular(22),
+          child: Row(
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final selected = index == selectedIndex;
+              return Expanded(
+                child: ApplePressable(
+                  semanticLabel: item.label,
+                  onTap: () => onSelected(index),
+                  child: AnimatedContainer(
+                    height: 54,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppColors.primaryTint
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          selected ? item.selectedIcon : item.icon,
+                          size: 21,
                           color: selected
                               ? AppColors.primary
                               : AppColors.textTertiary,
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
-                          letterSpacing: 0,
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.fade,
+                          style: AppTextStyles.labelSmall.copyWith(
+                            color: selected
+                                ? AppColors.primary
+                                : AppColors.textTertiary,
+                            fontWeight: selected
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
+          ),
         ),
       ),
     );
