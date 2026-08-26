@@ -4,6 +4,7 @@ import '../theme/app_colors.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/apple_ui.dart';
 
 class TermSubjectsScreen extends StatefulWidget {
   final String userId;
@@ -144,23 +145,23 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: Text(
           widget.termName,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
             tooltip: 'Refresh',
             onPressed: _fetchTermSubjects,
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Loading term subjects…')
           : RefreshIndicator(
               onRefresh: _fetchTermSubjects,
               color: AppColors.primary,
@@ -195,14 +196,12 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.subject_rounded, size: 80, color: AppColors.textPrimary.withValues(alpha: 0.1)),
-          const SizedBox(height: 16),
-          const Text('No subjects found for this term.', style: TextStyle(color: AppColors.textSecondary)),
-        ],
+    return const Padding(
+      padding: EdgeInsets.all(20),
+      child: AppleEmptyState(
+        icon: Icons.subject_rounded,
+        title: 'No subjects for this term',
+        message: 'Subject assignments will appear here when available.',
       ),
     );
   }

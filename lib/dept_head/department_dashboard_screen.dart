@@ -12,6 +12,7 @@ import '../core/services/evaluation_service.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
+import '../widgets/apple_ui.dart';
 
 // The main widget for the department dashboard. Very importente kaayo.
 // It is stateful because data changes and we need to rebuild the UI — dili pwede static.
@@ -256,21 +257,21 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Department Overview', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+            const Text('Department Overview', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             // Shows current semester and year — so dean know which term they looking at
-            Text('$_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
+            Text('$_currentSemester, $_currentYear', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
           ],
         ),
         actions: [
@@ -324,10 +325,10 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                     : Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
+                          color: AppColors.surfaceMuted,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.notifications_none, color: Colors.white70, size: 20),
+                        child: const Icon(Icons.notifications_none, color: AppColors.textSecondary, size: 20),
                       ),
               ),
             ),
@@ -352,13 +353,10 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Big title — "Executive Dashboard" sounds fancy, dean will like
-                const Text('Executive Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                // Shows the college name — so we know whose dashboard this is
-                Text(
-                  _deptInfo['college'] ?? 'Department',
-                  style: const TextStyle(color: AppColors.primary, fontSize: 16, fontWeight: FontWeight.bold),
-                  overflow: TextOverflow.ellipsis,
+                ApplePageHeader(
+                  eyebrow: 'Department Leadership',
+                  title: 'Executive Overview',
+                  subtitle: _deptInfo['college'] ?? 'Department',
                 ),
                 const SizedBox(height: 24),
 
@@ -455,12 +453,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 const SizedBox(height: 32),
                 
                 // --- DEPARTMENT HISTORY (GROWTH CHART) ---
-                const Row(
-                  children: [
-                    Icon(Icons.trending_up, color: AppColors.primary),
-                    SizedBox(width: 8),
-                    Text('Department Growth', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
+                const AppleSectionHeader(
+                  title: 'Department Growth',
+                  subtitle: 'Weighted mean across recent academic terms.',
                 ),
                 const SizedBox(height: 12),
                 RepaintBoundary(
@@ -562,13 +557,10 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
 
                 // --- ACTION REQUIRED ALERTS ---
                 // This section shows which instructors need attention — basin naa problema below
-                Row(
+                AppleSectionHeader(
                   key: _alertsKey,
-                  children: const [
-                    Icon(Icons.assignment_late, color: AppColors.textPrimary),
-                    SizedBox(width: 8),
-                    Text('Action Required', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
+                  title: 'Action Required',
+                  subtitle: 'Faculty and curriculum signals that need review.',
                 ),
                 const SizedBox(height: 12),
                 // If no alerts — show green "all good" message. Rare but nice.

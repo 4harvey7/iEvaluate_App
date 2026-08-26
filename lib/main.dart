@@ -23,18 +23,18 @@ import 'core/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize Firebase (will look for google-services.json automatically on Android)
   try {
     await Firebase.initializeApp();
   } catch (e) {
     debugPrint('Firebase init error: $e');
   }
-  
+
   // secrets are injected at build time via --dart-define-from-file=.env.json
   // no runtime file loading needed, thank goodness
   await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
-  
+
   runApp(const MyApp());
 }
 
@@ -63,13 +63,20 @@ Widget screenForRole(String role, String userId) {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.home});
+
+  /// Allows tests and previews to render a destination without waiting for the
+  /// production splash/session handoff.
+  final Widget? home;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      debugShowCheckedModeBanner: false, // we hide the debug banner, it look unprofessional
+      debugShowCheckedModeBanner:
+          false, // we hide the debug banner, it look unprofessional
       title: 'iEvaluate',
-      theme: AppTheme.light, // use the fully-configured project theme instead of bare primarySwatch
+      theme: AppTheme
+          .light, // use the fully-configured project theme instead of bare primarySwatch
       builder: (context, child) {
         // Global tablet/iPad responsiveness fix
         // Constrain the entire app's width so no screen stretches beyond 800 pixels
@@ -78,14 +85,14 @@ class MyApp extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
-              child: ClipRect(
-                child: child,
-              ),
+              child: ClipRect(child: child),
             ),
           ),
         );
       },
-      home: const SplashScreen(), // always start at splash screen, then we figure out the rest
+      home:
+          home ??
+          const SplashScreen(), // production starts at splash; tests may inject a stable screen
     );
   }
 }

@@ -166,7 +166,7 @@ class _InteractiveCropWidgetState extends State<InteractiveCropWidget> {
           children: [
             const Text('Manual Crop',
                 style:
-                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
             Text(
               'Cropping: ${widget.fieldName.toUpperCase()}',
               style: TextStyle(
@@ -177,7 +177,7 @@ class _InteractiveCropWidgetState extends State<InteractiveCropWidget> {
           ],
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: AppColors.textPrimary),
           onPressed: widget.onCancel,
         ),
       ),

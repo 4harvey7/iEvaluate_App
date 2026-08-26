@@ -9,6 +9,7 @@ import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 // the outer shell widget — just a box, nothing special yet
 class PersonnelManagementScreen extends StatefulWidget {
@@ -652,15 +653,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Personnel Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Personnel Management', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
@@ -674,24 +675,17 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       ),
       // spinner while loading, column layout when done
       body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Loading SAO personnel…')
           : Column(
               children: [
                 // search + inline dropdowns for filters
-                Container(
-                  color: AppColors.surface,
+                AppleSurface(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      TextField(
+                      AppleSearchField(
                         onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
-                        decoration: InputDecoration(
-                          hintText: 'Search Name or ID...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-                          filled: true,
-                          fillColor: AppColors.background,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        ),
+                        hintText: 'Search name or university ID',
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -749,10 +743,14 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                         ? ListView(
                             physics: const AlwaysScrollableScrollPhysics(),
                             children: const [
-                              Center(child: Padding(
-                                padding: EdgeInsets.all(48),
-                                child: Text('No SAO personnel found.'),
-                              )),
+                              Padding(
+                                padding: EdgeInsets.all(16),
+                                child: AppleEmptyState(
+                                  icon: Icons.badge_outlined,
+                                  title: 'No SAO personnel',
+                                  message: 'Try changing the search or role filter.',
+                                ),
+                              ),
                             ],
                           )
                         : ListView.builder(

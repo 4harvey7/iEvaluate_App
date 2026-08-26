@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/evaluation_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/apple_ui.dart';
 import 'instructor_detail_page.dart';
 
 // The main widget — stateful because data is fetched async
@@ -173,20 +174,20 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Subject Analytics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Subject Analytics', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadData, // Pull down to refresh the subject list
           child: _isLoading 
-            ? const Center(child: CircularProgressIndicator()) // Show spinner while loading
+            ? const AppleLoadingState(label: 'Loading curriculum analytics…')
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(), // Always scrollable for pull-to-refresh
                 padding: const EdgeInsets.all(24.0),
@@ -194,14 +195,20 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Page title — "Curriculum Health" sounds official and descriptive
-                    const Text('Curriculum Health', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    const Text('Identifying subjects that may require curriculum review or additional teaching resources.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                    const ApplePageHeader(
+                      eyebrow: 'Curriculum',
+                      title: 'Subject Health',
+                      subtitle: 'Performance patterns that may require review or teaching support.',
+                    ),
                     const SizedBox(height: 24),
 
                     // No subject data yet — either new term or service returned empty
                     if (_subjectAnalytics.isEmpty)
-                      const Center(child: Text("No subject data available for this term."))
+                      const AppleEmptyState(
+                        icon: Icons.analytics_outlined,
+                        title: 'No subject data',
+                        message: 'Analytics will appear after this term receives evaluations.',
+                      )
                     else
                       Column(
                         children: _subjectAnalytics.map((subject) {

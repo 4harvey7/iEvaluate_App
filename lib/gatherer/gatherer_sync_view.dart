@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import 'models/scan_task.dart';
+import '../widgets/apple_ui.dart';
 
 class GathererSyncView extends StatelessWidget {
   final List<ScanTask> queue;
@@ -38,27 +39,19 @@ class GathererSyncView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Row(
-              children: [
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Sync Queue', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                      Text('Upload scanned forms to the n8n backend', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-                    ],
-                  ),
-                ),
-                // Pause / Resume button
-                if (queue.isNotEmpty)
-                  TextButton.icon(
+            ApplePageHeader(
+              eyebrow: 'Upload Pipeline',
+              title: 'Sync Queue',
+              subtitle: 'Review and upload scanned forms.',
+              trailing: queue.isNotEmpty
+                  ? TextButton.icon(
                     onPressed: isPaused ? onResume : onPause,
                     icon: Icon(isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
                         color: isPaused ? AppColors.success : AppColors.warning, size: 20),
                     label: Text(isPaused ? 'Resume' : 'Pause',
                         style: TextStyle(color: isPaused ? AppColors.success : AppColors.warning, fontWeight: FontWeight.bold)),
-                  ),
-              ],
+                  )
+                  : null,
             ),
 
             // Status summary chips
@@ -82,15 +75,10 @@ class GathererSyncView extends StatelessWidget {
             // Queue List
             Expanded(
               child: queue.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.cloud_done, color: AppColors.success, size: 64),
-                          SizedBox(height: 16),
-                          Text('All forms have been synced!', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-                        ],
-                      ),
+                  ? const AppleEmptyState(
+                      icon: Icons.cloud_done_outlined,
+                      title: 'Everything is synced',
+                      message: 'New scans will appear here before upload.',
                     )
                   : ListView.builder(
                       itemCount: queue.length,

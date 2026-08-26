@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../instructor/detailed_report_screen.dart';
 import '../instructor/subject_detail_screen.dart';
 import '../instructor/models/subject.dart';
+import '../widgets/apple_ui.dart';
 
 /// Full-page view of an individual instructor, opened from the Faculty Roster.
 /// Shows: current-term score card, historical trend bar chart,
@@ -307,7 +308,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             expandedHeight: 200, // Full height when scrolled to top
             pinned: true, // Stays visible as a small bar when scrolled down
             elevation: 0,
-            backgroundColor: AppColors.textPrimary,
+            backgroundColor: AppColors.primaryDeep,
             iconTheme: const IconThemeData(color: AppColors.surface),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
@@ -383,7 +384,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           _isLoading
               // Show spinner while data loads — dili ta show broken layout
               ? const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  child: AppleLoadingState(label: 'Loading instructor profile…'),
                 )
               : SliverPadding(
                   padding: const EdgeInsets.all(20),
@@ -848,12 +849,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         const SizedBox(height: 12),
         // No subjects found — show a placeholder card
         if (_subjects.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
-            child: const Center(
-              child: Text('No subjects found for this term.', style: TextStyle(color: AppColors.textSecondary)),
-            ),
+          const AppleEmptyState(
+            icon: Icons.library_books_outlined,
+            title: 'No subjects this term',
+            message: 'Assigned subjects will appear here when available.',
           )
         else
           // Show each subject as a tappable tile — using spread operator to flatten the list

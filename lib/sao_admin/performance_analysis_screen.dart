@@ -8,6 +8,7 @@ import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 // outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
@@ -439,20 +440,20 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   Widget build(BuildContext context) {
     if (_isInitialLoading) {
       // initial load spinner — shows while terms and analytics are being fetched
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: AppleLoadingState(label: 'Preparing performance analysis…'));
     }
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Performance Analysis', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           SafeIconButton(
             icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
@@ -480,7 +481,11 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Dashboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const ApplePageHeader(
+                      eyebrow: 'Institutional Analytics',
+                      title: 'Performance',
+                      subtitle: 'Compare evaluation outcomes across terms and instructors.',
+                    ),
                     if (_terms.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       // the term dropdown — pick any semester to view its data
@@ -526,21 +531,23 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
                 const SizedBox(height: 32),
 
                 // instructor leaderboard section header with "View All" button
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Instructor Leaderboard', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
-                    TextButton(
+                AppleSectionHeader(
+                  title: 'Instructor Leaderboard',
+                  subtitle: 'Highest overall scores for the selected term.',
+                  action: TextButton(
                       onPressed: () => _showAllInstructors(), // open the full list
-                      child: const Text('View All', style: TextStyle(color: AppColors.primary)),
+                      child: const Text('View All'),
                     ),
-                  ],
                 ),
                 const SizedBox(height: 8),
                 // the actual leaderboard cards — top instructors by score
                 Column(
                   children: _topInstructors.isEmpty
-                    ? [const Center(child: Text("No instructors found"))]
+                    ? [const AppleEmptyState(
+                        icon: Icons.leaderboard_outlined,
+                        title: 'No instructor results',
+                        message: 'Evaluation results will appear when this term has responses.',
+                      )]
                     : _topInstructors.map((instructor) {
                         return Card(
                           color: AppColors.surface,
@@ -587,23 +594,11 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   // a small colored stat card with icon, big value, and label
   // reused for 'University Avg' and 'Total Evals' cards at the top
   Widget _buildStatCard(String title, String value, IconData icon, Color iconColor) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 28), // icon at top
-          const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold)), // the big number/value
-          const SizedBox(height: 4),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)), // label below
-        ],
-      ),
+    return AppleMetricCard(
+      label: title,
+      value: value,
+      icon: icon,
+      color: iconColor,
     );
   }
 }

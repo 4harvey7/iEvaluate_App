@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/apple_ui.dart';
 import '../core/services/evaluation_service.dart';
 
 // The main widget — needs userId to find the right dept
@@ -285,18 +286,18 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Intervention Reports', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: _isLoading 
-          ? const Center(child: CircularProgressIndicator()) // Loading state
+          ? const AppleLoadingState(label: 'Loading interventions…')
           : RefreshIndicator(
               onRefresh: _loadData, // Pull to refresh — reload both lists
               child: SingleChildScrollView(
@@ -306,9 +307,11 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Page title and description — sets the serious tone
-                    const Text('Administrative Actions', style: TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    const Text('Manage formal warnings and track mandated training for flagged faculty members.', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                    const ApplePageHeader(
+                      eyebrow: 'Faculty Support',
+                      title: 'Interventions',
+                      subtitle: 'Manage formal actions and track support for flagged faculty.',
+                    ),
                     const SizedBox(height: 24),
 
                     // ==========================================
@@ -331,18 +334,10 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
                     // No pending interventions — rare and wonderful
                     if (_pendingInterventions.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
-                        child: const Column(
-                          children: [
-                            Icon(Icons.check_circle_outline, color: AppColors.success, size: 40),
-                            SizedBox(height: 8),
-                            Text('All caught up!', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
-                            Text('No pending interventions required.', style: TextStyle(color: AppColors.success, fontSize: 12)),
-                          ],
-                        ),
+                      const AppleEmptyState(
+                        icon: Icons.check_circle_outline,
+                        title: 'All caught up',
+                        message: 'No pending interventions require action.',
                       )
                     else
                       // Got pending items — show each as a card with a "Draft" button
@@ -434,10 +429,11 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
                     // No logs yet — either new dept or nobody has been flagged
                     if (_completedInterventions.isEmpty)
-                      const Center(child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Text("No previous interventions recorded.", style: TextStyle(color: AppColors.textSecondary)),
-                      ))
+                      const AppleEmptyState(
+                        icon: Icons.history_rounded,
+                        title: 'No intervention history',
+                        message: 'Completed and resolved interventions will appear here.',
+                      )
                     else
                       // Show each logged intervention as a list tile card
                       Column(

@@ -802,9 +802,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       appBar: _currentIndex == 4
           ? null
           : AppBar(
-              backgroundColor: AppColors.textPrimary,
+              backgroundColor: AppColors.surface,
               elevation: 0,
-              iconTheme: const IconThemeData(color: AppColors.surface),
+              iconTheme: const IconThemeData(color: AppColors.textPrimary),
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -812,7 +812,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                   Text(
                     tabTitles[_currentIndex],
                     style: const TextStyle(
-                      color: AppColors.surface,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -820,7 +820,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                   Text(
                     '$_currentSemester, $_currentYear',
                     style: const TextStyle(
-                      color: AppColors.textInvertedDim,
+                      color: AppColors.textSecondary,
                       fontSize: 11,
                     ),
                   ),
@@ -836,14 +836,14 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.surface,
+                            color: AppColors.primary,
                           ),
                         ),
                       )
                     : IconButton(
                         icon: const Icon(
                           Icons.refresh_rounded,
-                          color: AppColors.surface,
+                          color: AppColors.primary,
                         ),
                         tooltip: 'Refresh',
                         onPressed: () async {

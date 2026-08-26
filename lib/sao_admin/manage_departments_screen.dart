@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 
 class ManageDepartmentsScreen extends StatefulWidget {
@@ -404,11 +405,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
@@ -417,10 +418,10 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
           children: [
             Text('Department Management',
                 style: TextStyle(
-                    color: AppColors.surface,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold)),
             Text('Add, edit or remove departments',
-                style: TextStyle(color: AppColors.textInvertedDim, fontSize: 11)),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           ],
         ),
         actions: [
@@ -437,8 +438,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Loading departments…')
           : RefreshIndicator(
               onRefresh: _loadDepartments,
               color: AppColors.primary,
@@ -448,23 +448,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [
-                      const Icon(Icons.list_alt_rounded,
-                          color: AppColors.primary, size: 22),
-                      const SizedBox(width: 8),
-                      Text(
-                        'All Departments (${_departments.length})',
-                        style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
-                      ),
-                    ]),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Tap a department to view its score, head, and instructors.',
-                      style: TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                    AppleSectionHeader(
+                      title: 'All Departments (${_departments.length})',
+                      subtitle: 'Select a department to review its head, instructors, and evaluation health.',
                     ),
                     const SizedBox(height: 12),
                     _departments.isEmpty
@@ -579,26 +565,10 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48),
-        child: Column(children: [
-          Icon(Icons.domain_disabled_outlined,
-              size: 72,
-              color: AppColors.textSecondary.withValues(alpha: 0.3)),
-          const SizedBox(height: 16),
-          const Text('No departments yet',
-              style: TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          const Text('Use the form above to add your first department.',
-              style: TextStyle(
-                  color: AppColors.textSecondary, fontSize: 13),
-              textAlign: TextAlign.center),
-        ]),
-      ),
+    return const AppleEmptyState(
+      icon: Icons.domain_disabled_outlined,
+      title: 'No departments yet',
+      message: 'Use Add Department to create the first academic unit.',
     );
   }
 }

@@ -11,6 +11,7 @@ import 'providers/subjects_provider.dart';
 import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/apple_ui.dart';
 
 // StatefulWidget because it needs to load term data before showing anything useful
 class MySubjectsScreen extends StatefulWidget {
@@ -74,18 +75,18 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: Colors.white),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'My Subjects',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
@@ -161,7 +162,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.textPrimary,
+        gradient: const LinearGradient(colors: AppColors.heroGradient),
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
@@ -283,34 +284,12 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
   // Shows when no subjects are assigned — center-aligned sad icon and message.
   // Dili ta makabuhat ug subject card kung wala subjects, so show this instead.
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.subject_rounded,
-            size: 80,
-            color: AppColors.textPrimary.withValues(alpha: 0.1), // very faded, murag ghost
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No subjects assigned yet',
-            style: TextStyle(
-              color: AppColors.textPrimary.withValues(alpha: 0.5),
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Your assignments for $_termName will appear here.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.textTertiary,
-              fontSize: 14,
-            ),
-          ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: AppleEmptyState(
+        icon: Icons.subject_rounded,
+        title: 'No subjects assigned',
+        message: 'Your assignments for $_termName will appear here.',
       ),
     );
   }

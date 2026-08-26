@@ -9,6 +9,7 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/apple_ui.dart';
 
 
 // The settings widget — stateful because we load and change user info here
@@ -500,26 +501,32 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Executive Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Executive Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+        ? const AppleLoadingState(label: 'Loading executive settings…')
         : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const ApplePageHeader(
+                eyebrow: 'Department Leadership',
+                title: 'Executive Settings',
+                subtitle: 'Profile, intelligence alerts, and account security.',
+              ),
+              const SizedBox(height: 30),
               // Profile section header
-              const Text('Executive Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(title: 'Executive Profile'),
               const SizedBox(height: 12),
               // Profile card — shows avatar, name, title, and edit link
               Card(
@@ -562,7 +569,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               const SizedBox(height: 32),
 
               // Notification toggles section — dean can turn things on/off
-              const Text('Executive Intelligence', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(
+                title: 'Executive Intelligence',
+                subtitle: 'Choose which department signals should notify you.',
+              ),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,
@@ -611,7 +621,10 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               const SizedBox(height: 32),
 
               // Security section — change password or nuke the account
-              const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(
+                title: 'Security',
+                subtitle: 'Email, password, and account controls.',
+              ),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,

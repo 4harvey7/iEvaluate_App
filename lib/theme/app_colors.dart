@@ -8,6 +8,10 @@ class AppColors {
   static const Color primaryDeep = Color(0xFF004C99);
   static const Color primaryTint = Color(0xFFDDEEFF);
   static const Color accent = Color(0xFF5AC8FA);
+  static const Color indigo = Color(0xFF5856D6);
+  static const Color teal = Color(0xFF00A6A6);
+  static const Color purple = Color(0xFF8A5CF6);
+  static const Color rose = Color(0xFFE54872);
 
   // Surfaces
   static const Color background = Color(0xFFF2F4F8);
@@ -33,6 +37,15 @@ class AppColors {
   static const Color success = Color(0xFF248A4E);
   static const Color warning = Color(0xFFB85C00);
   static const Color error = Color(0xFFD92D20);
+
+  static const List<Color> chartPalette = [
+    primary,
+    teal,
+    indigo,
+    warning,
+    rose,
+    purple,
+  ];
 
   // Convenience for hero gradients
   static const List<Color> heroGradient = [Color(0xFF0B3B68), primary];

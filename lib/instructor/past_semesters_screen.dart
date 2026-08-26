@@ -9,6 +9,7 @@ import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'detailed_report_screen.dart';
 import 'widgets/subject_card.dart';
+import '../widgets/apple_ui.dart';
 
 // StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
@@ -324,25 +325,25 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Past Terms', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Past Terms', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.surface),
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
             tooltip: 'Refresh',
             onPressed: _fetchHistory,
           ),
         ],
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+        ? const AppleLoadingState(label: 'Loading past terms…')
         : RefreshIndicator(
         onRefresh: _fetchHistory, // pull-to-refresh also re-fetches history
         color: AppColors.primary,
@@ -353,9 +354,11 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Page title and subtitle
-            const Text('Historical Growth', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-            const SizedBox(height: 8),
-            const Text('Track your evaluation scores across previous academic terms.', style: TextStyle(color: AppColors.textSecondary)),
+            const ApplePageHeader(
+              eyebrow: 'History',
+              title: 'Historical Growth',
+              subtitle: 'Track evaluation scores across previous academic terms.',
+            ),
             const SizedBox(height: 24),
 
             // Interactive bar chart showing all historical term scores
@@ -365,7 +368,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Term Filter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                const Text('Term', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                 // Show "Full Term Report" button only when a term with data is selected
                 if (termData != null && termData.isNotEmpty)
                   TextButton.icon(
@@ -470,7 +473,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [AppColors.textPrimary, const Color(0xFF1E293B)]),
+        gradient: const LinearGradient(colors: AppColors.heroGradient),
         borderRadius: BorderRadius.circular(24),
       ),
       child: Column(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
@@ -536,26 +537,32 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Account Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Account Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator()) 
+        ? const AppleLoadingState(label: 'Loading account settings…')
         : SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const ApplePageHeader(
+                eyebrow: 'Instructor Account',
+                title: 'Settings',
+                subtitle: 'Profile, notifications, sign-in, and account security.',
+              ),
+              const SizedBox(height: 30),
               // Section: Profile — shows avatar, name, title, and edit link
-              const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(title: 'Profile'),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,
@@ -601,7 +608,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               const SizedBox(height: 32),
 
               // Section: Notifications — manage push notification preferences
-              const Text('Notifications', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(title: 'Notifications'),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,
@@ -629,7 +636,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               const SizedBox(height: 32),
 
               // Section: Security & Danger Zone — where the brave (and reckless) go
-              const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(
+                title: 'Security',
+                subtitle: 'Email, password, and account controls.',
+              ),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,

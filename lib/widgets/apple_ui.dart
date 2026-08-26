@@ -168,6 +168,358 @@ class AppleGlass extends StatelessWidget {
   }
 }
 
+/// Consistent large-title wayfinding for every first-level screen.
+class ApplePageHeader extends StatelessWidget {
+  const ApplePageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.eyebrow,
+    this.trailing,
+  });
+
+  final String title;
+  final String? subtitle;
+  final String? eyebrow;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (eyebrow != null) ...[
+                Text(
+                  eyebrow!.toUpperCase(),
+                  style: AppTextStyles.labelSmall.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+              Text(title, style: AppTextStyles.displayMedium),
+              if (subtitle != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  subtitle!,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 16), trailing!],
+      ],
+    );
+  }
+}
+
+class AppleSectionHeader extends StatelessWidget {
+  const AppleSectionHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.action,
+  });
+
+  final String title;
+  final String? subtitle;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: AppTextStyles.titleLarge),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(subtitle!, style: AppTextStyles.bodySmall),
+              ],
+            ],
+          ),
+        ),
+        if (action != null) action!,
+      ],
+    );
+  }
+}
+
+/// The standard opaque content layer. Glass is reserved for floating chrome.
+class AppleSurface extends StatelessWidget {
+  const AppleSurface({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(18),
+    this.onTap,
+    this.borderRadius = const BorderRadius.all(Radius.circular(18)),
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: borderRadius,
+        border: Border.all(color: AppColors.borderHairline),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0D0B2540),
+            blurRadius: 18,
+            offset: Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+    if (onTap == null) return surface;
+    return ApplePressable(onTap: onTap, child: surface);
+  }
+}
+
+class AppleIconBadge extends StatelessWidget {
+  const AppleIconBadge({
+    super.key,
+    required this.icon,
+    this.color = AppColors.primary,
+    this.size = 42,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(size * 0.31),
+      ),
+      child: Icon(icon, color: color, size: size * 0.5),
+    );
+  }
+}
+
+class AppleMetricCard extends StatelessWidget {
+  const AppleMetricCard({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.color = AppColors.primary,
+    this.detail,
+    this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  final String? detail;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppleSurface(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppleIconBadge(icon: icon, color: color),
+          const SizedBox(height: 18),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.displaySmall,
+          ),
+          const SizedBox(height: 3),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodySmall,
+          ),
+          if (detail != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              detail!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall.copyWith(color: color),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class AppleStatusPill extends StatelessWidget {
+  const AppleStatusPill({
+    super.key,
+    required this.label,
+    required this.color,
+    this.icon,
+  });
+
+  final String label;
+  final Color color;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon ?? Icons.circle, color: color, size: icon == null ? 7 : 14),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.labelSmall.copyWith(
+                color: color,
+                letterSpacing: 0.1,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class AppleEmptyState extends StatelessWidget {
+  const AppleEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppleSurface(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 26),
+        child: Column(
+          children: [
+            AppleIconBadge(icon: icon, size: 54),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.titleMedium,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            if (action != null) ...[const SizedBox(height: 18), action!],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AppleLoadingState extends StatelessWidget {
+  const AppleLoadingState({super.key, this.label = 'Loading…'});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5),
+            ),
+            const SizedBox(height: 12),
+            Text(label, style: AppTextStyles.bodySmall),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AppleSearchField extends StatelessWidget {
+  const AppleSearchField({
+    super.key,
+    this.controller,
+    this.onChanged,
+    this.hintText = 'Search',
+  });
+
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
+  final String hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: hintText,
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppColors.textTertiary,
+        ),
+        filled: true,
+        fillColor: AppColors.surface,
+      ),
+    );
+  }
+}
+
 class AppleTabItem {
   const AppleTabItem({
     required this.icon,

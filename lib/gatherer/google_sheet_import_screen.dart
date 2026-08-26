@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 
 class GoogleSheetImportScreen extends StatefulWidget {
   final String userId;
@@ -32,10 +33,13 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Step 1: Set Sheet Name',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
+            const ApplePageHeader(
+              eyebrow: 'Bulk Import',
+              title: 'Google Sheets',
+              subtitle: 'Prepare the sheet, verify its columns, then submit the share link.',
             ),
+            const SizedBox(height: 28),
+            const AppleSectionHeader(title: '1. Set the sheet name'),
             const SizedBox(height: 8),
             const Text(
               'The tab at the bottom must be renamed exactly to:',
@@ -80,10 +84,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
             
             const SizedBox(height: 32),
             
-            const Text(
-              'Step 2: Column Headers',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
+            const AppleSectionHeader(title: '2. Verify column headers'),
             const SizedBox(height: 8),
             const Text(
               'Your Google Sheet must have these columns in order:',
@@ -111,10 +112,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
             
             const SizedBox(height: 32),
             
-            const Text(
-              'Step 3: Paste Link',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary),
-            ),
+            const AppleSectionHeader(title: '3. Paste the share link'),
             const SizedBox(height: 12),
             TextField(
               controller: _linkController,
@@ -145,7 +143,7 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: AppColors.textInverted,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),

@@ -384,19 +384,19 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       backgroundColor: AppColors.background,
       resizeToAvoidBottomInset: true, // resize when keyboard open so fields not hidden
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Correct Failed Scan',
                 style: TextStyle(
-                    color: AppColors.surface,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold)),
             Text(taskId, // show which scan task this is
                 style: const TextStyle(
-                    color: AppColors.textInvertedDim, fontSize: 11),
+                    color: AppColors.textSecondary, fontSize: 11),
                 overflow: TextOverflow.ellipsis),
           ],
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 
 class DetailedReportScreen extends StatefulWidget {
   final String userId;
@@ -265,12 +266,12 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.textPrimary,
+        title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         actions: [
           IconButton(
             icon: const Icon(Icons.download_rounded),
@@ -279,13 +280,13 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Preparing official report…')
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildOfficialHeader(),
+                  AppleSurface(child: _buildOfficialHeader()),
                   const Divider(height: 32),
                   _buildSummaryTable(),
                   const SizedBox(height: 24),
@@ -427,7 +428,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(8),
-          color: AppColors.textPrimary,
+          decoration: const BoxDecoration(
+            color: AppColors.primaryDeep,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          ),
           child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
         Table(
