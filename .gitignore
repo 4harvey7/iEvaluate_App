@@ -45,6 +45,12 @@ app.*.symbols
 # Obfuscation related
 app.*.map.json
 
+# Build artifacts
+*.apk
+
+# Cleanup trash
+_trash_removed_files/
+
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
