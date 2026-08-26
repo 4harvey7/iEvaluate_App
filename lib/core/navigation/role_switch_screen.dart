@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 
-/// A sleek transition screen that shows briefly when a user switches roles.
-/// It displays a bouncy icon, some text, and then executes the [onComplete] callback.
+/// A brief, spatially calm handoff between roles.
 class RoleSwitchScreen extends StatefulWidget {
   final String targetRoleName;
   final IconData targetIcon;
-  
+
   /// What to do when the animation finishes (e.g., Navigator.push or pop).
   /// We pass the current BuildContext so the callback can navigate properly.
   final void Function(BuildContext context) onComplete;
@@ -22,7 +21,8 @@ class RoleSwitchScreen extends StatefulWidget {
   State<RoleSwitchScreen> createState() => _RoleSwitchScreenState();
 }
 
-class _RoleSwitchScreenState extends State<RoleSwitchScreen> with SingleTickerProviderStateMixin {
+class _RoleSwitchScreenState extends State<RoleSwitchScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   late Animation<double> _fadeAnimation;
@@ -30,25 +30,26 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    
-    // Set up a quick pop-and-fade animation for the icon
+
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 380),
     );
-    
-    _scaleAnimation = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
-    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
     _controller.forward();
 
     // Wait a short moment to let the user see the transition, then execute nav callback
-    Future.delayed(const Duration(milliseconds: 1400), () {
+    Future.delayed(const Duration(milliseconds: 760), () {
       if (mounted) {
         widget.onComplete(context);
       }
@@ -64,29 +65,34 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> with SingleTickerPr
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.textPrimary, // Use the Midnight Espresso for a premium theatrical feel
+      backgroundColor: AppColors.primaryDeep,
       body: Center(
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
+            final reduceMotion = MediaQuery.disableAnimationsOf(context);
+            return Opacity(
+              opacity: reduceMotion ? 1 : _fadeAnimation.value,
+              child: Transform.scale(
+                scale: reduceMotion ? 1 : _scaleAnimation.value,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.15),
+                        color: AppColors.textInvertedFaint,
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(widget.targetIcon, size: 80, color: AppColors.primary),
+                      child: Icon(
+                        widget.targetIcon,
+                        size: 72,
+                        color: AppColors.textInverted,
+                      ),
                     ),
                     const SizedBox(height: 32),
                     Text(
-                      'Switching to\n${widget.targetRoleName} View...',
+                      'Switching to\n${widget.targetRoleName}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         color: AppColors.surface,
@@ -96,7 +102,14 @@ class _RoleSwitchScreenState extends State<RoleSwitchScreen> with SingleTickerPr
                       ),
                     ),
                     const SizedBox(height: 48),
-                    const CircularProgressIndicator(color: AppColors.primary),
+                    const SizedBox(
+                      width: 88,
+                      child: LinearProgressIndicator(
+                        minHeight: 3,
+                        color: AppColors.textInverted,
+                        backgroundColor: AppColors.textInvertedFaint,
+                      ),
+                    ),
                   ],
                 ),
               ),

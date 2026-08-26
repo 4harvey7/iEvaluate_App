@@ -1,44 +1,39 @@
 import 'package:flutter/material.dart';
 
-/// iEvaluate brand palette: Vanilla Custard / Vivid Orange / Midnight Espresso.
-///
-/// Colours are exposed as semantic tokens, not raw names, so theming and
-/// repaletting can happen without touching the rest of the app.
+/// Semantic colors for iEvaluate's calm, institutional Apple-inspired UI.
 class AppColors {
   AppColors._();
 
-  // Brand
-  static const Color primary = Color(0xFFF77331); // Vivid Orange
-  static const Color primaryDeep = Color(0xFFD85A1A);
-  static const Color primaryTint = Color(0xFFFFE4D2);
+  static const Color primary = Color(0xFF0066CC);
+  static const Color primaryDeep = Color(0xFF004C99);
+  static const Color primaryTint = Color(0xFFDDEEFF);
+  static const Color accent = Color(0xFF5AC8FA);
 
   // Surfaces
-  static const Color background = Color(0xFFFFF9EB); // Vanilla Custard
+  static const Color background = Color(0xFFF2F4F8);
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceElevated = Color(0xFFFFFEF8);
+  static const Color surfaceElevated = Color(0xFFF8FAFD);
+  static const Color surfaceMuted = Color(0xFFE9EDF3);
+  static const Color glass = Color(0xE8FFFFFF);
 
   // Text — all pre-baked as const Color so they can sit inside
   // `const TextStyle(...)`, `const Icon(...)`, `const DrawerHeader(...)`
   // and similar const contexts without breaking const-ness.
-  static const Color textPrimary = Color(0xFF200F07); // Midnight Espresso
-  static const Color textSecondary = Color(0x99200F07); // ~60% opacity
-  static const Color textTertiary = Color(0x66200F07); // ~40% opacity
-  static const Color textInverted = Color(0xFFFFF9EB);
-  static const Color textInvertedDim = Color(0xB3FFF9EB); // ~70% opacity
-  static const Color textInvertedFaint = Color(0x3DFFF9EB); // ~24% opacity
+  static const Color textPrimary = Color(0xFF101828);
+  static const Color textSecondary = Color(0xA34B5565);
+  static const Color textTertiary = Color(0x995F6B7A);
+  static const Color textInverted = Color(0xFFFFFFFF);
+  static const Color textInvertedDim = Color(0xC7FFFFFF);
+  static const Color textInvertedFaint = Color(0x52FFFFFF);
 
   // Borders / dividers
-  static const Color borderHairline = Color(0x14200F07); // ~8% opacity
-  static const Color borderSubtle = Color(0x1F200F07); // ~12% opacity
+  static const Color borderHairline = Color(0x14212B3B);
+  static const Color borderSubtle = Color(0x24212B3B);
 
-  // Status (warm-paired so they sit next to the orange without clashing)
-  static const Color success = Color(0xFF2E7D5A);
-  static const Color warning = Color(0xFFC97419);
-  static const Color error = Color(0xFFC2410C);
+  static const Color success = Color(0xFF248A4E);
+  static const Color warning = Color(0xFFB85C00);
+  static const Color error = Color(0xFFD92D20);
 
   // Convenience for hero gradients
-  static List<Color> get heroGradient => [
-        textPrimary,
-        textPrimary.withValues(alpha: 0.85),
-      ];
+  static const List<Color> heroGradient = [Color(0xFF0B3B68), primary];
 }
