@@ -21,6 +21,9 @@ class FacultyRosterScreen extends StatefulWidget {
 class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   final _supabase = Supabase.instance.client;
   
+  // Cache key is 'deptId_termId' so each department has its own slot.
+  // This prevents a second Dept Head from seeing stale data after a Non-Resident
+  // instructor is assigned to their dept by SAO Admin.
   static final Map<String, List<Map<String, dynamic>>> _rosterCache = {};
   static final Map<String, String> _termIdCache = {};
   
@@ -47,16 +50,10 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     }
     _currentTermId = activeTermId;
 
-    if (_rosterCache.containsKey(activeTermId)) {
-      if (mounted) {
-        setState(() {
-          _facultyList = _rosterCache[activeTermId]!;
-          _isLoading = false;
-        });
-      }
-    } else {
-      setState(() => _isLoading = true);
-    }
+    // NOTE: Cache key is built after we know deptId (see below).
+    // We do NOT check cache here because we need deptId first.
+    setState(() => _isLoading = true);
+
     
     try {
       if (_currentTermId.isEmpty) {
@@ -107,17 +104,32 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
         return;
       }
 
-      // 3. Fetch all instructors in this department (excluding the dept head themselves)
-      // We join with overall_total_survey to get their scores — the important numbers
+      // Build the composite cache key: deptId_termId
+      // This ensures each dept head has their own cache slot — prevents stale data
+      // when a Non-Resident instructor is assigned to a second department by SAO Admin.
+      final cacheKey = '${deptId}_$activeTermId';
+      if (_rosterCache.containsKey(cacheKey)) {
+        if (mounted) {
+          setState(() {
+            _facultyList = _rosterCache[cacheKey]!;
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 3. Fetch all instructors linked to this dept via instructor_departments.
+      // This supports Non-Resident instructors who teach in multiple departments.
+      // We query user_info joined through instructor_departments instead of department_table.
       final facultyData = await _supabase
           .from('user_info')
           .select('''
             id,
             first_name,
             last_name,
-            department_table!inner (
-              roles:roles (Roles),
-              Department_name_ID
+            instructor_departments!inner (
+              department_id,
+              is_primary
             ),
             overall_total_survey (
               overall_mean,
@@ -128,21 +140,39 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
               term_id
             )
           ''')
-          .eq('department_table.Department_name_ID', deptId)
-          .neq('id', deanId); // Exclude dean from their own roster — they not faculty
-      
+          .eq('instructor_departments.department_id', deptId)
+          .neq('id', deanId); // Exclude dean from their own roster
+
+      // Separately fetch role info for each instructor from department_table.
+      // We do this separately because role lives in department_table, not instructor_departments.
+      // For Non-Resident instructors, we use their home dept (is_primary=true) role.
+      final List<String> instructorIds = (facultyData as List)
+          .map((f) => f['id'].toString())
+          .toList();
+
+      Map<String, String> roleByUserId = {};
+      if (instructorIds.isNotEmpty) {
+        final roleRows = await _supabase
+            .from('department_table')
+            .select('user_id, roles:roles(Roles)')
+            .filter('user_id', 'in', instructorIds);
+        for (final row in (roleRows as List)) {
+          final uid = row['user_id']?.toString();
+          final roleData = row['roles'];
+          final roleName = roleData is List
+              ? (roleData.isNotEmpty ? roleData[0]['Roles'] : 'Instructor')
+              : roleData?['Roles'] ?? 'Instructor';
+          if (uid != null) roleByUserId[uid] = roleName.toString();
+        }
+      }
+
       debugPrint('Raw Faculty Data Count: ${facultyData.length}');
 
       if (mounted) {
         debugPrint('Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
-        
+
         final fetchedList = (facultyData as List).map<Map<String, dynamic>>((f) {
-            // Handle department_table which might be a List or a Map — supabase surprise
-            final deptList = f['department_table'];
-            final deptItem = deptList is List
-                ? (deptList.isNotEmpty ? deptList[0] : null)
-                : deptList;
-            final roleInfo = deptItem?['roles'];
+            final instructorId = f['id']?.toString() ?? '';
 
             // Safely extract the survey data list
             final surveyData = f['overall_total_survey'];
@@ -163,40 +193,40 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
                 : null;
 
             // Calculate trend: up/down/flat based on 0.1-point threshold
-            // Anything less than 0.1 difference is considered flat — not significant
             final currentScore = (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
             final prevScore = (prevSurvey?['combined_score_mean'] as num?)?.toDouble() ?? (prevSurvey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
             String trend;
             if (prevSurvey == null || prevScore == 0.0) {
-              trend = 'flat'; // No previous data to compare — we dont guess
+              trend = 'flat';
             } else if (currentScore - prevScore > 0.1) {
-              trend = 'up'; // Score improved by more than 0.1 — good news
+              trend = 'up';
             } else if (prevScore - currentScore > 0.1) {
-              trend = 'down'; // Score dropped by more than 0.1 — dean should notice
+              trend = 'down';
             } else {
-              trend = 'flat'; // Basically unchanged — status quo
+              trend = 'flat';
             }
 
             // Return the clean faculty map — all the info the UI cards need
             return {
-              'id': f['id'],
+              'id': instructorId,
               'name': '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim(),
-              'title': roleInfo?['Roles'] ?? 'Instructor', // Default to Instructor if role missing
+              'title': roleByUserId[instructorId] ?? 'Instructor', // Role from separate lookup
               'department': deptName,
               'score': (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
               'mgmt_score': (survey?['management_mean'] as num?)?.toDouble() ?? 0.0,
               'perf_score': (survey?['performance_mean'] as num?)?.toDouble() ?? 0.0,
               'evals': survey?['total_responses'] ?? 0,
-              'trend': trend, // 'up', 'down', or 'flat'
+              'trend': trend,
             };
           }).toList();
-          
+
           setState(() {
-            _rosterCache[activeTermId] = fetchedList;
+            _rosterCache[cacheKey] = fetchedList; // Use composite cache key
             _facultyList = fetchedList;
-            _isLoading = false; // Done loading — show the list now
+            _isLoading = false;
           });
       }
+
     } catch (e) {
       debugPrint('Error fetching faculty roster: $e');
       if (mounted) setState(() => _isLoading = false); // Show empty state on error
