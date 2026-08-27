@@ -1,8 +1,10 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -89,12 +91,18 @@ class ApplePressable extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.enabled,
     this.pressedScale = 0.97,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Set this when the child owns the tap callback (for example, a Button).
+  /// The wrapper will still provide immediate pointer-down feedback without
+  /// stealing the child's gesture or adding duplicate button semantics.
+  final bool? enabled;
   final double pressedScale;
   final String? semanticLabel;
 
@@ -135,9 +143,9 @@ class _ApplePressableState extends State<ApplePressable>
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
+    final enabled = widget.enabled ?? widget.onTap != null;
     return Semantics(
-      button: enabled,
+      button: widget.onTap != null,
       enabled: enabled,
       label: widget.semanticLabel,
       child: GestureDetector(
@@ -218,8 +226,8 @@ class AppleGlass extends StatelessWidget {
     // PREVIOUS ROUTE through the blur, making text unreadable. Disable it on
     // Android and let the opaque gradient background do the visual work instead.
     // iOS keeps the full blur for the authentic glass look.
-    final bool useBlur = !highContrast &&
-        defaultTargetPlatform == TargetPlatform.iOS;
+    final bool useBlur =
+        !highContrast && defaultTargetPlatform == TargetPlatform.iOS;
 
     final surface = Container(
       padding: padding,
@@ -248,7 +256,9 @@ class AppleGlass extends StatelessWidget {
       ),
       child: child,
     );
-    if (!useBlur) return surface; // Android / high-contrast: no blur, fully opaque
+    if (!useBlur) {
+      return surface; // Android / high-contrast: no blur, fully opaque
+    }
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
@@ -344,7 +354,7 @@ class AppleSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (action != null) action!,
+        ?action,
       ],
     );
   }
@@ -368,22 +378,19 @@ class AppleSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final highContrast = MediaQuery.maybeOf(context)?.highContrast ?? false;
-    // Same as AppleGlass: disable blur on Android to prevent see-through.
-    final bool useBlur = !highContrast &&
-        defaultTargetPlatform == TargetPlatform.iOS;
 
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: highContrast
-            ? AppColors.solidSurface
-            : (useBlur ? null : AppColors.glassStrong), // solid on Android
-        gradient: (highContrast || !useBlur)
+        // Content cards stay opaque. Glass is reserved for floating chrome;
+        // blurring every nested card hurts legibility and GPU performance.
+        color: highContrast ? AppColors.solidSurface : null,
+        gradient: highContrast
             ? null
             : const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [AppColors.glassStrong, AppColors.glass],
+                colors: [Color(0xFFFFFFFF), Color(0xFFF8FBFF)],
               ),
         borderRadius: borderRadius,
         border: Border.all(
@@ -399,17 +406,8 @@ class AppleSurface extends StatelessWidget {
       ),
       child: child,
     );
-    final material = !useBlur
-        ? surface
-        : ClipRRect(
-            borderRadius: borderRadius,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: surface,
-            ),
-          );
-    if (onTap == null) return material;
-    return ApplePressable(onTap: onTap, child: material);
+    if (onTap == null) return surface;
+    return ApplePressable(onTap: onTap, child: surface);
   }
 }
 
@@ -595,10 +593,9 @@ class AppleLoadingState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
+            const CupertinoActivityIndicator(
+              radius: 13,
+              color: AppColors.primary,
             ),
             const SizedBox(height: 12),
             Text(label, style: AppTextStyles.bodySmall),
@@ -609,7 +606,7 @@ class AppleLoadingState extends StatelessWidget {
   }
 }
 
-class AppleSearchField extends StatelessWidget {
+class AppleSearchField extends StatefulWidget {
   const AppleSearchField({
     super.key,
     this.controller,
@@ -622,19 +619,77 @@ class AppleSearchField extends StatelessWidget {
   final String hintText;
 
   @override
+  State<AppleSearchField> createState() => _AppleSearchFieldState();
+}
+
+class _AppleSearchFieldState extends State<AppleSearchField> {
+  TextEditingController? _internalController;
+
+  TextEditingController get _controller =>
+      widget.controller ?? (_internalController ??= TextEditingController());
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?.addListener(_refresh);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppleSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_refresh);
+      widget.controller?.addListener(_refresh);
+    }
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged?.call('');
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_refresh);
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: controller,
-      onChanged: onChanged,
+      controller: _controller,
+      onChanged: (value) {
+        setState(() {});
+        widget.onChanged?.call(value);
+      },
       textInputAction: TextInputAction.search,
+      autocorrect: false,
+      enableSuggestions: false,
       decoration: InputDecoration(
-        hintText: hintText,
+        hintText: widget.hintText,
         prefixIcon: const Icon(
           Icons.search_rounded,
           color: AppColors.textTertiary,
         ),
+        suffixIcon: _controller.text.isEmpty
+            ? null
+            : ApplePressable(
+                semanticLabel: 'Clear search',
+                onTap: _clear,
+                pressedScale: 0.90,
+                child: const Icon(
+                  Icons.cancel_rounded,
+                  color: AppColors.textTertiary,
+                ),
+              ),
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.solidSurface,
       ),
     );
   }
@@ -682,46 +737,52 @@ class AppleFloatingTabBar extends StatelessWidget {
               // selectedIndex == -1 means a drawer screen is active → no tab highlighted
               final selected = selectedIndex >= 0 && index == selectedIndex;
               return Expanded(
-                child: ApplePressable(
-                  semanticLabel: item.label,
-                  onTap: () => onSelected(index),
-                  child: AnimatedContainer(
-                    height: 54,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? AppColors.primaryTint
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(17),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          selected ? item.selectedIcon : item.icon,
-                          size: 21,
-                          color: selected
-                              ? AppColors.primary
-                              : AppColors.textTertiary,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.fade,
-                          style: AppTextStyles.labelSmall.copyWith(
+                child: Semantics(
+                  selected: selected,
+                  child: ApplePressable(
+                    semanticLabel: item.label,
+                    onTap: () {
+                      if (!selected) HapticFeedback.selectionClick();
+                      onSelected(index);
+                    },
+                    child: AnimatedContainer(
+                      height: 54,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primaryTint
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            selected ? item.selectedIcon : item.icon,
+                            size: 21,
                             color: selected
                                 ? AppColors.primary
                                 : AppColors.textTertiary,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                            letterSpacing: 0,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            style: AppTextStyles.labelSmall.copyWith(
+                              color: selected
+                                  ? AppColors.primary
+                                  : AppColors.textTertiary,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
