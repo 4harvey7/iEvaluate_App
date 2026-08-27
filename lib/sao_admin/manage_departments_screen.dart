@@ -18,6 +18,7 @@ class ManageDepartmentsScreen extends StatefulWidget {
 class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   final _supabase = Supabase.instance.client;
   final _nameController = TextEditingController();
+  final _codeController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   List<Map<String, dynamic>> _departments = [];
@@ -35,6 +36,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
@@ -45,7 +47,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     try {
       final data = await _supabase
           .from('department_name')
-          .select('id, d_name')
+          .select('id, d_name, d_code')
           .order('d_name', ascending: true);
       if (mounted) {
         setState(() {
@@ -79,8 +81,10 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     _editing = dept;
     if (dept != null) {
       _nameController.text = dept['d_name'];
+      _codeController.text = dept['d_code'] ?? '';
     } else {
       _nameController.clear();
+      _codeController.clear();
     }
 
     showDialog(
@@ -138,17 +142,31 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Department Name *',
                         hintText: 'e.g. College of Engineering...',
-                        prefixIcon: const Icon(Icons.domain,
-                            color: AppColors.primary),
+                        prefixIcon: const Icon(Icons.domain, color: AppColors.primary),
                         filled: true,
                         fillColor: AppColors.background,
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Required';
                         if (v.trim().length < 3) return 'At least 3 characters';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _codeController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        labelText: 'Department Code *',
+                        hintText: 'e.g. CTE, CS, IT...',
+                        prefixIcon: const Icon(Icons.badge_outlined, color: AppColors.primary),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return 'Required';
                         return null;
                       },
                     ),
@@ -239,10 +257,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         setState(() => isSaving = true);
 
                         try {
+                          final code = _codeController.text.trim().toUpperCase();
                           if (isEditing) {
                             await _supabase
                                 .from('department_name')
-                                .update({'d_name': name}).eq('id', dept['id']);
+                                .update({'d_name': name, 'd_code': code}).eq('id', dept['id']);
                             _showSnack('Department updated successfully');
                           } else {
                             final existing = await _supabase
@@ -251,14 +270,13 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                 .ilike('d_name', name)
                                 .maybeSingle();
                             if (existing != null) {
-                              _showSnack('Department already exists',
-                                  isError: true);
+                              _showSnack('Department already exists', isError: true);
                               setState(() => isSaving = false);
                               return;
                             }
                             await _supabase
                                 .from('department_name')
-                                .insert({'d_name': name});
+                                .insert({'d_name': name, 'd_code': code});
                             _showSnack('Department added successfully');
                           }
                           Navigator.pop(context);
@@ -366,11 +384,20 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
 
     if (confirmed != true) return;
     try {
-      await _supabase
-          .from('department_name')
-          .delete()
-          .eq('id', dept['id']);
-      _showSnack('Department deleted');
+      // Block delete if department still has assigned users
+      final assignedUsers = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', dept['id']);
+      if ((assignedUsers as List).isNotEmpty) {
+        _showSnack(
+          'Cannot delete "${dept['d_name']}": ${assignedUsers.length} user(s) are still assigned to it. Reassign them first.',
+          isError: true,
+        );
+        return;
+      }
+      await _supabase.from('department_name').delete().eq('id', dept['id']);
+      _showSnack('Department deleted successfully');
       if (_editing?['id'] == dept['id']) _clearForm();
       await _loadDepartments();
     } catch (e) {
@@ -385,6 +412,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   void _clearForm() {
     setState(() => _editing = null);
     _nameController.clear();
+    _codeController.clear();
   }
 
   void _showSnack(String msg, {bool isError = false}) {

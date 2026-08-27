@@ -137,7 +137,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
     // Original role data to detect changes — needed to know if OTP step is needed
     final String originalRole = _userTitle;
-    String tempSelectedRole = _userTitle; // tracks what the dropdown shows
+    // Ensure the initial value is always one of the valid dropdown items.
+    // _userTitle defaults to 'System Administrator' before data loads, which doesn't match any item.
+    const _validRoles = ['SAO_ADMIN', 'SAO_STAFF'];
+    String tempSelectedRole = _validRoles.contains(_userTitle) ? _userTitle : 'SAO_ADMIN';
     bool needsOTP = false; // flip this to true when role changed and needs verification
     bool isSaving = false; // prevent double-tapping the save button
 

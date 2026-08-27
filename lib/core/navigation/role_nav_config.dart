@@ -22,6 +22,7 @@ import '../../sao_admin/live_system_metrics_screen.dart';
 import '../../sao_admin/system_audit_screen.dart';
 import '../../sao_admin/import_errors_screen.dart';
 import '../../sao_admin/sao_admin_settings.dart';
+import '../../sao_admin/manage_departments_screen.dart';
 
 // Role screens — Dept Head
 import '../../dept_head/department_dashboard_screen.dart';
@@ -121,6 +122,11 @@ final Map<UserRole, RoleNavConfig> roleNavConfigs = {
         icon: Icons.book_rounded,
         label: 'Subject Management',
         builder: (_) => const ManageSubjectsScreen(),
+      ),
+      NavItem(
+        icon: Icons.domain_rounded,
+        label: 'Manage Departments',
+        builder: (_) => const ManageDepartmentsScreen(),
       ),
       NavItem(
         icon: Icons.monitor_heart_rounded,
