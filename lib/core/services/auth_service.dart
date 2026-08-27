@@ -135,6 +135,20 @@ class AuthService {
           'Department_name_ID': departmentId,
           'roles': roleId,
         });
+        // Also insert into instructor_departments for multi-dept support.
+        // Non-Resident instructors can later be assigned a second dept by SAO Admin.
+        // is_primary = true means this is their home department.
+        try {
+          await _supabase.from('instructor_departments').insert({
+            'instructor_id': userId,
+            'department_id': departmentId,
+            'is_primary': true,
+          });
+        } catch (deptLinkError) {
+          // Log but do not fail signup — instructor_departments is supplementary.
+          // The backfill migration ensures existing users are already covered.
+          debugPrint('[AUTH] Warning: Could not insert instructor_departments row: $deptLinkError');
+        }
       }
 
       debugPrint('--- [AUTH] SIGN UP SUCCESS ---');

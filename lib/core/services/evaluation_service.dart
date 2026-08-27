@@ -188,17 +188,17 @@ class EvaluationService {
         return _emptySummary(); // no active term, nothing to show
       }
 
-      // get all users in the dept, including the dean themselves
+      // get all users in the dept via instructor_departments (supports Non-Resident multi-dept)
       final facultyRows = await _supabase
-          .from('department_table')
-          .select('user_id')
-          .eq('Department_name_ID', deptId);
+          .from('instructor_departments')
+          .select('instructor_id')
+          .eq('department_id', deptId);
       
-      // Get all instructors in the dept, INCLUDING the dept head themselves
+      // Get all instructors linked to this dept, INCLUDING the dept head themselves
       // because Dept Heads also teach classes and receive student evaluations!
       final facultyIds = (facultyRows as List)
-          .where((row) => row['user_id'] != null)
-          .map((row) => row['user_id'].toString())
+          .where((row) => row['instructor_id'] != null)
+          .map((row) => row['instructor_id'].toString())
           .toList();
 
       debugPrint('EvaluationService - Found ${facultyIds.length} instructors for Dept $deptId');
@@ -281,14 +281,14 @@ class EvaluationService {
       final deptId = deptData['Department_name_ID'];
 
       final facultyRows = await _supabase
-          .from('department_table')
-          .select('user_id')
-          .eq('Department_name_ID', deptId);
+          .from('instructor_departments')
+          .select('instructor_id')
+          .eq('department_id', deptId);
       
-      // Get all instructors in the dept, INCLUDING the dept head themselves
+      // Get all instructors linked to this dept, INCLUDING the dept head themselves
       final facultyIds = (facultyRows as List)
-          .where((row) => row['user_id'] != null)
-          .map((row) => row['user_id'].toString())
+          .where((row) => row['instructor_id'] != null)
+          .map((row) => row['instructor_id'].toString())
           .toList();
 
       if (facultyIds.isEmpty) return [];
@@ -519,8 +519,11 @@ class EvaluationService {
           ? userInfo['department_table'] 
           : [userInfo['department_table']];
       
+      // For Non-Resident instructors (multiple depts), show 'Multiple Departments' (Option B)
       String deptName = 'Unknown'; // default if we cant find the dept name
-      if (deptTables.isNotEmpty && deptTables[0] != null) {
+      if (deptTables.length > 1) {
+        deptName = 'Multiple Departments';
+      } else if (deptTables.isNotEmpty && deptTables[0] != null) {
         final deptNameData = deptTables[0]['department_name'];
         if (deptNameData != null) {
           deptName = deptNameData['d_name'] ?? 'Unknown';
@@ -656,16 +659,16 @@ class EvaluationService {
       final summary = await getDepartmentSummary(userId); // get dept avg for comparison
       final deptAvg = summary.averageScore; // will be used later to compute AI note
 
-      // get all faculty in the dept, excluding the dean
+      // get all faculty in the dept via instructor_departments (supports Non-Resident multi-dept)
       final facultyRows = await _supabase
-          .from('department_table')
-          .select('user_id')
-          .eq('Department_name_ID', deptId);
+          .from('instructor_departments')
+          .select('instructor_id')
+          .eq('department_id', deptId);
       
       // Exclude the dept head themselves -- only count instructor scores
       final facultyIds = (facultyRows as List)
-          .where((row) => row['user_id'] != null && row['user_id'] != userId)
-          .map((row) => row['user_id'] as String)
+          .where((row) => row['instructor_id'] != null && row['instructor_id'] != userId)
+          .map((row) => row['instructor_id'] as String)
           .toSet()
           .toList();
 

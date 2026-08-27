@@ -575,7 +575,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderHairline)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          hint: Text(_isFetchingMetadata ? 'Loading...' : 'Select Role'), // still loading? wait lang
+          hint: Text(_isFetchingMetadata ? 'Loading...' : 'Employment Status'), // still loading? wait lang
           isExpanded: true,
           value: _roleController.text.isEmpty ? null : _roleController.text,
           items: _statusrole.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
