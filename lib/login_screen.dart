@@ -113,10 +113,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     // this is where we actually call the auth service to do the login, pray lang
-    final result = await _authService.signIn(
-      idOrEmail: input,
-      password: password,
-    );
+    final result = await _authService
+        .signIn(idOrEmail: input, password: password)
+        .timeout(
+          const Duration(seconds: 20),
+          onTimeout: () => const AuthResult(
+            success: false,
+            error:
+                'Sign in is taking longer than expected. Check your connection and try again.',
+          ),
+        );
 
     if (!mounted)
       return; // safety check in case screen was closed while loading
@@ -135,8 +141,12 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } else {
       // login fail, increment the failed counter and show the error message
-      _failedLoginAttempts++;
-      _lastFailedAttempt = DateTime.now();
+      // Network and server delays should never count toward the credential
+      // lockout. Only a confirmed incorrect ID/password response does.
+      if (result.error?.startsWith('Incorrect ID or password') ?? false) {
+        _failedLoginAttempts++;
+        _lastFailedAttempt = DateTime.now();
+      }
       setState(() => _errorMessage = result.error);
     }
   }
@@ -546,13 +556,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ],
                                   ),
                                   child: _isLoading
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            color: Colors.white,
-                                            strokeWidth: 2.4,
-                                          ),
+                                      ? const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            SizedBox(
+                                              width: 19,
+                                              height: 19,
+                                              child: CircularProgressIndicator(
+                                                color: Colors.white,
+                                                strokeWidth: 2.2,
+                                              ),
+                                            ),
+                                            SizedBox(width: 11),
+                                            Text(
+                                              'Signing in…',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ],
                                         )
                                       : Text(
                                           'Sign In',
