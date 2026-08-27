@@ -27,6 +27,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   bool _isLoading = true; // spinner flag — true while we waiting for data
   String _searchQuery = ''; // what the admin typed in the search box
   String _selectedRoleFilter = 'All'; // which role filter is selected, default all
+  String _selectedDeptFilter = 'All'; // department filter — new
   String _sortBy = 'Newest'; // sort order — newest or oldest first
   final List<String> _sortOptions = ['Newest', 'Oldest', 'A-Z', 'Z-A']; // added a-z sorting
 
@@ -109,8 +110,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       if (ui == null) return false; // wala user info, skip this one
       
       final roleName = user['role_data']?['Roles'] ?? 'Unknown';
-      // if role filter is active, skip users that dili match
+      final deptName = user['dept_data']?['d_name'] ?? '';
+
+      // apply role filter
       if (_selectedRoleFilter != 'All' && roleName != _selectedRoleFilter) return false;
+      // apply department filter
+      if (_selectedDeptFilter != 'All' && deptName != _selectedDeptFilter) return false;
       
       if (_searchQuery.isNotEmpty) {
         // search by full name OR university ID — both are valid ways to find someone
@@ -860,16 +865,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ? const AppleLoadingState(label: 'Loading academic users…')
           : Column(
               children: [
-                // search bar + inline dropdowns for filters
+                // search bar + filter dropdowns
                 Container(
                   color: AppColors.surface,
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
+                      // search bar
                       TextField(
-                        onChanged: (v) => setState(() => _searchQuery = v), // live search as you type
+                        onChanged: (v) => setState(() => _searchQuery = v),
                         decoration: InputDecoration(
-                          hintText: 'Search Name or ID...',
+                          hintText: 'Search Name or University ID...',
                           prefixIcon: const Icon(Icons.search, color: AppColors.primary),
                           filled: true,
                           fillColor: AppColors.background,
@@ -877,48 +883,74 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      // Department Filter | Role Filter
                       Row(
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              initialValue: _selectedRoleFilter,
+                              value: _selectedDeptFilter,
                               isExpanded: true,
                               decoration: InputDecoration(
+                                labelText: 'Department',
+                                labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.filter_list, color: AppColors.primary),
-                              items: ['All', ..._roles.map((r) => r['Roles'].toString())].map((String role) {
-                                return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              icon: const Icon(Icons.apartment, color: AppColors.primary, size: 18),
+                              items: ['All', ..._allDeptNames.map((d) => d['d_name'].toString())].map((String dept) {
+                                return DropdownMenuItem<String>(value: dept, child: Text(dept, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
                               }).toList(),
                               onChanged: (value) {
-                                if (value != null) setState(() => _selectedRoleFilter = value);
+                                if (value != null) setState(() => _selectedDeptFilter = value);
                               },
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              initialValue: _sortBy,
+                              value: _selectedRoleFilter,
                               isExpanded: true,
                               decoration: InputDecoration(
+                                labelText: 'Role',
+                                labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                                 filled: true,
                                 fillColor: AppColors.background,
                               ),
-                              icon: const Icon(Icons.sort, color: AppColors.primary),
-                              items: _sortOptions.map((String option) {
-                                return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis));
+                              icon: const Icon(Icons.filter_list, color: AppColors.primary, size: 18),
+                              items: ['All', ..._roles.map((r) => r['Roles'].toString())].map((String role) {
+                                return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
                               }).toList(),
                               onChanged: (value) {
-                                if (value != null) setState(() => _sortBy = value);
+                                if (value != null) setState(() => _selectedRoleFilter = value);
                               },
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Sort By (full width)
+                      DropdownButtonFormField<String>(
+                        value: _sortBy,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'Sort By',
+                          labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          filled: true,
+                          fillColor: AppColors.background,
+                        ),
+                        icon: const Icon(Icons.sort, color: AppColors.primary, size: 18),
+                        items: _sortOptions.map((String option) {
+                          return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
+                        }).toList(),
+                        onChanged: (value) {
+                          if (value != null) setState(() => _sortBy = value);
+                        },
                       ),
                     ],
                   ),
