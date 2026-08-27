@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -89,12 +90,18 @@ class ApplePressable extends StatefulWidget {
     super.key,
     required this.child,
     this.onTap,
+    this.enabled,
     this.pressedScale = 0.97,
     this.semanticLabel,
   });
 
   final Widget child;
   final VoidCallback? onTap;
+
+  /// Set this when the child owns the tap callback (for example, a Button).
+  /// The wrapper will still provide immediate pointer-down feedback without
+  /// stealing the child's gesture or adding duplicate button semantics.
+  final bool? enabled;
   final double pressedScale;
   final String? semanticLabel;
 
@@ -135,9 +142,9 @@ class _ApplePressableState extends State<ApplePressable>
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
+    final enabled = widget.enabled ?? widget.onTap != null;
     return Semantics(
-      button: enabled,
+      button: widget.onTap != null,
       enabled: enabled,
       label: widget.semanticLabel,
       child: GestureDetector(
@@ -218,8 +225,8 @@ class AppleGlass extends StatelessWidget {
     // PREVIOUS ROUTE through the blur, making text unreadable. Disable it on
     // Android and let the opaque gradient background do the visual work instead.
     // iOS keeps the full blur for the authentic glass look.
-    final bool useBlur = !highContrast &&
-        defaultTargetPlatform == TargetPlatform.iOS;
+    final bool useBlur =
+        !highContrast && defaultTargetPlatform == TargetPlatform.iOS;
 
     final surface = Container(
       padding: padding,
@@ -248,7 +255,9 @@ class AppleGlass extends StatelessWidget {
       ),
       child: child,
     );
-    if (!useBlur) return surface; // Android / high-contrast: no blur, fully opaque
+    if (!useBlur) {
+      return surface; // Android / high-contrast: no blur, fully opaque
+    }
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
@@ -344,7 +353,7 @@ class AppleSectionHeader extends StatelessWidget {
             ],
           ),
         ),
-        if (action != null) action!,
+        ?action,
       ],
     );
   }
@@ -368,22 +377,19 @@ class AppleSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final highContrast = MediaQuery.maybeOf(context)?.highContrast ?? false;
-    // Same as AppleGlass: disable blur on Android to prevent see-through.
-    final bool useBlur = !highContrast &&
-        defaultTargetPlatform == TargetPlatform.iOS;
 
     final surface = Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: highContrast
-            ? AppColors.solidSurface
-            : (useBlur ? null : AppColors.glassStrong), // solid on Android
-        gradient: (highContrast || !useBlur)
+        // Content cards stay opaque. Glass is reserved for floating chrome;
+        // blurring every nested card hurts legibility and GPU performance.
+        color: highContrast ? AppColors.solidSurface : null,
+        gradient: highContrast
             ? null
             : const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [AppColors.glassStrong, AppColors.glass],
+                colors: [Color(0xFFFFFFFF), Color(0xFFF8FBFF)],
               ),
         borderRadius: borderRadius,
         border: Border.all(
@@ -399,17 +405,8 @@ class AppleSurface extends StatelessWidget {
       ),
       child: child,
     );
-    final material = !useBlur
-        ? surface
-        : ClipRRect(
-            borderRadius: borderRadius,
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-              child: surface,
-            ),
-          );
-    if (onTap == null) return material;
-    return ApplePressable(onTap: onTap, child: material);
+    if (onTap == null) return surface;
+    return ApplePressable(onTap: onTap, child: surface);
   }
 }
 
@@ -582,34 +579,327 @@ class AppleEmptyState extends StatelessWidget {
   }
 }
 
-class AppleLoadingState extends StatelessWidget {
+/// A structural loading preview inspired by iOS content placeholders. It keeps
+/// the page hierarchy visible while data loads, so content resolves in place
+/// instead of appearing after an empty spinner.
+class AppleLoadingState extends StatefulWidget {
   const AppleLoadingState({super.key, this.label = 'Loading…'});
 
   final String label;
 
   @override
+  State<AppleLoadingState> createState() => _AppleLoadingStateState();
+}
+
+class _AppleLoadingStateState extends State<AppleLoadingState>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1350),
+  );
+
+  bool _reduceMotion = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (_reduceMotion == reduceMotion &&
+        (_shimmer.isAnimating || reduceMotion)) {
+      return;
+    }
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _shimmer.stop();
+      _shimmer.value = 0.5;
+    } else {
+      _shimmer.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 24,
-              height: 24,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            const SizedBox(height: 12),
-            Text(label, style: AppTextStyles.bodySmall),
-          ],
+    final highContrast = MediaQuery.maybeOf(context)?.highContrast ?? false;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: widget.label,
+      child: ExcludeSemantics(
+        child: IgnorePointer(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 88),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 620),
+                    child: Column(
+                      children: [
+                        AnimatedBuilder(
+                          animation: _shimmer,
+                          builder: (context, child) {
+                            if (_reduceMotion || highContrast) return child!;
+                            final position = -1.6 + (_shimmer.value * 3.2);
+                            return ShaderMask(
+                              blendMode: BlendMode.srcATop,
+                              shaderCallback: (bounds) => LinearGradient(
+                                begin: Alignment(position - 1, 0),
+                                end: Alignment(position + 1, 0),
+                                colors: const [
+                                  Color(0xFFDDE4EC),
+                                  Color(0xFFF7FAFD),
+                                  Color(0xFFDDE4EC),
+                                ],
+                                stops: const [0.25, 0.5, 0.75],
+                              ).createShader(bounds),
+                              child: child,
+                            );
+                          },
+                          child: _AppleSkeletonLayout(
+                            highContrast: highContrast,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          widget.label,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 }
 
-class AppleSearchField extends StatelessWidget {
+class _AppleSkeletonLayout extends StatelessWidget {
+  const _AppleSkeletonLayout({required this.highContrast});
+
+  final bool highContrast;
+
+  Color get _placeholderColor =>
+      highContrast ? const Color(0xFF667085) : const Color(0xFFDDE4EC);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            _AppleSkeletonBlock(
+              width: 44,
+              height: 44,
+              radius: 14,
+              color: _placeholderColor,
+            ),
+            const SizedBox(width: 13),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AppleSkeletonLine(
+                    widthFactor: 0.42,
+                    height: 12,
+                    color: _placeholderColor,
+                  ),
+                  const SizedBox(height: 9),
+                  _AppleSkeletonLine(
+                    widthFactor: 0.68,
+                    height: 9,
+                    color: _placeholderColor,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            _AppleSkeletonBlock(
+              width: 32,
+              height: 32,
+              radius: 10,
+              color: _placeholderColor,
+            ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        _AppleSkeletonPanel(
+          height: 112,
+          color: _placeholderColor,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _AppleSkeletonLine(
+                widthFactor: 0.30,
+                height: 10,
+                color: _placeholderColor,
+              ),
+              const SizedBox(height: 12),
+              _AppleSkeletonLine(
+                widthFactor: 0.72,
+                height: 18,
+                color: _placeholderColor,
+              ),
+              const SizedBox(height: 10),
+              _AppleSkeletonLine(
+                widthFactor: 0.48,
+                height: 9,
+                color: _placeholderColor,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (var index = 0; index < 3; index++) ...[
+          _AppleSkeletonPanel(
+            height: 88,
+            color: _placeholderColor,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AppleSkeletonLine(
+                        widthFactor: 0.34 + (index * 0.08),
+                        height: 11,
+                        color: _placeholderColor,
+                      ),
+                      const SizedBox(height: 10),
+                      _AppleSkeletonLine(
+                        widthFactor: 0.68 - (index * 0.06),
+                        height: 9,
+                        color: _placeholderColor,
+                      ),
+                      const SizedBox(height: 8),
+                      _AppleSkeletonLine(
+                        widthFactor: 0.48 + (index * 0.05),
+                        height: 8,
+                        color: _placeholderColor,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 18),
+                _AppleSkeletonBlock(
+                  width: 64,
+                  height: 58,
+                  radius: 13,
+                  color: _placeholderColor,
+                ),
+              ],
+            ),
+          ),
+          if (index != 2) const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
+}
+
+class _AppleSkeletonPanel extends StatelessWidget {
+  const _AppleSkeletonPanel({
+    required this.height,
+    required this.color,
+    required this.child,
+  });
+
+  final double height;
+  final Color color;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      height: height,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: AppColors.solidSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F173B63),
+            blurRadius: 18,
+            offset: Offset(0, 7),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _AppleSkeletonLine extends StatelessWidget {
+  const _AppleSkeletonLine({
+    required this.widthFactor,
+    required this.height,
+    required this.color,
+  });
+
+  final double widthFactor;
+  final double height;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return FractionallySizedBox(
+      widthFactor: widthFactor,
+      alignment: Alignment.centerLeft,
+      child: _AppleSkeletonBlock(
+        width: double.infinity,
+        height: height,
+        radius: height / 2,
+        color: color,
+      ),
+    );
+  }
+}
+
+class _AppleSkeletonBlock extends StatelessWidget {
+  const _AppleSkeletonBlock({
+    required this.width,
+    required this.height,
+    required this.radius,
+    required this.color,
+  });
+
+  final double width;
+  final double height;
+  final double radius;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+class AppleSearchField extends StatefulWidget {
   const AppleSearchField({
     super.key,
     this.controller,
@@ -622,19 +912,77 @@ class AppleSearchField extends StatelessWidget {
   final String hintText;
 
   @override
+  State<AppleSearchField> createState() => _AppleSearchFieldState();
+}
+
+class _AppleSearchFieldState extends State<AppleSearchField> {
+  TextEditingController? _internalController;
+
+  TextEditingController get _controller =>
+      widget.controller ?? (_internalController ??= TextEditingController());
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?.addListener(_refresh);
+  }
+
+  @override
+  void didUpdateWidget(covariant AppleSearchField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?.removeListener(_refresh);
+      widget.controller?.addListener(_refresh);
+    }
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged?.call('');
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller?.removeListener(_refresh);
+    _internalController?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return TextField(
-      controller: controller,
-      onChanged: onChanged,
+      controller: _controller,
+      onChanged: (value) {
+        setState(() {});
+        widget.onChanged?.call(value);
+      },
       textInputAction: TextInputAction.search,
+      autocorrect: false,
+      enableSuggestions: false,
       decoration: InputDecoration(
-        hintText: hintText,
+        hintText: widget.hintText,
         prefixIcon: const Icon(
           Icons.search_rounded,
           color: AppColors.textTertiary,
         ),
+        suffixIcon: _controller.text.isEmpty
+            ? null
+            : ApplePressable(
+                semanticLabel: 'Clear search',
+                onTap: _clear,
+                pressedScale: 0.90,
+                child: const Icon(
+                  Icons.cancel_rounded,
+                  color: AppColors.textTertiary,
+                ),
+              ),
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.solidSurface,
       ),
     );
   }
@@ -682,46 +1030,52 @@ class AppleFloatingTabBar extends StatelessWidget {
               // selectedIndex == -1 means a drawer screen is active → no tab highlighted
               final selected = selectedIndex >= 0 && index == selectedIndex;
               return Expanded(
-                child: ApplePressable(
-                  semanticLabel: item.label,
-                  onTap: () => onSelected(index),
-                  child: AnimatedContainer(
-                    height: 54,
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? AppColors.primaryTint
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(17),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          selected ? item.selectedIcon : item.icon,
-                          size: 21,
-                          color: selected
-                              ? AppColors.primary
-                              : AppColors.textTertiary,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.fade,
-                          style: AppTextStyles.labelSmall.copyWith(
+                child: Semantics(
+                  selected: selected,
+                  child: ApplePressable(
+                    semanticLabel: item.label,
+                    onTap: () {
+                      if (!selected) HapticFeedback.selectionClick();
+                      onSelected(index);
+                    },
+                    child: AnimatedContainer(
+                      height: 54,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.primaryTint
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(17),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            selected ? item.selectedIcon : item.icon,
+                            size: 21,
                             color: selected
                                 ? AppColors.primary
                                 : AppColors.textTertiary,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                            letterSpacing: 0,
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.fade,
+                            style: AppTextStyles.labelSmall.copyWith(
+                              color: selected
+                                  ? AppColors.primary
+                                  : AppColors.textTertiary,
+                              fontWeight: selected
+                                  ? FontWeight.w700
+                                  : FontWeight.w600,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

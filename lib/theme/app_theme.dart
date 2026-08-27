@@ -51,6 +51,8 @@ class AppTheme {
       highlightColor: AppColors.primaryTint.withValues(alpha: 0.55),
       hoverColor: AppColors.primaryTint.withValues(alpha: 0.35),
       focusColor: AppColors.primaryTint,
+      splashColor: Colors.transparent,
+      splashFactory: NoSplash.splashFactory,
       textTheme: textTheme,
       visualDensity: VisualDensity.standard,
       materialTapTargetSize: MaterialTapTargetSize.padded,
@@ -118,6 +120,8 @@ class AppTheme {
           ),
           textStyle: AppTextStyles.labelLarge,
           elevation: 0,
+          overlayColor: AppColors.textInverted.withValues(alpha: 0.14),
+          animationDuration: const Duration(milliseconds: 120),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -130,6 +134,8 @@ class AppTheme {
             borderRadius: BorderRadius.circular(14),
           ),
           textStyle: AppTextStyles.labelLarge,
+          overlayColor: AppColors.textInverted.withValues(alpha: 0.14),
+          animationDuration: const Duration(milliseconds: 120),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -142,6 +148,8 @@ class AppTheme {
             borderRadius: BorderRadius.circular(14),
           ),
           textStyle: AppTextStyles.labelLarge,
+          overlayColor: AppColors.primaryTint,
+          animationDuration: const Duration(milliseconds: 120),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -149,6 +157,8 @@ class AppTheme {
           foregroundColor: AppColors.primary,
           minimumSize: const Size(44, 44),
           textStyle: AppTextStyles.labelLarge,
+          overlayColor: AppColors.primaryTint,
+          animationDuration: const Duration(milliseconds: 120),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
@@ -156,9 +166,11 @@ class AppTheme {
           foregroundColor: AppColors.textSecondary,
           minimumSize: const Size(44, 44),
           highlightColor: AppColors.primaryTint,
+          overlayColor: AppColors.primaryTint,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(13),
           ),
+          animationDuration: const Duration(milliseconds: 120),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -370,7 +382,9 @@ class AppTheme {
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: AppColors.primary,
+        circularTrackColor: AppColors.primaryTint,
         linearTrackColor: AppColors.primaryTint,
+        strokeCap: StrokeCap.round,
       ),
       checkboxTheme: CheckboxThemeData(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
@@ -379,6 +393,35 @@ class AppTheme {
               ? AppColors.primary
               : AppColors.surface,
         ),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.primary
+              : AppColors.textTertiary,
+        ),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: AppColors.primary,
+        inactiveTrackColor: AppColors.primaryTint,
+        thumbColor: AppColors.solidSurface,
+        overlayColor: AppColors.primary.withValues(alpha: 0.10),
+        trackHeight: 5,
+        thumbShape: const RoundSliderThumbShape(
+          enabledThumbRadius: 11,
+          elevation: 2,
+          pressedElevation: 4,
+        ),
+        overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+      ),
+      badgeTheme: BadgeThemeData(
+        backgroundColor: AppColors.error,
+        textColor: AppColors.textInverted,
+        textStyle: AppTextStyles.labelSmall.copyWith(
+          color: AppColors.textInverted,
+          letterSpacing: 0,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       ),
     );
   }
