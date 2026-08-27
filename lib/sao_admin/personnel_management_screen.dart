@@ -178,15 +178,18 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   }
 
   // ── Personnel Details Modal ───────────────────────────────────
-  // shows bottom sheet with details — admins see profile info, staff see scan stats
+  // Read-only bottom sheet showing staff details and scan stats
   Future<void> _showPersonnelDetailsModal(Map<String, dynamic> person) async {
     final ui = person['user_info'];
     final userId = person['user_id'];
     final roleName = person['role_data']?['Roles'] ?? '';
     final fullName = '${ui['first_name']} ${ui['last_name']}';
-    final isAdmin = roleName.toUpperCase().contains('ADMIN'); // admins get different view
+    final email = ui['email'] ?? 'Not provided';
+    final universityId = ui['university_id']?.toString() ?? 'Not provided';
+    final accountStatus = ui['account_status'] ?? 'unknown';
+    final isActive = accountStatus == 'approved';
 
-    // scan statistics — now relevant for ALL SAO personnel since Admins can act as Gatherers
+    // fetch scan stats
     int totalScans = 0, todayScans = 0, termScans = 0;
     String lastUpload = '';
 
@@ -194,142 +197,192 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
       final termId = settings?['current_term_id'];
       final today = DateTime.now();
-      final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String(); // midnight UTC
+      final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
 
-      // All-time scans by this user — from the beginning of time
       final all = await _supabase
           .from('sast_all_raw_data_survey')
           .select('created_at')
           .eq('sao_staff_id', userId);
       totalScans = (all as List).length;
 
-      // This term's scans — scoped to current active term
-      var termQ = _supabase
-          .from('sast_all_raw_data_survey')
-          .select('created_at')
-          .eq('sao_staff_id', userId);
-      if (termId != null) termQ = termQ.eq('term_id', termId); // apply term filter
+      var termQ = _supabase.from('sast_all_raw_data_survey').select('created_at').eq('sao_staff_id', userId);
+      if (termId != null) termQ = termQ.eq('term_id', termId);
       final termRows = await termQ;
       termScans = (termRows as List).length;
-      // today's scans = anything uploaded since midnight today
       todayScans = termRows.where((r) => (r['created_at'] as String? ?? '').compareTo(startOfDay) >= 0).length;
 
       if (all.isNotEmpty) {
-        // find the most recent upload timestamp
         final sorted = all.map((r) => r['created_at'] as String).toList()..sort((a, b) => b.compareTo(a));
-        lastUpload = sorted.first; // most recent = first after descending sort
+        lastUpload = sorted.first;
       }
     } catch (e) { debugPrint('PersonnelModal error: $e'); }
 
     if (!mounted) return;
-    // show the modal with different content based on whether person is admin or staff
+
+    // format last upload as human-readable
+    String lastUploadStr = 'No uploads yet';
+    if (lastUpload.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(lastUpload).toLocal();
+        final diff = DateTime.now().difference(dt);
+        if (diff.inMinutes < 60) lastUploadStr = '${diff.inMinutes}m ago';
+        else if (diff.inHours < 24) lastUploadStr = '${diff.inHours}h ago';
+        else lastUploadStr = '${diff.inDays}d ago';
+      } catch (_) {}
+    }
+
     showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.65, // 65% of screen height
-        decoration: const BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        child: Column(children: [
-          // header with name, role, and email
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-            child: Row(children: [
-              CircleAvatar(radius: 26, backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                  child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
-              const SizedBox(width: 16),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
-                Text(ui['email'] ?? '', style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11), overflow: TextOverflow.ellipsis),
-              ])),
-            ]),
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // drag handle
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderSubtle,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // ── Avatar + Name Header ──────────────────────────
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.primaryTint,
+                    child: Text(
+                      fullName.isNotEmpty ? fullName[0] : '?',
+                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(fullName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 4),
+                        Text(roleName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        const SizedBox(height: 4),
+                        // status badge
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? AppColors.success.withValues(alpha: 0.12)
+                                : AppColors.error.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            isActive ? 'Active' : accountStatus.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: isActive ? AppColors.success : AppColors.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 12),
+
+              // ── Account Details ───────────────────────────────
+              const Text('Account Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              const SizedBox(height: 12),
+              _detailRow(Icons.badge_outlined,       'University ID',    universityId),
+              _detailRow(Icons.email_outlined,        'Email Address',    email),
+              _detailRow(Icons.check_circle_outline,  'Account Status',   isActive ? 'Approved' : accountStatus),
+
+              const SizedBox(height: 8),
+              const Divider(),
+              const SizedBox(height: 12),
+
+              // ── Scan Statistics ───────────────────────────────
+              const Text('Scan Statistics', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
+              const SizedBox(height: 12),
+
+              // three stat boxes: Today / This Term / All Time
+              Row(
+                children: [
+                  Expanded(child: _statBox('Today',     '$todayScans', AppColors.primary)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statBox('This Term', '$termScans',  Colors.teal)),
+                  const SizedBox(width: 10),
+                  Expanded(child: _statBox('All Time',  '$totalScans', AppColors.success)),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _detailRow(Icons.cloud_upload_outlined, 'Last Upload', lastUploadStr),
+            ],
           ),
-          // body: admin sees profile and stats, staff sees just their scan stats
-          Expanded(child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                if (isAdmin) _buildAdminProfile(ui), // show profile details for admins
-                if (isAdmin) const SizedBox(height: 24),
-                _buildGathererStats(totalScans, termScans, todayScans, lastUpload), // show scan stats for EVERYONE now
-              ],
-            ),
-          )),
-        ]),
+        ),
       ),
     );
   }
 
-  // builds a simple profile view for SAO admin accounts
-  // admins just need to see their ID, email, and status — no scan stats
-  Widget _buildAdminProfile(Map<String, dynamic> ui) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Account Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
-      const SizedBox(height: 16),
-      _profileRow(Icons.badge_outlined, 'University ID', ui['university_id']?.toString() ?? '-'),
-      _profileRow(Icons.email_outlined, 'Email', ui['email'] ?? '-'),
-      _profileRow(Icons.check_circle_outline, 'Status', ui['account_status'] ?? '-'),
-    ]);
-  }
-
-  // builds scan statistics for SAO staff — today, this term, and all-time counts
-  // also shows how long ago their last upload was
-  Widget _buildGathererStats(int total, int term, int today, String lastUpload) {
-    String lastStr = 'No uploads yet'; // default if they haven't uploaded anything
-    if (lastUpload.isNotEmpty) {
-      try {
-        final dt = DateTime.parse(lastUpload).toLocal(); // convert from UTC to local time
-        final diff = DateTime.now().difference(dt);
-        // human-readable time ago: minutes, hours, or days
-        if (diff.inMinutes < 60) lastStr = '${diff.inMinutes}m ago';
-        else if (diff.inHours < 24) lastStr = '${diff.inHours}h ago';
-        else lastStr = '${diff.inDays}d ago';
-      } catch (_) {} // if parsing fails, just keep 'No uploads yet'
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Scan Statistics', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
-      const SizedBox(height: 16),
-      // three boxes: today, this term, all time — in order of recency
-      Row(children: [
-        Expanded(child: _statBox('Today', '$today', AppColors.primary)),
-        const SizedBox(width: 10),
-        Expanded(child: _statBox('This Term', '$term', Colors.teal)),
-        const SizedBox(width: 10),
-        Expanded(child: _statBox('All Time', '$total', AppColors.success)),
-      ]),
-      const SizedBox(height: 16),
-      // last upload time — useful to see if staff been active recently
-      _profileRow(Icons.cloud_upload_outlined, 'Last Upload', lastStr),
-    ]);
-  }
-
-  // a single row in the profile view — icon, label, and value side by side
-  Widget _profileRow(IconData icon, String label, String value) {
+  // single detail row: icon + label above + value below
+  Widget _detailRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(children: [
-        Icon(icon, color: AppColors.primary, size: 18), // colored icon on left
-        const SizedBox(width: 12),
-        Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)), // bold label
-        Expanded(child: Text(value, style: const TextStyle(color: AppColors.textSecondary), overflow: TextOverflow.ellipsis)), // value text
-      ]),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  // a colored box with a big number and a label underneath it
-  // used for scan count stats — today, term, all-time
+  // colored stat box with big number and label
   Widget _statBox(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.2))),
-      child: Column(children: [
-        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis), // big number
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis), // label below
-      ]),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+        ],
+      ),
     );
   }
+
 
   // dialog to edit an existing SAO personnel — name and role changes
   // if promoting to SAO_ADMIN, needs OTP verification — dili basta basta mag-promote
