@@ -42,8 +42,11 @@ serve(async (req) => {
     }
 
     // ── OTP Protection Logic ──────────────────────────────────────────────────
-    // Required if: Target is SAO Personnel OR Target is a Department Head
-    const needsOTP = !isAcademic || roleName === 'DEPARTMENT_HEAD'
+    // Only require OTP when escalating to a privileged role:
+    //   - SAO Personnel → SAO_ADMIN   (isAcademic = false)
+    //   - Academic      → DEPARTMENT_HEAD (isAcademic = true)
+    // Normal name/role edits do NOT need OTP.
+    const needsOTP = (!isAcademic && roleName === 'SAO_ADMIN') || (isAcademic && roleName === 'DEPARTMENT_HEAD')
 
     if (needsOTP) {
       const { data: verifyData } = await supabaseAdmin

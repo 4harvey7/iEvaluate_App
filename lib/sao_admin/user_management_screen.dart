@@ -628,7 +628,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
                   return;
                 }
-                final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
+                final roleMatches = _roles.where((r) => r['id'] == selectedRoleId).toList();
+                if (roleMatches.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a valid role'), backgroundColor: Colors.red));
+                  return;
+                }
+                final role = roleMatches.first;
                 final roleName = role['Roles'];
 
                 // department head needs extra OTP verification — cannot just create one freely
@@ -768,7 +773,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
-                final role = _roles.firstWhere((r) => r['id'] == selectedRoleId);
+                final roleMatches = _roles.where((r) => r['id'] == selectedRoleId).toList();
+                if (roleMatches.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a valid role'), backgroundColor: Colors.red));
+                  return;
+                }
+                final role = roleMatches.first;
                 final roleName = role['Roles'];
                 // check if they're being promoted to dept head when they weren't before
                 final bool isUpgradingToHead = roleName == 'DEPARTMENT_HEAD' && user['role_data']?['Roles'] != 'DEPARTMENT_HEAD';
