@@ -24,7 +24,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-    const { targetUserId, firstName, lastName, roleId, roleName, verificationCode, isAcademic } = await req.json()
+    const { targetUserId, firstName, lastName, roleId, roleName, verificationCode, isAcademic, isPromotion } = await req.json()
 
     // ── Authenticate caller ───────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -42,11 +42,9 @@ serve(async (req) => {
     }
 
     // ── OTP Protection Logic ──────────────────────────────────────────────────
-    // Only require OTP when escalating to a privileged role:
-    //   - SAO Personnel → SAO_ADMIN   (isAcademic = false)
-    //   - Academic      → DEPARTMENT_HEAD (isAcademic = true)
-    // Normal name/role edits do NOT need OTP.
-    const needsOTP = (!isAcademic && roleName === 'SAO_ADMIN') || (isAcademic && roleName === 'DEPARTMENT_HEAD')
+    // OTP is ONLY required when isPromotion=true (i.e., actual role escalation).
+    // Regular name edits or keeping the same role never need OTP.
+    const needsOTP = isPromotion === true
 
     if (needsOTP) {
       const { data: verifyData } = await supabaseAdmin

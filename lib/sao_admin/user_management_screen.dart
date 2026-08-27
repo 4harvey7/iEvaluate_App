@@ -812,8 +812,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     'lastName': lastController.text.trim(),
                     'roleId': selectedRoleId,
                     'roleName': roleName,
-                    'verificationCode': codeController.text.trim(), // OTP if applicable
-                    'isAcademic': true // flag to tell the function this is academic user
+                    'verificationCode': codeController.text.trim(),
+                    'isAcademic': true,
+                    'isPromotion': isUpgradingToHead, // true only when actually promoting to Dept Head
                   });
                   _fetchData(); // reload users after update
                   if (mounted) navigator.pop();

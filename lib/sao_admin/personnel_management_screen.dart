@@ -503,8 +503,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       'lastName': lastController.text.trim(),
                       'roleId': selectedRoleId,
                       'roleName': roleName,
-                      'isAcademic': false, // this is SAO staff, not academic
-                      'verificationCode': codeController.text.trim(), // Server verifies this!
+                      'isAcademic': false,
+                      'isPromotion': isUpgradingToAdmin, // true only when promoting to SAO_ADMIN
+                      'verificationCode': codeController.text.trim(),
                     },
                     headers: {
                       'Authorization': 'Bearer ${_supabase.auth.currentSession?.accessToken}',
