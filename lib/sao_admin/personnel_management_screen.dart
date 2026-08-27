@@ -607,7 +607,12 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
-                if (selectedRoleName == null) return; // no role selected, ayaw proceed
+                if (selectedRoleName == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select a role first'), backgroundColor: Colors.red),
+                  );
+                  return;
+                }
                 // Validate required fields — all four must be filled
                 final fn = firstController.text.trim();
                 final ln = lastController.text.trim();

@@ -55,27 +55,29 @@ serve(async (req) => {
       .from('Sao_users').select('roles!inner(Roles)').eq('user_id', caller.id).single()
     if (roleError || (callerRole as any)?.roles?.Roles !== 'SAO_ADMIN') throw new Error('Forbidden')
 
-    // ── OTP Verification with attempt lockout (H-1 FIX) ──────────────────────
-    const { data: verifyData } = await supabaseAdmin
-      .from('admin_verifications')
-      .select('code, expires_at, attempts')
-      .eq('admin_id', caller.id)
-      .single()
+    // ── OTP Verification — ONLY required for SAO_ADMIN (H-1 FIX) ────────────
+    // Regular SAO_STAFF can be created without OTP — same pattern as admin-create-academic.
+    if (roleName === 'SAO_ADMIN') {
+      const { data: verifyData } = await supabaseAdmin
+        .from('admin_verifications')
+        .select('code, expires_at, attempts')
+        .eq('admin_id', caller.id)
+        .single()
 
-    if (!verifyData || new Date(verifyData.expires_at) < new Date()) {
-      throw new Error('OTP expired. Please request a new verification code.')
-    }
+      if (!verifyData || new Date(verifyData.expires_at) < new Date()) {
+        throw new Error('OTP expired. Please request a new verification code.')
+      }
 
-    if (verifyData.attempts >= MAX_OTP_ATTEMPTS) {
-      // Invalidate the OTP to force a new request
-      await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
-      throw new Error('Too many failed attempts. OTP invalidated. Please request a new code.')
-    }
+      if (verifyData.attempts >= MAX_OTP_ATTEMPTS) {
+        await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
+        throw new Error('Too many failed attempts. OTP invalidated. Please request a new code.')
+      }
 
-    if (verifyData.code !== await hashString(verificationCode)) {
-      await supabaseAdmin.from('admin_verifications')
-        .update({ attempts: verifyData.attempts + 1 }).eq('admin_id', caller.id)
-      throw new Error(`Invalid OTP. ${MAX_OTP_ATTEMPTS - verifyData.attempts - 1} attempts remaining.`)
+      if (verifyData.code !== await hashString(verificationCode)) {
+        await supabaseAdmin.from('admin_verifications')
+          .update({ attempts: verifyData.attempts + 1 }).eq('admin_id', caller.id)
+        throw new Error(`Invalid OTP. ${MAX_OTP_ATTEMPTS - verifyData.attempts - 1} attempts remaining.`)
+      }
     }
 
     const tempPassword = generateTempPassword()
@@ -135,7 +137,10 @@ serve(async (req) => {
       })
     })
 
-    await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
+    // Only clean up OTP if one was used (SAO_ADMIN creation)
+    if (roleName === 'SAO_ADMIN') {
+      await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
+    }
     await supabaseAdmin.from('audit_logs').insert({
       user_id: caller.id,
       action: 'SAO_USER_CREATED',
