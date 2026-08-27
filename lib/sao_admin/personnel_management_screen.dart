@@ -236,37 +236,28 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
+        height: MediaQuery.of(context).size.height * 0.70,
         decoration: const BoxDecoration(
-          color: AppColors.surface,
+          color: AppColors.background,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // drag handle
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.borderSubtle,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
+        child: Column(
+          children: [
+            // ── Dark Header ───────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              decoration: const BoxDecoration(
+                color: AppColors.textPrimary,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              const SizedBox(height: 20),
-
-              // ── Avatar + Name Header ──────────────────────────
-              Row(
+              child: Row(
                 children: [
                   CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.primaryTint,
+                    radius: 26,
+                    backgroundColor: AppColors.primary.withValues(alpha: 0.35),
                     child: Text(
                       fullName.isNotEmpty ? fullName[0] : '?',
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
+                      style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -274,25 +265,29 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(fullName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                        const SizedBox(height: 4),
-                        Text(roleName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                        const SizedBox(height: 4),
-                        // status badge
+                        Text(fullName,
+                            style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Text(roleName,
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 12),
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 6),
+                        // Active / Disabled badge
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
                             color: isActive
-                                ? AppColors.success.withValues(alpha: 0.12)
-                                : AppColors.error.withValues(alpha: 0.12),
+                                ? Colors.green.withValues(alpha: 0.25)
+                                : Colors.red.withValues(alpha: 0.25),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            isActive ? 'Active' : accountStatus.toUpperCase(),
+                            isActive ? '● Active' : '● ${accountStatus.toUpperCase()}',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: isActive ? AppColors.success : AppColors.error,
+                              color: isActive ? Colors.greenAccent : Colors.redAccent,
                             ),
                           ),
                         ),
@@ -301,40 +296,43 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 20),
-              const Divider(),
-              const SizedBox(height: 12),
+            // ── White Body ────────────────────────────────────
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Account Details
+                    const Text('Account Details',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                    const SizedBox(height: 16),
+                    _detailRow(Icons.badge_outlined,      'University ID',   universityId),
+                    _detailRow(Icons.email_outlined,       'Email Address',   email),
+                    _detailRow(Icons.check_circle_outline, 'Account Status',  isActive ? 'Approved' : accountStatus),
 
-              // ── Account Details ───────────────────────────────
-              const Text('Account Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
-              const SizedBox(height: 12),
-              _detailRow(Icons.badge_outlined,       'University ID',    universityId),
-              _detailRow(Icons.email_outlined,        'Email Address',    email),
-              _detailRow(Icons.check_circle_outline,  'Account Status',   isActive ? 'Approved' : accountStatus),
+                    const SizedBox(height: 24),
 
-              const SizedBox(height: 8),
-              const Divider(),
-              const SizedBox(height: 12),
-
-              // ── Scan Statistics ───────────────────────────────
-              const Text('Scan Statistics', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.5)),
-              const SizedBox(height: 12),
-
-              // three stat boxes: Today / This Term / All Time
-              Row(
-                children: [
-                  Expanded(child: _statBox('Today',     '$todayScans', AppColors.primary)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statBox('This Term', '$termScans',  Colors.teal)),
-                  const SizedBox(width: 10),
-                  Expanded(child: _statBox('All Time',  '$totalScans', AppColors.success)),
-                ],
+                    // Scan Statistics
+                    const Text('Scan Statistics',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                    const SizedBox(height: 16),
+                    Row(children: [
+                      Expanded(child: _statBox('Today',     '$todayScans', AppColors.primary)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _statBox('This Term', '$termScans',  Colors.teal)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _statBox('All Time',  '$totalScans', AppColors.success)),
+                    ]),
+                    const SizedBox(height: 16),
+                    _detailRow(Icons.cloud_upload_outlined, 'Last Upload', lastUploadStr),
+                  ],
+                ),
               ),
-              const SizedBox(height: 14),
-              _detailRow(Icons.cloud_upload_outlined, 'Last Upload', lastUploadStr),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
