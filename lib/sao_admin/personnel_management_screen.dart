@@ -840,17 +840,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                   : PopupMenuButton<String>(
                                   onSelected: (val) {
                                     if (val == 'edit') _showEditPersonnelDialog(person);
-                                    if (val == 'status') _toggleStatus(person); // enable/disable
-                                    if (val == 'reset') {
-                                      // send password reset email — useful when staff forget password
-                                      _authService.sendPasswordResetEmail(ui['email']);
-                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reset email sent.')));
-                                    }
+                                    if (val == 'status') _toggleStatus(person);
                                   },
                                   itemBuilder: (context) => [
                                     const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
                                     PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Enable')])),
-                                    const PopupMenuItem(value: 'reset', child: Row(children: [Icon(Icons.lock_reset, size: 18), SizedBox(width: 8), Text('Reset Password')])),
                                   ],
                                 ),
                               ),
