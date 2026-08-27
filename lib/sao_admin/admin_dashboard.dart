@@ -405,21 +405,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         // call the edge function to officially welcome them to the system
         await _supabase.functions.invoke('admin-accept-user', body: {'targetUserId': userId});
       } else {
-        // rejected — just update their status directly, no ceremony needed
-        await _supabase.from('user_info').update({'account_status': 'rejected'}).eq('id', userId);
+        // Rejected — this is a NEW pending account so we DELETE it completely.
+        // No evaluation data exists yet, so nothing valuable is lost.
+        // Clean up all related rows first before deleting user_info.
+        try {
+          await _supabase.from('instructor_departments').delete().eq('instructor_id', userId);
+        } catch (_) {} // may not exist yet — that's fine
+        try {
+          await _supabase.from('department_table').delete().eq('user_id', userId);
+        } catch (_) {} // may not exist — ignore
+        // Delete the main user record — this is the final step
+        await _supabase.from('user_info').delete().eq('id', userId);
+        debugPrint('[DASHBOARD] Rejected pending account deleted: $userId');
       }
-      final status = approved ? 'approved' : 'rejected'; // the verdict
+      final status = approved ? 'approved' : 'rejected';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("$name has been $status"), // announce the decision
-              backgroundColor: approved ? AppColors.success : AppColors.error),
+          SnackBar(
+            content: Text(approved
+                ? '$name has been approved'       // welcome message
+                : '$name\'s request was rejected and removed'), // clear message
+            backgroundColor: approved ? AppColors.success : AppColors.error,
+          ),
         );
         _fetchDashboardData(); // refresh the list after decision
       }
     } catch (e) {
-      debugPrint('[DASHBOARD] Approval/Rejection Error: $e'); // log raw error for debugging
+      debugPrint('[DASHBOARD] Approval/Rejection Error: $e');
       if (mounted) {
-        // show a friendly message — dili ta expose raw exception to the admin UI
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Action failed. Please try again.'), backgroundColor: AppColors.error),
         );
