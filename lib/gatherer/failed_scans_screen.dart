@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'failed_scan_detail_screen.dart';
+import '../widgets/apple_ui.dart';
 
 // shows a list of failed scans that need manual correction
 class FailedScansScreen extends StatefulWidget {
@@ -134,34 +135,10 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    // warning icon container — eye-catching red badge
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.warning_amber_rounded,
-                          color: AppColors.error, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Failed Scans',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // description — explain what this list is about
-                const Text(
-                  'Scans where the OMR/OCR couldn\'t detect the table or page corners. '
-                  'Open each to manually correct the data.',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                const ApplePageHeader(
+                  eyebrow: 'Recovery Queue',
+                  title: 'Failed Scans',
+                  subtitle: 'Correct forms where the table, grid, or page corners were not detected.',
                 ),
               ],
             ),
@@ -202,32 +179,15 @@ class _FailedScansScreenState extends State<FailedScansScreen> {
           Expanded(
             child: _isLoading
                 // loading: show centered spinner
-                ? const Center(
-                    child: CircularProgressIndicator(color: AppColors.primary))
+                ? const AppleLoadingState(label: 'Loading failed scans…')
                 : _failedScans.isEmpty
                     // empty: show happy empty state — all scan processed, good job
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.check_circle_outline,
-                                color: AppColors.success.withValues(alpha: 0.5),
-                                size: 80),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'No failed scans!',
-                              style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 6),
-                            const Text(
-                              'All scans were processed successfully.',
-                              style: TextStyle(
-                                  color: AppColors.textSecondary, fontSize: 13),
-                            ),
-                          ],
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: AppleEmptyState(
+                          icon: Icons.check_circle_outline,
+                          title: 'No failed scans',
+                          message: 'Every scan has been processed successfully.',
                         ),
                       )
                     // has items: show list with pull-to-refresh

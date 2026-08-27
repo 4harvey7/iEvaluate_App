@@ -119,14 +119,16 @@ class _GathererDrawerState extends State<GathererDrawer> {
           // ── Header — same style as instructor/dept head ──────────────
           // dark header with avatar, name, and role
           DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.textPrimary),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: AppColors.heroGradient),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                  backgroundColor: AppColors.textInvertedFaint,
                   child: Text(
                     initials.toUpperCase(),
                     style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold),

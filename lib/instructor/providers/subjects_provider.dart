@@ -9,12 +9,22 @@ import '../models/subject.dart';
 /// junction table (2NF schema). Scores come from management_results /
 /// performance_results (pre-computed means).
 class SubjectsProvider extends ChangeNotifier {
-  final SupabaseClient _supabase;
+  final SupabaseClient? _supabase;
   final List<Subject> _subjects = [];
   double? _trueTermAverage;
 
   SubjectsProvider({SupabaseClient? client})
-      : _supabase = client ?? Supabase.instance.client;
+    : _supabase = client ?? _clientIfInitialized();
+
+  static SupabaseClient? _clientIfInitialized() {
+    try {
+      return Supabase.instance.client;
+    } on AssertionError {
+      // Widget tests and previews can render the signed-out UI without a
+      // configured backend. Production initializes Supabase before MyApp.
+      return null;
+    }
+  }
 
   UnmodifiableListView<Subject> get subjects => UnmodifiableListView(_subjects);
   double? get trueTermAverage => _trueTermAverage;
@@ -35,7 +45,15 @@ class SubjectsProvider extends ChangeNotifier {
     try {
       _isFetching = true;
 
-      final userId = _supabase.auth.currentUser?.id;
+      final supabase = _supabase;
+      if (supabase == null) {
+        _subjects.clear();
+        _trueTermAverage = null;
+        notifyListeners();
+        return;
+      }
+
+      final userId = supabase.auth.currentUser?.id;
       if (userId == null) {
         _subjects.clear();
         _trueTermAverage = null;
@@ -50,7 +68,9 @@ class SubjectsProvider extends ChangeNotifier {
         if (cached != null && _subjects.isEmpty) {
           final data = jsonDecode(cached) as List;
           _subjects.clear();
-          _subjects.addAll(data.map((x) => Subject.fromJson(Map<String, dynamic>.from(x))));
+          _subjects.addAll(
+            data.map((x) => Subject.fromJson(Map<String, dynamic>.from(x))),
+          );
           notifyListeners();
           debugPrint('[SubjectsProvider] ⚡ Loaded cached subjects instantly.');
         }
@@ -61,7 +81,7 @@ class SubjectsProvider extends ChangeNotifier {
       // 1. Resolve active term
       String? activeTermId = termId;
       if (activeTermId == null || activeTermId.isEmpty) {
-        final settings = await _supabase
+        final settings = await supabase
             .from('system_settings')
             .select('current_term_id')
             .limit(1)
@@ -78,13 +98,17 @@ class SubjectsProvider extends ChangeNotifier {
       }
 
       // 2. Get subjects for this instructor+term via instructor_subjects junction table.
-      final assignmentRows = await _supabase
+      final assignmentRows = await supabase
           .from('instructor_subjects')
-          .select('subject_id, subjects(id, subject_code, subject_name, created_at, department_id)')
+          .select(
+            'subject_id, subjects(id, subject_code, subject_name, created_at, department_id)',
+          )
           .eq('instructor_id', userId)
           .eq('term_id', activeTermId);
 
-      debugPrint('[SubjectsProvider] Assignments found: ${(assignmentRows as List).length}');
+      debugPrint(
+        '[SubjectsProvider] Assignments found: ${(assignmentRows as List).length}',
+      );
 
       if ((assignmentRows as List).isEmpty) {
         _subjects.clear();
@@ -117,21 +141,25 @@ class SubjectsProvider extends ChangeNotifier {
 
       // 3. Fetch pre-computed results for this instructor+term.
       final results = await Future.wait([
-        _supabase
+        supabase
             .from('management_results')
-            .select('subject_id, overall_management_mean, total_responses, created_at')
+            .select(
+              'subject_id, overall_management_mean, total_responses, created_at',
+            )
             .eq('instructor_id', userId)
             .eq('term_id', activeTermId)
             .filter('subject_id', 'in', validSubjectIds)
             .order('created_at', ascending: false),
-        _supabase
+        supabase
             .from('performance_results')
-            .select('subject_id, overall_performance_mean, total_responses, created_at')
+            .select(
+              'subject_id, overall_performance_mean, total_responses, created_at',
+            )
             .eq('instructor_id', userId)
             .eq('term_id', activeTermId)
             .filter('subject_id', 'in', validSubjectIds)
             .order('created_at', ascending: false),
-        _supabase
+        supabase
             .from('overall_total_survey')
             .select('overall_mean, combined_score_mean')
             .eq('instructor_id', userId)
@@ -144,7 +172,9 @@ class SubjectsProvider extends ChangeNotifier {
       final overallAnalytics = results[2] as Map<String, dynamic>?;
 
       if (overallAnalytics != null) {
-        _trueTermAverage = (overallAnalytics['combined_score_mean'] as num?)?.toDouble() ?? (overallAnalytics['overall_mean'] as num?)?.toDouble();
+        _trueTermAverage =
+            (overallAnalytics['combined_score_mean'] as num?)?.toDouble() ??
+            (overallAnalytics['overall_mean'] as num?)?.toDouble();
       } else {
         _trueTermAverage = null;
       }
@@ -176,17 +206,23 @@ class SubjectsProvider extends ChangeNotifier {
         final mgmt = mgmtBySubjectId[id];
         final perf = perfBySubjectId[id];
 
-        double mMean = (mgmt?['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-        double pMean = (perf?['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
-        int totalResponses = (mgmt?['total_responses'] as num?)?.toInt() ??
-            (perf?['total_responses'] as num?)?.toInt() ?? 0;
+        double mMean =
+            (mgmt?['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+        double pMean =
+            (perf?['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+        int totalResponses =
+            (mgmt?['total_responses'] as num?)?.toInt() ??
+            (perf?['total_responses'] as num?)?.toInt() ??
+            0;
 
         // Fallback to raw data if no pre-computed results
         if (mMean == 0.0 && pMean == 0.0) {
           try {
-            final rawRows = await _supabase
+            final rawRows = await supabase
                 .from('sast_all_raw_data_survey')
-                .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
+                .select(
+                  'm1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10',
+                )
                 .eq('subject_id', id)
                 .eq('instructor_ID', userId)
                 .eq('term_id', activeTermId);
@@ -208,15 +244,19 @@ class SubjectsProvider extends ChangeNotifier {
           }
         }
 
-        debugPrint('[SubjectsProvider] $code mgmt=$mMean perf=$pMean n=$totalResponses');
+        debugPrint(
+          '[SubjectsProvider] $code mgmt=$mMean perf=$pMean n=$totalResponses',
+        );
 
         try {
-          newSubjects.add(Subject.fromJson({
-            ...meta,
-            'management_mean': mMean,
-            'performance_mean': pMean,
-            'all_ids': <String>{id},
-          }));
+          newSubjects.add(
+            Subject.fromJson({
+              ...meta,
+              'management_mean': mMean,
+              'performance_mean': pMean,
+              'all_ids': <String>{id},
+            }),
+          );
         } catch (e) {
           debugPrint('[SubjectsProvider] Error building Subject $code: $e');
         }

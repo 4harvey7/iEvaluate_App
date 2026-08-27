@@ -11,6 +11,7 @@ import '../core/navigation/main_scaffold.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 
 // outer widget — just holds the state, nothing interesting yet
@@ -361,19 +362,19 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       child: Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
-          backgroundColor: AppColors.textPrimary,
+          backgroundColor: AppColors.surface,
           elevation: 0,
-          iconTheme: const IconThemeData(color: AppColors.surface),
+          iconTheme: const IconThemeData(color: AppColors.textPrimary),
           leading: IconButton(
-            icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+            icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
             tooltip: 'Open menu',
             onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
           ),
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Subject Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-              Text(_currentTermLabel, style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 12), overflow: TextOverflow.ellipsis),
+              const Text('Subject Management', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+              Text(_currentTermLabel, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
             ],
           ),
           actions: [
@@ -381,7 +382,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           ],
         ),
         body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
+            ? const AppleLoadingState(label: 'Loading subjects…')
             : Column(
                 children: [
                   // ── Search bar ──────────────────────────────────
@@ -419,10 +420,10 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
                       child: Row(
                         children: [
                           _buildFilterChip('With Instructor', 'assigned', Icons.person_rounded,
-                              activeColor: const Color(0xFF27AE60)),
+                              activeColor: AppColors.success),
                           const SizedBox(width: 8),
                           _buildFilterChip('No Instructor', 'unassigned', Icons.person_off_rounded,
-                              activeColor: const Color(0xFFE67E22)),
+                              activeColor: AppColors.warning),
                         ],
                       ),
                     ),
@@ -582,34 +583,19 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
 
   Widget _buildEmptyState() {
     final isFiltered = _searchQuery.isNotEmpty || _filterMode != 'all';
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isFiltered ? Icons.search_off_rounded : Icons.library_books_outlined,
-              size: 64,
-              color: AppColors.textSecondary.withValues(alpha: 0.35),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isFiltered ? 'No results found' : 'No subjects to show',
-              style: const TextStyle(
-                  color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isFiltered
-                  ? 'Try a different search or filter.'
-                  : 'Tap the + button to add a subject\nor bulk import from Google Sheets.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        AppleEmptyState(
+          icon: isFiltered
+              ? Icons.search_off_rounded
+              : Icons.library_books_outlined,
+          title: isFiltered ? 'No results found' : 'No subjects yet',
+          message: isFiltered
+              ? 'Try a different search or assignment filter.'
+              : 'Add a subject or import assignments from Google Sheets.',
         ),
-      ),
+      ],
     );
   }
 
@@ -625,8 +611,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     final deptName = deptInfo is Map ? deptInfo['d_name']?.toString() : null;
 
     // Color palette: green = assigned, amber = unassigned
-    const assignedColor  = Color(0xFF27AE60);
-    const unassignedColor = Color(0xFFE67E22);
+    const assignedColor = AppColors.success;
+    const unassignedColor = AppColors.warning;
     final statusColor = isAssigned ? assignedColor : unassignedColor;
 
     // Build instructor preview text

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:image/image.dart' as img;
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Paper size definitions (portrait width ÷ height ratio)
@@ -664,8 +665,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
                   padding: const EdgeInsets.only(bottom: 40),
                   child: Column(
                     children: [
-                      GestureDetector(
-                        onTap: _takePicture, // trigger the capture sequence
+                      ApplePressable(
+                        onTap: _busy ? null : _takePicture,
+                        pressedScale: 0.92,
+                        semanticLabel: 'Capture scan',
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           width: 80,
@@ -1316,5 +1319,4 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
-
 

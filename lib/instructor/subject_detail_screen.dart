@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'models/subject.dart';
+import '../widgets/apple_ui.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
@@ -34,9 +35,6 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   String _selectedFilter = 'All';
   String _sortOrder = 'Date (Newest)';
   final List<String> _sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Sentiment (Positive First)', 'Sentiment (Critical First)'];
-
-  bool _isManagementExpanded = true;
-  bool _isPerformanceExpanded = true;
 
   // Management criteria — SS Form 2 (Feb 4, 2009, Revision 3)
   static const List<String> _managementCriteria = [
@@ -453,13 +451,13 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
-        title: Text(widget.subject.code, style: const TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
+        title: Text(widget.subject.code, style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Loading subject analysis…')
           : RefreshIndicator(
               onRefresh: _fetchSubjectDetails,
               child: SingleChildScrollView(
@@ -468,14 +466,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(widget.subject.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary, overflow: TextOverflow.ellipsis)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        const Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
-                        const SizedBox(width: 4),
-                        Text('Total Respondents: $_totalResponses', style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w500)),
-                      ],
+                    ApplePageHeader(
+                      eyebrow: widget.subject.code,
+                      title: widget.subject.name,
+                      subtitle: '$_totalResponses total respondents',
                     ),
                     const SizedBox(height: 24),
 
@@ -497,51 +491,15 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     const SizedBox(height: 32),
 
                     // Management Table
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isManagementExpanded = !_isManagementExpanded;
-                        });
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSectionHeader('I. Management Breakdown'),
-                          Icon(
-                            _isManagementExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            color: AppColors.textPrimary,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_isManagementExpanded) ...[
-                      const SizedBox(height: 12),
-                      _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
-                    ],
+                    _buildSectionHeader('I. Management Breakdown'),
+                    const SizedBox(height: 12),
+                    _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
                     const SizedBox(height: 32),
 
                     // Performance Table
-                    GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _isPerformanceExpanded = !_isPerformanceExpanded;
-                        });
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _buildSectionHeader('II. Performance Breakdown'),
-                          Icon(
-                            _isPerformanceExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                            color: AppColors.textPrimary,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (_isPerformanceExpanded) ...[
-                      const SizedBox(height: 12),
-                      _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
-                    ],
+                    _buildSectionHeader('II. Performance Breakdown'),
+                    const SizedBox(height: 12),
+                    _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
                     const SizedBox(height: 32),
 
                     // Question Chart
@@ -623,16 +581,10 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     ),
                     const SizedBox(height: 16),
                     if (_subjectRemarks.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Center(
-                          child: Text('No feedback yet for this subject.',
-                              style: TextStyle(color: AppColors.textSecondary)),
-                        ),
+                      const AppleEmptyState(
+                        icon: Icons.forum_outlined,
+                        title: 'No feedback yet',
+                        message: 'Student comments for this subject will appear here.',
                       )
                     else if (_filteredRemarks.isEmpty)
                       Container(
@@ -656,10 +608,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
-    return Text(
-      title, 
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-    );
+    return AppleSectionHeader(title: title);
   }
 
   Widget _buildCriteriaTable(List<String> criteria, Map<String, dynamic>? data, String prefix, Color themeColor) {

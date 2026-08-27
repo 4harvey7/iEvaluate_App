@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/apple_ui.dart';
 import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
 
@@ -374,27 +375,21 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   }
 
   // Empty state widget — shown when no faculty found or search returns nothing
-  // If search is active, show a "Clear Search" button so user can reset
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Faded people icon — hint that there should be people here
-          Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          Text(
-            // Different message depending on whether they searched or not
-            _searchQuery.isEmpty ? 'No instructors found in your department.' : 'No instructors match "$_searchQuery"',
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 16),
-          ),
-          // Only show clear button if a search is active — no point showing it if search is empty
-          if (_searchQuery.isNotEmpty)
-            TextButton(
-              onPressed: () => setState(() => _searchQuery = ''), // Reset search query
-              child: const Text('Clear Search', style: TextStyle(color: AppColors.primary)),
-            ),
-        ],
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: AppleEmptyState(
+        icon: Icons.people_outline,
+        title: _searchQuery.isEmpty ? 'No instructors yet' : 'No matching instructors',
+        message: _searchQuery.isEmpty
+            ? 'Faculty assigned to this department will appear here.'
+            : 'Try a different name or university ID.',
+        action: _searchQuery.isNotEmpty
+            ? TextButton(
+                onPressed: () => setState(() => _searchQuery = ''),
+                child: const Text('Clear Search'),
+              )
+            : null,
       ),
     );
   }
@@ -408,18 +403,18 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Faculty Roster', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
-        child: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+        child: _isLoading
+          ? const AppleLoadingState(label: 'Loading faculty roster…')
           : Column(
           children: [
             // ==========================================

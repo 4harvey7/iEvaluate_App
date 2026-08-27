@@ -8,6 +8,7 @@ import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 
 
@@ -409,18 +410,16 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // current password — we verify this before proceeding, dili ta basta basta
-                    _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                    const SizedBox(height: 12),
-                    _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                    const SizedBox(height: 12),
-                    _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                  ],
-                ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // current password — we verify this before proceeding, dili ta basta basta
+                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
+                  const SizedBox(height: 12),
+                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
+                  const SizedBox(height: 12),
+                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
+                ],
               ),
               actions: [
                 TextButton(
@@ -666,15 +665,15 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('System Settings', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('System Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         // show a thin progress bar at the bottom of appbar while loading
         bottom: _isLoading
             ? const PreferredSize(
@@ -693,11 +692,17 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const ApplePageHeader(
+                eyebrow: 'Administration',
+                title: 'System Settings',
+                subtitle: 'Profile, academic term, automation, and account security.',
+              ),
+              const SizedBox(height: 30),
               // ==========================================
               // 1. PROFILE SECTION
               // shows the admin's name, title and a link to edit
               // ==========================================
-              const Text('Administrator Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(title: 'Administrator Profile'),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,
@@ -743,7 +748,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // lets admin pick which semester and year is currently active
               // affects ALL dashboards, reports, and analytics — no pressure
               // ==========================================
-              const Text('Academic Term Management', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(
+                title: 'Academic Term',
+                subtitle: 'Changes apply to every dashboard, report, and evaluation.',
+              ),
               const SizedBox(height: 12),
               Card(
                 color: AppColors.surface,

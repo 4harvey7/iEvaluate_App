@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'import_error_detail_screen.dart';
+import '../widgets/apple_ui.dart';
 
 
 class ImportErrorsScreen extends StatefulWidget {
@@ -88,13 +89,13 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: widget.showBackButton
-            ? const BackButton(color: AppColors.surface)
+            ? const BackButton(color: AppColors.textPrimary)
             : IconButton(
-                icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+                icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
                 tooltip: 'Open menu',
                 onPressed: widget.onMenuPressed ?? () => MainScaffold.drawerKey.currentState?.openDrawer(),
               ),
@@ -105,7 +106,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
             const Text(
               'Import Errors',
               style: TextStyle(
-                  color: AppColors.surface,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold),
             ),
             Text(
@@ -127,8 +128,8 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
           controller: _tabController,
           indicatorColor: AppColors.primary,
           indicatorWeight: 3,
-          labelColor: AppColors.surface, // selected tab label color
-          unselectedLabelColor: const Color(0xFF888888), // dimmed for unselected
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textTertiary,
           labelStyle:
               const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           tabs: [
@@ -139,9 +140,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.primary)) // loading spinner
+          ? const AppleLoadingState(label: 'Loading import issues…')
           : TabBarView(
               controller: _tabController,
               children: [
@@ -160,23 +159,12 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
   Widget _buildList(List<Map<String, dynamic>> items) {
     if (items.isEmpty) {
       // no errors in this category — green checkmark, the good ending
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_outline,
-                color: AppColors.success, size: 60), // big green check — all good
-            const SizedBox(height: 14),
-            const Text('No pending errors',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            const Text('All imports matched successfully.',
-                style:
-                    TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-          ],
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: AppleEmptyState(
+          icon: Icons.check_circle_outline,
+          title: 'No pending errors',
+          message: 'All imported records matched successfully.',
         ),
       );
     }
