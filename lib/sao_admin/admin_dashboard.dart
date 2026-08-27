@@ -113,6 +113,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           .from('user_info')
           .select('''
             id, first_name, last_name, account_status,
+            email, address, university_id, employment_status, created_at,
             dept_join:department_table!user_id (
               dept_name_join:department_name!Department_name_ID ( d_name )
             ),
@@ -365,36 +366,194 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
 
         // each pending user gets a card with approve/reject buttons
+        // tap the card to see full details
         return Card(
           color: AppColors.surface,
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: CircleAvatar(
-              backgroundColor: AppColors.background,
-              child: Text(firstName.isNotEmpty ? firstName[0] : '?', // first letter of name as avatar
-                  style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-            ),
-            title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-            subtitle: Text(subDetail, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis),
-            trailing: Wrap(
-              spacing: -8,
-              children: [
-                SafeIconButton(
-                  icon: const Icon(Icons.check_circle, color: AppColors.success),
-                  onPressed: () => _handleApproval(user['id'], fullName, true), // approve this person
-                ),
-                SafeIconButton(
-                  icon: const Icon(Icons.cancel, color: AppColors.error),
-                  onPressed: () => _handleApproval(user['id'], fullName, false), // reject this person, sorry
-                ),
-              ],
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showPendingUserDetails(context, user, fullName, subDetail),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: CircleAvatar(
+                backgroundColor: AppColors.primaryTint,
+                child: Text(firstName.isNotEmpty ? firstName[0] : '?',
+                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+              ),
+              title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(subDetail, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 2),
+                  const Text('Tap to view full details', style: TextStyle(color: AppColors.primary, fontSize: 11)),
+                ],
+              ),
+              trailing: Wrap(
+                spacing: -8,
+                children: [
+                  SafeIconButton(
+                    icon: const Icon(Icons.check_circle, color: AppColors.success),
+                    onPressed: () => _handleApproval(user['id'], fullName, true),
+                  ),
+                  SafeIconButton(
+                    icon: const Icon(Icons.cancel, color: AppColors.error),
+                    onPressed: () => _handleApproval(user['id'], fullName, false),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  // Shows the full account details of a pending user in a bottom sheet
+  void _showPendingUserDetails(BuildContext context, Map<String, dynamic> user, String fullName, String department) {
+    final email = user['email'] ?? 'Not provided';
+    final address = user['address'] ?? 'Not provided';
+    final universityId = user['university_id']?.toString() ?? 'Not provided';
+    final employment = user['employment_status'] ?? 'Not provided';
+    final createdAt = user['created_at'] != null
+        ? DateTime.tryParse(user['created_at'].toString())
+        : null;
+    final registeredOn = createdAt != null
+        ? '${createdAt.day}/${createdAt.month}/${createdAt.year}'
+        : 'Unknown';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // drag handle
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderSubtle,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Avatar + name header
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: AppColors.primaryTint,
+                  child: Text(
+                    fullName.isNotEmpty ? fullName[0] : '?',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text('Pending Approval', style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 12),
+            // Detail rows
+            _detailRow(Icons.badge_outlined,        'University ID',       universityId),
+            _detailRow(Icons.email_outlined,         'Email Address',       email),
+            _detailRow(Icons.location_on_outlined,   'Address',             address),
+            _detailRow(Icons.apartment_outlined,     'Department',          department),
+            _detailRow(Icons.work_outline,           'Employment Status',   employment),
+            _detailRow(Icons.calendar_today_outlined,'Registered On',       registeredOn),
+            const SizedBox(height: 24),
+            // Action buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.cancel, color: AppColors.error),
+                    label: const Text('Reject', style: TextStyle(color: AppColors.error)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.error),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _handleApproval(user['id'], fullName, false);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check_circle, color: Colors.white),
+                    label: const Text('Approve', style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _handleApproval(user['id'], fullName, true);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Single detail row with icon, label and value
+  Widget _detailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
