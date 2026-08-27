@@ -566,16 +566,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       } else {
         // Rejected — this is a NEW pending account so we DELETE it completely.
         // No evaluation data exists yet, so nothing valuable is lost.
-        // Clean up all related rows first before deleting user_info.
+        // Clean up ALL related rows first — order matters because of foreign keys.
         try {
+          // For instructors / dept heads
           await _supabase.from('instructor_departments').delete().eq('instructor_id', userId);
-        } catch (_) {} // may not exist yet — that's fine
+        } catch (_) {}
         try {
           await _supabase.from('department_table').delete().eq('user_id', userId);
-        } catch (_) {} // may not exist — ignore
-        // Delete the main user record — this is the final step
+        } catch (_) {}
+        try {
+          // For SAO Staff — Sao_users has a FK to user_info so MUST be deleted first
+          await _supabase.from('Sao_users').delete().eq('user_id', userId);
+        } catch (_) {}
+        // Now safe to delete the main user record
         await _supabase.from('user_info').delete().eq('id', userId);
-        debugPrint('[DASHBOARD] Rejected pending account deleted: $userId');
+        debugPrint('[DASHBOARD] Rejected pending account fully deleted: $userId');
       }
       final status = approved ? 'approved' : 'rejected';
       if (mounted) {
