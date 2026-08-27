@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
+import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
@@ -19,6 +20,7 @@ class UserManagementScreen extends StatefulWidget {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final _supabase = Supabase.instance.client; // one ring to rule the database
+  final _authService = AuthService(); // for password reset emails
   
   List<Map<String, dynamic>> _allUsers = []; // every academic user fetched from DB
   List<Map<String, dynamic>> _roles = []; // available roles, but only non-SAO ones
@@ -1001,6 +1003,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       if (val == 'edit') _showEditUserDialog(user);
                                       if (val == 'status') _toggleUserStatus(user);
                                       if (val == 'second_dept') _showAssignSecondDeptDialog(user);
+                                      if (val == 'reset') {
+                                        _authService.sendPasswordResetEmail(ui['email']);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Password reset email sent to ${ui['email']}'), backgroundColor: AppColors.success),
+                                        );
+                                      }
                                     },
                                     itemBuilder: (context) {
                                       final empStatus = user['user_info']?['employment_status']?.toString() ?? '';
@@ -1009,7 +1017,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                       return [
                                         const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
                                         PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Approve')])),
-                                        // Only show for Non-Resident instructors
+                                        const PopupMenuItem(value: 'reset', child: Row(children: [Icon(Icons.lock_reset, size: 18), SizedBox(width: 8), Text('Reset Password')])),
                                         if (isNonResident)
                                           const PopupMenuItem(value: 'second_dept', child: Row(children: [Icon(Icons.apartment, size: 18, color: Colors.teal), SizedBox(width: 8), Text('Assign Second Dept', style: TextStyle(color: Colors.teal))])),
                                       ];
