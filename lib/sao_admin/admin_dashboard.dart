@@ -12,6 +12,7 @@ import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
 
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 
 // This widget is the throne of the admin. Very holy. Dili ta puwede diri if not admin.
@@ -194,18 +195,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
         title: const Text(
           'Dashboard',
-          style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold),
+          style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         actions: [
           SafeIconButton(
@@ -231,35 +232,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'System Overview', // the header of the whole situation
-                style: TextStyle(color: AppColors.textPrimary, fontSize: 22, fontWeight: FontWeight.bold),
+              const ApplePageHeader(
+                eyebrow: 'SAO Administration',
+                title: 'System Overview',
+                subtitle: 'Operations, evaluation progress, and account activity.',
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 22),
 
               // ── System Status Row ────────────────────────────────────
               // tap this to manually re-check if servers are alive or resting in peace
-              GestureDetector(
+              AppleSurface(
                 onTap: _checkingStatus ? null : _checkSystemStatus, // disabled while checking
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderHairline),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(child: _statusDot(_n8nOnline, 'n8n')), // n8n status indicator
-                      const SizedBox(width: 12),
-                      Expanded(child: _statusDot(_supabaseOnline, 'Supabase')), // supabase status
-                      const SizedBox(width: 8),
-                      if (_checkingStatus)
-                        const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                      else
-                        Text('tap to refresh', style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6))),
-                    ],
-                  ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Expanded(child: _statusDot(_n8nOnline, 'Automation')), // n8n status indicator
+                    const SizedBox(width: 12),
+                    Expanded(child: _statusDot(_supabaseOnline, 'Database')), // supabase status
+                    if (_checkingStatus)
+                      const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                    else
+                      const Icon(Icons.refresh_rounded, size: 18, color: AppColors.textTertiary),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -284,23 +278,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
               // ── Pending Approvals ─────────────────────────────────────
               // list of people who registered but still waiting for admin's blessing
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Pending Account Approvals', // people in the waiting room
-                      style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  TextButton(
+              AppleSectionHeader(
+                title: 'Pending Approvals',
+                subtitle: 'Review new accounts before granting access.',
+                action: TextButton(
                     onPressed: () {
                       // go to the full user management page to see everyone
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const UserManagementScreen()));
                     },
-                    child: const Text('View All', style: TextStyle(color: AppColors.primary)),
-                  )
-                ],
+                    child: const Text('View All'),
+                  ),
               ),
               const SizedBox(height: 12),
               // show spinner while loading, show list when done
@@ -340,11 +327,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget _buildPendingList() {
     if (_livePendingApprovals.isEmpty) {
       // wala pending, everyone been approved or nobody signed up
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24.0),
-          child: Text("No pending approvals.", style: TextStyle(color: AppColors.textSecondary)),
-        ),
+      return const AppleEmptyState(
+        icon: Icons.verified_user_outlined,
+        title: 'All caught up',
+        message: 'There are no accounts waiting for approval.',
       );
     }
 
@@ -444,25 +430,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // builds a metric card with icon, big number, and optional subtitle
   // this is the "look at this big number" widget
   Widget _buildMetricCard(String title, String value, IconData icon, Color iconColor, {String? sub}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: iconColor, size: 28), // the icon on top
-          const SizedBox(height: 12),
-          Text(value, style: const TextStyle(color: AppColors.textPrimary, fontSize: 28, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis), // the big number
-          const SizedBox(height: 2),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis), // the label below
-          if (sub != null)
-            Text(sub, style: TextStyle(color: iconColor.withValues(alpha: 0.7), fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis), // optional small label
-        ],
-      ),
+    return AppleMetricCard(
+      label: title,
+      value: value,
+      icon: icon,
+      color: iconColor,
+      detail: sub,
     );
   }
 

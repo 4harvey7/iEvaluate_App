@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/apple_ui.dart';
 
 
 class SystemAuditScreen extends StatefulWidget {
@@ -81,15 +82,15 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Security Audit Logs', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Security Audit Logs', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           // Sort Toggle Button — switches between newest/oldest first
           SafeIconButton(
@@ -102,7 +103,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator()) // spinning — evidence still loading
+          ? const AppleLoadingState(label: 'Loading security history…')
           : _logs.isEmpty
               ? _buildEmptyState() // no logs found — either clean system or logs got purged
               : RefreshIndicator(
@@ -187,14 +188,12 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
   // shown when there are no logs at all
   // either the system is clean OR someone deleted the evidence — basin dili ta mahibaw-an
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.shield_outlined, size: 64, color: AppColors.textTertiary), // big shield — nothing to see here
-          const SizedBox(height: 16),
-          const Text('No security logs found', style: TextStyle(color: AppColors.textSecondary, fontSize: 16)),
-        ],
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: AppleEmptyState(
+        icon: Icons.shield_outlined,
+        title: 'No security events',
+        message: 'Audit activity will appear here as administrative actions occur.',
       ),
     );
   }

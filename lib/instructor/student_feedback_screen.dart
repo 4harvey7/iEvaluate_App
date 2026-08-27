@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 import '../core/navigation/main_scaffold.dart';
 
 // StatefulWidget — lots of dynamic data (feedback, AI analysis, word cloud, filters)
@@ -436,9 +437,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
@@ -450,7 +451,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
             const Text(
               'Student Feedback',
               style: TextStyle(
-                color: AppColors.surface,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
               ),
@@ -459,7 +460,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
               Text(
                 _activeTermDisplay,
                 style: const TextStyle(
-                  color: AppColors.textInvertedDim,
+                  color: AppColors.textSecondary,
                   fontSize: 12,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -469,7 +470,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
         actions: [
           // Manual refresh button — in case the AI analysis just came in and user wants fresh data
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.surface),
+            icon: const Icon(Icons.refresh, color: AppColors.textPrimary),
             tooltip: 'Refresh',
             onPressed: _fetchFeedbackData,
           ),
@@ -477,9 +478,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
       ),
       // Show spinner while loading, then the content once ready
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
+          ? const AppleLoadingState(label: 'Analyzing student feedback…')
           : RefreshIndicator(
               onRefresh:
                   _fetchFeedbackData, // pull-to-refresh triggers re-fetch
@@ -491,6 +490,12 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const ApplePageHeader(
+                        eyebrow: 'Student Voice',
+                        title: 'Feedback Insights',
+                        subtitle: 'Sentiment, recurring themes, and individual comments.',
+                      ),
+                      const SizedBox(height: 24),
                       // ==========================================
                       // SENTIMENT ANALYSIS DASHBOARD
                       // ==========================================
@@ -997,7 +1002,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                           spacing: 8.0,
                           runSpacing: 6.0,
                           children: _wordCloud.map((wordData) {
-                            // Scale font: weight 14–58 maps to 8–18px readable range
+                            // Scale font: weight 14–58 maps to 10–22px readable range
                             // High count words = bigger, rare words = smaller
                             final double rawWeight =
                                 (wordData['weight'] as double).clamp(
@@ -1005,16 +1010,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                   58.0,
                                 );
                             final double fontSize =
-                                8.0 + ((rawWeight - 14.0) / 44.0) * 10.0;
-                                
-                            final String displayWord = (wordData['word'] as String).replaceAll(' ', '');
+                                10.0 + ((rawWeight - 14.0) / 44.0) * 12.0;
 
                             final Widget wordText = Text(
-                              displayWord,
+                              wordData['word'],
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: fontSize,
-                                fontWeight: fontSize > 16
+                                fontWeight: fontSize > 18
                                     ? FontWeight.w800
                                     : FontWeight.w600, // bold if large
                                 color: wordData['color'],

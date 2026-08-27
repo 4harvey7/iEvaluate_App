@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/apple_ui.dart';
 import '../core/services/system_settings_service.dart';
 
 
@@ -243,22 +244,22 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('Live System Metrics', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           // refresh button — for when you want fresh data RIGHT NOW
           IconButton(icon: const Icon(Icons.refresh, color: AppColors.primary), onPressed: _loadAllMetrics),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator()) // spinning — data is on its way
+          ? const AppleLoadingState(label: 'Loading live metrics…')
           : RefreshIndicator(
               onRefresh: _loadAllMetrics, // pull down to refresh — same as the button
               child: SingleChildScrollView(
@@ -268,9 +269,10 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // subtitle explaining what this screen is about
-                    Text(
-                      'Real-time tracking for AI processing, staff productivity, and evaluation progress.',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+                    const ApplePageHeader(
+                      eyebrow: 'Operations',
+                      title: 'Live Metrics',
+                      subtitle: 'AI processing, staff productivity, and evaluation progress.',
                     ),
                     const SizedBox(height: 24),
 
@@ -303,7 +305,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
 
   // simple bold section title widget — reused three times in the build method
   Widget _buildSectionTitle(String title) =>
-      Text(title, style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold));
+      AppleSectionHeader(title: title);
 
   // the AI accuracy card showing three stat columns and a progress bar
   // higher auto rate = AI is doing good, lower = AI needs help (and maybe therapy)
@@ -312,13 +314,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
     final autoRate = total == 0 ? 0.0 : _autoCount / total; // percentage the AI got right
     final manualRate = total == 0 ? 0.0 : (_manualCount + _correctedCount) / total; // % that needed help
 
-    return Container(
+    return AppleSurface(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
       child: Column(
         children: [
           Row(
@@ -451,13 +448,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
       return _emptyCard('No evaluation data for this term.'); // nothing yet
     }
 
-    return Container(
+    return AppleSurface(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
       child: Column(
         children: _deptProgress.map((dept) {
           final total = dept['total'] as int;
@@ -517,10 +509,10 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   // generic empty card widget — shows a centered message when there's no data
   // used in multiple places so we dont repeat the same Container+Text combo
   Widget _emptyCard(String msg) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-      child: Center(child: Text(msg, style: const TextStyle(color: AppColors.textSecondary))),
+    return AppleEmptyState(
+      icon: Icons.query_stats_rounded,
+      title: 'No data yet',
+      message: msg,
     );
   }
 }

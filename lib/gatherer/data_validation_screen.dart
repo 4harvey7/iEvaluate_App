@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'failed_scans_screen.dart';
+import '../widgets/apple_ui.dart';
 
 // StatefulWidget with two tabs — we need state for loading and tab controller
 class DataValidationScreen extends StatefulWidget {
@@ -426,26 +427,16 @@ class _DataValidationScreenState extends State<DataValidationScreen>
   Widget _buildFlaggedTab() {
     if (_isLoading) {
       // still fetching from database — show spinner
-      return const Center(
-          child: CircularProgressIndicator(color: AppColors.primary));
+      return const AppleLoadingState(label: 'Loading flagged records…');
     }
     if (_flaggedForms.isEmpty) {
       // no flagged records — everything linked, sayang effort pero okay
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.verified,
-                color: AppColors.success.withValues(alpha: 0.5), size: 80),
-            const SizedBox(height: 16),
-            const Text('No pending verifications',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 16)),
-            const SizedBox(height: 6),
-            const Text('All records have been linked to an instructor.',
-                style: TextStyle(
-                    color: AppColors.textTertiary, fontSize: 12)),
-          ],
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: AppleEmptyState(
+          icon: Icons.verified_outlined,
+          title: 'No pending verification',
+          message: 'All records are linked to an instructor.',
         ),
       );
     }

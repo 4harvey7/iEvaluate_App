@@ -36,6 +36,7 @@ import '../../login_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
+import '../../widgets/apple_ui.dart';
 import 'role_nav_config.dart';
 import 'role_switch_screen.dart';
 import '../../gatherer/data_gatherer_screen.dart';
@@ -43,7 +44,7 @@ import '../../gatherer/data_gatherer_screen.dart';
 class MainScaffold extends StatefulWidget {
   final UserRole role;
   final String userId;
-  
+
   /// If the user switched roles (e.g. Dept Head viewing as Instructor),
   /// this tracks their real role so they can return to it.
   final UserRole? originalRole;
@@ -75,6 +76,10 @@ class _MainScaffoldState extends State<MainScaffold> {
   /// Which bottom-nav tab is currently visible.
   int _selectedIndex = 0;
 
+  /// True while a drawer-pushed screen is on top of the active tab's Navigator.
+  /// When true, the bottom nav shows NO item highlighted (index = -1 effectively).
+  bool _drawerRouteActive = false;
+
   /// One GlobalKey<NavigatorState> per bottom-nav tab.
   /// Kept in a list so we can address the active tab's navigator directly.
   late final List<GlobalKey<NavigatorState>> _navKeys;
@@ -93,18 +98,15 @@ class _MainScaffoldState extends State<MainScaffold> {
     super.initState();
     _myDrawerKey = GlobalKey<ScaffoldState>();
     MainScaffold._activeDrawerKey = _myDrawerKey;
-    
+
     final config = roleNavConfigs[widget.role]!;
     _navKeys = List.generate(
       config.bottomNavItems.length,
       (_) => GlobalKey<NavigatorState>(),
     );
-    _navObservers = List.generate(
-      config.bottomNavItems.length,
-      (_) => [],
-    );
+    _navObservers = List.generate(config.bottomNavItems.length, (_) => []);
     _fetchUserInfo();
-    
+
     // Initialize push notifications after user login
     try {
       PushNotificationService().init();
@@ -133,7 +135,6 @@ class _MainScaffoldState extends State<MainScaffold> {
     } catch (_) {}
   }
 
-
   // ── Logout ────────────────────────────────────────────────────────────────
   Future<void> _handleLogout(BuildContext ctx) async {
     final navigator = Navigator.of(ctx);
@@ -141,7 +142,9 @@ class _MainScaffoldState extends State<MainScaffold> {
     if (confirm == true) {
       if (!mounted) return;
       showLoggingOutOverlay(ctx);
-      await Future.delayed(const Duration(milliseconds: 1500)); // wait for overlay
+      await Future.delayed(
+        const Duration(milliseconds: 1500),
+      ); // wait for overlay
       await _authService.signOut();
       if (mounted) {
         navigator.pushAndRemoveUntil(
@@ -181,20 +184,25 @@ class _MainScaffoldState extends State<MainScaffold> {
       leading: Icon(item.icon, color: color),
       title: Text(
         item.label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w500,
-        ),
+        style: TextStyle(color: color, fontWeight: FontWeight.w500),
         overflow: TextOverflow.ellipsis,
       ),
       onTap: () {
         Navigator.pop(ctx); // close the drawer first
         if (!isLogout) {
+          // Mark that a drawer screen is now active → unhighlight bottom nav.
+          setState(() => _drawerRouteActive = true);
           // Push the drawer destination on top of the currently active tab's
           // Navigator, so the back button returns to wherever the user was.
-          _navKeys[_selectedIndex].currentState?.push(
-            MaterialPageRoute(builder: (_) => item.builder(widget.userId)),
-          );
+          _navKeys[_selectedIndex].currentState
+              ?.push(MaterialPageRoute(builder: (_) => item.builder(widget.userId)))
+              .then((_) {
+            // User popped back — check if tab is back at root, restore highlight.
+            final innerNav = _navKeys[_selectedIndex].currentState;
+            if (innerNav != null && !innerNav.canPop()) {
+              if (mounted) setState(() => _drawerRouteActive = false);
+            }
+          });
         }
       },
     );
@@ -204,7 +212,12 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget _buildDrawer(BuildContext ctx, RoleNavConfig config) {
     final displayName = _userName.isNotEmpty ? _userName : '...';
     final initials = _userName.isNotEmpty
-        ? _userName.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join()
+        ? _userName
+              .trim()
+              .split(' ')
+              .take(2)
+              .map((w) => w.isNotEmpty ? w[0] : '')
+              .join()
         : '?';
 
     return Drawer(
@@ -214,17 +227,27 @@ class _MainScaffoldState extends State<MainScaffold> {
         children: [
           // ── Header ──────────────────────────────────────────────────────
           DrawerHeader(
-            decoration: const BoxDecoration(color: AppColors.textPrimary),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: AppColors.heroGradient,
+              ),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 CircleAvatar(
                   radius: 28,
-                  backgroundColor: AppColors.primary.withValues(alpha: 0.25),
+                  backgroundColor: AppColors.textInvertedFaint,
                   child: Text(
                     initials.toUpperCase(),
-                    style: const TextStyle(color: AppColors.surface, fontSize: 22, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                      color: AppColors.surface,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -250,9 +273,7 @@ class _MainScaffoldState extends State<MainScaffold> {
           ),
 
           // ── Drawer nav items ────────────────────────────────────────────
-          ...config.drawerItems.map(
-            (item) => _buildDrawerNavItem(ctx, item),
-          ),
+          ...config.drawerItems.map((item) => _buildDrawerNavItem(ctx, item)),
 
           const Divider(),
 
@@ -260,7 +281,10 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow SAO Admin to jump to Gatherer Screen
           if (widget.role == UserRole.saoAdmin && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.document_scanner_rounded, color: AppColors.primary),
+              leading: const Icon(
+                Icons.document_scanner_rounded,
+                color: AppColors.primary,
+              ),
               title: const Text(
                 'Switch to Data Gatherer View',
                 style: TextStyle(
@@ -284,13 +308,17 @@ class _MainScaffoldState extends State<MainScaffold> {
                               userId: widget.userId,
                               originalRole: UserRole.saoAdmin,
                             ),
-                            transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-                            transitionDuration: const Duration(milliseconds: 300),
+                            transitionsBuilder: (_, anim, __, child) =>
+                                FadeTransition(opacity: anim, child: child),
+                            transitionDuration: const Duration(
+                              milliseconds: 300,
+                            ),
                           ),
                         );
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                    transitionsBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
                   ),
                 );
               },
@@ -299,7 +327,10 @@ class _MainScaffoldState extends State<MainScaffold> {
           // Allow Dept Head to jump into their own Instructor Dashboard
           if (widget.role == UserRole.deptHead && widget.originalRole == null)
             ListTile(
-              leading: const Icon(Icons.switch_account_rounded, color: AppColors.primary),
+              leading: const Icon(
+                Icons.switch_account_rounded,
+                color: AppColors.primary,
+              ),
               title: const Text(
                 'Switch to Instructor View',
                 style: TextStyle(
@@ -326,13 +357,17 @@ class _MainScaffoldState extends State<MainScaffold> {
                               userId: widget.userId,
                               originalRole: UserRole.deptHead,
                             ),
-                            transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
-                            transitionDuration: const Duration(milliseconds: 300),
+                            transitionsBuilder: (_, anim, __, child) =>
+                                FadeTransition(opacity: anim, child: child),
+                            transitionDuration: const Duration(
+                              milliseconds: 300,
+                            ),
                           ),
                         );
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                    transitionsBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
                   ),
                 );
               },
@@ -341,7 +376,10 @@ class _MainScaffoldState extends State<MainScaffold> {
           // If they are currently viewing as an Instructor, let them go back
           if (widget.originalRole != null)
             ListTile(
-              leading: const Icon(Icons.keyboard_return_rounded, color: AppColors.primary),
+              leading: const Icon(
+                Icons.keyboard_return_rounded,
+                color: AppColors.primary,
+              ),
               title: Text(
                 'Return to ${_roleDisplayName(widget.originalRole!)}',
                 style: const TextStyle(
@@ -357,20 +395,26 @@ class _MainScaffoldState extends State<MainScaffold> {
                   PageRouteBuilder(
                     pageBuilder: (_, __, ___) => RoleSwitchScreen(
                       targetRoleName: _roleDisplayName(widget.originalRole!),
-                      targetIcon: Icons.account_balance_rounded, // or assignment_ind
+                      targetIcon:
+                          Icons.account_balance_rounded, // or assignment_ind
                       onComplete: (switchCtx) {
                         // Safely pop twice to return to the original MainScaffold
                         int count = 0;
                         Navigator.of(switchCtx).popUntil((_) => count++ >= 2);
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                    transitionsBuilder: (_, anim, __, child) =>
+                        FadeTransition(opacity: anim, child: child),
                   ),
                 );
               },
             ),
-            
-          if ((widget.role == UserRole.deptHead && widget.originalRole == null) || (widget.role == UserRole.saoAdmin && widget.originalRole == null) || widget.originalRole != null)
+
+          if ((widget.role == UserRole.deptHead &&
+                  widget.originalRole == null) ||
+              (widget.role == UserRole.saoAdmin &&
+                  widget.originalRole == null) ||
+              widget.originalRole != null)
             const Divider(),
 
           // ── Logout — always pinned at the bottom ────────────────────────
@@ -403,6 +447,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         return 'Data Gatherer';
     }
   }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -421,18 +466,33 @@ class _MainScaffoldState extends State<MainScaffold> {
           final innerNav = _navKeys[_selectedIndex].currentState;
           if (innerNav != null && innerNav.canPop()) {
             innerNav.pop(); // pop sub-screen inside the active tab
+            // If the drawer screen was active and we just popped the last one,
+            // restore the bottom nav highlight.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              final nav = _navKeys[_selectedIndex].currentState;
+              if (nav != null && !nav.canPop() && _drawerRouteActive) {
+                setState(() => _drawerRouteActive = false);
+              }
+            });
           }
           // If nothing to pop, the system handles minimise/exit naturally.
         },
         child: Scaffold(
-          key: _myDrawerKey, // uniquely assigned in initState, but accessible globally via getter
+          key:
+              _myDrawerKey, // uniquely assigned in initState, but accessible globally via getter
           backgroundColor: AppColors.background,
           drawer: _buildDrawer(context, config),
           // We use IndexedStack to preserve tab state for everyone EXCEPT Dept Head and Instructor,
           // because their tabs are incredibly heavy (charts, lists, AI clouds)
           // and keeping them all alive causes UI thread freezing during drawer slide.
-          body: (widget.role == UserRole.deptHead || widget.role == UserRole.instructor)
-              ? _buildTabNavigator(_selectedIndex, config.bottomNavItems[_selectedIndex])
+          body:
+              (widget.role == UserRole.deptHead ||
+                  widget.role == UserRole.instructor)
+              ? _buildTabNavigator(
+                  _selectedIndex,
+                  config.bottomNavItems[_selectedIndex],
+                )
               : IndexedStack(
                   index: _selectedIndex,
                   children: List.generate(
@@ -440,11 +500,12 @@ class _MainScaffoldState extends State<MainScaffold> {
                     (i) => _buildTabNavigator(i, config.bottomNavItems[i]),
                   ),
                 ),
-          bottomNavigationBar: NavigationBar(
-            backgroundColor: AppColors.surface,
-            indicatorColor: AppColors.primaryTint,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (index) {
+          bottomNavigationBar: AppleFloatingTabBar(
+            // When a drawer-pushed screen is on top, pass -1 so no tab is highlighted.
+            selectedIndex: _drawerRouteActive ? -1 : _selectedIndex,
+            onSelected: (index) {
+              // Tapping a bottom nav tab always clears the drawer-screen state.
+              setState(() => _drawerRouteActive = false);
               if (index == _selectedIndex) {
                 // Same tab tapped — pop any sub-screens back to root
                 _navKeys[index].currentState?.popUntil((r) => r.isFirst);
@@ -457,10 +518,11 @@ class _MainScaffoldState extends State<MainScaffold> {
                 setState(() => _selectedIndex = index);
               }
             },
-            destinations: config.bottomNavItems
+            items: config.bottomNavItems
                 .map(
-                  (item) => NavigationDestination(
-                    icon: Icon(item.icon),
+                  (item) => AppleTabItem(
+                    icon: item.icon,
+                    selectedIcon: item.icon,
                     label: item.label,
                   ),
                 )

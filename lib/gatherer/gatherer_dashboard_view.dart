@@ -4,6 +4,7 @@
 // Also shows n8n status — is the automation server alive or naa bay problema?
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
 
 // pure StatelessWidget — all data is passed in from parent, no own state
 // parent (DataGathererScreen) manages the state, we just display what we receive
@@ -51,24 +52,24 @@ class GathererDashboardView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
+            ApplePageHeader(
+              eyebrow: userRole,
+              title: 'Welcome, $userName',
+              subtitle: currentTerm,
+            ),
+            const SizedBox(height: 22),
+
             // ==========================================
             // 1. WELCOME & STATUS CARD
             // Shows user name, current term, role, and n8n status
             // ==========================================
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 5))],
-              ),
+            AppleSurface(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // greet the user by name — personalised touch
-                  Text('Welcome, $userName',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                  const SizedBox(height: 4),
+                  const AppleSectionHeader(title: 'Connection'),
+                  const SizedBox(height: 10),
                   // Current term — shows semester and academic year
                   Row(
                     children: [
@@ -135,23 +136,25 @@ class GathererDashboardView extends StatelessWidget {
             // The biggest, most important button on this screen
             // Tap it to go to the camera scanner tab — this the main job
             // ==========================================
-            SizedBox(
-              width: double.infinity,
-              height: 120, // big button, hard to miss
-              child: ElevatedButton(
-                onPressed: onStartScan, // jump to scanner tab
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  elevation: 5,
+            ApplePressable(
+              onTap: onStartScan,
+              semanticLabel: 'Start scanning forms',
+              child: Container(
+                width: double.infinity,
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: AppColors.heroGradient),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x2E0066CC), blurRadius: 20, offset: Offset(0, 8)),
+                  ],
                 ),
                 child: const Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.camera_alt_outlined, size: 40),
+                    Icon(Icons.camera_alt_outlined, size: 40, color: AppColors.textInverted),
                     SizedBox(height: 8),
-                    Text('START SCAN', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                    Text('Start Scan', style: TextStyle(color: AppColors.textInverted, fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -187,8 +190,10 @@ class GathererDashboardView extends StatelessWidget {
             // 3. SUPABASE CONNECTION STATS — 4 Cards
             // Shows numbers pulled from actual database — not just local estimates
             // ==========================================
-            const Text('Supabase Connection',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+            const AppleSectionHeader(
+              title: 'Shift Activity',
+              subtitle: 'Live database and local queue totals.',
+            ),
             const SizedBox(height: 10),
 
             // Row 1: Entries Today + Pending
@@ -255,35 +260,13 @@ class GathererDashboardView extends StatelessWidget {
     required Color color,
     required IconData icon,
   }) {
-    return Expanded( // both cards share equal width in the row
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 14, color: color), // small icon with card color
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color.withValues(alpha: 0.8)),
-                    overflow: TextOverflow.ellipsis, // dont overflow on small screens
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color)), // big number
-            Text(sub, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)), // subtitle below number
-          ],
-        ),
+    return Expanded(
+      child: AppleMetricCard(
+        label: label,
+        value: value,
+        detail: sub,
+        color: color,
+        icon: icon,
       ),
     );
   }

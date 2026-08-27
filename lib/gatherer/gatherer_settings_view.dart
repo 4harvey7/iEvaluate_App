@@ -8,6 +8,7 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/apple_ui.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -319,17 +320,15 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                    const SizedBox(height: 12),
-                    _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                    const SizedBox(height: 12),
-                    _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                  ],
-                ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
+                  const SizedBox(height: 12),
+                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
+                  const SizedBox(height: 12),
+                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
+                ],
               ),
               actions: [
                 TextButton(
@@ -434,7 +433,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       }
     }
 
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
+    if (_isLoading) {
+      return const AppleLoadingState(label: 'Loading gatherer settings…');
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -442,7 +443,13 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Profile', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const ApplePageHeader(
+              eyebrow: 'Data Gatherer',
+              title: 'Settings',
+              subtitle: 'Profile, scanner feedback, and account security.',
+            ),
+            const SizedBox(height: 30),
+            const AppleSectionHeader(title: 'Profile'),
             const SizedBox(height: 12),
             Card(
               color: AppColors.surface,
@@ -479,7 +486,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             ),
             const SizedBox(height: 32),
 
-            const Text('Scanner Preferences', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const AppleSectionHeader(title: 'Scanner Preferences'),
             const SizedBox(height: 12),
             Card(
               color: AppColors.surface,
@@ -495,7 +502,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             ),
             const SizedBox(height: 32),
 
-            const Text('Security & Danger Zone', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+            const AppleSectionHeader(
+              title: 'Security',
+              subtitle: 'Email, password, and account controls.',
+            ),
             const SizedBox(height: 12),
             Card(
               color: AppColors.surface,

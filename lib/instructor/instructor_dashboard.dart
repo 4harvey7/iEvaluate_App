@@ -16,6 +16,7 @@ import 'my_subjects_screen.dart';
 import 'providers/subjects_provider.dart';
 import 'detailed_report_screen.dart';
 import 'subject_detail_screen.dart';
+import '../widgets/apple_ui.dart';
 
 
 // The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
@@ -519,23 +520,23 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         // Hamburger opens the outer MainScaffold drawer (not the inner Scaffold).
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('My Dashboard', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('My Dashboard', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           // Sync button — shows spinner when syncing, shows icon when idle
           IconButton(
             tooltip: 'Manual Sync',
             icon: _isSyncing 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.surface))
-              : const Icon(Icons.sync_rounded, color: AppColors.surface),
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
+              : const Icon(Icons.sync_rounded, color: AppColors.textPrimary),
             onPressed: _isSyncing ? null : _handleManualSync, // disabled while already syncing
           ),
           // Notification bell — shows badge count if there are active intervention notices
@@ -543,7 +544,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             alignment: Alignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications, color: AppColors.surface),
+                icon: const Icon(Icons.notifications, color: AppColors.textPrimary),
                 tooltip: _interventionReports.isEmpty ? 'No active notices' : '${_interventionReports.length} active notice(s)',
                 onPressed: () {
                   if (_interventionReports.isEmpty) {
@@ -578,7 +579,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
                     child: Text(
                       '${_interventionReports.length}',
-                      style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: AppColors.textInverted, fontSize: 9, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -593,7 +594,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
       // Main body — scrollable dashboard content, pull to refresh also works
       body: _isInitialLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const AppleLoadingState(label: 'Preparing your dashboard…')
           : RefreshIndicator(
         onRefresh: _handleManualSync, // pull down to trigger manual sync
         color: AppColors.primary,
@@ -802,7 +803,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
               // --- SUBJECT BREAKDOWN ---
               // Shows list of current subjects — each tappable for detail
-              const Text('Current Classes', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const AppleSectionHeader(
+                title: 'Current Classes',
+                subtitle: 'Open a subject to review scores and student feedback.',
+              ),
               const SizedBox(height: 12),
               Consumer<SubjectsProvider>(
                 builder: (context, provider, _) {
@@ -953,8 +957,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
   // Empty state card when no subjects are assigned yet — tap it to go to subjects screen
   Widget _buildEmptySubjectsCard(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
+    return ApplePressable(
       onTap: () {
         // ChangeNotifierProvider.value forwards the EXISTING instance into the new route.
         final subjectsProvider = context.read<SubjectsProvider>();
@@ -968,14 +971,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           ),
         );
       },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderHairline, width: 1),
-        ),
+      child: AppleSurface(
         child: Row(
           children: [
             Container(

@@ -8,6 +8,7 @@ class Subject {
   final DateTime addedAt;
   final double? managementMean;
   final double? performanceMean;
+
   /// All subject IDs that map to this subject code in the current term.
   /// Populated by SubjectsProvider to avoid cross-term ID contamination.
   final Set<String> allRelatedIds;
@@ -23,27 +24,32 @@ class Subject {
   }) : allRelatedIds = allRelatedIds ?? const {};
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'subject_code': code,
-        'subject_name': name,
-        'created_at': addedAt.toUtc().toIso8601String(),
-        'management_mean': managementMean,
-        'performance_mean': performanceMean,
-      };
+    'id': id,
+    'subject_code': code,
+    'subject_name': name,
+    'created_at': addedAt.toUtc().toIso8601String(),
+    // Keep the model-facing key for local caches and compatibility while
+    // retaining `created_at`, which mirrors the database column.
+    'addedAt': addedAt.toUtc().toIso8601String(),
+    'management_mean': managementMean,
+    'performance_mean': performanceMean,
+  };
 
   factory Subject.fromJson(Map<String, dynamic> json) => Subject(
-        id: json['id'] as String?,
-        code: json['subject_code'] as String,
-        name: json['subject_name'] as String,
-        addedAt: DateTime.parse(json['created_at'] as String),
-        managementMean: (json['management_mean'] as num?)?.toDouble(),
-        performanceMean: (json['performance_mean'] as num?)?.toDouble(),
-        allRelatedIds: json['all_ids'] is Set<String>
-            ? json['all_ids'] as Set<String>
-            : (json['all_ids'] is Iterable
-                ? Set<String>.from((json['all_ids'] as Iterable).map((e) => e.toString()))
-                : null),
-      );
+    id: json['id'] as String?,
+    code: json['subject_code'] as String,
+    name: json['subject_name'] as String,
+    addedAt: DateTime.parse((json['created_at'] ?? json['addedAt']) as String),
+    managementMean: (json['management_mean'] as num?)?.toDouble(),
+    performanceMean: (json['performance_mean'] as num?)?.toDouble(),
+    allRelatedIds: json['all_ids'] is Set<String>
+        ? json['all_ids'] as Set<String>
+        : (json['all_ids'] is Iterable
+              ? Set<String>.from(
+                  (json['all_ids'] as Iterable).map((e) => e.toString()),
+                )
+              : null),
+  );
 
   double get overallMean {
     if (managementMean != null && performanceMean != null) {
@@ -55,29 +61,29 @@ class Subject {
   String get verbalDescription => getVerbalDescription(overallMean);
 
   static String getVerbalDescription(double score) {
-    if (score >= 4.21) return 'Outstanding';
-    if (score >= 3.41) return 'Very Satisfactory';
-    if (score >= 2.61) return 'Satisfactory';
-    if (score >= 1.81) return 'Fair';
-    if (score >= 1.00) return 'Unsatisfactory';
+    if (score >= 4.20) return 'Outstanding';
+    if (score >= 3.40) return 'Very Satisfactory';
+    if (score >= 2.60) return 'Satisfactory';
+    if (score >= 1.80) return 'Fair';
+    if (score > 0) return 'Unsatisfactory';
     return 'N/A';
   }
 
   static String getVDCode(double score) {
-    if (score >= 4.21) return 'O';
-    if (score >= 3.41) return 'VS';
-    if (score >= 2.61) return 'S';
-    if (score >= 1.81) return 'F';
-    if (score >= 1.00) return 'US';
+    if (score >= 4.20) return 'O';
+    if (score >= 3.40) return 'VS';
+    if (score >= 2.60) return 'S';
+    if (score >= 1.80) return 'F';
+    if (score > 0) return 'US';
     return '-';
   }
 
   static Color getScoreColor(double score) {
-    if (score >= 4.21) return AppColors.success;
-    if (score >= 3.41) return AppColors.primary;
-    if (score >= 2.61) return AppColors.textPrimary;
-    if (score >= 1.81) return AppColors.warning;
-    if (score >= 1.00) return AppColors.error;
+    if (score >= 4.20) return AppColors.success;
+    if (score >= 3.40) return AppColors.primary;
+    if (score >= 2.60) return AppColors.textPrimary;
+    if (score >= 1.80) return AppColors.warning;
+    if (score > 0) return AppColors.error;
     return AppColors.textPrimary;
   }
 }

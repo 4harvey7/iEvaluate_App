@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
 
 // The widget shell — just a box that holds the real stuff inside
@@ -824,15 +825,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.textPrimary,
+        backgroundColor: AppColors.surface,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.surface),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
-          icon: const Icon(Icons.menu_rounded, color: AppColors.surface),
+          icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('User Management', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+        title: const Text('User Management', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_add_alt_1, color: AppColors.primary),
@@ -845,8 +846,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ],
       ),
       // show spinner while loading, show content when done
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+      body: _isLoading
+          ? const AppleLoadingState(label: 'Loading academic users…')
           : Column(
               children: [
                 // search bar + inline dropdowns for filters

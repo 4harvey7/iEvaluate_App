@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../instructor/detailed_report_screen.dart';
 import '../instructor/subject_detail_screen.dart';
 import '../instructor/models/subject.dart';
+import '../widgets/apple_ui.dart';
 
 /// Full-page view of an individual instructor, opened from the Faculty Roster.
 /// Shows: current-term score card, historical trend bar chart,
@@ -267,22 +268,22 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // Returns a color based on the score value — like a traffic light for performance
   // Green = great, blue = good, dark = okay, orange = meh, red = bad
   Color _scoreColor(double score) {
-    if (score >= 4.21) return AppColors.success; // Outstanding — green light
-    if (score >= 3.41) return AppColors.primary; // Very Satisfactory — blue
-    if (score >= 2.61) return AppColors.textPrimary; // Satisfactory — neutral dark
-    if (score >= 1.81) return AppColors.warning; // Fair — orange, watch out
-    if (score >= 1.00) return AppColors.error; // Unsatisfactory — red, dean needs to act
+    if (score >= 4.20) return AppColors.success; // Outstanding — green light
+    if (score >= 3.40) return AppColors.primary; // Very Satisfactory — blue
+    if (score >= 2.60) return AppColors.textPrimary; // Satisfactory — neutral dark
+    if (score >= 1.80) return AppColors.warning; // Fair — orange, watch out
+    if (score > 0) return AppColors.error; // Unsatisfactory — red, dean needs to act
     return AppColors.textSecondary; // No data — gray, literally wala pa
   }
 
   // Returns a verbal description of the score — what does the number actually mean
   // Used in the score badge and subject tiles so it readable not just a number
   String _verbalDesc(double score) {
-    if (score >= 4.21) return 'Outstanding'; // The best — rare but beautiful
-    if (score >= 3.41) return 'Very Satisfactory'; // Good — dean can relax
-    if (score >= 2.61) return 'Satisfactory'; // Okay — nothing alarming
-    if (score >= 1.81) return 'Fair'; // Borderline — monitor closely
-    if (score >= 1.00) return 'Unsatisfactory'; // Below acceptable — intervention time
+    if (score >= 4.20) return 'Outstanding'; // The best — rare but beautiful
+    if (score >= 3.40) return 'Very Satisfactory'; // Good — dean can relax
+    if (score >= 2.60) return 'Satisfactory'; // Okay — nothing alarming
+    if (score >= 1.80) return 'Fair'; // Borderline — monitor closely
+    if (score > 0) return 'Unsatisfactory'; // Below acceptable — intervention time
     return 'No data'; // No evaluations yet — cannot judge fairly
   }
 
@@ -307,7 +308,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             expandedHeight: 200, // Full height when scrolled to top
             pinned: true, // Stays visible as a small bar when scrolled down
             elevation: 0,
-            backgroundColor: AppColors.textPrimary,
+            backgroundColor: AppColors.primaryDeep,
             iconTheme: const IconThemeData(color: AppColors.surface),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
@@ -342,11 +343,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   // Full name — bold and white on the dark gradient
-                                  Text(name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
-                                  Text(title, style: const TextStyle(color: Colors.white70, fontSize: 13), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  Text(name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                                  Text(title, style: const TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis),
                                   // Show department name if it exists
                                   if (dept.isNotEmpty)
-                                    Text(dept, style: const TextStyle(color: Colors.white54, fontSize: 12), maxLines: 3, overflow: TextOverflow.ellipsis),
+                                    Text(dept, style: const TextStyle(color: Colors.white54, fontSize: 12), overflow: TextOverflow.ellipsis),
                                 ],
                               ),
                             ),
@@ -383,7 +384,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
           _isLoading
               // Show spinner while data loads — dili ta show broken layout
               ? const SliverFillRemaining(
-                  child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                  child: AppleLoadingState(label: 'Loading instructor profile…'),
                 )
               : SliverPadding(
                   padding: const EdgeInsets.all(20),
@@ -848,12 +849,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         const SizedBox(height: 12),
         // No subjects found — show a placeholder card
         if (_subjects.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
-            child: const Center(
-              child: Text('No subjects found for this term.', style: TextStyle(color: AppColors.textSecondary)),
-            ),
+          const AppleEmptyState(
+            icon: Icons.library_books_outlined,
+            title: 'No subjects this term',
+            message: 'Assigned subjects will appear here when available.',
           )
         else
           // Show each subject as a tappable tile — using spread operator to flatten the list

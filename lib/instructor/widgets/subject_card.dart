@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../models/subject.dart';
+import '../../widgets/apple_ui.dart';
 
 class SubjectCard extends StatelessWidget {
   final Subject subject;
@@ -16,38 +17,39 @@ class SubjectCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.textPrimary.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: ApplePressable(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.textPrimary.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(color: AppColors.borderHairline),
           ),
-        ],
-        border: Border.all(color: AppColors.borderHairline),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: null,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 subject.code,
@@ -57,48 +59,48 @@ class SubjectCard extends StatelessWidget {
                                   fontSize: 14,
                                 ),
                               ),
+                              const SizedBox(height: 4),
+                              Text(
+                                subject.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                  fontSize: 16,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            subject.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                              fontSize: 16,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                        ),
+                        const SizedBox(width: 12),
+                        _buildScoreBadge(subject.overallMean),
+                      ],
+                    ),
+                    if (showMetrics) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        child: Divider(height: 1),
+                      ),
+                      Row(
+                        children: [
+                          _buildMiniMetric(
+                            Icons.settings_suggest_outlined,
+                            'Mgmt: ${subject.managementMean?.toStringAsFixed(2) ?? "N/A"}',
+                            AppColors.primary,
+                          ),
+                          const SizedBox(width: 16),
+                          _buildMiniMetric(
+                            Icons.psychology_outlined,
+                            'Perf: ${subject.performanceMean?.toStringAsFixed(2) ?? "N/A"}',
+                            AppColors.success,
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    _buildScoreBadge(subject.overallMean),
+                    ],
                   ],
                 ),
-                if (showMetrics) ...[
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(height: 1),
-                  ),
-                  Row(
-                    children: [
-                      _buildMiniMetric(
-                        Icons.settings_suggest_outlined, 
-                        'Mgmt: ${subject.managementMean?.toStringAsFixed(2) ?? "N/A"}',
-                        AppColors.primary,
-                      ),
-                      const SizedBox(width: 16),
-                      _buildMiniMetric(
-                        Icons.psychology_outlined, 
-                        'Perf: ${subject.performanceMean?.toStringAsFixed(2) ?? "N/A"}',
-                        AppColors.success,
-                      ),
-                    ],
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
@@ -120,12 +122,20 @@ class SubjectCard extends StatelessWidget {
         children: [
           Text(
             score > 0 ? score.toStringAsFixed(2) : 'N/A',
-            style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontSize: 14,
+            ),
           ),
           if (score > 0)
             Text(
               Subject.getVDCode(score),
-              style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 10),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 10,
+              ),
             ),
         ],
       ),
@@ -139,7 +149,11 @@ class SubjectCard extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
