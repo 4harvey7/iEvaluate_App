@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  cleanEmail,
+  cleanIdentity,
+  describeAuthEmailTaken,
+  describeConflict,
+  describeUniqueViolation,
+  findIdentityConflict,
+  rollbackAuthUser,
+  validateIdentityFormat,
+} from '../_shared/identity_guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,7 +46,29 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { firstName, lastName, email, universityId, roleName, deptId, verificationCode } = await req.json()
+    const {
+      firstName: rawFirstName,
+      lastName: rawLastName,
+      email: rawEmail,
+      universityId: rawUniversityId,
+      roleName, deptId, verificationCode,
+    } = await req.json()
+
+    // ── Input hygiene ────────────────────────────────────────────────────────
+    // Same rules as admin-create-user, from the same shared module, so a value
+    // rejected on one admin screen cannot be accepted on the other.
+    const formatError = validateIdentityFormat({
+      firstName: rawFirstName,
+      lastName: rawLastName,
+      email: rawEmail,
+      universityId: rawUniversityId,
+    })
+    if (formatError) throw new Error(`Invalid input: ${formatError}`)
+
+    const firstName = cleanIdentity(rawFirstName)
+    const lastName = cleanIdentity(rawLastName)
+    const email = cleanEmail(rawEmail)
+    const universityId = cleanIdentity(rawUniversityId)
 
     // 1. Identity & Role Verification (Is caller SAO_ADMIN?)
     const authHeader = req.headers.get('Authorization')
@@ -57,31 +89,55 @@ serve(async (req) => {
       }
     }
 
-    // 3. 🎲 Generate Temp Password
+    // 3. 🚫 Duplicate check BEFORE creating anything
+    // Ahead of createUser on purpose: creating the auth account first and
+    // hitting the duplicate at the user_info insert would leave an auth user
+    // with no profile row, invisible in the admin lists but still holding that
+    // email address.
+    const conflict = await findIdentityConflict(supabaseAdmin, {
+      firstName, lastName, email, universityId,
+    })
+    if (conflict) throw new Error(describeConflict(conflict, firstName, lastName))
+
+    // 4. 🎲 Generate Temp Password
     const tempPassword = generateTempPassword()
 
-    // 4. Create User in Auth
+    // 5. Create User in Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email, password: tempPassword, email_confirm: true,
       user_metadata: { first_name: firstName, last_name: lastName }
     })
-    if (authError) throw authError
+    if (authError) {
+      const taken = describeAuthEmailTaken(authError)
+      throw taken ? new Error(taken) : authError
+    }
 
     const userId = authData.user.id
 
-    // 5. Update user_info
-    await supabaseAdmin.from('user_info').insert({
-      id: userId, first_name: firstName, last_name: lastName,
-      email, university_id: universityId, account_status: 'approved'
-    })
+    // 6. Profile + department rows. Any failure past this point has to undo the
+    // auth account, otherwise that email is stranded.
+    try {
+      const { error: infoError } = await supabaseAdmin.from('user_info').insert({
+        id: userId, first_name: firstName, last_name: lastName,
+        email, university_id: universityId, account_status: 'approved'
+      })
+      if (infoError) throw infoError
 
-    // 6. Update department_table
-    const { data: roleData } = await supabaseAdmin.from('roles').select('id').eq('Roles', roleName).single()
-    await supabaseAdmin.from('department_table').insert({
-      user_id: userId,
-      Department_name_ID: deptId,
-      roles: roleData!.id
-    })
+      const { data: roleData, error: roleFetchError } = await supabaseAdmin
+        .from('roles').select('id').eq('Roles', roleName).single()
+      if (roleFetchError || !roleData) throw new Error('Invalid input: unknown role')
+
+      const { error: deptError } = await supabaseAdmin.from('department_table').insert({
+        user_id: userId,
+        Department_name_ID: deptId,
+        roles: roleData.id
+      })
+      if (deptError) throw deptError
+    } catch (insertError) {
+      await rollbackAuthUser(supabaseAdmin, userId)
+      const dup = describeUniqueViolation(insertError)
+      throw dup ? new Error(dup) : insertError
+    }
 
     // 7. 📧 Notify User via Brevo
     const BREVO_KEY = Deno.env.get('BREVO_API_KEY')
@@ -107,6 +163,13 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ message: 'Academic user created' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+    // Only known-safe messages are returned verbatim; anything else could carry
+    // database or internal detail. Matches admin-create-user and
+    // admin-update-role, which already filter this way.
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Invalid verification', 'Duplicate', 'Invalid input']
+    const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
+      ? error.message
+      : 'Operation failed. Please try again.'
+    return new Response(JSON.stringify({ error: safeMessage }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
   }
 })

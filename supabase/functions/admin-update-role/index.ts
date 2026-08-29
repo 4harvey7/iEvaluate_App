@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  cleanIdentity,
+  describeConflict,
+  describeUniqueViolation,
+  findIdentityConflict,
+  validateIdentityFormat,
+} from '../_shared/identity_guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +31,26 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-    const { targetUserId, firstName, lastName, roleId, roleName, verificationCode, isAcademic, isPromotion } = await req.json()
+    const {
+      targetUserId,
+      firstName: rawFirstName,
+      lastName: rawLastName,
+      roleId, roleName, verificationCode, isAcademic, isPromotion,
+    } = await req.json()
+
+    if (!targetUserId) throw new Error('Invalid input: missing target user')
+
+    // Renaming is the other way a duplicate gets created: the account was
+    // unique when it was made, then someone edits the name to match an existing
+    // person. Same rules as the create endpoints, from the same module.
+    const formatError = validateIdentityFormat({
+      firstName: rawFirstName,
+      lastName: rawLastName,
+    })
+    if (formatError) throw new Error(`Invalid input: ${formatError}`)
+
+    const firstName = cleanIdentity(rawFirstName)
+    const lastName = cleanIdentity(rawLastName)
 
     // ── Authenticate caller ───────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -72,11 +98,23 @@ serve(async (req) => {
       await supabaseAdmin.from('admin_verifications').delete().eq('admin_id', caller.id)
     }
 
+    // ── Duplicate name check ──────────────────────────────────────────────────
+    // excludeUserId is this account, so saving the dialog without changing the
+    // name does not report the person as a duplicate of themselves.
+    const conflict = await findIdentityConflict(supabaseAdmin, {
+      firstName, lastName, excludeUserId: targetUserId,
+    })
+    if (conflict) throw new Error(describeConflict(conflict, firstName, lastName))
+
     // ── Perform Updates ───────────────────────────────────────────────────────
-    await supabaseAdmin.from('user_info').update({
+    const { error: updateError } = await supabaseAdmin.from('user_info').update({
       first_name: firstName,
       last_name: lastName
     }).eq('id', targetUserId)
+    if (updateError) {
+      const dup = describeUniqueViolation(updateError)
+      throw dup ? new Error(dup) : updateError
+    }
 
     if (isAcademic) {
       await supabaseAdmin.from('department_table').update({ roles: roleId }).eq('user_id', targetUserId)
@@ -125,7 +163,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Too many failed', 'Invalid verification', 'BREVO_']
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Too many failed', 'Invalid verification', 'BREVO_', 'Duplicate', 'Invalid input']
     const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
       ? error.message
       : 'Operation failed. Please try again.'

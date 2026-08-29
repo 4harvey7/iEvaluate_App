@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import {
+  cleanEmail,
+  cleanIdentity,
+  describeAuthEmailTaken,
+  describeConflict,
+  describeUniqueViolation,
+  findIdentityConflict,
+  rollbackAuthUser,
+  validateIdentityFormat,
+} from '../_shared/identity_guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,7 +51,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
-    const { firstName, lastName, email, universityId, roleName, address, verificationCode } = await req.json()
+    const {
+      firstName: rawFirstName,
+      lastName: rawLastName,
+      email: rawEmail,
+      universityId: rawUniversityId,
+      roleName, address, verificationCode,
+    } = await req.json()
+
+    // ── Input hygiene ────────────────────────────────────────────────────────
+    // Reject malformed values, then work only with the cleaned ones from here
+    // down. Untrimmed input is how near-duplicates get in: " 12345" and "12345"
+    // are two different rows to a plain equality check but the same ID number
+    // to a human.
+    const formatError = validateIdentityFormat({
+      firstName: rawFirstName,
+      lastName: rawLastName,
+      email: rawEmail,
+      universityId: rawUniversityId,
+    })
+    if (formatError) throw new Error(`Invalid input: ${formatError}`)
+
+    const firstName = cleanIdentity(rawFirstName)
+    const lastName = cleanIdentity(rawLastName)
+    const email = cleanEmail(rawEmail)
+    const universityId = cleanIdentity(rawUniversityId)
 
     // ── Identity & Role Verification ─────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -80,6 +114,16 @@ serve(async (req) => {
       }
     }
 
+    // ── Duplicate check BEFORE creating anything ─────────────────────────────
+    // Deliberately ahead of createUser. Creating the auth account first and
+    // discovering the duplicate at the user_info insert leaves an auth user
+    // with no profile row: invisible in every admin list, yet still holding
+    // that email address forever.
+    const conflict = await findIdentityConflict(supabaseAdmin, {
+      firstName, lastName, email, universityId,
+    })
+    if (conflict) throw new Error(describeConflict(conflict, firstName, lastName))
+
     const tempPassword = generateTempPassword()
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -88,20 +132,43 @@ serve(async (req) => {
       email_confirm: true,
       user_metadata: { first_name: firstName, last_name: lastName }
     })
-    if (authError) throw authError
+    if (authError) {
+      // auth.users has its own unique email index, and a soft-deleted person
+      // still occupies theirs.
+      const taken = describeAuthEmailTaken(authError)
+      throw taken ? new Error(taken) : authError
+    }
 
     const userId = authData.user.id
-    await supabaseAdmin.from('user_info').insert({
-      id: userId,
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      university_id: universityId,
-      address: address || 'SAO Office',
-      account_status: 'approved'
-    })
-    const { data: roleData } = await supabaseAdmin.from('roles').select('id').eq('Roles', roleName).single()
-    await supabaseAdmin.from('Sao_users').insert({ user_id: userId, role_id: roleData!.id })
+
+    // From here on, any failure must undo the auth account. The unique indexes
+    // on user_info are the real duplicate guarantee, and they fire here -- the
+    // check above can still be beaten by two admins submitting at the same
+    // instant.
+    try {
+      const { error: infoError } = await supabaseAdmin.from('user_info').insert({
+        id: userId,
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        university_id: universityId,
+        address: address || 'SAO Office',
+        account_status: 'approved'
+      })
+      if (infoError) throw infoError
+
+      const { data: roleData, error: roleFetchError } = await supabaseAdmin
+        .from('roles').select('id').eq('Roles', roleName).single()
+      if (roleFetchError || !roleData) throw new Error('Invalid input: unknown role')
+
+      const { error: saoError } = await supabaseAdmin
+        .from('Sao_users').insert({ user_id: userId, role_id: roleData.id })
+      if (saoError) throw saoError
+    } catch (insertError) {
+      await rollbackAuthUser(supabaseAdmin, userId)
+      const dup = describeUniqueViolation(insertError)
+      throw dup ? new Error(dup) : insertError
+    }
 
     // ── H-2 FIX: Send magic-link invitation instead of plaintext password ────
     // Use Supabase's invite flow — sends a secure time-limited setup link.
@@ -152,7 +219,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    const safePrefixes = ['Unauthorized', 'Forbidden', 'OTP expired', 'Too many failed', 'Invalid OTP', 'BREVO_']
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'OTP expired', 'Too many failed', 'Invalid OTP', 'BREVO_', 'Duplicate', 'Invalid input']
     const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
       ? error.message
       : 'Operation failed. Please try again.'

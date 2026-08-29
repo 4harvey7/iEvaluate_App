@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'identity_validator.dart';
+
 // simple wrapper class to send both success/failure and data back to the UI
 // instead of just crashing and leaving the user confuse
 class AuthResult {
@@ -12,7 +14,20 @@ class AuthResult {
   final String? error;
   final String? role;
   final String? userId;
-  const AuthResult({required this.success, this.error, this.role, this.userId});
+
+  /// Set when [error] is a duplicate-identity clash rather than an ordinary
+  /// failure. The registration screen shows those in a modal instead of as
+  /// inline red text -- a duplicate means "this person is already in the
+  /// system", which is a different kind of answer from "you mistyped".
+  final IdentityField? conflictField;
+
+  const AuthResult({
+    required this.success,
+    this.error,
+    this.role,
+    this.userId,
+    this.conflictField,
+  });
 }
 
 class AuthService {
@@ -38,35 +53,57 @@ class AuthService {
     debugPrint('--- [AUTH] SIGN UP ATTEMPT START ---');
 
     try {
-      // STEP 0: check if university_id is already taken
-      final existingUser = await _supabase
-          .from('user_info')
-          .select('id')
-          .eq('university_id', universityId)
-          .maybeSingle();
-
-      if (existingUser != null) {
-        return const AuthResult(
-            success: false,
-            error: 'The ID is already in the database. If you have more questions ask the SAO.');
+      // STEP 0: format rules, shared with both SAO Admin create screens so a
+      // value rejected here cannot be accepted there.
+      final formatError = IdentityValidator.validateFormat(
+        firstName: firstName,
+        lastName: lastName,
+        email: institutionalEmail,
+        universityId: universityId,
+      );
+      if (formatError != null) {
+        return AuthResult(success: false, error: formatError);
       }
 
-      // STEP 0.5: check if email is already taken
-      final existingEmail = await _supabase
-          .from('user_info')
-          .select('id')
-          .eq('email', institutionalEmail)
-          .maybeSingle();
+      // Clean once, then use only the cleaned values below. Stray whitespace is
+      // how near-duplicates get in: " 12345" and "12345" are two different rows
+      // to the database but the same ID number to a human.
+      final String cleanFirstName = IdentityValidator.clean(firstName);
+      final String cleanLastName = IdentityValidator.clean(lastName);
+      final String cleanEmail = IdentityValidator.cleanEmail(institutionalEmail);
+      final String cleanUniversityId = IdentityValidator.clean(universityId);
+      final String cleanAddress = IdentityValidator.clean(address);
 
-      if (existingEmail != null) {
-        return const AuthResult(
-            success: false,
-            error: 'This email is already registered.');
+      // STEP 0.5: is this person already in the system?
+      //
+      // This replaces two direct SELECTs that did run, but let plenty through:
+      // both used .eq(), which is case-sensitive and whitespace-sensitive, so
+      // "Rodz@ctu.edu.ph" sailed past a stored "rodz@ctu.edu.ph" and " 12345"
+      // past "12345". Neither looked at the name at all. And a check-then-
+      // insert is a race no matter how it is written -- two registrations a few
+      // milliseconds apart both read "available".
+      //
+      // So: normalised comparison, names included, via one RPC that every
+      // create and rename path shares, backed by unique indexes that hold even
+      // when the race is lost.
+      final availability = await IdentityValidator.checkAvailability(
+        client: _supabase,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        email: cleanEmail,
+        universityId: cleanUniversityId,
+      );
+      if (!availability.isAvailable) {
+        return AuthResult(
+          success: false,
+          error: availability.error,
+          conflictField: availability.field,
+        );
       }
 
       // STEP 1: create the user account in supabase auth first
       final authResponse = await _supabase.auth.signUp(
-        email: institutionalEmail,
+        email: cleanEmail,
         password: password,
       );
 
@@ -111,16 +148,41 @@ class AuthService {
       }
 
       // STEP 4: insert the user basic info into user_info table
-      await _supabase.from('user_info').insert({
-        'id': userId,
-        'first_name': firstName,
-        'last_name': lastName,
-        'address': address,
-        'email': institutionalEmail,
-        'account_status': 'pending', // all new accounts need admin approval before they can login
-        'university_id': universityId,
-        'employment_status': employmentStatus,
-      });
+      //
+      // The unique indexes from migration 20240130000008 are enforced here, and
+      // this is where a genuine race lands: two people register the same ID
+      // milliseconds apart, both pre-flight checks passed, and the database
+      // rejects the second one. mapDatabaseError turns that into the same
+      // wording the pre-flight check would have used.
+      try {
+        await _supabase.from('user_info').insert({
+          'id': userId,
+          'first_name': cleanFirstName,
+          'last_name': cleanLastName,
+          'address': cleanAddress,
+          'email': cleanEmail,
+          'account_status': 'pending', // all new accounts need admin approval before they can login
+          'university_id': cleanUniversityId,
+          'employment_status': employmentStatus,
+        });
+      } catch (insertError) {
+        final duplicate = IdentityValidator.mapDatabaseError(
+          insertError,
+          firstName: cleanFirstName,
+          lastName: cleanLastName,
+        );
+        if (duplicate == null) rethrow;
+        // The auth account now exists with no profile row. Only the service
+        // role can delete an auth user, so the app cannot clean this up --
+        // hence the instruction to contact the SAO office.
+        debugPrint('[AUTH] Duplicate at user_info insert; auth user $userId is orphaned.');
+        await signOut();
+        return AuthResult(
+          success: false,
+          error: '$duplicate\n\nPlease contact the SAO office to have this sorted out.',
+          conflictField: IdentityField.name,
+        );
+      }
 
       // STEP 5: link user to the right table depending on their role
       // SAO users go to Sao_users table, everyone else go to department_table
@@ -163,6 +225,27 @@ class AuthService {
       if (msg.contains('SocketException') || msg.contains('Failed host lookup') || msg.contains('errno = 7')) {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
+      // Supabase Auth keeps its own unique index on the email address and never
+      // releases it, so an email can be free in user_info yet still taken here.
+      final lower = msg.toLowerCase();
+      if (lower.contains('already been registered') ||
+          lower.contains('already registered') ||
+          lower.contains('user_already_exists')) {
+        return const AuthResult(
+          success: false,
+          error: 'This email address already has an account. Try logging in, '
+              'or use Forgot Password if you cannot remember it.',
+          conflictField: IdentityField.email,
+        );
+      }
+      final duplicate = IdentityValidator.mapDatabaseError(e);
+      if (duplicate != null) {
+        return AuthResult(
+          success: false,
+          error: duplicate,
+          conflictField: IdentityField.universityId,
+        );
+      }
       return const AuthResult(success: false, error: 'Registration failed. Please try again.');
     }
   }
@@ -181,17 +264,34 @@ class AuthService {
       // STEP 1: if user type their university ID instead of email, we convert it here
       // we use a generic error message on fail so attacker cant tell if an ID exist or not
       if (!idOrEmail.contains('@')) {
-        final userSearch = await _supabase
+        final typedId = IdentityValidator.clean(idOrEmail);
+
+        // Anything that is not a well-formed ID cannot match a stored one, so
+        // there is nothing to look up. This also keeps LIKE metacharacters out
+        // of the ilike pattern below -- '%' would otherwise match every row.
+        if (IdentityValidator.validateUniversityId(typedId) != null) {
+          return const AuthResult(success: false, error: 'Incorrect ID or password. Please try again.');
+        }
+
+        // ilike, not eq: IDs are stored as typed, so 'ctu-1234' must still find
+        // 'CTU-1234'. limit(1) rather than maybeSingle() because maybeSingle
+        // THROWS when more than one row comes back -- meaning a single
+        // duplicated ID in the table used to lock out both of those people and
+        // every login attempt on that ID. Ordering by created_at makes the
+        // choice deterministic (oldest account wins) for as long as any
+        // pre-existing duplicates remain.
+        final matches = await _supabase
             .from('user_info')
             .select('email')
-            .eq('university_id', idOrEmail)
-            .maybeSingle();
+            .ilike('university_id', typedId)
+            .order('created_at', ascending: true)
+            .limit(1);
 
-        if (userSearch == null) {
+        if (matches.isEmpty || matches.first['email'] == null) {
           // we give the same error whether ID exist or not, security measure ni siya
           return const AuthResult(success: false, error: 'Incorrect ID or password. Please try again.');
         }
-        emailToUse = userSearch['email'];
+        emailToUse = matches.first['email'] as String;
       }
 
       // STEP 2: now we actually try to login with supabase auth using the email
@@ -390,15 +490,44 @@ class AuthService {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return const AuthResult(success: false, error: 'No user logged in.');
 
+      // Renaming yourself is the third way a duplicate full name appears --
+      // after registration and after an admin edit. Same shared rules.
+      final formatError = IdentityValidator.validateFormat(
+        firstName: firstName,
+        lastName: lastName,
+      );
+      if (formatError != null) {
+        return AuthResult(success: false, error: formatError);
+      }
+
+      final String cleanFirstName = IdentityValidator.clean(firstName);
+      final String cleanLastName = IdentityValidator.clean(lastName);
+
+      // excludeUserId is this account, so saving the settings page without
+      // actually changing the name does not report you as your own duplicate.
+      final availability = await IdentityValidator.checkAvailability(
+        client: _supabase,
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        excludeUserId: userId,
+      );
+      if (!availability.isAvailable) {
+        return AuthResult(success: false, error: availability.error);
+      }
+
       // update only name fields, we dont touch the rest so dili ma-overwrite
       await _supabase.from('user_info').update({
-        'first_name': firstName,
-        'last_name': lastName,
+        'first_name': cleanFirstName,
+        'last_name': cleanLastName,
       }).eq('id', userId);
 
       return const AuthResult(success: true);
     } catch (e) {
       debugPrint('[AUTH] Update Profile Error: $e');
+      final duplicate = IdentityValidator.mapDatabaseError(e);
+      if (duplicate != null) {
+        return AuthResult(success: false, error: duplicate);
+      }
       // return generic message so the raw error dont scare the user
       return const AuthResult(success: false, error: 'Profile update failed. Please try again.');
     }
@@ -411,25 +540,35 @@ class AuthService {
       final userId = _supabase.auth.currentUser?.id;
       if (userId == null) return const AuthResult(success: false, error: 'No user logged in.');
 
-      // Check if new email is already used by someone else
-      final existingEmail = await _supabase
-          .from('user_info')
-          .select('id')
-          .eq('email', newEmail)
-          .maybeSingle();
+      final formatError = IdentityValidator.validateEmail(newEmail);
+      if (formatError != null) {
+        return AuthResult(success: false, error: formatError);
+      }
+      final String cleanNewEmail = IdentityValidator.cleanEmail(newEmail);
 
-      if (existingEmail != null && existingEmail['id'] != userId) {
-        return const AuthResult(success: false, error: 'This email is already in use by another account.');
+      // Check if new email is already used by someone else.
+      //
+      // The previous check used .eq(), so it only caught an exact byte match --
+      // changing your address to the capitalised form of a colleague's went
+      // straight through. Normalised comparison now, and the unique index on
+      // email is the backstop.
+      final availability = await IdentityValidator.checkAvailability(
+        client: _supabase,
+        email: cleanNewEmail,
+        excludeUserId: userId,
+      );
+      if (!availability.isAvailable) {
+        return AuthResult(success: false, error: availability.error);
       }
 
       // 1. Update in Supabase Auth (this sends a confirmation link to the new email)
       await _supabase.auth.updateUser(
-        UserAttributes(email: newEmail),
+        UserAttributes(email: cleanNewEmail),
       );
 
       // 2. Update in user_info table so the database matches
       await _supabase.from('user_info').update({
-        'email': newEmail,
+        'email': cleanNewEmail,
       }).eq('id', userId);
 
       return const AuthResult(success: true);

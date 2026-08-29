@@ -5,7 +5,9 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import 'core/config/agreements.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/identity_validator.dart';
 import 'theme/app_colors.dart';
+import 'widgets/duplicate_warning_dialog.dart';
 
 // the main widget for the signup screen. stateful because things gonna change
 class SignUpScreen extends StatefulWidget {
@@ -103,11 +105,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
   }
 
-  // validate the email format, returns error string if bad, null if good
+  // live errorText under the email field. delegates to the shared rules so the
+  // registration screen and both SAO Admin screens agree on what a valid
+  // address is.
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) return null; // empty is handled elsewhere, skip
-    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$'); // the classic email regex
-    return emailRegex.hasMatch(value) ? null : 'Enter a valid email'; // either pass or fail, simple
+    return IdentityValidator.validateEmail(value);
   }
 
   // validate the current step before user allowed to go to next step
@@ -115,17 +118,22 @@ class _SignUpScreenState extends State<SignUpScreen> {
   String? _validateCurrentStep() {
     switch (_currentPage) {
       case 0: // Personal info -- name and address, basic stuff
-        if (_firstNameController.text.trim().isEmpty) return 'First name is required';
-        if (_lastNameController.text.trim().isEmpty) return 'Last name is required';
+        // IdentityValidator owns the name rules, because the name is half of a
+        // uniqueness key: first + last together must be unique, so both fields
+        // have to be cleaned and checked the same way everywhere.
+        final nameError = IdentityValidator.validateFormat(
+          firstName: _firstNameController.text,
+          lastName: _lastNameController.text,
+        );
+        if (nameError != null) return nameError;
         if (_addressController.text.trim().isEmpty) return 'Address is required';
         return null;
       case 1: // Academic info -- ID, email, role, dept
-        final id = _idController.text.trim();
-        if (id.isEmpty) return 'University ID is required';
-        if (id.length < 4) return 'University ID must be at least 4 characters';
-        if (!RegExp(r'^[a-zA-Z0-9\-]+$').hasMatch(id)) return 'University ID must be letters, numbers, or hyphens only';
-        if (_emailController.text.trim().isEmpty) return 'Institutional email is required';
-        if (_validateEmail(_emailController.text.trim()) != null) return 'Enter a valid institutional email';
+        final academicError = IdentityValidator.validateFormat(
+          email: _emailController.text,
+          universityId: _idController.text,
+        );
+        if (academicError != null) return academicError;
         if (_roleController.text.trim().isEmpty) return 'Please select a role';
         if (!_roleController.text.toUpperCase().contains('SAO') && _departmentController.text.trim().isEmpty) {
           return 'Please select a department'; // SAO users dili need department, lucky them
@@ -167,14 +175,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
     // TODO: signUp() logic lives in AuthService. Add Supabase code there, not here.
     // This is the part where all the UI data is "sent" to the auth_service.dart
     // we just pass data here, auth_service do the heavy lifting
+    // Trimmed on the way out. AuthService cleans these again -- it has to,
+    // since it is also reachable from elsewhere -- but sending raw text means
+    // the value the user is told about and the value that gets stored differ.
     final result = await _authService.signUp(
-      firstName: _firstNameController.text,
-      lastName: _lastNameController.text,
-      address: _addressController.text,
-      universityId: _idController.text,
-      institutionalEmail: _emailController.text,
-      departmentName: _departmentController.text,
-      roleName: _roleController.text,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      address: _addressController.text.trim(),
+      universityId: _idController.text.trim(),
+      institutionalEmail: _emailController.text.trim(),
+      departmentName: _departmentController.text.trim(),
+      roleName: _roleController.text.trim(),
       password: _passwordController.text,
       employmentStatus: _selectedEmploymentStatus,
     );
@@ -184,6 +195,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     if (result.success) {
       _showPendingApprovalDialog(); // success! tell user to wait for admin blessing
+    } else if (result.conflictField != null) {
+      // Already in the database. That is not a typo the user can fix by
+      // squinting at red text, so it gets a modal they have to dismiss.
+      await showDuplicateWarningDialog(
+        context,
+        message: result.error!,
+        field: result.conflictField,
+      );
     } else {
       setState(() => _errorMessage = result.error); // something went wrong, show the error
     }

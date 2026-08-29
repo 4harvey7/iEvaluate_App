@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
+import '../core/services/identity_validator.dart';
+import '../widgets/duplicate_warning_dialog.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -312,7 +314,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     // Account Details
                     Text('Account Details', style: AppTextStyles.titleSmall),
                     const SizedBox(height: 16),
-                    _detailRow(Icons.badge_outlined,      'University ID',   universityId),
+                    _detailRow(Icons.badge_outlined,      'Staff ID',        universityId),
                     _detailRow(Icons.email_outlined,       'Email Address',   email),
                     _detailRow(Icons.check_circle_outline, 'Account Status',  isActive ? 'Approved' : accountStatus),
 
@@ -400,6 +402,21 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     bool needsCode = false; // becomes true if promoting to SAO_ADMIN
     bool isSaving = false;
 
+    // What the record looked like when the dialog opened. Still equal to this
+    // means there is nothing to save.
+    final String originalFirst = (ui['first_name'] ?? '').toString().trim();
+    final String originalLast = (ui['last_name'] ?? '').toString().trim();
+    final int originalRoleId = selectedRoleId;
+
+    // Reads the live values so the button label follows what is typed. Nothing
+    // changed -> the button says Back and just closes: no duplicate check, no
+    // edge function call, and no "your account was updated" email to someone
+    // whose account was not in fact updated.
+    bool hasChanges() =>
+        firstController.text.trim() != originalFirst ||
+        lastController.text.trim() != originalLast ||
+        selectedRoleId != originalRoleId;
+
     showDialog(
       context: context,
       barrierDismissible: false, // cannot dismiss by tapping outside
@@ -414,10 +431,20 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (!needsCode) ...[
-                  // step 1: edit form
-                  TextField(controller: firstController, decoration: const InputDecoration(labelText: 'First Name')),
+                  // step 1: edit form.
+                  // onChanged rebuilds the dialog so the action button can flip
+                  // between Back and Save Changes as the admin types.
+                  TextField(
+                    controller: firstController,
+                    decoration: const InputDecoration(labelText: 'First Name'),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
                   const SizedBox(height: 12),
-                  TextField(controller: lastController, decoration: const InputDecoration(labelText: 'Last Name')),
+                  TextField(
+                    controller: lastController,
+                    decoration: const InputDecoration(labelText: 'Last Name'),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
                   const SizedBox(height: 16),
                   // role dropdown — only SAO roles shown here
                   DropdownButtonFormField<int>(
@@ -450,6 +477,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
               onPressed: () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
+                // Nothing edited: behave as a plain Back button.
+                if (!hasChanges()) {
+                  navigator.pop();
+                  return;
+                }
                 final selectedRole = _saoRoles.firstWhere((r) => r['id'] == selectedRoleId);
                 // check if this is a promotion from non-admin to admin
                 final bool isUpgradingToAdmin = selectedRole['Roles'] == 'SAO_ADMIN' && 
@@ -500,13 +532,49 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   final targetUserId = person['user_id'];
                   final roleName = selectedRole['Roles'];
 
+                  // Renaming is the second way a duplicate appears: the account
+                  // was unique when created, then someone edits the name to
+                  // match an existing person. Validated here for a fast, clear
+                  // message; admin-update-role re-checks it server-side, and the
+                  // unique index is the actual guarantee.
+                  final newFirst = firstController.text.trim();
+                  final newLast = lastController.text.trim();
+                  final formatError = IdentityValidator.validateFormat(
+                    firstName: newFirst, lastName: newLast,
+                  );
+                  if (formatError != null) {
+                    setDialogState(() => isSaving = false);
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text(formatError), backgroundColor: AppColors.error),
+                    );
+                    return;
+                  }
+                  // excludeUserId is this account, so saving without touching
+                  // the name does not report the person as their own duplicate.
+                  final availability = await IdentityValidator.checkAvailability(
+                    client: _supabase,
+                    firstName: newFirst,
+                    lastName: newLast,
+                    excludeUserId: targetUserId?.toString(),
+                  );
+                  if (!availability.isAvailable) {
+                    setDialogState(() => isSaving = false);
+                    if (!context.mounted) return;
+                    await showDuplicateWarningDialog(
+                      context,
+                      message: availability.error!,
+                      field: availability.field,
+                    );
+                    return;
+                  }
+
                   // 2. Call the Edge Function to verify the code and update the role
                   final response = await _supabase.functions.invoke(
                     'admin-update-role',
                     body: {
                       'targetUserId': targetUserId,
-                      'firstName': firstController.text.trim(),
-                      'lastName': lastController.text.trim(),
+                      'firstName': newFirst,
+                      'lastName': newLast,
                       'roleId': selectedRoleId,
                       'roleName': roleName,
                       'isAcademic': false,
@@ -532,15 +600,31 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error)
+                  // describeEdgeFunctionError digs the server's own wording out
+                  // of the exception. Without it a duplicate shows up as
+                  // "FunctionException(status: 400, details: {error: ...})".
+                  final msg = IdentityValidator.describeEdgeFunctionError(
+                    e,
+                    fallback: 'Update failed. Please try again.',
                   );
+                  if (isDuplicateMessage(msg)) {
+                    if (!context.mounted) return;
+                    await showDuplicateWarningDialog(context, message: msg);
+                  } else {
+                    scaffoldMessenger.showSnackBar(SnackBar(
+                      content: Text(msg),
+                      backgroundColor: AppColors.error,
+                      duration: const Duration(seconds: 6),
+                    ));
+                  }
                 }
               },
               // show spinner or button label depending on save state
-              child: isSaving 
+              child: isSaving
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text(needsCode ? 'Verify & Save' : 'Save Changes'),
+                : Text(needsCode
+                    ? 'Verify & Save'
+                    : (hasChanges() ? 'Save Changes' : 'Back')),
             ),
           ],
         ),
@@ -581,7 +665,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const SizedBox(height: 12),
                   TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
                   const SizedBox(height: 12),
-                  TextField(controller: idController, decoration: const InputDecoration(labelText: 'University ID')),
+                  TextField(controller: idController, decoration: const InputDecoration(labelText: 'Staff ID')),
                   const SizedBox(height: 16),
                   // role dropdown — only SAO roles (SAO_ADMIN, SAO_STAFF etc.)
                   DropdownButtonFormField<String>(
@@ -629,14 +713,33 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
                   return;
                 }
-                // validate email format — looks murag real email
-                if (!RegExp(r'^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(em)) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red));
+                // Name / email / ID rules all come from IdentityValidator, so
+                // this screen, User Management and the public registration
+                // screen accept exactly the same values. They used to disagree.
+                final formatError = IdentityValidator.validateFormat(
+                  firstName: fn, lastName: ln, email: em, universityId: id,
+                  idLabel: IdentityValidator.staffIdLabel,
+                );
+                if (formatError != null) {
+                  scaffoldMessenger.showSnackBar(SnackBar(content: Text(formatError), backgroundColor: AppColors.error));
                   return;
                 }
-                // university ID must have at least 4 chars — reasonable minimum
-                if (id.length < 4) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('University ID must be at least 4 characters'), backgroundColor: Colors.red));
+                // Is this person already in the system? Checked here so the
+                // admin gets a clear message before an OTP is sent and before
+                // any account is created. The unique indexes in the database
+                // are what actually guarantee it; this is the friendly warning.
+                final availability = await IdentityValidator.checkAvailability(
+                  client: _supabase,
+                  firstName: fn, lastName: ln, email: em, universityId: id,
+                  idLabel: IdentityValidator.staffIdLabel,
+                );
+                if (!availability.isAvailable) {
+                  if (!context.mounted) return;
+                  await showDuplicateWarningDialog(
+                    context,
+                    message: availability.error!,
+                    field: availability.field,
+                  );
                   return;
                 }
 
@@ -693,7 +796,24 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   }
                 } catch (e) {
                   setDialogState(() => isSaving = false);
-                  scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.error));
+                  // The server's duplicate message has to survive to the admin,
+                  // so unwrap the exception rather than printing it.
+                  final msg = IdentityValidator.describeEdgeFunctionError(
+                    e,
+                    fallback: 'Could not create the personnel. Please try again.',
+                  );
+                  // A duplicate can still land here if two admins submit the
+                  // same person at once and the unique index catches the second.
+                  if (isDuplicateMessage(msg)) {
+                    if (!context.mounted) return;
+                    await showDuplicateWarningDialog(context, message: msg);
+                  } else {
+                    scaffoldMessenger.showSnackBar(SnackBar(
+                      content: Text(msg),
+                      backgroundColor: AppColors.error,
+                      duration: const Duration(seconds: 6),
+                    ));
+                  }
                 }
               },
               child: isSaving
