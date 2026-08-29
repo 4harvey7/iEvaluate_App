@@ -208,9 +208,13 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       int neg = 0;
       for (final r in remarksData) {
         final tone = r['tone'] ?? 'Neutral';
-        if (tone == 'Positive') pos++;
-        else if (tone == 'Critical') neg++;
-        else neu++;
+        if (tone == 'Positive') {
+          pos++;
+        } else if (tone == 'Critical') {
+          neg++;
+        } else {
+          neu++;
+        }
       }
       final totalRemarks = pos + neu + neg;
       int posPct = totalRemarks > 0 ? ((pos / totalRemarks) * 100).round() : 0;

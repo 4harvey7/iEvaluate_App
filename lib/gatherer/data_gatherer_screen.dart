@@ -14,7 +14,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../theme/app_colors.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/services/auth_service.dart';
@@ -25,7 +24,6 @@ import 'gatherer_settings_view.dart';
 import 'google_sheet_import_screen.dart';
 import 'data_validation_screen.dart';
 import '../sao_admin/import_errors_screen.dart';
-import 'failed_scans_screen.dart';
 import '../widgets/apple_ui.dart';
 
 import 'gatherer_drawer.dart';
@@ -224,8 +222,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           _currentYear = settings.academicYear;
           _currentTermId = settings.termId;
         });
-        if (termChanged)
+        if (termChanged) {
           _fetchSupabaseStats(); // term changed, re-fetch everything
+        }
       }
     });
   }
@@ -259,10 +258,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       // timeout or connection error — server probably dead, or wrong IP
       if (mounted) setState(() => _n8nOnline = false);
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _checkingN8n = false,
         ); // done checking, whether success or not
+      }
     }
   }
 
@@ -344,10 +344,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             );
           })
           .toList();
-      if (mounted)
+      if (mounted) {
         setState(
           () => _localQueue.addAll(loaded),
         ); // put them back in the queue
+      }
     } catch (e) {
       debugPrint('loadQueue error: $e'); // storage broken? that unusual
     }
@@ -480,31 +481,35 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         _linkController.clear(); // clear the input field, import done
-        if (mounted)
+        if (mounted) {
           _showStatusDialog(
             title: 'Import Successful',
             message: 'The data has been successfully sent and processed.',
             isSuccess: true,
           );
+        }
       } else {
         // n8n return an error status — something wrong server-side
-        if (mounted)
+        if (mounted) {
           _showStatusDialog(
             title: 'Import Failed',
             message: 'Server returned an error (${response.statusCode}).',
             isSuccess: false,
           );
+        }
       }
     } catch (e) {
       // network error or timeout — n8n might be down, check IP/URL
-      if (mounted && !dialogPopped)
+      if (mounted && !dialogPopped) {
         Navigator.of(context).pop(); // close dialog if not already closed
-      if (mounted)
+      }
+      if (mounted) {
         _showStatusDialog(
           title: 'Import Failed',
           message: 'Could not connect to n8n. Make sure the server is running.',
           isSuccess: false,
         );
+      }
     }
   }
 
@@ -566,8 +571,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     // Haptic feedback if enabled — vibrate phone so scanner know it worked
     SharedPreferences.getInstance().then((prefs) {
       final hapticEnabled = prefs.getBool('gatherer_haptic_feedback') ?? true;
-      if (hapticEnabled)
+      if (hapticEnabled) {
         HapticFeedback.mediumImpact(); // medium buzz, not too strong
+      }
     });
 
     // only auto-upload if we not paused — if paused, stays pending until resume
@@ -599,8 +605,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
     try {
       final file = File(task.localPath);
-      if (!await file.exists())
+      if (!await file.exists()) {
         throw Exception('File not found'); // image missing? error
+      }
 
       final bytes = await file.readAsBytes(); // read raw image bytes
       final base64Image = base64Encode(

@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/agreements.dart';
 import 'core/services/auth_service.dart';
@@ -12,7 +11,7 @@ import 'signup_screen.dart';
 import 'theme/app_colors.dart';
 import 'theme/app_text_styles.dart';
 import 'widgets/apple_ui.dart';
-import 'widgets/safe_button.dart';
+import 'widgets/forgot_password_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,7 +31,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hasAcceptedAgreements = false;
   String?
   _errorMessage; // null means no error, something means user did something wrong
-  late final StreamSubscription<AuthState> _authSubscription;
 
   // rate limiting to stop people from guessing password all day, 5 tries then lockout
   int _failedLoginAttempts = 0;
@@ -43,24 +41,8 @@ class _LoginScreenState extends State<LoginScreen> {
   ); // 5 minutes timeout, take a break
 
   @override
-  void initState() {
-    super.initState();
-    // we listen to auth state changes here so we know when user click the password reset link
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((
-      data,
-    ) {
-      final AuthChangeEvent event = data.event;
-      // if the event is password recovery, we show the update password dialog immediately
-      if (event == AuthChangeEvent.passwordRecovery) {
-        _showUpdatePasswordDialog();
-      }
-    });
-  }
-
-  @override
   void dispose() {
     // clean up everything when this screen is gone, very important so we dont leak memory
-    _authSubscription.cancel();
     _idController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -118,8 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
       password: password,
     );
 
-    if (!mounted)
+    if (!mounted) {
       return; // safety check in case screen was closed while loading
+    }
     setState(() => _isLoading = false);
 
     if (result.success) {
@@ -176,173 +159,17 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // show the forgot password dialog so user can request a reset link via email
-  void _showForgotPasswordDialog() {
-    final emailController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Reset Password'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Enter your institutional email to receive a reset link.',
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                hintText: 'email@ctu.edu.ph',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+  // Forgot password — opens the in-app reset modal: email -> emailed code
+  // -> new password. No reset link / browser round-trip involved.
+  Future<void> _handleForgotPassword() async {
+    final changed = await showForgotPasswordDialog(context);
+    if (!mounted || changed != true) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Password updated successfully! Please log in with your new password.',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          SafeElevatedButton(
-            onPressed: () async {
-              final email = emailController.text.trim();
-              if (email.isEmpty)
-                return; // dont send anything if the field is blank
-
-              // we store navigator and scaffold messenger before the async call
-              // this is important so we dont use context after it might be gone
-              final scaffoldMessenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
-
-              navigator.pop(); // close dialog first, then send the request
-              final result = await _authService.sendPasswordResetEmail(email);
-
-              // show snackbar to tell user if the reset email was sent or not
-              scaffoldMessenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    result.success
-                        ? 'Reset link sent! Check your email.'
-                        : 'Error: ${result.error}',
-                  ),
-                  backgroundColor: result.success
-                      ? AppColors.success
-                      : AppColors.error,
-                ),
-              );
-            },
-            child: const Text('Send Link'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // show the update password dialog when user click the reset link from their email
-  // this pop up automatically when supabase detect the password recovery event
-  void _showUpdatePasswordDialog() {
-    final passwordController = TextEditingController();
-    bool isUpdating = false;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text(
-            'Set New Password',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Your identity has been verified. Please enter a new password for your account.',
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lock_reset),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: isUpdating
-                  ? null
-                  : () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      final navigator = Navigator.of(context);
-                      final newPass = passwordController.text.trim();
-
-                      // validate password strength, must meet all requirements or we reject it
-                      // same rules as signup so its consistent, dili ta puwede mag-cheat diri
-                      final hasLength = newPass.length >= 8;
-                      final hasUpper = newPass.contains(RegExp(r'[A-Z]'));
-                      final hasNumber = newPass.contains(RegExp(r'[0-9]'));
-                      final hasSpecial = newPass.contains(
-                        RegExp(r'[!@#\$%^&*(),.?":{}|<>]'),
-                      );
-
-                      if (!hasLength ||
-                          !hasUpper ||
-                          !hasNumber ||
-                          !hasSpecial) {
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Password must be at least 8 characters and include '
-                              'an uppercase letter, a number, and a special character.',
-                            ),
-                          ),
-                        );
-                        return;
-                      }
-
-                      setDialogState(() => isUpdating = true);
-                      try {
-                        await Supabase.instance.client.auth.updateUser(
-                          UserAttributes(password: newPass),
-                        );
-                        if (mounted) navigator.pop();
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Password updated successfully! Please login.',
-                            ),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                      } catch (e) {
-                        setDialogState(() => isUpdating = false);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Error: $e'),
-                            backgroundColor: AppColors.error,
-                          ),
-                        );
-                      }
-                    },
-              child: isUpdating
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Update Password'),
-            ),
-          ],
-        ),
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -469,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: TextButton(
-                                  onPressed: _showForgotPasswordDialog,
+                                  onPressed: _handleForgotPassword,
                                   child: const Text('Forgot Password?'),
                                 ),
                               ),

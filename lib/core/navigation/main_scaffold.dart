@@ -80,7 +80,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   /// When true, the bottom nav shows NO item highlighted (index = -1 effectively).
   bool _drawerRouteActive = false;
 
-  /// One GlobalKey<NavigatorState> per bottom-nav tab.
+  /// One `GlobalKey<NavigatorState>` per bottom-nav tab.
   /// Kept in a list so we can address the active tab's navigator directly.
   late final List<GlobalKey<NavigatorState>> _navKeys;
 
@@ -140,7 +140,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     final navigator = Navigator.of(ctx);
     final confirm = await showLogoutConfirmationDialog(ctx);
     if (confirm == true) {
-      if (!mounted) return;
+      if (!ctx.mounted) return;
       showLoggingOutOverlay(ctx);
       await Future.delayed(
         const Duration(milliseconds: 1500),
@@ -297,18 +297,18 @@ class _MainScaffoldState extends State<MainScaffold> {
                 Navigator.push(
                   ctx,
                   PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => RoleSwitchScreen(
+                    pageBuilder: (_, _, _) => RoleSwitchScreen(
                       targetRoleName: 'Data Gatherer',
                       targetIcon: Icons.document_scanner_rounded,
                       onComplete: (switchCtx) {
                         Navigator.pushReplacement(
                           switchCtx,
                           PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => DataGathererScreen(
+                            pageBuilder: (_, _, _) => DataGathererScreen(
                               userId: widget.userId,
                               originalRole: UserRole.saoAdmin,
                             ),
-                            transitionsBuilder: (_, anim, __, child) =>
+                            transitionsBuilder: (_, anim, _, child) =>
                                 FadeTransition(opacity: anim, child: child),
                             transitionDuration: const Duration(
                               milliseconds: 300,
@@ -317,7 +317,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                         );
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) =>
+                    transitionsBuilder: (_, anim, _, child) =>
                         FadeTransition(opacity: anim, child: child),
                   ),
                 );
@@ -344,7 +344,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 Navigator.push(
                   ctx,
                   PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => RoleSwitchScreen(
+                    pageBuilder: (_, _, _) => RoleSwitchScreen(
                       targetRoleName: 'Instructor',
                       targetIcon: Icons.menu_book_rounded,
                       onComplete: (switchCtx) {
@@ -352,12 +352,12 @@ class _MainScaffoldState extends State<MainScaffold> {
                         Navigator.pushReplacement(
                           switchCtx,
                           PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => MainScaffold(
+                            pageBuilder: (_, _, _) => MainScaffold(
                               role: UserRole.instructor,
                               userId: widget.userId,
                               originalRole: UserRole.deptHead,
                             ),
-                            transitionsBuilder: (_, anim, __, child) =>
+                            transitionsBuilder: (_, anim, _, child) =>
                                 FadeTransition(opacity: anim, child: child),
                             transitionDuration: const Duration(
                               milliseconds: 300,
@@ -366,7 +366,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                         );
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) =>
+                    transitionsBuilder: (_, anim, _, child) =>
                         FadeTransition(opacity: anim, child: child),
                   ),
                 );
@@ -393,7 +393,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 Navigator.push(
                   ctx,
                   PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => RoleSwitchScreen(
+                    pageBuilder: (_, _, _) => RoleSwitchScreen(
                       targetRoleName: _roleDisplayName(widget.originalRole!),
                       targetIcon:
                           Icons.account_balance_rounded, // or assignment_ind
@@ -403,7 +403,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                         Navigator.of(switchCtx).popUntil((_) => count++ >= 2);
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) =>
+                    transitionsBuilder: (_, anim, _, child) =>
                         FadeTransition(opacity: anim, child: child),
                   ),
                 );

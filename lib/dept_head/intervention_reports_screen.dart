@@ -161,7 +161,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
                       // Dropdown for Action Type — pick what mandated action to apply
                       DropdownButtonFormField<String>(
-                        value: selectedAction,
+                        initialValue: selectedAction,
                         isExpanded: true,
                         decoration: InputDecoration(
                           labelText: 'Mandated Action',

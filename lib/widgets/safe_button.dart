@@ -1,20 +1,9 @@
-/// safe_button.dart
-///
-/// Drop-in replacements for Flutter's built-in buttons that prevent
-/// double-taps on async handlers. users love to spam buttons like crazy,
-/// this file fix that problem. each widget manage its own _isLoading state:
-/// once pressed the button is disabled and show a spinner until future complete
-/// (success or error). pray lang the async finish fast.
-///
-/// Usage -- replace:
-///   ElevatedButton(onPressed: () async { ... })
-/// with:
-///   SafeElevatedButton(onPressed: () async { ... })
-/// simple swap, dili ta need rewrite everything.
+// Drop-in replacements for Flutter's built-in buttons that prevent repeated
+// submissions while an async action is running.
 
-library safe_button;
-
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
+import 'apple_ui.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Internal mixin -- shared loading-state logic used by all Safe button variants
@@ -22,18 +11,25 @@ import 'package:flutter/material.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 mixin _SafeButtonMixin<T extends StatefulWidget> on State<T> {
-  bool _isLoading = false; // tracks if button currently doing async work, starts as false
+  bool _isLoading =
+      false; // tracks if button currently doing async work, starts as false
 
   /// Wraps [callback] with a loading guard so button cant be tapped twice.
   /// if already loading or callback is null, it do nothing -- wala choice, dili pwede proceed.
   /// sets _isLoading true before, false after, whether it succeed or crash.
   Future<void> handlePress(Future<void> Function()? callback) async {
-    if (_isLoading || callback == null) return; // already busy or nothing to do, skip
-    if (mounted) setState(() => _isLoading = true); // lock the button, user cannot spam now
+    if (_isLoading || callback == null) {
+      return;
+    }
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     try {
-      await callback(); // do the actual work, bahala na what happen
+      await callback();
     } finally {
-      if (mounted) setState(() => _isLoading = false); // always unlock after done, even if error
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -43,7 +39,10 @@ mixin _SafeButtonMixin<T extends StatefulWidget> on State<T> {
     return SizedBox(
       height: size,
       width: size,
-      child: CircularProgressIndicator(strokeWidth: 2, color: color), // thin spinner, not too chunky
+      child: CupertinoActivityIndicator(
+        radius: size / 2,
+        color: color,
+      ), // thin spinner, not too chunky
     );
   }
 }
@@ -55,10 +54,12 @@ mixin _SafeButtonMixin<T extends StatefulWidget> on State<T> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SafeElevatedButton extends StatefulWidget {
-  final Future<void> Function()? onPressed; // the async callback, can be null to disable button
-  final Widget child;                        // the button label or content
-  final ButtonStyle? style;                  // optional custom styling
-  final Widget? loadingChild;               // optional custom loading widget, defaults to spinner
+  final Future<void> Function()?
+  onPressed; // the async callback, can be null to disable button
+  final Widget child; // the button label or content
+  final ButtonStyle? style; // optional custom styling
+  final Widget?
+  loadingChild; // optional custom loading widget, defaults to spinner
 
   const SafeElevatedButton({
     super.key,
@@ -77,12 +78,17 @@ class _SafeElevatedButtonState extends State<SafeElevatedButton>
     with _SafeButtonMixin {
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
-      style: widget.style,
-      onPressed: _isLoading ? null : () => handlePress(widget.onPressed), // disable while loading, ayaw allow double tap
-      child: _isLoading
-          ? (widget.loadingChild ?? loadingIndicator()) // show spinner or custom loading widget
-          : widget.child,                               // show normal child when not loading
+    final enabled = !_isLoading && widget.onPressed != null;
+    return ApplePressable(
+      enabled: enabled,
+      pressedScale: 0.985,
+      child: ElevatedButton(
+        style: widget.style,
+        onPressed: enabled ? () => handlePress(widget.onPressed) : null,
+        child: _isLoading
+            ? (widget.loadingChild ?? loadingIndicator())
+            : widget.child,
+      ),
     );
   }
 }
@@ -95,9 +101,9 @@ class _SafeElevatedButtonState extends State<SafeElevatedButton>
 
 class SafeOutlinedButton extends StatefulWidget {
   final Future<void> Function()? onPressed; // the async callback
-  final Widget child;                        // the button label
-  final ButtonStyle? style;                  // optional styling
-  final Widget? loadingChild;               // optional custom loading widget
+  final Widget child; // the button label
+  final ButtonStyle? style; // optional styling
+  final Widget? loadingChild; // optional custom loading widget
 
   const SafeOutlinedButton({
     super.key,
@@ -116,13 +122,20 @@ class _SafeOutlinedButtonState extends State<SafeOutlinedButton>
     with _SafeButtonMixin {
   @override
   Widget build(BuildContext context) {
-    return OutlinedButton(
-      style: widget.style,
-      onPressed: _isLoading ? null : () => handlePress(widget.onPressed), // locked while loading
-      child: _isLoading
-          ? (widget.loadingChild ??
-              loadingIndicator(color: Theme.of(context).colorScheme.primary)) // use primary color for outlined spinner
-          : widget.child,
+    final enabled = !_isLoading && widget.onPressed != null;
+    return ApplePressable(
+      enabled: enabled,
+      pressedScale: 0.985,
+      child: OutlinedButton(
+        style: widget.style,
+        onPressed: enabled ? () => handlePress(widget.onPressed) : null,
+        child: _isLoading
+            ? (widget.loadingChild ??
+                  loadingIndicator(
+                    color: Theme.of(context).colorScheme.primary,
+                  ))
+            : widget.child,
+      ),
     );
   }
 }
@@ -135,8 +148,8 @@ class _SafeOutlinedButtonState extends State<SafeOutlinedButton>
 
 class SafeTextButton extends StatefulWidget {
   final Future<void> Function()? onPressed; // the async callback
-  final Widget child;                        // the label widget
-  final ButtonStyle? style;                  // optional styling, can be null
+  final Widget child; // the label widget
+  final ButtonStyle? style; // optional styling, can be null
 
   const SafeTextButton({
     super.key,
@@ -150,17 +163,23 @@ class SafeTextButton extends StatefulWidget {
 }
 
 // state for SafeTextButton
-class _SafeTextButtonState extends State<SafeTextButton>
-    with _SafeButtonMixin {
+class _SafeTextButtonState extends State<SafeTextButton> with _SafeButtonMixin {
   @override
   Widget build(BuildContext context) {
-    return TextButton(
-      style: widget.style,
-      onPressed: _isLoading ? null : () => handlePress(widget.onPressed), // no tap while loading
-      child: _isLoading
-          ? loadingIndicator(
-              color: Theme.of(context).colorScheme.primary, size: 16) // smaller spinner for text button
-          : widget.child,
+    final enabled = !_isLoading && widget.onPressed != null;
+    return ApplePressable(
+      enabled: enabled,
+      pressedScale: 0.97,
+      child: TextButton(
+        style: widget.style,
+        onPressed: enabled ? () => handlePress(widget.onPressed) : null,
+        child: _isLoading
+            ? loadingIndicator(
+                color: Theme.of(context).colorScheme.primary,
+                size: 16,
+              )
+            : widget.child,
+      ),
     );
   }
 }
@@ -173,10 +192,10 @@ class _SafeTextButtonState extends State<SafeTextButton>
 
 class SafeIconButton extends StatefulWidget {
   final Future<void> Function()? onPressed; // the async callback
-  final Widget icon;                         // the icon to display
-  final String? tooltip;                     // hover tooltip text, optional
-  final Color? color;                        // icon color, optional
-  final double? iconSize;                    // icon size, defaults to 24
+  final Widget icon; // the icon to display
+  final String? tooltip; // hover tooltip text, optional
+  final Color? color; // icon color, optional
+  final double? iconSize; // icon size, defaults to 24
 
   const SafeIconButton({
     super.key,
@@ -192,18 +211,25 @@ class SafeIconButton extends StatefulWidget {
 }
 
 // state for SafeIconButton
-class _SafeIconButtonState extends State<SafeIconButton>
-    with _SafeButtonMixin {
+class _SafeIconButtonState extends State<SafeIconButton> with _SafeButtonMixin {
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: widget.tooltip,
-      color: widget.color,
-      iconSize: widget.iconSize ?? 24, // default size 24 if not specified
-      onPressed: _isLoading ? null : () => handlePress(widget.onPressed), // disabled while loading
-      icon: _isLoading
-          ? loadingIndicator(color: widget.color ?? Colors.white, size: 18) // slightly smaller spinner for icon button
-          : widget.icon,
+    final enabled = !_isLoading && widget.onPressed != null;
+    return ApplePressable(
+      enabled: enabled,
+      pressedScale: 0.90,
+      child: IconButton(
+        tooltip: widget.tooltip,
+        color: widget.color,
+        iconSize: widget.iconSize ?? 24,
+        onPressed: enabled ? () => handlePress(widget.onPressed) : null,
+        icon: _isLoading
+            ? loadingIndicator(
+                color: widget.color ?? Theme.of(context).colorScheme.primary,
+                size: 18,
+              )
+            : widget.icon,
+      ),
     );
   }
 }
@@ -216,8 +242,8 @@ class _SafeIconButtonState extends State<SafeIconButton>
 
 class SafeInkWell extends StatefulWidget {
   final Future<void> Function()? onTap; // the async tap callback
-  final Widget child;                    // the widget to make tappable
-  final BorderRadius? borderRadius;     // optional border radius for the ink ripple
+  final Widget child; // the widget to make tappable
+  final BorderRadius? borderRadius; // optional border radius for the ink ripple
 
   const SafeInkWell({
     super.key,
@@ -234,10 +260,15 @@ class SafeInkWell extends StatefulWidget {
 class _SafeInkWellState extends State<SafeInkWell> with _SafeButtonMixin {
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: widget.borderRadius,
-      onTap: _isLoading ? null : () => handlePress(widget.onTap), // null onTap means inkwell disabled while loading
-      child: widget.child, // always show the child, we dont swap it for spinner here
+    final enabled = !_isLoading && widget.onTap != null;
+    return ApplePressable(
+      enabled: enabled,
+      pressedScale: 0.985,
+      child: InkWell(
+        borderRadius: widget.borderRadius,
+        onTap: enabled ? () => handlePress(widget.onTap) : null,
+        child: widget.child,
+      ),
     );
   }
 }

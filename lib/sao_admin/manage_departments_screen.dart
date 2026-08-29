@@ -145,7 +145,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         prefixIcon: const Icon(Icons.domain, color: AppColors.primary),
                         filled: true,
                         fillColor: AppColors.background,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Required';
@@ -163,7 +163,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         prefixIcon: const Icon(Icons.badge_outlined, color: AppColors.primary),
                         filled: true,
                         fillColor: AppColors.background,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                       ),
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Required';
@@ -193,6 +193,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           return;
                         }
                         final name = _nameController.text.trim();
+                        // Captured up front: everything below this point runs
+                        // after at least one await.
+                        final navigator = Navigator.of(context);
 
                         // Show confirmation only when adding
                         if (!isEditing) {
@@ -279,7 +282,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                 .insert({'d_name': name, 'd_code': code});
                             _showSnack('Department added successfully');
                           }
-                          Navigator.pop(context);
+                          navigator.pop();
                           _clearForm();
                           await _loadDepartments();
                         } catch (e) {
@@ -500,28 +503,27 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       itemCount: _departments.length,
       itemBuilder: (context, index) {
         final dept = _departments[index];
-        final isCurrentlyEditing = _editing?['id'] == dept['id'];
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            color: AppColors.solidSurface,
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: AppColors.borderHairline,
+              color: AppColors.glassBorder,
               width: 1,
             ),
-            boxShadow: [
+            boxShadow: const [
               BoxShadow(
-                color: AppColors.textPrimary.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+                color: AppColors.glassShadow,
+                blurRadius: 22,
+                offset: Offset(0, 8),
               ),
             ],
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(18),
             onTap: () => _showDepartmentDetail(dept),
             child: Padding(
               padding: const EdgeInsets.symmetric(

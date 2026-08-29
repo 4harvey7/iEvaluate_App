@@ -19,7 +19,6 @@ import 'core/navigation/role_nav_config.dart';
 import 'gatherer/data_gatherer_screen.dart';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'core/services/push_notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

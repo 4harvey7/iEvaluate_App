@@ -127,9 +127,9 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
+                          color: AppColors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,11 +240,14 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
 
                     setDialogState(() => isSaving = true);
+                    // Captured before the await — the dialog context is gone after pop.
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     final result = await _authService.updateEmail(newEmail);
                     
                     if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      navigator.pop();
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
                           backgroundColor: result.success ? AppColors.success : AppColors.error,
@@ -561,7 +564,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     final rootNavigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       showLoggingOutOverlay(context);
                       await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut();

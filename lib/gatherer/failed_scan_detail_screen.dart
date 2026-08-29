@@ -127,7 +127,9 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _studentIdCtrl.dispose();
     _instructorDebounce?.cancel(); // cancel pending debounce timers
     _subjectDebounce?.cancel();
-    for (final c in _scoreCtrlMap.values) c.dispose(); // dispose all score controllers
+    for (final c in _scoreCtrlMap.values) {
+      c.dispose(); // dispose all score controllers
+    }
     super.dispose();
   }
 
@@ -549,47 +551,6 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
-  // helper widget — wraps an image in a labeled container with optional tap-to-zoom
-  Widget _imageCard(
-      {required String label,
-      required Widget child,
-      VoidCallback? onTap}) {
-    return Column(
-      children: [
-        Text(label,
-            style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary)),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: onTap != null
-              ? GestureDetector(
-                  onTap: onTap,
-                  child: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      child,
-                      // small zoom icon overlay in bottom-right corner
-                      Container(
-                        margin: const EdgeInsets.all(4),
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6)),
-                        child: const Icon(Icons.zoom_in,
-                            color: Colors.white, size: 14),
-                      ),
-                    ],
-                  ),
-                )
-              : child, // no tap handler, just show image directly
-        ),
-      ],
-    );
-  }
-
   // show image in a fullscreen zoomable dialog — InteractiveViewer allow pinch-zoom
   void _showZoomedImage(Image image, String title) {
     showDialog(
@@ -636,31 +597,6 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     style: const TextStyle(color: Colors.white70, fontSize: 12)),
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // placeholder shown when image is not available — gray box with icon
-  Widget _imagePlaceholder(String label) {
-    return Container(
-      height: 100,
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.image_not_supported_outlined,
-                color: AppColors.textTertiary, size: 28),
-            const SizedBox(height: 4),
-            Text(label,
-                style: const TextStyle(
-                    color: AppColors.textTertiary, fontSize: 10)),
           ],
         ),
       ),

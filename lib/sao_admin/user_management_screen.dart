@@ -4,8 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
-import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
@@ -20,7 +20,6 @@ class UserManagementScreen extends StatefulWidget {
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
   final _supabase = Supabase.instance.client; // one ring to rule the database
-  final _authService = AuthService(); // for password reset emails
   
   List<Map<String, dynamic>> _allUsers = []; // every academic user fetched from DB
   List<Map<String, dynamic>> _roles = []; // available roles, but only non-SAO ones
@@ -76,7 +75,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       debugPrint('[USER_MGMT] Raw DB Response Count: ${usersResponse.length}');
       for (var u in usersResponse) {
          final ui = u['user_info'];
-         debugPrint(' - Found: ${ui != null ? (ui['first_name'] + " " + ui['last_name']) : "MISSING_USER_INFO"} | ID: ${u['user_id']} | Status: ${ui != null ? ui['account_status'] : "N/A"}');
+         debugPrint(' - Found: ${ui != null ? '${ui['first_name']} ${ui['last_name']}' : "MISSING_USER_INFO"} | ID: ${u['user_id']} | Status: ${ui != null ? ui['account_status'] : "N/A"}');
       }
 
       if (mounted) {
@@ -171,9 +170,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
       );
+      }
     }
   }
 
@@ -489,6 +490,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ? null
                     : () async {
                         setButtonState(() => isSaving = true);
+                        // Captured before the await — this context belongs to
+                        // the StatefulBuilder and is popped below.
+                        final navigator = Navigator.of(context);
+                        final messenger = ScaffoldMessenger.of(context);
                         try {
                           await _supabase.from('instructor_departments').insert({
                             'instructor_id': userId,
@@ -496,8 +501,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             'is_primary': false, // secondary dept
                           });
                           if (mounted) {
-                            Navigator.of(context).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            navigator.pop();
+                            messenger.showSnackBar(
                               const SnackBar(
                                 content: Text('Second department assigned successfully.'),
                                 backgroundColor: AppColors.success,
@@ -512,7 +517,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               errStr.contains('duplicate') ||
                               errStr.contains('23505');
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            messenger.showSnackBar(
                               SnackBar(
                                 content: Text(isDuplicate
                                     ? 'This instructor is already assigned to that department.'
@@ -836,6 +841,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // Filter bottom sheet removed in favor of inline dropdowns for better visibility
 
   // the main build — the whole screen is a list of users with search bar on top
+  // Shared decoration for the three filter dropdowns — identical to the fields
+  // on Personnel Management. Horizontal padding is a touch tighter than that
+  // screen's because three dropdowns share one row here instead of two.
+  InputDecoration _filterDecoration() {
+    return InputDecoration(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: AppColors.background,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final users = _filteredUsers; // get filtered+sorted list
@@ -868,42 +885,28 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ? const AppleLoadingState(label: 'Loading academic users…')
           : Column(
               children: [
-                // search bar + filter dropdowns
-                Container(
-                  color: AppColors.surface,
+                // search + inline dropdowns for filters — same layout as
+                // Personnel Management, but with three dropdowns in one row
+                AppleSurface(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     children: [
-                      // search bar
-                      TextField(
-                        onChanged: (v) => setState(() => _searchQuery = v),
-                        decoration: InputDecoration(
-                          hintText: 'Search Name or University ID...',
-                          prefixIcon: const Icon(Icons.search, color: AppColors.primary),
-                          filled: true,
-                          fillColor: AppColors.background,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        ),
+                      AppleSearchField(
+                        onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
+                        hintText: 'Search Name or University ID',
                       ),
                       const SizedBox(height: 12),
-                      // Department Filter | Role Filter
+                      // Department | Role | Sort By — three across
                       Row(
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedDeptFilter,
+                              initialValue: _selectedDeptFilter,
                               isExpanded: true,
-                              decoration: InputDecoration(
-                                labelText: 'Department',
-                                labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                filled: true,
-                                fillColor: AppColors.background,
-                              ),
+                              decoration: _filterDecoration(),
                               icon: const Icon(Icons.apartment, color: AppColors.primary, size: 18),
                               items: ['All', ..._allDeptNames.map((d) => d['d_name'].toString())].map((String dept) {
-                                return DropdownMenuItem<String>(value: dept, child: Text(dept, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
+                                return DropdownMenuItem<String>(value: dept, child: Text(dept, style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis));
                               }).toList(),
                               onChanged: (value) {
                                 if (value != null) setState(() => _selectedDeptFilter = value);
@@ -913,47 +916,34 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedRoleFilter,
+                              initialValue: _selectedRoleFilter,
                               isExpanded: true,
-                              decoration: InputDecoration(
-                                labelText: 'Role',
-                                labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                                filled: true,
-                                fillColor: AppColors.background,
-                              ),
+                              decoration: _filterDecoration(),
                               icon: const Icon(Icons.filter_list, color: AppColors.primary, size: 18),
                               items: ['All', ..._roles.map((r) => r['Roles'].toString())].map((String role) {
-                                return DropdownMenuItem<String>(value: role, child: Text(role, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
+                                return DropdownMenuItem<String>(value: role, child: Text(role, style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis));
                               }).toList(),
                               onChanged: (value) {
                                 if (value != null) setState(() => _selectedRoleFilter = value);
                               },
                             ),
                           ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              initialValue: _sortBy,
+                              isExpanded: true,
+                              decoration: _filterDecoration(),
+                              icon: const Icon(Icons.sort, color: AppColors.primary, size: 18),
+                              items: _sortOptions.map((String option) {
+                                return DropdownMenuItem<String>(value: option, child: Text(option, style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis));
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) setState(() => _sortBy = value);
+                              },
+                            ),
+                          ),
                         ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Sort By (full width)
-                      DropdownButtonFormField<String>(
-                        value: _sortBy,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: 'Sort By',
-                          labelStyle: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          filled: true,
-                          fillColor: AppColors.background,
-                        ),
-                        icon: const Icon(Icons.sort, color: AppColors.primary, size: 18),
-                        items: _sortOptions.map((String option) {
-                          return DropdownMenuItem<String>(value: option, child: Text(option, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) setState(() => _sortBy = value);
-                        },
                       ),
                     ],
                   ),

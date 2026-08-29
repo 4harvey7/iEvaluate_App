@@ -439,29 +439,79 @@ class AuthService {
     }
   }
 
-  // 6. FORGOT PASSWORD
-  // send a password reset email to the user, pray lang they check their inbox
-  Future<AuthResult> sendPasswordResetEmail(String email) async {
+  // 6. FORGOT PASSWORD — STEP 1: EMAIL THE CODE
+  // Sends a one-time code to the user's email. No redirectTo / deep link is
+  // passed on purpose: the entire reset now happens inside the app, so the user
+  // types the code here instead of clicking a link out to a browser.
+  //
+  // NOTE: the Supabase "Reset Password" email template must include the
+  // {{ .Token }} placeholder for the code to appear in the message. A template
+  // that only contains {{ .ConfirmationURL }} will still send mail, but the
+  // recipient gets a link with no code to type.
+  Future<AuthResult> sendPasswordResetCode(String email) async {
     try {
-      await _supabase.auth.resetPasswordForEmail(
-        email,
-        redirectTo: 'io.supabase.ievaluate://reset-password',
-      );
+      await _supabase.auth.resetPasswordForEmail(email);
       // we always return success here even if email doesnt exist
       // this prevent attacker from knowing which emails are registered, security 101
       return const AuthResult(success: true);
     } on SocketException {
       return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
     } catch (e) {
-      debugPrint('[AUTH] Reset Password Error (type): ${e.runtimeType}');
+      debugPrint('[AUTH] Reset Code Error (type): ${e.runtimeType}');
       final msg = e.toString();
       // detect ALL network-related errors (not just SocketException) and surface them to user
       if (_isNetworkError(msg) || msg.contains('Failed host lookup')) {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
+      // Rate limiting is worth telling the user about — otherwise they keep
+      // tapping Resend and wonder why nothing arrives.
+      if (msg.contains('rate limit') || msg.contains('Too many requests') || msg.contains('429')) {
+        return const AuthResult(success: false, error: 'Too many requests. Please wait a minute before trying again.');
+      }
       // for all other errors (e.g. auth service errors) we still return success
       // this prevents attackers from learning which emails are registered — security 101
       return const AuthResult(success: true);
+    }
+  }
+
+  // 6b. FORGOT PASSWORD — STEP 2: VERIFY THE CODE
+  // Exchanges the emailed code for a short-lived recovery session. That session
+  // is what allows updatePassword() below to run without the old password.
+  // Unlike step 1 this MUST report failure honestly — the user needs to know
+  // their code was wrong or has expired.
+  Future<AuthResult> verifyPasswordResetCode({
+    required String email,
+    required String code,
+  }) async {
+    try {
+      final response = await _supabase.auth.verifyOTP(
+        email: email,
+        token: code,
+        type: OtpType.recovery,
+      );
+      if (response.session == null) {
+        return const AuthResult(success: false, error: 'That code could not be verified. Please request a new one.');
+      }
+      return AuthResult(success: true, userId: response.user?.id);
+    } on SocketException {
+      return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
+    } on AuthException catch (e) {
+      debugPrint('[AUTH] Verify Reset Code AuthException: ${e.message}');
+      final msg = e.message.toLowerCase();
+      if (msg.contains('expired')) {
+        return const AuthResult(success: false, error: 'That code has expired. Tap Resend to get a new one.');
+      }
+      if (msg.contains('rate limit') || msg.contains('too many')) {
+        return const AuthResult(success: false, error: 'Too many attempts. Please wait a minute before trying again.');
+      }
+      return const AuthResult(success: false, error: 'Incorrect code. Please check the email and try again.');
+    } catch (e) {
+      debugPrint('[AUTH] Verify Reset Code Error: $e');
+      final msg = e.toString();
+      if (_isNetworkError(msg) || msg.contains('Failed host lookup')) {
+        return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
+      }
+      return const AuthResult(success: false, error: 'Could not verify the code. Please try again.');
     }
   }
 

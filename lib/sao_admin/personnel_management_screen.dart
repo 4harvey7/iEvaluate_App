@@ -1,12 +1,11 @@
 // lib/sao_admin/personnel_management_screen.dart
 // This screen manages the SAO staff — the people running the evaluation system.
 // Different from user_management (academics), this is for the SAO office folks.
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
-import '../core/services/auth_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
@@ -21,7 +20,6 @@ class PersonnelManagementScreen extends StatefulWidget {
 
 class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   final _supabase = Supabase.instance.client; // database connection, treat with respect
-  final _authService = AuthService(); // handles auth stuff like password reset
   
   List<Map<String, dynamic>> _allPersonnel = []; // all SAO staff fetched from DB
   List<Map<String, dynamic>> _saoRoles = []; // only SAO roles (filtered from all roles)
@@ -171,9 +169,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
         );
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
       );
+      }
     }
   }
 
@@ -225,9 +225,13 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       try {
         final dt = DateTime.parse(lastUpload).toLocal();
         final diff = DateTime.now().difference(dt);
-        if (diff.inMinutes < 60) lastUploadStr = '${diff.inMinutes}m ago';
-        else if (diff.inHours < 24) lastUploadStr = '${diff.inHours}h ago';
-        else lastUploadStr = '${diff.inDays}d ago';
+        if (diff.inMinutes < 60) {
+          lastUploadStr = '${diff.inMinutes}m ago';
+        } else if (diff.inHours < 24) {
+          lastUploadStr = '${diff.inHours}h ago';
+        } else {
+          lastUploadStr = '${diff.inDays}d ago';
+        }
       } catch (_) {}
     }
 
@@ -306,8 +310,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Account Details
-                    const Text('Account Details',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                    Text('Account Details', style: AppTextStyles.titleSmall),
                     const SizedBox(height: 16),
                     _detailRow(Icons.badge_outlined,      'University ID',   universityId),
                     _detailRow(Icons.email_outlined,       'Email Address',   email),
@@ -316,8 +319,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     const SizedBox(height: 24),
 
                     // Scan Statistics
-                    const Text('Scan Statistics',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                    Text('Scan Statistics', style: AppTextStyles.titleSmall),
                     const SizedBox(height: 16),
                     Row(children: [
                       Expanded(child: _statBox('Today',     '$todayScans', AppColors.primary)),
@@ -351,9 +353,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                Text(label,
+                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary)),
+                const SizedBox(height: 3),
+                Text(value,
+                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -368,14 +372,16 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Column(
         children: [
-          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+          Text(value, style: AppTextStyles.titleLarge.copyWith(color: color)),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+          Text(label,
+              style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary),
+              overflow: TextOverflow.ellipsis),
         ],
       ),
     );
@@ -415,7 +421,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const SizedBox(height: 16),
                   // role dropdown — only SAO roles shown here
                   DropdownButtonFormField<int>(
-                    value: selectedRoleId,
+                    initialValue: selectedRoleId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: _saoRoles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(r['Roles']))).toList(),
@@ -579,7 +585,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   const SizedBox(height: 16),
                   // role dropdown — only SAO roles (SAO_ADMIN, SAO_STAFF etc.)
                   DropdownButtonFormField<String>(
-                    value: selectedRoleName,
+                    initialValue: selectedRoleName,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: _saoRoles.map((r) => DropdownMenuItem<String>(value: r['Roles'], child: Text(r['Roles']))).toList(),
@@ -749,7 +755,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedRoleFilter,
+                              initialValue: _selectedRoleFilter,
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -769,7 +775,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _sortBy,
+                              initialValue: _sortBy,
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

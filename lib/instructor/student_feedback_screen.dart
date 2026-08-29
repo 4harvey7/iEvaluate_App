@@ -1088,7 +1088,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                         children: [
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _selectedSubjectFilter,
+                              initialValue: _selectedSubjectFilter,
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1116,17 +1116,18 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                 );
                               }).toList(),
                               onChanged: (value) {
-                                if (value != null)
+                                if (value != null) {
                                   setState(
                                     () => _selectedSubjectFilter = value,
                                   );
+                                }
                               },
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: DropdownButtonFormField<String>(
-                              value: _sortOrder,
+                              initialValue: _sortOrder,
                               isExpanded: true,
                               decoration: InputDecoration(
                                 contentPadding: const EdgeInsets.symmetric(
@@ -1154,8 +1155,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
                                 );
                               }).toList(),
                               onChanged: (value) {
-                                if (value != null)
+                                if (value != null) {
                                   setState(() => _sortOrder = value);
+                                }
                               },
                             ),
                           ),

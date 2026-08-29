@@ -31,9 +31,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   final _supabase = Supabase.instance.client;
 
 
-  // ─── CACHE FOR INSTANT TAB SWITCHING ─────────────────────────────────────────
-  static final Map<String, Map<String, dynamic>> _dashboardCache = {};
-  
   // These start with '...' because we don't have data yet. Patience, friend.
   String _currentSemester = '...';
   String _currentYear = '...';

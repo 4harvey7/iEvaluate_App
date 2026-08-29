@@ -3,7 +3,6 @@
 // it look pretty and then kick them to login, thats literally all it do
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/services/auth_service.dart';
 import 'login_screen.dart';
 import 'theme/app_colors.dart';
@@ -29,37 +28,12 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkSession() async {
-    // ── Password-recovery deep-link guard ──────────────────────────────────
-    // When a user taps the emailed reset link the OS cold-starts the app with
-    // an active recovery session.  If we blindly call signOut() here we destroy
-    // that session before LoginScreen (which has the passwordRecovery handler)
-    // is ever mounted.  Fix: listen for the passwordRecovery auth event for the
-    // duration of the splash delay.  If it fires, skip signOut and navigate
-    // straight to LoginScreen so its onAuthStateChange handler shows the dialog.
-    bool isPasswordRecovery = false;
-    StreamSubscription<AuthState>? recoverySub;
-    recoverySub = Supabase.instance.client.auth.onAuthStateChange.listen((
-      data,
-    ) {
-      if (data.event == AuthChangeEvent.passwordRecovery) {
-        isPasswordRecovery = true;
-        recoverySub?.cancel();
-      }
-    });
+    // Password resets no longer arrive as a deep link — the user types the
+    // emailed code inside the app — so there is no recovery session to protect
+    // here any more and startup can always sign out unconditionally.
 
     // we wait 2 seconds so the splash look nice, purely for aesthetic, hehe
     await Future.delayed(const Duration(milliseconds: 2000));
-    await recoverySub.cancel(); // done listening — clean up regardless
-
-    if (isPasswordRecovery) {
-      // Recovery session detected — do NOT sign out.  Navigate to LoginScreen
-      // which will receive the passwordRecovery event and show the reset dialog.
-      debugPrint(
-        '[SPLASH] Password recovery deep-link detected — skipping signOut.',
-      );
-      _navigateToLogin();
-      return;
-    }
 
     // Normal start — we force sign out every time app starts so user must log in again
     // this is a security requirement, no shortcuts allowed even if murag kadugay

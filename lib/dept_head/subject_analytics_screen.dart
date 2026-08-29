@@ -8,7 +8,6 @@ import '../core/services/evaluation_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
-import 'instructor_detail_page.dart';
 
 // The main widget — stateful because data is fetched async
 class SubjectAnalyticsScreen extends StatefulWidget {

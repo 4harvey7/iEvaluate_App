@@ -40,8 +40,8 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
   bool _isLoading = true;
   String? _aiSuggestion;
   String _summaryText = 'Loading analysis...';
-  List<double> _managementMeans = List.filled(10, 0.0);
-  List<double> _performanceMeans = List.filled(10, 0.0);
+  final List<double> _managementMeans = List.filled(10, 0.0);
+  final List<double> _performanceMeans = List.filled(10, 0.0);
   List<Map<String, dynamic>> _wordCloudData = [];
 
   // State variables for summary metrics

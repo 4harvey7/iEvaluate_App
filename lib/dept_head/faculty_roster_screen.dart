@@ -180,11 +180,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             final List<dynamic>? surveyList = surveyData is List ? surveyData : null;
 
             // Find survey data for the active term
-            final survey = surveyList != null
-                ? surveyList.firstWhere(
+            final survey = surveyList?.firstWhere(
                     (s) => s['term_id'] == activeTermId,
-                    orElse: () => null)
-                : null;
+                    orElse: () => null);
 
             // Find previous term survey for trend comparison — so we can show arrow
             final prevSurvey = (surveyList != null && previousTermId != null)

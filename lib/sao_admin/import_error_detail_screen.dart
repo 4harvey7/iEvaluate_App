@@ -5,7 +5,6 @@
 // After fixing, it sends to n8n for re-processing. Importente kaayo ni sya.
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -42,7 +41,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
   // ── Score editing (scan errors only) ─────────────────────────────────────
   // map of "m1" to "p10" controllers — for editing scores when source is scan
-  Map<String, TextEditingController> _scoreCtrlMap = {};
+  final Map<String, TextEditingController> _scoreCtrlMap = {};
 
   // ── Image (scan errors only, loaded from failed_scan_queue) ──────────────
   Uint8List? _imageBytes; // raw bytes of the scanned form image — may be null if not available

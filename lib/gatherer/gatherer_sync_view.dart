@@ -130,7 +130,7 @@ class GathererSyncView extends StatelessWidget {
                                   width: 40,
                                   height: 50,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, color: AppColors.textSecondary),
+                                  errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: AppColors.textSecondary),
                                 ),
                               ),
                               title: Text(task.id, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary)),

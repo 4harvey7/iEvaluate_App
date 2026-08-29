@@ -231,8 +231,8 @@ class SubjectsProvider extends ChangeNotifier {
               double mSum = 0, pSum = 0;
               for (var row in rawRows) {
                 for (int i = 1; i <= 10; i++) {
-                  mSum += (row['m${i}'] as num?)?.toDouble() ?? 0.0;
-                  pSum += (row['p${i}'] as num?)?.toDouble() ?? 0.0;
+                  mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
+                  pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
                 }
               }
               mMean = mSum / (rawRows.length * 10);
@@ -269,11 +269,9 @@ class SubjectsProvider extends ChangeNotifier {
 
       // Save to cache for the next time
       try {
-        if (userId != null) {
-          final prefs = await SharedPreferences.getInstance();
-          final encoded = jsonEncode(_subjects.map((s) => s.toJson()).toList());
-          await prefs.setString('subjects_cache_$userId', encoded);
-        }
+        final prefs = await SharedPreferences.getInstance();
+        final encoded = jsonEncode(_subjects.map((s) => s.toJson()).toList());
+        await prefs.setString('subjects_cache_$userId', encoded);
       } catch (e) {
         debugPrint('[SubjectsProvider] Failed to save cache: $e');
       }

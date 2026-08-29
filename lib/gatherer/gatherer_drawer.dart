@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
-import 'failed_scans_screen.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../core/navigation/role_switch_screen.dart';
 import '../core/navigation/role_nav_config.dart';
@@ -195,7 +194,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
                 Navigator.push(
                   context,
                   PageRouteBuilder(
-                    pageBuilder: (_, __, ___) => RoleSwitchScreen(
+                    pageBuilder: (_, _, _) => RoleSwitchScreen(
                       targetRoleName: 'SAO Admin',
                       targetIcon: Icons.admin_panel_settings_rounded,
                       onComplete: (switchCtx) {
@@ -204,7 +203,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
                         Navigator.of(switchCtx).popUntil((_) => count++ >= 2);
                       },
                     ),
-                    transitionsBuilder: (_, anim, __, child) => FadeTransition(opacity: anim, child: child),
+                    transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
                   ),
                 );
               },

@@ -311,7 +311,9 @@ class _GathererScannerViewState extends State<GathererScannerView>
         _isTakingPicture || // already capturing — dili mag-double shoot
         _isFocusing || // still focusing — wait
         _showOrientationWarning || // landscape — bad position, block capture
-        _tiltAngle > 30) return; // too tilted — block capture
+        _tiltAngle > 30) {
+      return; // too tilted — block capture
+    }
 
     // Step 1 — lock AF to centre point before shooting
     setState(() => _isFocusing = true);
@@ -542,10 +544,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
           Positioned.fill(
             child: AnimatedBuilder(
               animation: _frameColorAnim,
-              builder: (_, __) => CustomPaint(
+              builder: (_, _) => CustomPaint(
                 painter: _ScanOverlayPainter(
                   frameRect: frame,
-                  dimColor: Colors.black.withOpacity(0.55), // semi-transparent dim
+                  dimColor: Colors.black.withValues(alpha: 0.55), // semi-transparent dim
                   frameColor: _showOrientationWarning
                       ? Colors.white24 // dim frame when in landscape (scanning disabled)
                       : (_frameColorAnim.value ?? AppColors.primary), // animate to green on capture
@@ -720,9 +722,9 @@ class _GathererScannerViewState extends State<GathererScannerView>
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.7),
+            color: Colors.black.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
           ),
           child: Text(
             'TILT: ${_tiltAngle.toStringAsFixed(0)}° — HOLD STRAIGHT', // show exact angle so user know how much to adjust
@@ -781,7 +783,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
       Text(
         'Hold steady  •  Plain background  •  Good lighting', // the holy trinity of good scans
         style: TextStyle(
-            color: Colors.white.withOpacity(0.55), fontSize: 11),
+            color: Colors.white.withValues(alpha: 0.55), fontSize: 11),
       ),
     ]);
   }
@@ -817,7 +819,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
                       _BlurStatusTag(
                         icon: Icons.sync,
                         label: 'ANALYZING SHARPNESS...',
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         isSpinning: true,
                       )
                     else if (_isBlurry)
@@ -833,10 +835,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.65),
+                          color: Colors.black.withValues(alpha: 0.65),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                              color: AppColors.primary.withOpacity(0.4)),
+                              color: AppColors.primary.withValues(alpha: 0.4)),
                         ),
                         child: Text(
                           '${_selectedPaper.label}  •  Check all 4 corners are visible & image is sharp',
@@ -863,7 +865,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
                       begin: Alignment.bottomCenter,
                       end: Alignment.topCenter,
                       colors: [
-                        Colors.black.withOpacity(0.95), // dark at bottom
+                        Colors.black.withValues(alpha: 0.95), // dark at bottom
                         Colors.transparent // transparent at top — fade to image
                       ],
                     ),
@@ -960,7 +962,7 @@ class _ScanOverlayPainter extends CustomPainter {
     canvas.drawRRect(
       rrect,
       Paint()
-        ..color = frameColor.withOpacity(0.4) // semi-transparent outline
+        ..color = frameColor.withValues(alpha: 0.4) // semi-transparent outline
         ..strokeWidth = _borderW
         ..style = PaintingStyle.stroke,
     );
@@ -1020,7 +1022,7 @@ class _PaperDropdown extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: active
                 ? BoxDecoration(
-              color: AppColors.primary.withOpacity(0.15), // highlight active item
+              color: AppColors.primary.withValues(alpha: 0.15), // highlight active item
               borderRadius: BorderRadius.circular(10),
             )
                 : null,
@@ -1059,7 +1061,7 @@ class _PaperDropdown extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.10), // subtle white tint
+          color: Colors.white.withValues(alpha: 0.10), // subtle white tint
           borderRadius: BorderRadius.circular(30),
           border: Border.all(color: Colors.white24),
         ),
@@ -1091,6 +1093,7 @@ class _PaperDropdown extends StatelessWidget {
 //  Kept here in case we need to switch back — wala choice kung mag-revert
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ignore: unused_element  — intentionally retained, see note above
 class _PaperSizeToggle extends StatelessWidget {
   final PaperSize selected;
   final ValueChanged<PaperSize> onChanged;
@@ -1101,7 +1104,7 @@ class _PaperSizeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.08),
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white12),
       ),
@@ -1166,7 +1169,7 @@ class _PaperLabel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.50), // semi-transparent dark pill
+        color: Colors.black.withValues(alpha: 0.50), // semi-transparent dark pill
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -1222,12 +1225,12 @@ class _BlurStatusTagState extends State<_BlurStatusTag>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.85), // dark semi-opaque background
+        color: Colors.black.withValues(alpha: 0.85), // dark semi-opaque background
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: widget.color.withOpacity(0.5), width: 1.5), // colored border
+        border: Border.all(color: widget.color.withValues(alpha: 0.5), width: 1.5), // colored border
         boxShadow: [
           BoxShadow(
-              color: widget.color.withOpacity(0.2),
+              color: widget.color.withValues(alpha: 0.2),
               blurRadius: 12,
               spreadRadius: 2) // subtle glow matching the tag color
         ],
@@ -1290,11 +1293,11 @@ class _ActionButton extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.10), // subtle white fill
+              color: Colors.white.withValues(alpha: 0.10), // subtle white fill
               shape: BoxShape.circle,
               border: Border.all(
                   color:
-                  activeColor?.withOpacity(0.4) ?? Colors.white24), // colored border when active
+                  activeColor?.withValues(alpha: 0.4) ?? Colors.white24), // colored border when active
             ),
             child: Icon(icon, color: activeColor ?? Colors.white, size: 22),
           ),

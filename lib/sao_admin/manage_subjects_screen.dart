@@ -1078,7 +1078,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                 // ── Department Dropdown (required) ──
                 // Uses DropdownButtonFormField so it validates like a normal form field
                 DropdownButtonFormField<String>(
-                  value: _selectedDepartmentId,
+                  initialValue: _selectedDepartmentId,
                   isExpanded: true, // prevents RenderFlex overflow
                   decoration: _inputDec('Department *', Icons.business_rounded),
                   dropdownColor: AppColors.surface,
@@ -1160,7 +1160,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                           padding: EdgeInsets.zero,
                           shrinkWrap: true,
                           itemCount: _filteredInstructors.length,
-                          separatorBuilder: (_, __) =>
+                          separatorBuilder: (_, _) =>
                               const Divider(height: 1, indent: 48),
                           itemBuilder: (_, i) {
                             final instr = _filteredInstructors[i];
@@ -1682,7 +1682,7 @@ class _SubjectDetailModal extends StatelessWidget {
                     shrinkWrap: true,
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                     itemCount: assignedInstructors.length,
-                    separatorBuilder: (_, __) =>
+                    separatorBuilder: (_, _) =>
                         const Divider(height: 1, indent: 56),
                     itemBuilder: (_, i) {
                       final a = assignedInstructors[i];

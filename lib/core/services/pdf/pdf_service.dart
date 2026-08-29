@@ -240,16 +240,6 @@ class PdfService {
     await _saveAndShare(bytes, fileName);
   }
 
-  pw.Widget _buildStatItem(String label, String value) {
-    return pw.Column(
-      children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 12)),
-        pw.Text(value,
-            style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
-      ],
-    );
-  }
-
   pw.Widget _pwHeader(pw.MemoryImage? logo, String term, String ay, String dept, String name) {
     return pw.Column(
       children: [

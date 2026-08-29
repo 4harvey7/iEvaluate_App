@@ -30,7 +30,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
   String _firstName = '';
   String _lastName = '';
   String _userTitle = 'System Administrator'; // default title, fancy sounding
-  String _userOffice = 'Student Affairs Office'; // their kingdom
+  final String _userOffice = 'Student Affairs Office'; // their kingdom
   bool _isLoading = true; // screen spinning like our lives
 
   // --- ADMIN SYSTEM STATE ---
@@ -139,8 +139,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     final String originalRole = _userTitle;
     // Ensure the initial value is always one of the valid dropdown items.
     // _userTitle defaults to 'System Administrator' before data loads, which doesn't match any item.
-    const _validRoles = ['SAO_ADMIN', 'SAO_STAFF'];
-    String tempSelectedRole = _validRoles.contains(_userTitle) ? _userTitle : 'SAO_ADMIN';
+    const validRoles = ['SAO_ADMIN', 'SAO_STAFF'];
+    String tempSelectedRole = validRoles.contains(_userTitle) ? _userTitle : 'SAO_ADMIN';
     bool needsOTP = false; // flip this to true when role changed and needs verification
     bool isSaving = false; // prevent double-tapping the save button
 
@@ -179,9 +179,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.1),
+                            color: AppColors.warning.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
                           ),
                           child: const Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,7 +206,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
                         // dropdown to change the admin's system role
                         DropdownButtonFormField<String>(
-                          value: tempSelectedRole,
+                          initialValue: tempSelectedRole,
                           decoration: InputDecoration(
                             labelText: 'System Role',
                             prefixIcon: const Icon(Icons.shield, color: AppColors.primary),
@@ -369,11 +369,14 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
 
                     setDialogState(() => isSaving = true);
+                    // Captured before the await — the dialog context is gone after pop.
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     final result = await _authService.updateEmail(newEmail);
                     
                     if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      navigator.pop();
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
                           backgroundColor: result.success ? AppColors.success : AppColors.error,
@@ -1012,7 +1015,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     final navigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       showLoggingOutOverlay(context);
                       await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut(); // terminate the session

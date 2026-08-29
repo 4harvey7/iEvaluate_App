@@ -779,7 +779,7 @@ class EvaluationService {
           }
 
           double mgmt = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-          double perf = perfMap['${instId}_${subId}'] ?? 0.0; // look up perf from our map
+          double perf = perfMap['${instId}_$subId'] ?? 0.0; // look up perf from our map
 
           // combine mgmt and perf into one score; if no perf data just use mgmt alone
           double combinedScore = double.parse(((mgmt + perf) / 2).toStringAsFixed(2));
@@ -828,9 +828,14 @@ class EvaluationService {
         if (posTone == 0 && neuTone == 0 && critTone == 0) {
            dominantSentiment = avgScore < 3.0 ? 'Critical' : (avgScore < 4.0 ? 'Neutral' : 'Positive'); // fallback to score
         } else {
-           if (posTone > neuTone && posTone > critTone) dominantSentiment = 'Positive';
-           else if (critTone > posTone && critTone > neuTone) dominantSentiment = 'Critical';
-           else dominantSentiment = 'Neutral'; // if tied or neutral is highest, consider it neutral
+           if (posTone > neuTone && posTone > critTone) {
+             dominantSentiment = 'Positive';
+           } else if (critTone > posTone && critTone > neuTone) {
+             dominantSentiment = 'Critical';
+           } else {
+             // if tied or neutral is highest, consider it neutral
+             dominantSentiment = 'Neutral';
+           }
         }
 
         analytics.add(SubjectAnalytic(

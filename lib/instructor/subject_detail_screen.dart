@@ -563,7 +563,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     _buildFilterRow(),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: _sortOrder,
+                      initialValue: _sortOrder,
                       isExpanded: true,
                       decoration: InputDecoration(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

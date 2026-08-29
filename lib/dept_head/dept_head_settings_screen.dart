@@ -147,9 +147,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.warning.withOpacity(0.1),
+                          color: AppColors.warning.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withOpacity(0.5)),
+                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
                         ),
                         child: const Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,11 +269,14 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     if (newEmail.isEmpty || !newEmail.contains('@')) return;
 
                     setDialogState(() => isSaving = true);
+                    // Captured before the await — the dialog context is gone after pop.
+                    final navigator = Navigator.of(context);
+                    final messenger = ScaffoldMessenger.of(context);
                     final result = await _authService.updateEmail(newEmail);
                     
                     if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      navigator.pop();
+                      messenger.showSnackBar(
                         SnackBar(
                           content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
                           backgroundColor: result.success ? AppColors.success : AppColors.error,
@@ -540,7 +543,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       // Circle avatar with initials — quick visual identifier
                       CircleAvatar(
                         radius: 32,
-                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                         child: Text(initials.toUpperCase(), style: const TextStyle(color: AppColors.textPrimary, fontSize: 24, fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 16),
@@ -663,7 +666,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                        decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.delete_forever, color: AppColors.error),
                       ),
                       title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
@@ -684,7 +687,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     final navigator = Navigator.of(context);
                     final confirm = await showLogoutConfirmationDialog(context);
                     if (confirm == true) {
-                      if (!mounted) return;
+                      if (!context.mounted) return;
                       showLoggingOutOverlay(context);
                       await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
                       await _authService.signOut(); // End the session in Supabase

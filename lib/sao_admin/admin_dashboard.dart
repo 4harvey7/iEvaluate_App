@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -367,42 +368,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
         // each pending user gets a card with approve/reject buttons
         // tap the card to see full details
-        return Card(
-          color: AppColors.surface,
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _showPendingUserDetails(context, user, fullName, subDetail),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              leading: CircleAvatar(
-                backgroundColor: AppColors.primaryTint,
-                child: Text(firstName.isNotEmpty ? firstName[0] : '?',
-                    style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-              ),
-              title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(subDetail, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 2),
-                  const Text('Tap to view full details', style: TextStyle(color: AppColors.primary, fontSize: 11)),
-                ],
-              ),
-              trailing: Wrap(
-                spacing: -8,
-                children: [
-                  SafeIconButton(
-                    icon: const Icon(Icons.check_circle, color: AppColors.success),
-                    onPressed: () => _handleApproval(user['id'], fullName, true),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: AppleSurface(
+            padding: EdgeInsets.zero,
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(18),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => _showPendingUserDetails(context, user, fullName, subDetail),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.primaryTint,
+                    child: Text(firstName.isNotEmpty ? firstName[0] : '?',
+                        style: AppTextStyles.titleSmall.copyWith(color: AppColors.primary)),
                   ),
-                  SafeIconButton(
-                    icon: const Icon(Icons.cancel, color: AppColors.error),
-                    onPressed: () => _handleApproval(user['id'], fullName, false),
+                  title: Text(fullName, style: AppTextStyles.titleSmall, overflow: TextOverflow.ellipsis),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(subDetail, style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text('Tap to view full details',
+                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.primary)),
+                    ],
                   ),
-                ],
+                  trailing: Wrap(
+                    spacing: -8,
+                    children: [
+                      SafeIconButton(
+                        icon: const Icon(Icons.check_circle, color: AppColors.success),
+                        onPressed: () => _handleApproval(user['id'], fullName, true),
+                      ),
+                      SafeIconButton(
+                        icon: const Icon(Icons.cancel, color: AppColors.error),
+                        onPressed: () => _handleApproval(user['id'], fullName, false),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -430,10 +436,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => Container(
         decoration: const BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          color: AppColors.solidSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
         ),
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -465,15 +471,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(fullName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
+                      Text(fullName, style: AppTextStyles.titleMedium),
+                      const SizedBox(height: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                         decoration: BoxDecoration(
                           color: AppColors.warning.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(9),
                         ),
-                        child: const Text('Pending Approval', style: TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.w600)),
+                        child: Text('Pending Approval',
+                            style: AppTextStyles.labelSmall.copyWith(color: AppColors.warning)),
                       ),
                     ],
                   ),
@@ -500,7 +507,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     label: const Text('Reject', style: TextStyle(color: AppColors.error)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.error),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     onPressed: () {
@@ -516,7 +523,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     label: const Text('Approve', style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                     onPressed: () {
@@ -546,9 +553,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontSize: 14, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                Text(label,
+                    style: AppTextStyles.labelSmall.copyWith(color: AppColors.textTertiary)),
+                const SizedBox(height: 3),
+                Text(value,
+                    style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -582,7 +591,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         await _supabase.from('user_info').delete().eq('id', userId);
         debugPrint('[DASHBOARD] Rejected pending account fully deleted: $userId');
       }
-      final status = approved ? 'approved' : 'rejected';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

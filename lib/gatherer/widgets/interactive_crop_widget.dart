@@ -70,16 +70,6 @@ class _InteractiveCropWidgetState extends State<InteractiveCropWidget> {
     }
   }
 
-  // Convert relative (0-1) to pixel within image area
-  Offset _relToPixel(double rx, double ry) =>
-      Offset(rx * _imageSize.width, ry * _imageSize.height);
-
-  // Convert pixel within image area to relative (0-1)
-  double _pxToRelX(double px) =>
-      (px / _imageSize.width).clamp(0.0, 1.0);
-  double _pxToRelY(double py) =>
-      (py / _imageSize.height).clamp(0.0, 1.0);
-
   void _onPanRect(DragUpdateDetails d) {
     if (_imageSize == Size.zero) return;
     final dx = d.delta.dx / _imageSize.width;
