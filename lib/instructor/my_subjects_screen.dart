@@ -206,12 +206,16 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
               ),
               const SizedBox(width: 8),
               // Verbal description badge — "Outstanding", "Satisfactory", etc.
+              // The score colours are deliberately dark (tuned for dark-text-on
+              // -white), so they cannot be used as text on this dark hero
+              // gradient. The Satisfactory band is #101828 on #0B3B68 — about
+              // 1.5:1, unreadable. So the pill is filled white and the score
+              // colour is used for the LABEL, which is what it was designed for.
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.2),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   Subject.getVerbalDescription(average),

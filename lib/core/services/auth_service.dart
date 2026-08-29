@@ -496,15 +496,35 @@ class AuthService {
     } on SocketException {
       return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
     } on AuthException catch (e) {
-      debugPrint('[AUTH] Verify Reset Code AuthException: ${e.message}');
+      debugPrint('[AUTH] Verify Reset Code AuthException: ${e.message} '
+          '(status=${e.statusCode}, code=${e.code})');
       final msg = e.message.toLowerCase();
-      if (msg.contains('expired')) {
-        return const AuthResult(success: false, error: 'That code has expired. Tap Resend to get a new one.');
-      }
+
       if (msg.contains('rate limit') || msg.contains('too many')) {
         return const AuthResult(success: false, error: 'Too many attempts. Please wait a minute before trying again.');
       }
-      return const AuthResult(success: false, error: 'Incorrect code. Please check the email and try again.');
+
+      // Supabase reports "expired", "invalid", and "not found" for what is,
+      // from the user's point of view, one situation: this code is dead. The
+      // most common cause is that a NEWER code was requested — every request
+      // (including Resend) invalidates the previous one — or that the code was
+      // already used, since they are single-use.
+      if (msg.contains('expired') ||
+          msg.contains('invalid') ||
+          msg.contains('not found')) {
+        return AuthResult(
+          success: false,
+          error: 'This code is no longer valid. Codes can only be used once, '
+              'and asking for a new one cancels the old one. Tap Resend code '
+              'and use the newest email.${_debugSuffix(e.message)}',
+        );
+      }
+
+      return AuthResult(
+        success: false,
+        error: 'Could not verify that code. Please tap Resend code and try '
+            'the newest email.${_debugSuffix(e.message)}',
+      );
     } catch (e) {
       debugPrint('[AUTH] Verify Reset Code Error: $e');
       final msg = e.toString();
@@ -528,6 +548,10 @@ class AuthService {
       return const AuthResult(success: false, error: 'Password update failed. Please try again.');
     }
   }
+
+  // Shows the provider's own wording in debug builds only, so a failing reset
+  // can actually be diagnosed without exposing internals to real users.
+  String _debugSuffix(String raw) => kDebugMode ? '\n\n[debug] $raw' : '';
 
   // 8. FETCH METADATA FOR DROPDOWNS
   // get list of all departments from database, used in signup form dropdowns

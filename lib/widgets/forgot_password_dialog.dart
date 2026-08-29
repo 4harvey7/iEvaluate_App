@@ -68,6 +68,12 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
   /// the "resend" action cannot drift from what the user typed in step 1.
   String _sentToEmail = '';
 
+  /// The last code we already sent to the server. Codes are single-use, so
+  /// auto-submitting the same digits twice would spend the code on the first
+  /// call and then report the second as invalid. Tapping Verify still retries
+  /// deliberately (useful when the first attempt died on a flaky network).
+  String? _attemptedCode;
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -135,6 +141,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
       _error = null;
     });
 
+    _attemptedCode = code;
     final result = await _authService.verifyPasswordResetCode(
       email: _sentToEmail,
       code: code,
@@ -170,11 +177,13 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
     setState(() {
       _busy = false;
       _codeController.clear();
+      _attemptedCode = null;
       _error = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('A new code is on its way.'),
+        content: Text('New code sent — use the newest email, the older code '
+            'no longer works.'),
         backgroundColor: AppColors.success,
       ),
     );
@@ -356,7 +365,9 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
               onChanged: (v) {
                 // Clear a stale error as soon as they start retyping.
                 if (_error != null) setState(() => _error = null);
-                if (v.length == _codeLength && !_busy) _verifyCode();
+                if (v.length == _codeLength && !_busy && v != _attemptedCode) {
+                  _verifyCode();
+                }
               },
               decoration: _fieldDecoration(
                 label: '$_codeLength-digit code',
@@ -468,6 +479,7 @@ class _ForgotPasswordDialogState extends State<_ForgotPasswordDialog> {
                 ? null
                 : () => setState(() {
                     _step = _ResetStep.email;
+                    _attemptedCode = null;
                     _error = null;
                   }),
             child: const Text(

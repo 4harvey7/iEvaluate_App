@@ -319,4 +319,56 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('re-entering the same digits does not spend the code twice', (
+    tester,
+  ) async {
+    // Codes are single-use: a second automatic attempt with the same digits
+    // would be reported as invalid even when the first one was correct.
+    final fake = FakeAuthService(
+      verifyResult: const AuthResult(success: false, error: 'nope'),
+    );
+    await pumpDialog(tester, fake);
+
+    await tester.enterText(find.byType(TextField), 'teacher@ctu.edu.ph');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Send Code'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '12345678');
+    await tester.pumpAndSettle();
+    expect(fake.verified.length, 1);
+
+    // same digits typed again -> no new server call
+    await tester.enterText(find.byType(TextField).first, '12345678');
+    await tester.pumpAndSettle();
+    expect(fake.verified.length, 1, reason: 'auto-submit must not repeat');
+
+    // a different code is allowed through
+    await tester.enterText(find.byType(TextField).first, '87654321');
+    await tester.pumpAndSettle();
+    expect(fake.verified.length, 2);
+  });
+
+  testWidgets('resend clears the spent-code memory', (tester) async {
+    final fake = FakeAuthService(
+      verifyResult: const AuthResult(success: false, error: 'nope'),
+    );
+    await pumpDialog(tester, fake);
+
+    await tester.enterText(find.byType(TextField), 'teacher@ctu.edu.ph');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Send Code'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '12345678');
+    await tester.pumpAndSettle();
+    expect(fake.verified.length, 1);
+
+    await tester.tap(find.text('Resend code'));
+    await tester.pumpAndSettle();
+
+    // after a resend the same digits are allowed again
+    await tester.enterText(find.byType(TextField).first, '12345678');
+    await tester.pumpAndSettle();
+    expect(fake.verified.length, 2);
+  });
 }

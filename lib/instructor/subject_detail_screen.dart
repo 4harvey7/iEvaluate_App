@@ -32,6 +32,11 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   List<Map<String, dynamic>> _subjectRemarks = [];
   Map<String, dynamic>? _mgmtData;
   Map<String, dynamic>? _perfData;
+  // Whether each breakdown table is expanded. Both start open so nothing looks
+  // missing; the arrow in each section header collapses them.
+  bool _mgmtExpanded = true;
+  bool _perfExpanded = true;
+
   String _selectedFilter = 'All';
   String _sortOrder = 'Date (Newest)';
   final List<String> _sortOptions = ['Date (Newest)', 'Date (Oldest)', 'Sentiment (Positive First)', 'Sentiment (Critical First)'];
@@ -473,33 +478,70 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Summary Cards
-                    Row(
-                      children: [
-                        _buildSummaryCard('Management', _mgmtScore, AppColors.primary),
-                        const SizedBox(width: 16),
-                        _buildSummaryCard('Performance', _perfScore, AppColors.success),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSummaryCard(
-                      'Overall Weighted Mean', 
-                      _overallScore, 
-                      Subject.getScoreColor(_overallScore),
-                      isFullWidth: true,
+                    // Summary Cards — all three side by side.
+                    // IntrinsicHeight so the boxes share one height even though
+                    // the Overall card carries an extra description line.
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Management',
+                              _mgmtScore,
+                              AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Performance',
+                              _perfScore,
+                              AppColors.success,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _buildSummaryCard(
+                              'Overall Weighted Mean',
+                              _overallScore,
+                              Subject.getScoreColor(_overallScore),
+                              showDescription: true,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 32),
 
-                    // Management Table
-                    _buildSectionHeader('I. Management Breakdown'),
-                    const SizedBox(height: 12),
-                    _buildCriteriaTable(_managementCriteria, _mgmtData, 'm', AppColors.primary),
-                    const SizedBox(height: 32),
+                    // Management Table — collapsible
+                    _buildCollapsibleSection(
+                      title: 'I. Management Breakdown',
+                      expanded: _mgmtExpanded,
+                      onToggle: () =>
+                          setState(() => _mgmtExpanded = !_mgmtExpanded),
+                      child: _buildCriteriaTable(
+                        _managementCriteria,
+                        _mgmtData,
+                        'm',
+                        AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
-                    // Performance Table
-                    _buildSectionHeader('II. Performance Breakdown'),
-                    const SizedBox(height: 12),
-                    _buildCriteriaTable(_performanceCriteria, _perfData, 'p', AppColors.success),
+                    // Performance Table — collapsible
+                    _buildCollapsibleSection(
+                      title: 'II. Performance Breakdown',
+                      expanded: _perfExpanded,
+                      onToggle: () =>
+                          setState(() => _perfExpanded = !_perfExpanded),
+                      child: _buildCriteriaTable(
+                        _performanceCriteria,
+                        _perfData,
+                        'p',
+                        AppColors.success,
+                      ),
+                    ),
                     const SizedBox(height: 32),
 
                     // Question Chart
@@ -547,16 +589,19 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // Subject-specific remarks
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSectionHeader('Student Feedback'),
-                        Text(
-                          '${_filteredRemarks.length} of ${_subjectRemarks.length}',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                      ],
+                    // Subject-specific remarks.
+                    // The count goes in AppleSectionHeader's own `action` slot.
+                    // It must NOT be wrapped in an outer Row: AppleSectionHeader
+                    // is itself a Row containing an Expanded, so a Row parent
+                    // hands it unbounded width, layout throws every frame and
+                    // the render object never leaves NEEDS-LAYOUT — which pins
+                    // the UI thread and shows up as an Android ANR.
+                    AppleSectionHeader(
+                      title: 'Student Feedback',
+                      action: Text(
+                        '${_filteredRemarks.length} of ${_subjectRemarks.length}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // Filter chips
@@ -609,6 +654,55 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
 
   Widget _buildSectionHeader(String title) {
     return AppleSectionHeader(title: title);
+  }
+
+  /// A section header with a show/hide arrow, and its content underneath.
+  /// Tapping anywhere on the header row toggles it.
+  Widget _buildCollapsibleSection({
+    required String title,
+    required bool expanded,
+    required VoidCallback onToggle,
+    required Widget child,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            // The arrow goes in AppleSectionHeader's own `action` slot â€” it must
+            // not be put in an outer Row, see the note at the Student Feedback
+            // header below.
+            child: AppleSectionHeader(
+              title: title,
+              action: AnimatedRotation(
+                turns: expanded ? 0.5 : 0.0,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: Icon(
+                  Icons.expand_more_rounded,
+                  color: AppColors.textSecondary,
+                  semanticLabel: expanded ? 'Hide $title' : 'Show $title',
+                ),
+              ),
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: expanded
+              ? Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: child,
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+      ],
+    );
   }
 
   Widget _buildCriteriaTable(List<String> criteria, Map<String, dynamic>? data, String prefix, Color themeColor) {
@@ -739,30 +833,64 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
     );
   }
 
-  Widget _buildSummaryCard(String title, double score, Color color, {bool isFullWidth = false}) {
-    final card = Container(
-      padding: const EdgeInsets.all(16),
+  /// Returns a bare card. Callers wrap it in Expanded themselves â€” a helper
+  /// that returns an Expanded hides a layout requirement from the call site,
+  /// which is the class of bug that used to freeze this screen.
+  Widget _buildSummaryCard(
+    String title,
+    double score,
+    Color color, {
+    bool showDescription = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(title, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+              height: 1.2,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text(score.toStringAsFixed(2), style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.bold)),
-          if (isFullWidth)
+          Text(
+            score.toStringAsFixed(2),
+            style: TextStyle(
+              color: color,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (showDescription) ...[
+            const SizedBox(height: 2),
             Text(
               Subject.getVerbalDescription(score),
-              style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                height: 1.2,
+              ),
             ),
+          ],
         ],
       ),
     );
-
-    if (isFullWidth) return card;
-    return Expanded(child: card);
   }
 
   Color _getScoreColor(double score) {
