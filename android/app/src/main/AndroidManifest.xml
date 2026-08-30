@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Android 13+ requires this to be granted at runtime before any
+         notification can be shown. The plugins declare it too, but listing
+         it here makes it visible that this app sends notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="iEvaluate"
         android:name="${applicationName}"
@@ -39,6 +43,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Channel used for the notifications Android renders itself, i.e.
+             when the app is backgrounded or closed. Must match
+             `alertChannel` in lib/core/services/push_notification_service.dart
+             so a muted channel stays muted in both states. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="ievaluate_alerts" />
         <activity
             android:name="com.yalantis.ucrop.UCropActivity"
             android:screenOrientation="portrait"

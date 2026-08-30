@@ -8,6 +8,7 @@ import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
+import '../core/services/term_aware_state.dart';
 
 // Faculty roster widget — shows all instructors in this dept
 // Stateful because we fetch data and let user search/sort
@@ -19,7 +20,8 @@ class FacultyRosterScreen extends StatefulWidget {
   State<FacultyRosterScreen> createState() => _FacultyRosterScreenState();
 }
 
-class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
+class _FacultyRosterScreenState extends State<FacultyRosterScreen>
+    with TermAwareState<FacultyRosterScreen> {
   final _supabase = Supabase.instance.client;
   
   // Cache key is 'deptId_termId' so each department has its own slot.
@@ -37,6 +39,15 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
   void initState() {
     super.initState();
     _fetchFacultyData(); // Go get the roster data
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _rosterCache.clear();
+    _termIdCache.clear();
+    _fetchFacultyData();
   }
 
   // The main data fetching function — this does a lot of work so buckle up.

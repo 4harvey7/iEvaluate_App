@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
+import { createAdminClient } from '../_shared/admin_client.ts'
+
   cleanIdentity,
   describeConflict,
   describeUniqueViolation,
@@ -40,10 +41,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseAdmin = createAdminClient()
     const {
       targetUserId,
       firstName: rawFirstName,
@@ -91,6 +89,8 @@ serve(async (req) => {
         .from('admin_verifications')
         .select('code, expires_at, attempts')
         .eq('admin_id', caller.id)
+        // Admin codes only -- a SELF_DEACTIVATE code must not authorise this.
+        .eq('purpose', 'ADMIN_ACTION')
         .single()
 
       if (!verifyData || new Date(verifyData.expires_at) < new Date()) {

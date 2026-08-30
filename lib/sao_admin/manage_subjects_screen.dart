@@ -12,6 +12,7 @@ import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 
 // outer widget — just holds the state, nothing interesting yet
@@ -22,7 +23,7 @@ class ManageSubjectsScreen extends StatefulWidget {
   State<ManageSubjectsScreen> createState() => _ManageSubjectsScreenState();
 }
 
-class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with SingleTickerProviderStateMixin {
+class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with SingleTickerProviderStateMixin, TermAwareState<ManageSubjectsScreen> {
   final _supabase = Supabase.instance.client;
   final _settingsService = SystemSettingsService();
 
@@ -57,6 +58,13 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       duration: const Duration(milliseconds: 220),
     );
     _fabScaleAnim = CurvedAnimation(parent: _fabAnimController, curve: Curves.easeOut);
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _loadData();
   }
 
   @override
@@ -216,15 +224,107 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     );
   }
 
+  /// How many student responses have already been collected for the exact
+  /// (instructor, subject, term) an assignment row describes.
+  ///
+  /// Returns 0 on any failure. A count that fails to load must not block the
+  /// removal -- it only means the dialog cannot warn as precisely.
+  Future<int> _responsesForAssignment(String assignmentId) async {
+    try {
+      final row = await _supabase
+          .from('instructor_subjects')
+          .select('instructor_id, subject_id, term_id')
+          .eq('id', assignmentId)
+          .maybeSingle();
+      if (row == null) return 0;
+
+      // Results are keyed on the same triple, which is also why re-adding the
+      // assignment reconnects them without any repair step.
+      final results = await _supabase
+          .from('management_results')
+          .select('total_responses')
+          .eq('instructor_id', row['instructor_id'])
+          .eq('subject_id', row['subject_id'])
+          .eq('term_id', row['term_id']);
+
+      var total = 0;
+      for (final r in results as List) {
+        total += (r['total_responses'] as num?)?.toInt() ?? 0;
+      }
+      return total;
+    } catch (e) {
+      debugPrint('Could not count responses for assignment $assignmentId: $e');
+      return 0;
+    }
+  }
+
   // Delete assignment row only — not the subject itself
   Future<void> _deleteAssignment(String assignmentId) async {
+    final responses = await _responsesForAssignment(assignmentId);
+    if (!mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Remove Assignment'),
-        content: const Text('Remove this instructor from this subject for the current term? The subject will remain available for other terms.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Remove this instructor from this subject for the current term? '
+              'The subject will remain available for other terms.',
+            ),
+            if (responses > 0) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            size: 18, color: AppColors.error),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '$responses evaluation response(s) already collected',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Those results are kept and still count toward the '
+                      "instructor's overall score, but this subject will "
+                      'disappear from their My Subjects list and its report '
+                      'will no longer be reachable. Re-adding the same '
+                      'assignment restores it.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
@@ -238,7 +338,9 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     if (confirmed != true) return;
     try {
       await _supabase.from('instructor_subjects').delete().eq('id', assignmentId);
-      _showSnack('Assignment removed');
+      _showSnack(responses > 0
+          ? 'Assignment removed. $responses response(s) kept but now hidden.'
+          : 'Assignment removed');
       _loadData();
     } catch (e) {
       _showSnack('Error: $e', isError: true);

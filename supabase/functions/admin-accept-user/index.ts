@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createAdminClient } from '../_shared/admin_client.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,10 +10,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseAdmin = createAdminClient()
 
     // ── C-2 FIX: Authenticate the caller ────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -36,8 +33,16 @@ serve(async (req) => {
 
     const { targetUserId, status = 'approved' } = await req.json()
 
-    // Validate status value to prevent arbitrary string injection
-    const allowedStatuses = ['approved', 'rejected', 'suspended', 'pending']
+    // Validate status value to prevent arbitrary string injection.
+    //
+    // 'disabled' was MISSING, and it is the only value the two admin screens
+    // ever send when deactivating someone (user_management_screen.dart and
+    // personnel_management_screen.dart both compute
+    // `currentStatus == 'approved' ? 'disabled' : 'approved'`). So every
+    // deactivation threw `Invalid status value: disabled` and showed the raw
+    // error in a red snackbar. Deactivation had never once worked -- all 17
+    // accounts sat at 'approved' because no other value could ever be written.
+    const allowedStatuses = ['approved', 'rejected', 'suspended', 'pending', 'disabled']
     if (!allowedStatuses.includes(status)) {
       throw new Error(`Invalid status value: ${status}`)
     }
@@ -52,11 +57,59 @@ serve(async (req) => {
 
     if (updateError) throw updateError
 
+    // ── Keep Supabase Auth in step with account_status ──────────────────────
+    //
+    // account_status alone is only an application-layer gate: signIn() reads it
+    // and refuses, but the row is not what actually stops a session being
+    // issued. Anything holding the anon key can call signInWithPassword
+    // directly. Banning at the auth layer is what genuinely revokes access.
+    //
+    // The reverse direction is the bug that mattered: delete-user bans for
+    // 87600h (10 years) and NOTHING anywhere cleared it. Reactivating a deleted
+    // user set account_status back to 'approved', the admin screen looked
+    // correct, and login still failed -- with "Incorrect ID or password",
+    // because a banned user is indistinguishable from a wrong password at the
+    // client. There is a live victim: af6f7dda-ed6e-489b-a4c3-edaf23e2bebb,
+    // banned until 2036, who has real evaluation data.
+    const BAN_STATUSES = ['disabled', 'rejected', 'suspended']
+    let authAction: 'banned' | 'unbanned' | 'unchanged' = 'unchanged'
+
+    if (BAN_STATUSES.includes(status)) {
+      const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(
+        targetUserId,
+        { ban_duration: '87600h' },
+      )
+      if (banError) {
+        throw new Error(
+          'Status saved but the account could not be locked in Auth. Please retry.',
+        )
+      }
+      authAction = 'banned'
+    } else if (status === 'approved') {
+      // 'none' is how Supabase clears an existing ban. Safe to send even when
+      // the user was never banned, which makes reactivation idempotent.
+      const { error: unbanError } = await supabaseAdmin.auth.admin.updateUserById(
+        targetUserId,
+        { ban_duration: 'none' },
+      )
+      if (unbanError) {
+        throw new Error(
+          'Status saved but the account could not be unlocked in Auth. Please retry.',
+        )
+      }
+      authAction = 'unbanned'
+    }
+    // 'pending' deliberately leaves Auth alone: a fresh signup is already
+    // blocked by the account_status check and has never been banned.
+
     // ── Audit log ────────────────────────────────────────────────────────────
+    // auth_action is recorded because "status changed to approved" and "the auth
+    // ban was actually cleared" are two different facts, and it was the gap
+    // between them that locked a real user out for ten years.
     await supabaseAdmin.from('audit_logs').insert({
       user_id: caller.id,
       action: 'USER_STATUS_CHANGED',
-      metadata: { target_user: targetUserId, new_status: status },
+      metadata: { target_user: targetUserId, new_status: status, auth_action: authAction },
     })
 
     const isApproved = status === 'approved'
@@ -89,8 +142,17 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    // Return safe error messages only — never expose internal details
-    const safeMessage = ['Unauthorized', 'Forbidden: Admin access required', 'Invalid status value'].some(
+    // Return safe error messages only — never expose internal details.
+    // The two "Status saved but..." messages are listed on purpose: they are the
+    // difference between an admin knowing to retry and an admin believing a
+    // reactivation worked when the account is still locked.
+    const safeMessage = [
+      'Unauthorized',
+      'Forbidden: Admin access required',
+      'Invalid status value',
+      'Status saved but the account could not be locked in Auth.',
+      'Status saved but the account could not be unlocked in Auth.',
+    ].some(
       m => error.message?.startsWith(m)
     ) ? error.message : 'Operation failed. Please try again.'
 

@@ -12,6 +12,7 @@ import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 // StatefulWidget because it needs to load term data before showing anything useful
 class MySubjectsScreen extends StatefulWidget {
@@ -22,7 +23,8 @@ class MySubjectsScreen extends StatefulWidget {
   State<MySubjectsScreen> createState() => _MySubjectsScreenState();
 }
 
-class _MySubjectsScreenState extends State<MySubjectsScreen> {
+class _MySubjectsScreenState extends State<MySubjectsScreen>
+    with TermAwareState<MySubjectsScreen> {
   // Service for getting system-wide settings like current term
   final _settingsService = SystemSettingsService();
   final _supabase = Supabase.instance.client;
@@ -35,6 +37,13 @@ class _MySubjectsScreenState extends State<MySubjectsScreen> {
   void initState() {
     super.initState();
     _loadData(); // fetch term info and trigger subject loading
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _loadData();
   }
 
   // Load the current term settings, then fetch term display name, then load subjects.

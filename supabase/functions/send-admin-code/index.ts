@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createAdminClient } from '../_shared/admin_client.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,16 +19,37 @@ async function hashString(str: string) {
 // ── H-1 FIX: OTP attempt limit ────────────────────────────────────────────────
 const MAX_OTP_ATTEMPTS = 5
 
+// What a code is allowed to authorise. Stored on the row and re-checked by
+// whichever function consumes it, so a code emailed to approve a role change
+// cannot also unlock account deactivation -- the recipient was told what they
+// were approving, and that has to stay true.
+//   ADMIN_ACTION     SAO admin mutations (role change, user creation)
+//   SELF_DEACTIVATE  the account owner deactivating their own account
+const PURPOSES = ['ADMIN_ACTION', 'SELF_DEACTIVATE']
+
+const COPY = {
+  ADMIN_ACTION: {
+    subject: 'Verification Code: Admin Action',
+    heading: 'Secure Authorization',
+    blurb: 'Use this code to authorise the administrative change you just started.',
+  },
+  SELF_DEACTIVATE: {
+    subject: 'Verification Code: Deactivate Your Account',
+    heading: 'Confirm Account Deactivation',
+    blurb:
+      'Use this code to deactivate your iEvaluate account. Once deactivated you ' +
+      'will not be able to sign in until an SAO administrator reactivates you.',
+  },
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseAdmin = createAdminClient()
 
-    const { email } = await req.json()
+    const body = await req.json().catch(() => ({}))
+    const purpose = PURPOSES.includes(body?.purpose) ? body.purpose : 'ADMIN_ACTION'
 
     // ── IDENTITY VERIFICATION ─────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -39,15 +60,28 @@ serve(async (req) => {
     if (userError || !caller) throw new Error('Unauthorized')
 
     // ── 🛡️ CRITICAL ROLE CHECK ────────────────────────────────────────────────
-    const { data: adminCheck, error: adminError } = await supabaseAdmin
-      .from('Sao_users')
-      .select('roles!inner(Roles)')
-      .eq('user_id', caller.id)
-      .single()
+    // Only admin-purpose codes require the admin role. A SELF_DEACTIVATE code is
+    // requested by ordinary instructors and gatherers, is sent to the caller's
+    // own inbox, and authorises nothing beyond deactivating the caller's own
+    // account -- delete-user still enforces self-only separately.
+    if (purpose === 'ADMIN_ACTION') {
+      const { data: adminCheck, error: adminError } = await supabaseAdmin
+        .from('Sao_users')
+        .select('roles!inner(Roles)')
+        .eq('user_id', caller.id)
+        .single()
 
-    if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
-      throw new Error('Forbidden: Admin access required')
+      if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
+        throw new Error('Forbidden: Admin access required')
+      }
     }
+
+    // The recipient comes from the authenticated session, never from the request
+    // body. Every caller was already sending its own address, so this changes no
+    // behaviour -- but it means a compromised client cannot aim a live code at
+    // an inbox it does not own.
+    const recipient = caller.email
+    if (!recipient) throw new Error('Forbidden: this account has no email address on file')
 
     // ── 🛑 RATE LIMITING (1 request per 60s) ─────────────────────────────────
     const { data: existing } = await supabaseAdmin
@@ -68,10 +102,15 @@ serve(async (req) => {
     const code = (otpBuffer[0] % 900000 + 100000).toString()
 
     // ── 🔐 HASH BEFORE STORAGE ────────────────────────────────────────────────
+    // admin_id is still the primary key, so this overwrites whatever code the
+    // user already had, including one of a different purpose. That is
+    // intentional: the old code stops working rather than two live codes
+    // coexisting.
     const hashedCode = await hashString(code)
     await supabaseAdmin.from('admin_verifications').upsert({
       admin_id: caller.id,
       code: hashedCode,
+      purpose,
       attempts: 0,   // Reset attempt counter on each new OTP
       expires_at: new Date(Date.now() + 10 * 60000).toISOString()
     })
@@ -80,7 +119,7 @@ serve(async (req) => {
     await supabaseAdmin.from('audit_logs').insert({
       user_id: caller.id,
       action: 'OTP_REQUESTED',
-      metadata: { target: email, method: '2FA_EMAIL' }
+      metadata: { target: recipient, method: '2FA_EMAIL', purpose }
     })
 
     // ── 📧 SECURE DELIVERY ────────────────────────────────────────────────────
@@ -91,6 +130,7 @@ serve(async (req) => {
     // L-2 FIX: No hardcoded fallback — throw if not configured
     if (!SENDER_EMAIL) throw new Error('BREVO_SENDER_EMAIL is not set in Supabase secrets')
 
+    const copy = COPY[purpose]
     const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -100,12 +140,12 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         sender: { name: 'SAO Secure System', email: SENDER_EMAIL },
-        to: [{ email: email }],
-        subject: 'Verification Code: Admin Action',
+        to: [{ email: recipient }],
+        subject: copy.subject,
         htmlContent: `
           <div style="font-family: sans-serif; padding: 20px;">
-            <h2>Secure Authorization</h2>
-            <p>Your verification code is:</p>
+            <h2>${copy.heading}</h2>
+            <p>${copy.blurb}</p>
             <h1 style="color: #3b82f6; letter-spacing: 5px;">${code}</h1>
             <p>This code will expire in <b>10 minutes</b>.</p>
             <p>You have a maximum of <b>${MAX_OTP_ATTEMPTS} attempts</b> before the code is invalidated.</p>

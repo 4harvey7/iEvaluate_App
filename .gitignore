@@ -18,6 +18,21 @@ migrate_working_dir/
 .env
 .env.json
 
+# The two entries above match those names exactly, so a copy made while
+# rotating keys (.env.json.bak) slipped past them and was staged for commit.
+# Cover the copies and the scratch files a rotation produces as well.
+.env.*
+!.env.example
+!.env.json.example
+*.env.bak
+*.key
+n8n.key
+
+# Files used to hand a freshly-rotated key to a script. These hold live
+# credentials in plain text and belong nowhere near a commit.
+supabase_*_key*.txt
+*_secret_key*.txt
+
 # IntelliJ related
 *.iml
 *.ipr

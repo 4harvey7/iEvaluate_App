@@ -374,11 +374,40 @@ class AuthService {
         await signOut();
         return const AuthResult(success: false, error: 'Your account has been deactivated by the administration.');
       }
-      
-      if (status != 'approved') {
+
+      // Each non-approved status gets its own message. Previously everything
+      // that was not 'disabled' fell through to "Account pending admin
+      // approval." -- so a rejected applicant was told to wait for an approval
+      // that had already happened, negatively, and a suspended user was told
+      // the same thing. Both then wait indefinitely for an email that is never
+      // coming instead of contacting the SAO office.
+      if (status == 'rejected') {
+        await signOut();
+        return const AuthResult(success: false, error: 'Your registration was not approved. Please contact the SAO office.');
+      }
+
+      if (status == 'suspended') {
+        await signOut();
+        return const AuthResult(success: false, error: 'This account is suspended. Please contact the SAO office.');
+      }
+
+      if (status == 'pending') {
         await signOut();
         return const AuthResult(success: false, error: 'Account pending admin approval.');
       }
+
+      if (status != 'approved') {
+        await signOut();
+        return const AuthResult(success: false, error: 'This account is not active. Please contact the SAO office.');
+      }
+
+      // The auth email is the authority; user_info.email is a copy kept for
+      // login-by-university-ID. updateEmail() deliberately no longer writes
+      // that copy up front, because Supabase does not change the auth email
+      // until the confirmation link is clicked -- writing it early pointed ID
+      // login at an address Auth did not recognise yet. Reconciling here means
+      // the copy catches up by itself on the first sign-in after confirmation.
+      await _syncEmailCopyFromAuth(uid, response.user!.email);
 
       debugPrint('--- [AUTH] SIGN IN SUCCESS ---');
       return AuthResult(success: true, role: role, userId: response.user!.id);
@@ -389,6 +418,20 @@ class AuthService {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
       final msg = e.message.toLowerCase();
+      // A banned account must NOT be reported as a wrong password. It was, and
+      // the result is a user resetting their password over and over on an
+      // account that no password will ever open. delete-user bans for ten
+      // years, so this is reachable in practice.
+      //
+      // Checked BEFORE the invalid-credentials branch: depending on the
+      // Supabase version a ban can surface either with 'banned' in the message
+      // or as a plain invalid-credentials error. When it is the latter this
+      // branch cannot fire and the old wording still shows -- which is why the
+      // real fix is admin-accept-user clearing the ban on reactivation, not
+      // this message.
+      if (msg.contains('banned') || msg.contains('user is banned')) {
+        return const AuthResult(success: false, error: 'This account has been suspended. Please contact the SAO office.');
+      }
       // handle the common login errors with friendly messages
       if (msg.contains('invalid login') || msg.contains('invalid credentials') || msg.contains('email not confirmed')) {
         return const AuthResult(success: false, error: 'Incorrect ID or password. Please try again.');
@@ -483,23 +526,76 @@ class AuthService {
     }
   }
 
-  // 4. DELETE ACCOUNT
-  // this permanently delete the account by calling a supabase cloud function
-  // once this run there is no going back, bahala na ang user
-  Future<AuthResult> deleteAccount() async {
+  // 4a. REQUEST A DEACTIVATION CODE
+  // Emails a 6-digit code to the signed-in user's own address. Deactivating an
+  // account locks the person out until an SAO admin reactivates them, which is
+  // too much to hang on one tap of a confirm button -- a phone left unlocked on
+  // a desk should not be enough.
+  //
+  // Reuses send-admin-code with purpose SELF_DEACTIVATE: same crypto-random
+  // code, same 10-minute expiry, same 60-second rate limit, same hashed
+  // storage. The purpose is what stops this code from also unlocking admin
+  // actions, and what lets the function skip its SAO_ADMIN gate -- an
+  // instructor must be able to request one for themselves.
+  Future<AuthResult> sendDeactivationCode() async {
+    try {
+      if (_supabase.auth.currentUser == null) {
+        return const AuthResult(success: false, error: 'No user logged in.');
+      }
+      // The recipient is taken from the session server-side, so no email is
+      // sent from here -- a client cannot redirect its own code.
+      await _supabase.functions.invoke(
+        'send-admin-code',
+        body: {'purpose': 'SELF_DEACTIVATE'},
+      );
+      return const AuthResult(success: true);
+    } catch (e) {
+      debugPrint('[AUTH] Deactivation code request failed: $e');
+      // The rate-limit message names the seconds left, so it must survive.
+      return AuthResult(
+        success: false,
+        error: IdentityValidator.describeEdgeFunctionError(
+          e,
+          fallback: 'Could not send the code. Please try again.',
+        ),
+      );
+    }
+  }
+
+  // 4. DEACTIVATE ACCOUNT
+  // Marks the account disabled and bans it in Auth, so the person cannot sign
+  // in until an SAO admin reactivates them. Not a hard delete -- their
+  // evaluation data is real data collected while they were teaching.
+  //
+  // [verificationCode] is the code emailed by [sendDeactivationCode]. It is
+  // re-checked inside the edge function, not here: delete-user is a public
+  // endpoint, so a check in this method would only inconvenience the honest.
+  Future<AuthResult> deleteAccount({required String verificationCode}) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
       // we cant delete if there is no user logged in, obvious but we check anyway
       if (userId == null) return const AuthResult(success: false, error: 'No user logged in.');
 
       // call the cloud function to handle the deletion on the server side
-      await _supabase.functions.invoke('delete-user', body: {'userId': userId});
+      await _supabase.functions.invoke(
+        'delete-user',
+        body: {'userId': userId, 'verificationCode': verificationCode},
+      );
       await signOut(); // sign them out after deletion, clean finish
       return const AuthResult(success: true);
     } catch (e) {
-      // we never expose raw error to UI, just log it here for debugging
-      debugPrint('[AUTH] Delete Account Error: $e');
-      return const AuthResult(success: false, error: 'Account deletion failed. Please try again.');
+      debugPrint('[AUTH] Deactivate Account Error: $e');
+      // Surface the server's own wording. The expected failures here are all
+      // about the code -- wrong, expired, or out of attempts -- and each tells
+      // the user something different about what to do next. Collapsing them
+      // into one generic sentence leaves them stuck.
+      return AuthResult(
+        success: false,
+        error: IdentityValidator.describeEdgeFunctionError(
+          e,
+          fallback: 'Deactivation failed. Please try again.',
+        ),
+      );
     }
   }
 
@@ -556,8 +652,50 @@ class AuthService {
     }
   }
 
+  /// Brings the `user_info.email` copy back in line with the authoritative
+  /// Supabase Auth email.
+  ///
+  /// Only ever needed because login-by-university-ID has to resolve an ID to an
+  /// email before it can call signInWithPassword, so a copy of the address has
+  /// to live in `user_info`. That copy goes stale the moment a user requests an
+  /// email change and only becomes correct once they confirm it, which happens
+  /// out of band. Reconciling on sign-in is the one point where Auth is
+  /// guaranteed to have told us the current address.
+  ///
+  /// Failure here must never block a sign-in that already succeeded: a stale
+  /// copy degrades ID login, whereas throwing would deny access outright.
+  Future<void> _syncEmailCopyFromAuth(String userId, String? authEmail) async {
+    if (authEmail == null || authEmail.trim().isEmpty) return;
+    final String authoritative = IdentityValidator.cleanEmail(authEmail);
+
+    try {
+      final row = await _supabase
+          .from('user_info')
+          .select('email')
+          .eq('id', userId)
+          .maybeSingle();
+      if (row == null) return;
+
+      final String? stored = row['email'] as String?;
+      if (stored != null && IdentityValidator.cleanEmail(stored) == authoritative) {
+        return; // already in step, no write
+      }
+
+      await _supabase
+          .from('user_info')
+          .update({'email': authoritative})
+          .eq('id', userId);
+      debugPrint('[AUTH] user_info.email reconciled with the confirmed auth email');
+    } catch (e) {
+      // Includes the case where the address is already taken by another row --
+      // the unique index rejects it and the old copy stays. Logged, not raised.
+      debugPrint('[AUTH] email copy sync skipped: $e');
+    }
+  }
+
   // UPDATE EMAIL
-  // update the user email in Supabase Auth and user_info table
+  // Requests an email change in Supabase Auth. The change does not take effect
+  // until the user clicks the confirmation link sent to the NEW address.
   Future<AuthResult> updateEmail(String newEmail) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -584,16 +722,24 @@ class AuthService {
         return AuthResult(success: false, error: availability.error);
       }
 
-      // 1. Update in Supabase Auth (this sends a confirmation link to the new email)
+      // Update in Supabase Auth. This only SENDS a confirmation link -- the auth
+      // email stays the old one until the user clicks it.
       await _supabase.auth.updateUser(
         UserAttributes(email: cleanNewEmail),
       );
 
-      // 2. Update in user_info table so the database matches
-      await _supabase.from('user_info').update({
-        'email': cleanNewEmail,
-      }).eq('id', userId);
-
+      // user_info.email is deliberately NOT written here.
+      //
+      // It used to be written immediately, which broke login-by-university-ID:
+      // that path looks the ID up in user_info, takes the email it finds, and
+      // hands it to signInWithPassword. Writing the new address before Auth
+      // knew about it meant ID login was handed an address Auth would reject,
+      // so it failed from the moment Update was tapped until the link was
+      // clicked -- and permanently if it never was. Email login with the OLD
+      // address kept working the whole time, which made it look random.
+      //
+      // The copy is reconciled by _syncEmailCopyFromAuth on the next sign-in,
+      // once Auth actually reports the new address.
       return const AuthResult(success: true);
     } catch (e) {
       debugPrint('[AUTH] Update Email Error: $e');

@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import '../core/navigation/main_scaffold.dart';
+import '../core/services/term_aware_state.dart';
 
 // StatefulWidget — lots of dynamic data (feedback, AI analysis, word cloud, filters)
 class StudentFeedbackScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class StudentFeedbackScreen extends StatefulWidget {
   State<StudentFeedbackScreen> createState() => _StudentFeedbackScreenState();
 }
 
-class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
+class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
+    with TermAwareState<StudentFeedbackScreen> {
   final _supabase = Supabase.instance.client;
 
   // Filter for the feedback list — starts at 'All', can switch to Positive/Neutral/Critical
@@ -59,6 +61,13 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen> {
   void initState() {
     super.initState();
     _fetchFeedbackData(); // start loading everything on screen open
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _fetchFeedbackData();
   }
 
   // The main data fetcher — grabs remarks, AI suggestions, and word cloud in parallel.

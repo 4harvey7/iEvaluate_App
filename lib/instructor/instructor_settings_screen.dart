@@ -12,6 +12,7 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/deactivate_account_dialog.dart';
 
 
 // Simple StatefulWidget — needs state because profile data loads after build
@@ -242,31 +243,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     );
   }
 
-  // ==========================================
-  // INTERACTIVE: EDIT ACADEMIC INFO
-  // ==========================================
-  void _showEditAcademicInfoDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Edit Academic Info', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-          content: const Text(
-            'Your Academic Information (Role and Department) is managed by the system administrator to maintain data integrity.\n\n'
-            'If you need to change your department or title, please contact the SAO Admin.',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Understood', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        );
-      },
-    );
-  }
+
+
 
   // ==========================================
   // INTERACTIVE: EDIT EMAIL
@@ -343,42 +321,19 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   // ==========================================
   // Shows a confirmation dialog before deleting the account.
   // This is the danger zone. No undo. Wala gyud. Think before tapping.
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.error),
-              SizedBox(width: 8),
-              Text("Delete Account?"),
-            ],
-          ),
-          content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
-          actions: [
-            // Cancel button — the safe exit when the user realizes it was a bad idea
-            TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            SafeElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                final messenger = ScaffoldMessenger.of(context);
-                navigator.pop(); // close dialog first
-                final result = await _authService.deleteAccount(); // the point of no return
-                if (result.success) {
-                  // Account deleted — kick back to login screen, no route history left
-                   if (mounted) navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                } else {
-                   if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
-                }
-              },
-            ),
-          ],
-        );
-      },
+  // Deactivation lives in showDeactivateAccountDialog: warning, emailed code,
+  // then the blocking "Deactivating account…" overlay. All this screen still
+  // decides is where the user lands afterwards.
+  Future<void> _showDeleteAccountDialog() async {
+    // Captured before the await -- after deactivation the session is gone and
+    // this State may be on its way out.
+    final navigator = Navigator.of(context);
+    final deactivated = await showDeactivateAccountDialog(context);
+    if (!mounted || deactivated != true) return;
+    // No route history left to go back to.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -596,11 +551,6 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                               onTap: _showEditProfileSheet,
                               child: const Text('Edit Personal Details', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
-                            const SizedBox(height: 8),
-                            GestureDetector(
-                              onTap: _showEditAcademicInfoDialog,
-                              child: const Text('Edit Academic Info', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 13)),
-                            ),
                           ],
                         ),
                       ),
@@ -684,7 +634,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                         decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                         child: const Icon(Icons.delete_forever, color: AppColors.error),
                       ),
-                      title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                      title: const Text('Deactivate My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                       onTap: _showDeleteAccountDialog,
                     ),

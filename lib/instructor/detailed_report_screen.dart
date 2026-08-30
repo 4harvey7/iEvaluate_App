@@ -3,11 +3,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 class DetailedReportScreen extends StatefulWidget {
   final String userId;
   final String? termId;
   final String instructorName;
+  final String universityId;
   final String department;
   final String term;
   final String academicYear;
@@ -21,6 +23,7 @@ class DetailedReportScreen extends StatefulWidget {
     required this.userId,
     this.termId,
     required this.instructorName,
+    this.universityId = '',
     required this.department,
     required this.term,
     required this.academicYear,
@@ -34,7 +37,8 @@ class DetailedReportScreen extends StatefulWidget {
   State<DetailedReportScreen> createState() => _DetailedReportScreenState();
 }
 
-class _DetailedReportScreenState extends State<DetailedReportScreen> {
+class _DetailedReportScreenState extends State<DetailedReportScreen>
+    with TermAwareState<DetailedReportScreen> {
   final _supabase = Supabase.instance.client;
   final _pdfService = PdfService();
   bool _isLoading = true;
@@ -57,6 +61,13 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     _perfScore = widget.performanceScore;
     _overallScore = widget.overallScore;
     _totalEvals = widget.totalEvaluations;
+    _fetchReportData();
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
     _fetchReportData();
   }
 
@@ -218,6 +229,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
     try {
       await _pdfService.generateInstructorDetailedReport(
         instructorName: widget.instructorName,
+        universityId: widget.universityId,
         department: widget.department,
         term: widget.term,
         academicYear: widget.academicYear,
@@ -336,16 +348,16 @@ class _DetailedReportScreenState extends State<DetailedReportScreen> {
         const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _headerField('Term', widget.term)),
+            Expanded(child: _headerField('Instructor Name', widget.instructorName)),
             const SizedBox(width: 16),
-            Expanded(child: _headerField('Academic Year', widget.academicYear)),
+            Expanded(child: _headerField('Instructor ID', widget.universityId.isNotEmpty ? widget.universityId : 'N/A')),
           ],
         ),
         Row(
           children: [
-            Expanded(child: _headerField('Department', widget.department)),
+            Expanded(child: _headerField('Academic Year', '${widget.term} Semester ${widget.academicYear}'.trim())),
             const SizedBox(width: 16),
-            Expanded(child: _headerField('Faculty', widget.instructorName)),
+            Expanded(child: _headerField('Department', widget.department)),
           ],
         ),
       ],

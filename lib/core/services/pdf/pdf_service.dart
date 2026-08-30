@@ -187,6 +187,7 @@ class PdfService {
   // ─────────────────────────────────────────────────────────
   Future<void> generateInstructorDetailedReport({
     required String instructorName,
+    String universityId = '',
     required String department,
     required String term,
     required String academicYear,
@@ -216,7 +217,7 @@ class PdfService {
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
           return [
-            _pwHeader(logo, term, academicYear, department, instructorName),
+            _pwHeader(logo, term, academicYear, department, instructorName, universityId),
             pw.Divider(),
             pw.SizedBox(height: 10),
             _pwSummaryTable(totalEvals, mgmtScore, perfScore, overallScore),
@@ -240,7 +241,7 @@ class PdfService {
     await _saveAndShare(bytes, fileName);
   }
 
-  pw.Widget _pwHeader(pw.MemoryImage? logo, String term, String ay, String dept, String name) {
+  pw.Widget _pwHeader(pw.MemoryImage? logo, String term, String ay, String dept, String name, String universityId) {
     return pw.Column(
       children: [
         pw.Row(
@@ -277,16 +278,16 @@ class PdfService {
         pw.SizedBox(height: 15),
         pw.Row(
           children: [
-            pw.Expanded(child: _pwHeaderField('Term', term)),
+            pw.Expanded(child: _pwHeaderField('Instructor Name', name)),
             pw.SizedBox(width: 16),
-            pw.Expanded(child: _pwHeaderField('Academic Year', ay)),
+            pw.Expanded(child: _pwHeaderField('Instructor ID', universityId.isNotEmpty ? universityId : 'N/A')),
           ],
         ),
         pw.Row(
           children: [
-            pw.Expanded(child: _pwHeaderField('Department', dept)),
+            pw.Expanded(child: _pwHeaderField('Academic Year', '$term Semester $ay'.trim())),
             pw.SizedBox(width: 16),
-            pw.Expanded(child: _pwHeaderField('Faculty', name)),
+            pw.Expanded(child: _pwHeaderField('Department', dept)),
           ],
         ),
       ],

@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 // outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
@@ -18,7 +19,8 @@ class PerformanceAnalysisScreen extends StatefulWidget {
   State<PerformanceAnalysisScreen> createState() => _PerformanceAnalysisScreenState();
 }
 
-class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
+class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
+    with TermAwareState<PerformanceAnalysisScreen> {
   final _evaluationService = EvaluationService(); // service that knows how to crunch eval numbers
   final _pdfService = PdfService(); // service that generates the PDF report for download
   final _supabase = Supabase.instance.client; // the database connection
@@ -46,6 +48,13 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen> {
   void initState() {
     super.initState();
     _loadAllData(); // pray lang it loads fast
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _loadAllData();
   }
 
   // loads terms first, then fetches analytics — order matters here

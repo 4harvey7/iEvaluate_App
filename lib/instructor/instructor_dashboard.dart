@@ -40,6 +40,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   String _currentYear = '...';
   String _instructorName = '...';
   String _instructorDept = '...';
+  String _universityId = '';
 
   // System Services
   bool _isSyncing = false;
@@ -185,7 +186,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     try {
       // 1. Fetch Identity Info (Always load this regardless of term)
       // Get name from user_info — the basic "who are you" query
-      final user = await _supabase.from('user_info').select('first_name, last_name').eq('id', widget.userId).maybeSingle();
+      final user = await _supabase.from('user_info').select('first_name, last_name, university_id').eq('id', widget.userId).maybeSingle();
       
       // Get department and role — title like "Instructor" or "Professor" and which dept
       final deptData = await _supabase
@@ -343,6 +344,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           // Set the instructor's display name
           if (user != null) {
             _instructorName = '${user['first_name']} ${user['last_name']}';
+            _universityId = user['university_id'] ?? '';
           }
           
           // Set department name
@@ -771,6 +773,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                             builder: (_) => DetailedReportScreen(
                               userId: widget.userId,
                               instructorName: _instructorName,
+                              universityId: _universityId,
                               department: _instructorDept,
                               termId: _currentTermId,
                               term: _currentSemester,

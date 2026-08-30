@@ -19,6 +19,9 @@ import 'core/navigation/role_nav_config.dart';
 import 'gatherer/data_gatherer_screen.dart';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'core/services/push_notification_service.dart';
+import 'core/services/term_watcher.dart';
+import 'widgets/term_change_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,9 +33,24 @@ void main() async {
     debugPrint('Firebase init error: $e');
   }
 
+  // Register the Android notification channel before any push can arrive.
+  // Android 8+ silently discards a notification addressed to a channel that
+  // does not exist yet, and this channel used to be created only after login.
+  try {
+    await PushNotificationService.setupLocalNotifications();
+  } catch (e) {
+    debugPrint('Local notification setup error: $e');
+  }
+
   // secrets are injected at build time via --dart-define-from-file=.env.json
   // no runtime file loading needed, thank goodness
   await Supabase.initialize(url: Env.supabaseUrl, anonKey: Env.supabaseAnonKey);
+
+  // One app-wide subscription to the active academic term, so a change made by
+  // the SAO office reaches every screen instead of each one discovering it on
+  // its next mount. Fire-and-forget: a failure here only costs auto-updating,
+  // and must not hold up the first frame.
+  TermWatcher.instance.start();
 
   runApp(const MyApp());
 }
@@ -83,7 +101,10 @@ class MyApp extends StatelessWidget {
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
-              child: ClipRect(child: child),
+              // TermChangeGate sits above every route so an "Updating term…"
+              // scrim can appear wherever the user is when the SAO office
+              // switches the active term.
+              child: ClipRect(child: TermChangeGate(child: child ?? const SizedBox.shrink())),
             ),
           ),
         );

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createAdminClient } from '../_shared/admin_client.ts'
+
 import {
   cleanEmail,
   cleanIdentity,
@@ -41,10 +42,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseAdmin = createAdminClient()
 
     const {
       firstName: rawFirstName,
@@ -79,7 +77,8 @@ serve(async (req) => {
 
     // 2. 🛡️ OTP CHECK (Required ONLY for Department Head)
     if (roleName === 'DEPARTMENT_HEAD') {
-      const { data: verifyData } = await supabaseAdmin.from('admin_verifications').select('code, expires_at, attempts').eq('admin_id', caller!.id).single()
+      // Admin codes only -- a SELF_DEACTIVATE code must not authorise this.
+      const { data: verifyData } = await supabaseAdmin.from('admin_verifications').select('code, expires_at, attempts').eq('admin_id', caller!.id).eq('purpose', 'ADMIN_ACTION').single()
       if (!verifyData || new Date(verifyData.expires_at) < new Date()) throw new Error("Verification code expired.")
 
       const inputHash = await hashString(verificationCode)

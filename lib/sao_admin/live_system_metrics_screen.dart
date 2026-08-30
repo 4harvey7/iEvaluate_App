@@ -8,6 +8,7 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/system_settings_service.dart';
+import '../core/services/term_aware_state.dart';
 
 
 class LiveSystemMetricsScreen extends StatefulWidget {
@@ -17,7 +18,8 @@ class LiveSystemMetricsScreen extends StatefulWidget {
   State<LiveSystemMetricsScreen> createState() => _LiveSystemMetricsScreenState();
 }
 
-class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
+class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
+    with TermAwareState<LiveSystemMetricsScreen> {
   // supabase client — our direct line to the database gods
   final _supabase = Supabase.instance.client;
   // settings service — tells us which academic term we're currently working in
@@ -41,6 +43,13 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen> {
   void initState() {
     super.initState();
     // load everything when screen opens — no lazy initialization here
+    _loadAllMetrics();
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
     _loadAllMetrics();
   }
 

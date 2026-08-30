@@ -10,6 +10,9 @@ import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/logout_confirmation_dialog.dart';
+import '../widgets/blocking_progress_overlay.dart';
+import '../core/services/term_watcher.dart';
+import '../widgets/deactivate_account_dialog.dart';
 
 
 class SaoAdminSettings extends StatefulWidget {
@@ -537,45 +540,19 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
   // the nuclear option — ayaw diri kung dili sure
   // shows a warning dialog first because consequences are permanent
   // ==========================================
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          // warning icon + title to scare the user a little before they proceed
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.error), // red warning — serious kaayo ni
-              SizedBox(width: 8),
-              Text("Delete Account?"),
-            ],
-          ),
-          // very clear disclaimer — they can't say we didn't warn them
-          content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
-          actions: [
-            // cancel — the sensible choice
-            TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            SafeElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                final scaffoldMessenger = ScaffoldMessenger.of(context);
-                navigator.pop(); // close the confirmation dialog
-                final result = await _authService.deleteAccount(); // actually delete
-                if (result.success) {
-                   // account gone — redirect to login, wala nay account to go back to
-                   if (mounted) navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                } else {
-                   // deletion failed — at least show why
-                   if (mounted) scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
-                }
-              },
-            ),
-          ],
-        );
-      },
+  // Deactivation lives in showDeactivateAccountDialog: warning, emailed code,
+  // then the blocking "Deactivating account…" overlay. All this screen still
+  // decides is where the user lands afterwards.
+  Future<void> _showDeleteAccountDialog() async {
+    // Captured before the await -- after deactivation the session is gone and
+    // this State may be on its way out.
+    final navigator = Navigator.of(context);
+    final deactivated = await showDeactivateAccountDialog(context);
+    if (!mounted || deactivated != true) return;
+    // No route history left to go back to.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -584,6 +561,15 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
   // this is the big button — dili i-click if dili sure
   void _updateSystemSettings(String semester, String year) async {
     setState(() => _isUpdatingSettings = true); // lock the button
+    // Blocking overlay: this writes the term, snapshots the outgoing term's
+    // department membership and notifies admins. A tap that navigated away
+    // mid-sequence would leave the snapshot untaken.
+    showBlockingProgressOverlay(
+      context,
+      title: 'Updating term…',
+      subtitle: 'Saving $semester $year and freezing the previous term.',
+    );
+    bool overlayUp = true;
     try {
       // 0. Which term are we leaving? Read it before the upsert overwrites it.
       // Department membership is snapshotted for the OUTGOING term, not the
@@ -654,6 +640,20 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         debugPrint('Edge Function not found or offline: $funcError');
       }
 
+      // 4. This device wrote the change, so it will not learn about it from
+      // Realtime the way other devices do. Clear the term-scoped caches and
+      // re-seed the watcher here, otherwise this admin's own dashboards would
+      // re-hydrate the previous term's numbers from disk.
+      await TermWatcher.instance.clearTermScopedCaches();
+      await TermWatcher.instance.refreshNow();
+
+      // Take the overlay down before the snackbar, so the message is not
+      // hidden behind the scrim.
+      if (mounted && overlayUp) {
+        dismissBlockingProgressOverlay(context);
+        overlayUp = false;
+      }
+
       // success — show green snackbar to calm everyone down
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -669,6 +669,9 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         );
       }
     } finally {
+      // The overlay is non-dismissible, so it must come down on every path --
+      // including the error path above, which returns before the success block.
+      if (mounted && overlayUp) dismissBlockingProgressOverlay(context);
       // always unlock the button whether success or failure — wala choice
       if (mounted) setState(() => _isUpdatingSettings = false);
     }
@@ -1029,7 +1032,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)), child: const Icon(Icons.delete_forever, color: AppColors.error)),
-                      title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                      title: const Text('Deactivate My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                       onTap: _showDeleteAccountDialog, // opens the "are you sure" dialog
                     ),

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'models/subject.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
@@ -20,7 +21,8 @@ class SubjectDetailScreen extends StatefulWidget {
   State<SubjectDetailScreen> createState() => _SubjectDetailScreenState();
 }
 
-class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
+class _SubjectDetailScreenState extends State<SubjectDetailScreen>
+    with TermAwareState<SubjectDetailScreen> {
   final _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
@@ -72,6 +74,13 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _fetchSubjectDetails();
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
     _fetchSubjectDetails();
   }
 

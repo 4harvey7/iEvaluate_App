@@ -14,6 +14,7 @@ import 'user_management_screen.dart';
 
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 
 // This widget is the throne of the admin. Very holy. Dili ta puwede diri if not admin.
@@ -25,7 +26,8 @@ class AdminDashboardScreen extends StatefulWidget {
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends State<AdminDashboardScreen>
+    with TermAwareState<AdminDashboardScreen> {
   final _supabase = Supabase.instance.client; // our connection to the almighty database
   final _settingsService = SystemSettingsService(); // fetches system settings, importente kaayo
 
@@ -77,6 +79,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _fetchAdminProfile(); // get the admin's name so dashboard not say just "Admin"
     _fetchTermThenData(); // fetch current term first, then fetch all the dashboard data
     _checkSystemStatus(); // ping the servers to see if they still alive
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _fetchTermThenData();
   }
 
   // go to DB and get admin's first and last name — dili ta wala ngalan

@@ -25,7 +25,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   bool _isLoading = true;
 
   // When non-null we are in edit mode
-  Map<String, dynamic>? _editing;
 
   @override
   void initState() {
@@ -78,7 +77,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   // ── CRUD ──────────────────────────────────────────────────────
 
   void _showAddEditDialog([Map<String, dynamic>? dept]) {
-    _editing = dept;
     if (dept != null) {
       _nameController.text = dept['d_name'];
       _codeController.text = dept['d_code'] ?? '';
@@ -312,108 +310,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     );
   }
 
-  Future<void> _delete(Map<String, dynamic> dept) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.1),
-                shape: BoxShape.circle),
-            child: const Icon(Icons.warning_amber_rounded,
-                color: AppColors.error, size: 22),
-          ),
-          const SizedBox(width: 12),
-          const Text('Delete Department',
-              style:
-                  TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        ]),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Are you sure you want to delete:',
-                style: TextStyle(
-                    color: AppColors.textSecondary, fontSize: 14)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.error.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: AppColors.error.withValues(alpha: 0.3)),
-              ),
-              child: Text(dept['d_name'],
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.error,
-                      fontSize: 15)),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              '⚠️ Linked users and subjects won\'t be deleted but will lose their department association.',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                  height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel',
-                  style: TextStyle(color: AppColors.textSecondary))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10))),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-    try {
-      // Block delete if department still has assigned users
-      final assignedUsers = await _supabase
-          .from('department_table')
-          .select('user_id')
-          .eq('Department_name_ID', dept['id']);
-      if ((assignedUsers as List).isNotEmpty) {
-        _showSnack(
-          'Cannot delete "${dept['d_name']}": ${assignedUsers.length} user(s) are still assigned to it. Reassign them first.',
-          isError: true,
-        );
-        return;
-      }
-      await _supabase.from('department_name').delete().eq('id', dept['id']);
-      _showSnack('Department deleted successfully');
-      if (_editing?['id'] == dept['id']) _clearForm();
-      await _loadDepartments();
-    } catch (e) {
-      _showSnack('Error: $e', isError: true);
-    }
-  }
-
   void _startEdit(Map<String, dynamic> dept) {
     _showAddEditDialog(dept);
   }
 
   void _clearForm() {
-    setState(() => _editing = null);
     _nameController.clear();
     _codeController.clear();
   }
@@ -451,7 +352,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold)),
-            Text('Add, edit or remove departments',
+            Text('Add or edit departments',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
           ],
         ),
@@ -570,7 +471,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                     ],
                   ),
                 ),
-                // Edit & Delete
+                // Edit
                 IconButton(
                   icon: const Icon(
                     Icons.edit_outlined,
@@ -579,12 +480,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                   ),
                   onPressed: () => _startEdit(dept),
                   tooltip: 'Edit',
-                ),
-                SafeIconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      color: AppColors.error, size: 20),
-                  onPressed: () => _delete(dept),
-                  tooltip: 'Delete',
                 ),
               ]),
             ),

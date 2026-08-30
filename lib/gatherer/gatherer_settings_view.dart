@@ -9,6 +9,7 @@ import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/deactivate_account_dialog.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -267,41 +268,19 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
     );
   }
 
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Row(
-            children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.error),
-              SizedBox(width: 8),
-              Text("Delete Account?"),
-            ],
-          ),
-          content: const Text("This action is permanent and cannot be undone. All your profile data will be removed from the system."),
-          actions: [
-            TextButton(child: const Text("Cancel", style: TextStyle(color: AppColors.textSecondary)), onPressed: () => Navigator.pop(context)),
-            SafeElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-              child: const Text("Delete My Account", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              onPressed: () async {
-                final navigator = Navigator.of(context);
-                final rootNavigator = Navigator.of(this.context);
-                final messenger = ScaffoldMessenger.of(context);
-                navigator.pop();
-                final result = await _authService.deleteAccount();
-                if (result.success) {
-                   if (mounted) rootNavigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                } else {
-                   if (mounted) messenger.showSnackBar(SnackBar(content: Text('Error: ${result.error}'), backgroundColor: AppColors.error));
-                }
-              },
-            ),
-          ],
-        );
-      },
+  // Deactivation lives in showDeactivateAccountDialog: warning, emailed code,
+  // then the blocking "Deactivating account…" overlay. All this screen still
+  // decides is where the user lands afterwards.
+  Future<void> _showDeleteAccountDialog() async {
+    // Captured before the await -- after deactivation the session is gone and
+    // this State may be on its way out.
+    final navigator = Navigator.of(context);
+    final deactivated = await showDeactivateAccountDialog(context);
+    if (!mounted || deactivated != true) return;
+    // No route history left to go back to.
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -547,7 +526,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       decoration: BoxDecoration(color: AppColors.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
                       child: const Icon(Icons.delete_forever, color: AppColors.error),
                     ),
-                    title: const Text('Delete My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
+                    title: const Text('Deactivate My Account', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.error)),
                     trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.error),
                     onTap: _showDeleteAccountDialog,
                   ),

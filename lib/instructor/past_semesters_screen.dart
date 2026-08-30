@@ -10,6 +10,7 @@ import 'subject_detail_screen.dart';
 import 'detailed_report_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
+import '../core/services/term_aware_state.dart';
 
 // StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
@@ -20,7 +21,8 @@ class PastSemestersScreen extends StatefulWidget {
   State<PastSemestersScreen> createState() => _PastSemestersScreenState();
 }
 
-class _PastSemestersScreenState extends State<PastSemestersScreen> {
+class _PastSemestersScreenState extends State<PastSemestersScreen>
+    with TermAwareState<PastSemestersScreen> {
   final _supabase = Supabase.instance.client;
 
   // General loading flag — true while fetching term history
@@ -33,11 +35,48 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
   String? _selectedTermId;
   // The subjects taught in the selected term
   List<Map<String, dynamic>> _selectedTermSubjects = [];
+  // Instructor profile data for the report header
+  String _instructorName = 'Instructor';
+  String _instructorDept = '';
+  String _universityId = '';
   
   @override
   void initState() {
     super.initState();
+    _fetchInstructorProfile();
     _fetchHistory(); // start fetching all historical terms right away
+  }
+
+  // Reload when the SAO office switches the active term, instead of
+  // showing the previous term's figures until this screen is rebuilt.
+  @override
+  void onTermChanged() {
+    _fetchHistory();
+  }
+
+  Future<void> _fetchInstructorProfile() async {
+    try {
+      final results = await Future.wait([
+        _supabase.from('user_info').select('first_name, last_name, university_id').eq('id', widget.userId).maybeSingle(),
+        _supabase.from('department_table').select('department_name:Department_name_ID(d_name)').eq('user_id', widget.userId).maybeSingle(),
+      ]);
+      final user = results[0];
+      final deptData = results[1];
+      if (mounted) {
+        setState(() {
+          if (user != null) {
+            _instructorName = '${user['first_name'] ?? ''} ${user['last_name'] ?? ''}'.trim();
+            _universityId = user['university_id'] ?? '';
+          }
+          if (deptData != null) {
+            final dept = deptData['department_name'];
+            _instructorDept = dept is Map ? dept['d_name'] ?? '' : '';
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching instructor profile: $e');
+    }
   }
 
   // Fetches all terms where this instructor has evaluation summaries.
@@ -373,12 +412,11 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                 if (termData != null && termData.isNotEmpty)
                   TextButton.icon(
                     onPressed: () {
-                      // Get instructor name from user metadata — not ideal but wala pa better source here
-                      final name = _supabase.auth.currentUser?.userMetadata?['full_name'] ?? 'Instructor';
                       Navigator.push(context, MaterialPageRoute(builder: (_) => DetailedReportScreen(
                         userId: widget.userId,
-                        instructorName: name,
-                        department: 'Faculty', // hardcoded for now — not great but acceptable
+                        instructorName: _instructorName,
+                        universityId: _universityId,
+                        department: _instructorDept.isNotEmpty ? _instructorDept : 'Faculty',
                         termId: _selectedTermId,
                         // Parse semester and academic year from combined string
                         term: termData['semester']?.toString().split(' ')[0] ?? '',
@@ -496,60 +534,71 @@ class _PastSemestersScreenState extends State<PastSemestersScreen> {
                       // Bar height proportional to score out of 5 — max 120px
                       double h = (score / 5.0) * 120;
                       bool isSel = data['termId'] == _selectedTermId; // highlight selected term
-                      return Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // Score label above the bar
-                          Text(score.toStringAsFixed(2), style: TextStyle(color: isSel ? AppColors.primary : Colors.white70, fontSize: 10, fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          // Tappable bar — clicking selects this term
-                          GestureDetector(
-                            onTap: () {
-                              setState(() => _selectedTermId = data['termId']);
-                              _loadSelectedTermData(data['termId']); // load this term's subjects
-                            },
-                            child: Container(
-                              width: 30,
-                              height: h.clamp(5, 120), // minimum height 5px so it's always visible
-                              decoration: BoxDecoration(
-                                color: isSel ? AppColors.primary : Colors.white24, // highlight selected
-                                borderRadius: BorderRadius.circular(4),
-                                border: isSel ? Border.all(color: Colors.white, width: 1) : null,
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            // Score label above the bar
+                            SizedBox(
+                              width: 44,
+                              child: Text(
+                                score.toStringAsFixed(2),
+                                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.visible,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          // Short label below bar: "1st\n25-26" so different years are distinguishable
-                          SizedBox(
-                            width: 40,
-                            child: Builder(builder: (_) {
-                              final full = data['semester']?.toString() ?? '';
-                              // full = "1st Semester 2025-2026"
-                              final parts = full.split(' ');
-                              final ordinal = parts.isNotEmpty ? parts[0] : full; // "1st"
-                              // academic_year is the last token e.g. "2025-2026" → shorten to "25-26"
-                              String yearShort = '';
-                              if (parts.length >= 3) {
-                                final ay = parts.last; // "2025-2026"
-                                final ayParts = ay.split('-');
-                                if (ayParts.length == 2) {
-                                  yearShort = '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
-                                      '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}';
-                                } else {
-                                  yearShort = ay;
+                            const SizedBox(height: 4),
+                            // Tappable bar — clicking selects this term
+                            GestureDetector(
+                              onTap: () {
+                                setState(() => _selectedTermId = data['termId']);
+                                _loadSelectedTermData(data['termId']); // load this term's subjects
+                              },
+                              child: Container(
+                                width: 36,
+                                height: h.clamp(5, 120), // minimum height 5px so it's always visible
+                                decoration: BoxDecoration(
+                                  color: isSel ? Colors.white : Colors.white54, // highlight selected
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: isSel ? Border.all(color: Colors.white, width: 1) : null,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Short label below bar: "1st\n25-26" so different years are distinguishable
+                            SizedBox(
+                              width: 44,
+                              child: Builder(builder: (_) {
+                                final full = data['semester']?.toString() ?? '';
+                                // full = "1st Semester 2025-2026"
+                                final parts = full.split(' ');
+                                final ordinal = parts.isNotEmpty ? parts[0] : full; // "1st"
+                                // academic_year is the last token e.g. "2025-2026" → shorten to "25-26"
+                                String yearShort = '';
+                                if (parts.length >= 3) {
+                                  final ay = parts.last; // "2025-2026"
+                                  final ayParts = ay.split('-');
+                                  if (ayParts.length == 2) {
+                                    yearShort = '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+                                        '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}';
+                                  } else {
+                                    yearShort = ay;
+                                  }
                                 }
-                              }
-                              final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
-                              return Text(
-                                label,
-                                style: const TextStyle(color: Colors.white54, fontSize: 8),
-                                textAlign: TextAlign.center,
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              );
-                            }),
-                          ),
-                        ],
+                                final label = yearShort.isNotEmpty ? '$ordinal\n$yearShort' : ordinal;
+                                return Text(
+                                  label,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 9),
+                                  textAlign: TextAlign.center,
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 2,
+                                );
+                              }),
+                            ),
+                          ],
+                        ),
                       );
                     }).toList(),
                     ),           // closes Row
