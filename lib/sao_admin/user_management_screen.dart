@@ -923,6 +923,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     'lastName': newLast,
                     'roleId': selectedRoleId,
                     'roleName': roleName,
+                    // Was never sent, which is why the Department dropdown in
+                    // this dialog changed nothing. admin-update-role now moves
+                    // department_table and the is_primary instructor_departments
+                    // row together.
+                    'deptId': selectedDeptId,
                     'verificationCode': codeController.text.trim(),
                     'isAcademic': true,
                     'isPromotion': isUpgradingToHead, // true only when actually promoting to Dept Head

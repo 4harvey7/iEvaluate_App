@@ -48,7 +48,23 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     'totalEvals': '0',
     'completionRate': 0.0,
     'facultyCount': 0,
+    'evaluatedCount': 0,
   };
+
+  /// One line saying what the department average is actually based on.
+  ///
+  /// Null when the number speaks for itself -- every faculty member on the
+  /// roster has results this term. Otherwise the average describes fewer
+  /// people than the card implies. A department average computed from 2 of 20
+  /// scanned instructors is not the department's score, and without this line
+  /// it reads exactly as though it were.
+  String? get _coverageNote {
+    final evaluated = _deptInfo['evaluatedCount'] as int? ?? 0;
+    final faculty = _deptInfo['facultyCount'] as int? ?? 0;
+    if (evaluated == 0) return 'No evaluations yet this term';
+    if (faculty > evaluated) return 'Based on $evaluated of $faculty faculty';
+    return null;
+  }
 
   // Alerts are the problems we hope to never see but always plan for — bahala na
   List<ActionAlert> _dynamicAlerts = [];
@@ -186,6 +202,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             'totalEvals': summary.totalEvaluations.toString(),
             'completionRate': summary.completionRate,
             'facultyCount': summary.facultyCount,
+            'evaluatedCount': summary.evaluatedCount,
           };
           _dynamicAlerts = alerts; // Store alerts for the dashboard and notification bell
           _wordCloudData = wordCloud; // Store word cloud data for the AI section
@@ -390,6 +407,13 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                     const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
                                   ],
                                 ),
+                                if (_coverageNote != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _coverageNote!,
+                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

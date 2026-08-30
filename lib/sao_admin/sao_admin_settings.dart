@@ -585,6 +585,22 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
   void _updateSystemSettings(String semester, String year) async {
     setState(() => _isUpdatingSettings = true); // lock the button
     try {
+      // 0. Which term are we leaving? Read it before the upsert overwrites it.
+      // Department membership is snapshotted for the OUTGOING term, not the
+      // incoming one: membership should be recorded as it stood at the end of
+      // the term, and an instructor added mid-term must still appear in the
+      // current term's reports.
+      String? outgoingTermId;
+      try {
+        final previous = await _supabase
+            .from('system_settings')
+            .select('current_term_id')
+            .maybeSingle();
+        outgoingTermId = previous?['current_term_id'] as String?;
+      } catch (e) {
+        debugPrint('Could not read outgoing term: $e');
+      }
+
       // 1. Ensure the term exists in the normalized 'academic_terms' table
       // upsert = insert if new, update if already there — murag magic
       final termData = await _supabase
@@ -605,6 +621,25 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         'current_term_id': termId, // point to the term we just saved
         'updated_at': DateTime.now().toIso8601String(), // timestamp the change
       }).select().single();
+
+      // 2b. Freeze department membership for the term we just left, so its
+      // reports stop being rebuilt from whatever membership looks like in the
+      // future. Idempotent, so re-running a switch is harmless.
+      //
+      // Wrapped like the notification below: a failed snapshot must not fail
+      // the term switch. Without it that term simply falls back to current
+      // membership, which is what happened before this existed.
+      if (outgoingTermId != null && outgoingTermId != termId) {
+        try {
+          final added = await _supabase.rpc(
+            'snapshot_term_departments',
+            params: {'p_term_id': outgoingTermId},
+          );
+          debugPrint('Snapshotted $added membership rows for term $outgoingTermId');
+        } catch (snapError) {
+          debugPrint('Membership snapshot failed (non-fatal): $snapError');
+        }
+      }
 
       // 3. Trigger notifications to all SAO Admins via edge function
       // wrapped in try-catch because if edge function offline, settings still saved

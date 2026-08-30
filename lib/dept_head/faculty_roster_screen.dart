@@ -142,6 +142,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen> {
             )
           ''')
           .eq('instructor_departments.department_id', deptId)
+          // Only active accounts belong on an evaluation roster. delete-user
+          // soft-deletes by setting account_status = 'deleted' and never
+          // removes the instructor_departments row, so without this a fired or
+          // disabled instructor stays listed as someone to evaluate.
+          .eq('account_status', 'approved')
           .neq('id', deanId); // Exclude dean from their own roster
 
       // Separately fetch role info for each instructor from department_table.

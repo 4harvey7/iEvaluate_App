@@ -250,6 +250,29 @@ class AuthService {
     }
   }
 
+  /// Is this name / email / ID free?
+  ///
+  /// Same check signUp runs, exposed so the registration screen can ask on the
+  /// step that owns the field instead of at the very end. Finding out an ID is
+  /// taken AFTER reading the NDA and the DPA is the worst possible moment to
+  /// find out.
+  ///
+  /// Pass only the fields you want checked.
+  Future<IdentityCheckResult> checkIdentityAvailable({
+    String? firstName,
+    String? lastName,
+    String? email,
+    String? universityId,
+  }) {
+    return IdentityValidator.checkAvailability(
+      client: _supabase,
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      universityId: universityId,
+    );
+  }
+
   // 2. SIGN IN
   // this is where user try to log in, it do several checks before letting them in
   Future<AuthResult> signIn({

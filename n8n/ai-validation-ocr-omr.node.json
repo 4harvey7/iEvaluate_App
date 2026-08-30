@@ -1,0 +1,59 @@
+{
+  "_comment": [
+    "Replacement for the node currently named 'scan crop image via ai'.",
+    "Renamed to 'ai validation ocr and omr'.",
+    "",
+    "1. It now also reads the 20 bubble rows. It did not before -- the",
+    "   responseSchema had only the six text fields -- so there was nothing to",
+    "   reconcile Python's OMR against. maxOutputTokens went 200 -> 2048.",
+    "",
+    "2. THE SCALE IS LETTERS, NOT NUMBERS. Verified two ways: against",
+    "   omr_ground_truth_merged.json (24 labelled forms, 480 rows, whose only",
+    "   answer values are O/VS/S/F/US/blank), and against the legend the app",
+    "   itself prints in pdf_service.dart:426 --",
+    "     O  Outstanding        4.21-5.00  -> 5",
+    "     VS Very Satisfactory  3.41-4.20  -> 4",
+    "     S  Satisfactory       2.61-3.40  -> 3",
+    "     F  Fair               1.81-2.60  -> 2",
+    "     US Unsatisfactory     1.00-1.80  -> 1",
+    "   Note F ranks ABOVE US. The schema constrains every row to an enum of",
+    "   exactly those letters plus 'blank', so the model cannot invent a value.",
+    "   The reconciler converts letters to numbers; Gemini is told not to.",
+    "",
+    "3. Row order verified: management is ground-truth indices 0-9, performance",
+    "   is 10-19, and every labelled form has exactly 20 rows.",
+    "",
+    "4. No inline API key -- uses Predefined Credential Type ->",
+    "   'Google Gemini(PaLM) Api', the credential the three LLM Chain nodes",
+    "   already use. If it is missing from that dropdown, fall back to Generic",
+    "   Credential Type -> Header Auth, header name 'x-goog-api-key'."
+  ],
+  "parameters": {
+    "method": "POST",
+    "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+    "authentication": "predefinedCredentialType",
+    "sendBody": true,
+    "specifyBody": "json",
+    "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are reading a scanned CTU Argao SAST instructor evaluation form.\\n\\nReturn TWO things: the handwritten text fields, and the bubble grid.\\n\\n--- TEXT FIELDS ---\\n1. instructor: full name with credentials, as written.\\n2. subject: course code matching CTU prefixes (DDMGT, IT, CSO, HCI, ADBAS, IDA) plus digits.\\n3. ay_semester: academic year and semester, e.g. '2021', '1st Sem'.\\n4. remarks: the exact remark text. It may be English, Tagalog or Bisaya/Cebuano. Fix only obvious OCR typos using context (e.g. 'Danot' -> \\\"Don't\\\"). Do not translate, summarise or rewrite.\\n5. date: as written, e.g. '01/20/20'.\\n6. student_id: digits only.\\nGuess messy handwriting. Leave a field as an empty string ONLY if there is no ink at all.\\n\\n--- BUBBLE GRID ---\\nThe form has exactly 20 rated statements in two sections of 10:\\n  Management  -> rows 1-10,  report as m1 through m10\\n  Performance -> rows 11-20, report as p1 through p10\\n\\nEach row is answered by shading ONE bubble in a five-column rating scale. The columns are LETTERED, not numbered:\\n  O   Outstanding\\n  VS  Very Satisfactory\\n  S   Satisfactory\\n  F   Fair\\n  US  Unsatisfactory\\n\\nFor every one of the 20 rows return exactly one of: O, VS, S, F, US, blank\\n\\nRules for the grid, follow exactly:\\n- Return 'blank' rather than guessing. A wrong letter is worse than a blank here, because a second system cross-checks these values and a confident wrong answer defeats that check.\\n- If two bubbles in one row are shaded, return 'blank'.\\n- If a mark is very faint but clearly on one column, return that column's letter.\\n- Count rows in printed order from the top of each section. Do not skip a row because it looks empty -- return 'blank' for it and keep the numbering aligned.\\n- Never shift the numbering to fill gaps. A blank row 7 means m7 is 'blank', not m7 taking row 8's value.\\n- Do not convert the letters to numbers. Return the letters.\\n\\nReturn ONLY valid JSON matching the schema.\"\n        },\n        {\n          \"inlineData\": {\n            \"mimeType\": \"image/jpeg\",\n            \"data\": \"{{ $('SAST image from phone').item.json.body.image }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0,\n    \"maxOutputTokens\": 2048,\n    \"responseMimeType\": \"application/json\",\n    \"responseSchema\": {\n      \"type\": \"OBJECT\",\n      \"properties\": {\n        \"instructor\": {\n          \"type\": \"STRING\"\n        },\n        \"subject\": {\n          \"type\": \"STRING\"\n        },\n        \"ay_semester\": {\n          \"type\": \"STRING\"\n        },\n        \"remarks\": {\n          \"type\": \"STRING\"\n        },\n        \"date\": {\n          \"type\": \"STRING\"\n        },\n        \"student_id\": {\n          \"type\": \"STRING\"\n        },\n        \"ratings\": {\n          \"type\": \"OBJECT\",\n          \"properties\": {\n            \"m1\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m2\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m3\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m4\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m5\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m6\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m7\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m8\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m9\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"m10\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p1\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p2\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p3\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p4\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p5\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p6\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p7\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p8\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p9\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            },\n            \"p10\": {\n              \"type\": \"STRING\",\n              \"enum\": [\n                \"O\",\n                \"VS\",\n                \"S\",\n                \"F\",\n                \"US\",\n                \"blank\"\n              ]\n            }\n          },\n          \"required\": [\n            \"m1\",\n            \"m2\",\n            \"m3\",\n            \"m4\",\n            \"m5\",\n            \"m6\",\n            \"m7\",\n            \"m8\",\n            \"m9\",\n            \"m10\",\n            \"p1\",\n            \"p2\",\n            \"p3\",\n            \"p4\",\n            \"p5\",\n            \"p6\",\n            \"p7\",\n            \"p8\",\n            \"p9\",\n            \"p10\"\n          ]\n        }\n      },\n      \"required\": [\n        \"instructor\",\n        \"subject\",\n        \"ay_semester\",\n        \"remarks\",\n        \"date\",\n        \"student_id\",\n        \"ratings\"\n      ]\n    }\n  }\n}",
+    "options": {},
+    "nodeCredentialType": "googlePalmApi"
+  },
+  "type": "n8n-nodes-base.httpRequest",
+  "typeVersion": 4.4,
+  "position": [
+    -6720,
+    -1056
+  ],
+  "id": "d250a570-f4d2-42e5-892e-6034f7907301",
+  "name": "ai validation ocr and omr",
+  "retryOnFail": true,
+  "maxTries": 2,
+  "waitBetweenTries": 3000,
+  "onError": "continueRegularOutput",
+  "credentials": {
+    "googlePalmApi": {
+      "id": "DJ9wGNttxBVUv9qX",
+      "name": "Google Gemini(PaLM) Api account"
+    }
+  }
+}

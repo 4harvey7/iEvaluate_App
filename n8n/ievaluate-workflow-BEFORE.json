@@ -1,0 +1,3555 @@
+{
+  "name": "(gemini version) limpyo version SAKIT NA ANG AKONG HEAD",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{$json.sheetId}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "SAST Survey Data",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -6048,
+        -720
+      ],
+      "id": "0ff8d3f3-88b9-41ef-a640-dae84d77a542",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0KrnHlIEzbB1rl8Q",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Safely attempt to get the staff ID by checking nodes independently\nlet staffId = null;\nlet isManuallyCorrected = false; // New flag to track if this was manually corrected\n\n// Attempt 1: 'clean data' node\ntry {\n  const cleanDataNode = $('clean data').first();\n  if (cleanDataNode && cleanDataNode.json.staff_id) {\n    staffId = cleanDataNode.json.staff_id;\n  }\n} catch (error) {\n  // Node didn't run or data is missing, move on\n}\n\n// Attempt 2: 'SAST image from phone' node\nif (!staffId) {\n  try {\n    const phoneNode = $('SAST image from phone').first();\n    if (phoneNode && phoneNode.json.body && phoneNode.json.body.user_id) {\n      staffId = phoneNode.json.body.user_id;\n    }\n  } catch (error) {\n    // Node didn't run or data is missing\n  }\n}\n\n// Attempt 3: 'sast-manual-correction' node\ntry {\n  const manualNode = $('sast-manual-correction').first();\n  if (manualNode) {\n    // If this node executed without throwing an error, we know it's a manual correction!\n    isManuallyCorrected = true; \n    \n    // Check for the user_id in the manual correction payload if we don't have a staffId yet\n    if (!staffId && manualNode.json.body && manualNode.json.body.user_id) {\n      staffId = manualNode.json.body.user_id;\n    }\n  }\n} catch (error) {\n  // Node didn't run, meaning this is an automated run\n}\n\n// Map the raw data and include the new database flags\nconst rawData = $input.all().map(item => {\n  const r = item.json;\n  return {\n    json: {\n      instructor_ID: r['instructor_ID'] || null,\n      subject_id: r['true_subject_id'] || null,\n      term_id: r['current_term_id'] || null,\n      student_id: r['Student ID'] || null,\n      instructor: r['Instructor/Professor'] || null,\n\n      m1: Number(r['M1']) || null,\n      m2: Number(r['M2']) || null,\n      m3: Number(r['M3']) || null,\n      m4: Number(r['M4']) || null,\n      m5: Number(r['M5']) || null,\n      m6: Number(r['M6']) || null,\n      m7: Number(r['M7']) || null,\n      m8: Number(r['M8']) || null,\n      m9: Number(r['M9']) || null,\n      m10: Number(r['M10']) || null,\n\n      p1: Number(r['P1']) || null,\n      p2: Number(r['P2']) || null,\n      p3: Number(r['P3']) || null,\n      p4: Number(r['P4']) || null,\n      p5: Number(r['P5']) || null,\n      p6: Number(r['P6']) || null,\n      p7: Number(r['P7']) || null,\n      p8: Number(r['P8']) || null,\n      p9: Number(r['P9']) || null,\n      p10: Number(r['P10']) || null,\n\n      Remarks_and_Suggestions: String(r['Remarks & Suggestions'] ?? '').trim() || null,\n\n      submitted_date: r['Date'] ? new Date(r['Date']).toISOString().split('T')[0] : null,\n\n      sao_staff_id: staffId,\n\n      // ADDED: Map to the columns shown in your Supabase screenshot\n      manually_corrected: isManuallyCorrected,\n      validation_status: isManuallyCorrected ? 'corrected' : 'auto'\n    }\n  };\n});\n\nconst uniqueData = [];\nconst seen = new Set();\n\n// Loop backwards to keep the newest submission and discard older duplicates\nfor (let i = rawData.length - 1; i >= 0; i--) {\n  const item = rawData[i];\n  const j = item.json;\n  \n  // The magic fingerprint checking Student + Instructor + Subject + Term\n  const uniqueKey = `${j.student_id}_${j.instructor_ID}_${j.subject_id}_${j.term_id}`;\n\n  if (!seen.has(uniqueKey)) {\n    seen.add(uniqueKey);\n    uniqueData.push(item);\n  }\n}\n\nreturn uniqueData.reverse();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4480,
+        -1968
+      ],
+      "id": "6fb7970d-4901-4f50-9a1b-bee67c74b563",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "07290339-50a9-4552-8c0c-4026fbb3842b",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4704,
+        -864
+      ],
+      "id": "38f46507-91cd-44da-bc3a-4e32b3bd862e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Subject UUID not found in database. The corrected_subject_id no longer exists. Ask staff to re-submit the correction."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -4480,
+        -912
+      ],
+      "id": "ce205712-07e6-4ecc-82cf-7de0f5bcc2ef",
+      "name": "Stop and Error"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4825e08d-db9b-4ce0-bbf5-d9f3da6e4647",
+              "name": "M1",
+              "value": "={{ $json.M1 }}",
+              "type": "number"
+            },
+            {
+              "id": "0f78433e-606d-4294-8bcf-b14ab5ed4b94",
+              "name": "M2",
+              "value": "={{ $json.M2 }}",
+              "type": "number"
+            },
+            {
+              "id": "36fbed1a-e3db-41a9-80c8-d7df60f2adc2",
+              "name": "M3",
+              "value": "={{ $json.M3 }}",
+              "type": "number"
+            },
+            {
+              "id": "63b33180-038a-45d6-803c-e2a45241bc4c",
+              "name": "M4",
+              "value": "={{ $json.M4 }}",
+              "type": "number"
+            },
+            {
+              "id": "0fe205d4-a874-4944-be35-1f2ecea0c336",
+              "name": "M5",
+              "value": "={{ $json.M5 }}",
+              "type": "number"
+            },
+            {
+              "id": "980e4dfc-4954-462d-af8b-98bb6634d7c2",
+              "name": "M6",
+              "value": "={{ $json.M6 }}",
+              "type": "number"
+            },
+            {
+              "id": "818bd795-6a5d-4f71-b861-db8ede786a70",
+              "name": "M7",
+              "value": "={{ $json.M7 }}",
+              "type": "number"
+            },
+            {
+              "id": "05d6d180-b22a-46d1-a81c-0532d2991884",
+              "name": "M8",
+              "value": "={{ $json.M8 }}",
+              "type": "number"
+            },
+            {
+              "id": "e2c6eded-127f-424e-a409-a5a6b1cfd87f",
+              "name": "M9",
+              "value": "={{ $json.M9 }}",
+              "type": "number"
+            },
+            {
+              "id": "55b4eb95-11c4-4272-8143-dda407e11f9b",
+              "name": "M10",
+              "value": "={{ $json.M10 }}",
+              "type": "number"
+            },
+            {
+              "id": "2630c517-7149-48d6-92df-1829c85deb10",
+              "name": "instructor_ID",
+              "value": "={{ $json.instructor_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "29d77426-905e-49af-922c-eb6daf1337e3",
+              "name": "current_term_id",
+              "value": "={{ $json.current_term_id }}",
+              "type": "string"
+            },
+            {
+              "id": "dd001209-aeb0-485b-82dd-be252cfe3b70",
+              "name": "true_subject_id",
+              "value": "={{ $json.true_subject_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4480,
+        -1568
+      ],
+      "id": "a2ce6362-66b5-44de-8319-1a4c306c8f95",
+      "name": "Management Node"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2fe621d3-e3b1-406e-89bf-1be4f8d36142",
+              "name": "P1",
+              "value": "={{ $json.P1 }}",
+              "type": "number"
+            },
+            {
+              "id": "08541d80-d6ed-432b-9c68-a5b07faed57f",
+              "name": "P2",
+              "value": "={{ $json.P2 }}",
+              "type": "number"
+            },
+            {
+              "id": "91039d17-9680-4db6-8538-3fa5a89b5ee4",
+              "name": "P3",
+              "value": "={{ $json.P3 }}",
+              "type": "number"
+            },
+            {
+              "id": "45bfd9ef-0fa7-4e3e-8dbe-2739840fea2d",
+              "name": "P4",
+              "value": "={{ $json.P4 }}",
+              "type": "number"
+            },
+            {
+              "id": "0fa5e52a-9997-4be5-b51b-5cd972c78833",
+              "name": "P5",
+              "value": "={{ $json.P5 }}",
+              "type": "number"
+            },
+            {
+              "id": "9112e44a-186c-495e-a5d0-09ef767b145e",
+              "name": "P6",
+              "value": "={{ $json.P6 }}",
+              "type": "number"
+            },
+            {
+              "id": "8fccc30f-71af-479a-a52b-0efe9f86dc16",
+              "name": "P7",
+              "value": "={{ $json.P7 }}",
+              "type": "number"
+            },
+            {
+              "id": "44b1fe8e-41c0-4fcc-a18c-222efbbf941d",
+              "name": "P8",
+              "value": "={{ $json.P8 }}",
+              "type": "number"
+            },
+            {
+              "id": "e0595602-22aa-40aa-b02c-e98b3d1687e8",
+              "name": "P9",
+              "value": "={{ $json.P9 }}",
+              "type": "number"
+            },
+            {
+              "id": "80b6f507-ab9f-4692-b735-7530c7b4b027",
+              "name": "P10",
+              "value": "={{ $json.P10 }}",
+              "type": "number"
+            },
+            {
+              "id": "fc17da5c-3c01-4eda-aec3-b0201452b3ab",
+              "name": "instructor_ID",
+              "value": "={{ $json.instructor_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "de2fc341-1fdd-4171-abef-093cc817e02d",
+              "name": "current_term_id",
+              "value": "={{ $json.current_term_id }}",
+              "type": "string"
+            },
+            {
+              "id": "6504d42f-c99b-434b-8552-c9d56dcc1896",
+              "name": "true_subject_id",
+              "value": "={{ $json.true_subject_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4480,
+        -1104
+      ],
+      "id": "a4e30886-0c83-4cde-8ab5-7922c97ae839",
+      "name": "Performance"
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -4256,
+        -1968
+      ],
+      "id": "ddadf476-8ebf-49be-a0a0-d6d40b48bd19",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3968,
+        -1568
+      ],
+      "id": "d28b403b-e15a-4455-8b21-d134baa047f5",
+      "name": "Loop Over Items1"
+    },
+    {
+      "parameters": {
+        "batchSize": 50,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3968,
+        -1104
+      ],
+      "id": "e04a4a8e-0652-4b1f-bba8-f2ad1b84b49b",
+      "name": "Loop Over Items2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fabecf76-3e98-40fe-b32e-aa989adba428",
+              "name": "instructor_ID",
+              "value": "={{ $json.instructor_ID }}",
+              "type": "string"
+            },
+            {
+              "id": "deeb360b-2164-4d83-82f7-71af76ed9cc4",
+              "name": "Subject Taught",
+              "value": "={{ $json['Subject Taught'] }}",
+              "type": "string"
+            },
+            {
+              "id": "63053299-e988-4283-8249-1173cf38a4a8",
+              "name": "Remarks & Suggestions",
+              "value": "={{ $json['Remarks & Suggestions'] }}",
+              "type": "string"
+            },
+            {
+              "id": "824aeef4-6f28-4cbf-bc77-56aa4895ce07",
+              "name": "true_subject_id",
+              "value": "={{ $json.true_subject_id }}",
+              "type": "string"
+            },
+            {
+              "id": "51912703-8cbf-4090-8b2e-a80bd561331e",
+              "name": "current_term_id",
+              "value": "={{ $json.current_term_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4480,
+        -192
+      ],
+      "id": "60b6ef53-5c3b-438f-9686-a1d1e1ca3a7c",
+      "name": "Instructor message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const grouped = {};\nlet current_term = null; \n\nfor (const item of items) {\n  const instructor = item.json.instructor_ID;\n  const remark = item.json[\"Remarks & Suggestions\"];\n  \n  // Safely capture the term_id from the incoming data\n  if (item.json.current_term_id) {\n     current_term = item.json.current_term_id;\n  }\n\n  if (!remark) continue; \n\n  if (!grouped[instructor]) {\n    grouped[instructor] = [];\n  }\n  grouped[instructor].push(remark);\n}\n\nreturn Object.entries(grouped).map(([instructor_ID, remarks]) => {\n  return {\n    json: {\n      instructor_ID,\n      term_id: current_term,  // <--- Passing it down the chain!\n      remarks\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4256,
+        -496
+      ],
+      "id": "2ea5fb60-3215-4324-8eb1-6c9dac094a47",
+      "name": "Group feedback by instructor"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n\nconst instructor = item.json.instructor_ID;\nconst term_id = item.json.term_id;\n// This safety net stops the \"Cannot read properties of undefined (reading 'map')\" error!\nconst keywords = item.json.keywords || []; \n  \nconst text = keywords.map(k => {\n  return `${k.word}: ${k.count} times`;\n}).join(\"\\n\");\n\nreturn {\n  json:{\n    instructor_ID: instructor,\n    term_id: term_id,\n    ai_prompt:\n`\nYou are an AI keyword extraction system for an instructor feedback word cloud.\n\nYour task:\nConvert student feedback into short, meaningful keywords that represent the main ideas.\n\nThe feedback can be:\n- English\n- Bisaya/Cebuano\n- Tagalog\n- Mixed languages\n\n\nInput feedback:\n\n${text}\n\n\nReturn ONLY valid JSON.\nNo markdown.\nNo explanation.\n\nFormat:\n\n{\n \"keywords\":[\n  {\n   \"word\":\"keyword or short phrase\",\n   \"count\":0\n  }\n ]\n}\n\n\nSTRICT RULES:\n\n1. Keyword length:\n- Minimum: 1 word\n- Maximum: 3 words\n- Never output sentences\n\n2. Extract the MAIN IDEA:\nExample:\n\nInput:\n\"Excellent teaching methods\"\n\nGood:\n\"Teaching methods\"\n\nBad:\n\"Excellent teaching methods\"\n\n\nInput:\n\"Very approachable and knowledgeable instructor\"\n\nGood:\n\"Approachable instructor\"\n\nBad:\n\"Very approachable and knowledgeable instructor\"\n\n\n3. Remove filler and emotion words:\n\nRemove:\nvery\nreally\ngreat\ngood\nbest\nhighly\nexcellent\nmaayo\nmaganda\nkaayo\ngyud\njud\ntalaga\nsobra\nnaman\nlang\n\n\n4. Understand local languages:\n\nBisaya:\n\"Maayo kaayo mo explain ang teacher\"\n\nMeaning:\nTeaching clarity\n\nOutput:\n{\n \"word\":\"Teaching clarity\"\n}\n\n\nTagalog:\n\"Magaling magturo at madaling intindihin\"\n\nMeaning:\nTeaching clarity\n\nOutput:\n{\n \"word\":\"Teaching clarity\"\n}\n\n\nBisaya:\n\"Dugangi unta ang oras sa pangutana\"\n\nMeaning:\nNeed more Q&A time\n\nOutput:\n{\n \"word\":\"Q&A time\"\n}\n\n\nTagalog:\n\"Dagdagan pa sana ng examples\"\n\nMeaning:\nNeed more examples\n\nOutput:\n{\n \"word\":\"More examples\"\n}\n\n\n5. Combine similar meanings:\n\nExamples:\n\n\"Good explanation\"\n\"Easy to understand\"\n\"Clear explanation\"\n\nCombine:\n\n\"Teaching clarity\"\n\n\n\"Returns grades late\"\n\"Late checking\"\n\"Late assignment feedback\"\n\nCombine:\n\n\"Assignment feedback\"\n\n\n6. Keep important academic concepts:\n\nPrefer:\nTeaching methods\nTeaching clarity\nQ&A time\nPractice exercises\nCourse organization\nFair grading\nSubject knowledge\nLesson pacing\nAssignment feedback\nConsultation hours\n\n\n7. Count:\nKeep the original count.\nDo not change counts.\nDo not invent counts.\n\n8. Maximum:\nReturn only the top 10 most meaningful keywords.\n\n9. Normalize similar instructor feedback:\n\nCombine these meanings:\n\n\"Best professor\"\n\"Recommended instructor\"\n\"Highly recommended instructor\"\n\"Great instructor\"\n\"Good teacher\"\n\nOutput:\n\"Instructor quality\"\n\n\nCombine:\n\n\"Passionate about subject\"\n\"Knowledgeable instructor\"\n\"Good knowledge\"\n\nOutput:\n\"Subject knowledge\"\n\n\nCombine:\n\n\"Interesting lectures\"\n\"Good explanations\"\n\"Explains well\"\n\nOutput:\n\"Teaching clarity\"\n\n\nNow process the feedback.\n`\n  }\n};\n\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3968,
+        -768
+      ],
+      "id": "5ef2f891-c39b-404a-bd76-39c3a4657545",
+      "name": "Clean + Count repeated words"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3392,
+        -768
+      ],
+      "id": "847ae1b1-b474-4845-b680-f8816e312fd5",
+      "name": "Loop Over Items6"
+    },
+    {
+      "parameters": {
+        "jsCode": "const newItems = [];\n\nfor (const item of items) {\n  const aiResponse = item.json.text;\n\n  // Strip markdown code fences\n  let clean = aiResponse\n    .replace(/```json/gi, \"\")\n    .replace(/```/g, \"\")\n    .trim();\n\n  // ✅ Extract only the JSON object — ignores truncated/extra text\n  const jsonMatch = clean.match(/\\{[\\s\\S]*\\}/);\n  if (!jsonMatch) {\n    console.log('No JSON found, skipping. Raw:', clean.substring(0, 100));\n    continue; // skip instead of crash\n  }\n\n  let result;\n  try {\n    result = JSON.parse(jsonMatch[0]);\n  } catch (e) {\n    console.log('JSON parse failed:', e.message);\n    console.log('Raw text:', clean.substring(0, 200));\n    continue; // skip instead of crash\n  }\n\n  const instructor_id = $('Loop Over Items6').item.json.instructor_ID;\n  const term_id = $('Loop Over Items6').item.json.term_id;\n\n  for (const k of result.keywords || []) {\n    newItems.push({\n      json: {\n        instructor_id: instructor_id,\n        term_id: term_id,\n        word: k.word,\n        count: k.count\n      }\n    });\n  }\n}\n\nreturn newItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2752,
+        -800
+      ],
+      "id": "c062a62e-fece-48fc-a3bf-793726604d57",
+      "name": "Parse AI Result1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a text normalization tool for a student feedback word cloud in a Philippine university.\n\nStudent remarks may be written in English, Tagalog, or Bisaya (Cebuano). Process ALL languages equally.\n\nDo not create new words.\nOnly extract and group phrases that already exist in the feedback.\n\nAnalyze these student remarks:\n\n{{$json.ai_prompt}}\n\nReturn ONLY valid JSON.\n\n{\n  \"keywords\": [\n    {\n      \"word\": \"phrase from feedback\",\n      \"count\": 0\n    }\n  ]\n}\n\nRules:\n- Count exact or near-exact repeated remarks\n- Merge similar phrases ONLY when they have the same meaning (even across languages — e.g. \"Good teacher\" and \"Maayong maestra\" and \"Maayong guro\" can be grouped)\n- Keep the most common or clearest version as the representative phrase\n- Do NOT create new words or invent phrases\n- Do NOT translate phrases — keep them in the original language\n- Do NOT add explanations\n- Ignore filler words in all three languages (e.g. \"ang\", \"ng\", \"sa\", \"very\", \"the\")\n- Maximum 10 keywords\n\nExamples in all languages:\n\nEnglish: \"Excellent teaching methods\" / \"Very helpful\" / \"Fair grading\"\nTagalog: \"Magandang guro\" / \"Maliwanag ang pagtuturo\" / \"Palaging handa\"\nBisaya: \"Maayong maestra\" / \"Klaro ang leksyon\" / \"Ba",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -3104,
+        -896
+      ],
+      "id": "2a9d90b2-eec6-45e4-9915-f03c8b832281",
+      "name": "Basic LLM Chain1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return items.map(item => {\n\nconst instructor = item.json.instructor_ID;\nconst term_id = item.json.term_id;\n\n// Safety net: If keywords are missing, default to an empty array to prevent the .map() crash\nconst keywords = item.json.keywords || [];\n  \nconst text = keywords.map(k => {\n  return `${k.word}: ${k.count} times`;\n}).join(\"\\n\");\n\nreturn {\n  json:{\n    instructor_ID: instructor,\n    term_id: term_id,\n    ai_prompt:\n`\nYou are an AI keyword extraction system for an instructor feedback word cloud.\n\nYour task:\nConvert student feedback into short, meaningful keywords that represent the main ideas.\n\nThe feedback can be:\n- English\n- Bisaya/Cebuano\n- Tagalog\n- Mixed languages\n\n\nInput feedback:\n\n${text}\n\n\nReturn ONLY valid JSON.\nNo markdown.\nNo explanation.\n\nFormat:\n\n{\n \"keywords\":[\n  {\n   \"word\":\"keyword or short phrase\",\n   \"count\":0\n  }\n ]\n}\n\n\nSTRICT RULES:\n\n1. Keyword length:\n- Minimum: 1 word\n- Maximum: 3 words\n- Never output sentences\n\n2. Extract the MAIN IDEA:\nExample:\n\nInput:\n\"Excellent teaching methods\"\n\nGood:\n\"Teaching methods\"\n\nBad:\n\"Excellent teaching methods\"\n\n\nInput:\n\"Very approachable and knowledgeable instructor\"\n\nGood:\n\"Approachable instructor\"\n\nBad:\n\"Very approachable and knowledgeable instructor\"\n\n\n3. Remove filler and emotion words:\n\nRemove:\nvery\nreally\ngreat\ngood\nbest\nhighly\nexcellent\nmaayo\nmaganda\nkaayo\ngyud\njud\ntalaga\nsobra\nnaman\nlang\n\n\n4. Understand local languages:\n\nBisaya:\n\"Maayo kaayo mo explain ang teacher\"\n\nMeaning:\nTeaching clarity\n\nOutput:\n{\n \"word\":\"Teaching clarity\"\n}\n\n\nTagalog:\n\"Magaling magturo at madaling intindihin\"\n\nMeaning:\nTeaching clarity\n\nOutput:\n{\n \"word\":\"Teaching clarity\"\n}\n\n\nBisaya:\n\"Dugangi unta ang oras sa pangutana\"\n\nMeaning:\nNeed more Q&A time\n\nOutput:\n{\n \"word\":\"Q&A time\"\n}\n\n\nTagalog:\n\"Dagdagan pa sana ng examples\"\n\nMeaning:\nNeed more examples\n\nOutput:\n{\n \"word\":\"More examples\"\n}\n\n\n5. Combine similar meanings:\n\nExamples:\n\n\"Good explanation\"\n\"Easy to understand\"\n\"Clear explanation\"\n\nCombine:\n\n\"Teaching clarity\"\n\n\n\"Returns grades late\"\n\"Late checking\"\n\"Late assignment feedback\"\n\nCombine:\n\n\"Assignment feedback\"\n\n\n6. Keep important academic concepts:\n\nPrefer:\nTeaching methods\nTeaching clarity\nQ&A time\nPractice exercises\nCourse organization\nFair grading\nSubject knowledge\nLesson pacing\nAssignment feedback\nConsultation hours\n\n\n7. Count:\nKeep the original count.\nDo not change counts.\nDo not invent counts.\n\n8. Maximum:\nReturn only the top 10 most meaningful keywords.\n\n9. Normalize similar instructor feedback:\n\nCombine these meanings:\n\n\"Best professor\"\n\"Recommended instructor\"\n\"Highly recommended instructor\"\n\"Great instructor\"\n\"Good teacher\"\n\nOutput:\n\"Instructor quality\"\n\n\nCombine:\n\n\"Passionate about subject\"\n\"Knowledgeable instructor\"\n\"Good knowledge\"\n\nOutput:\n\"Subject knowledge\"\n\n\nCombine:\n\n\"Interesting lectures\"\n\"Good explanations\"\n\"Explains well\"\n\nOutput:\n\"Teaching clarity\"\n\n\nNow process the feedback.\n`\n  }\n};\n\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        -768
+      ],
+      "id": "6505a8d0-6aec-4bbd-a88f-67d1b7ba9bab",
+      "name": "Prepare AI input1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3968,
+        -304
+      ],
+      "id": "a7286908-d83b-4006-bed0-d15a36f1e51a",
+      "name": "Loop Over Items7"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -4256,
+        176
+      ],
+      "id": "95624f26-1f07-4d96-bb2f-f01bb1a4228b",
+      "name": "Loop Over Items8"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.student_remarks (\n  instructor_id, \n  subject_id, \n  term_id,\n  remark,\n  tone\n) VALUES (\n  $1::uuid, \n  $2::uuid,\n  $3::uuid,\n  $4::text,\n  $5::text\n);",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_ID, $json.subject_id, $json.term_id, $json.remark, $json.tone] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3392,
+        48
+      ],
+      "id": "79d1d80e-7a63-40e0-9ca8-c3094c1abc01",
+      "name": "insert data to student remarks",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Grab everything safely from the Loop node\nconst loopData = $('Loop Over Items7').item.json;\n\n// 2. Extract the remarks array (with a safety net)\nconst remarksArray = loopData.remarks || [];\n\n// 3. Join them into a nice bulleted list string\nconst formatted_remarks = \"- \" + remarksArray.join('\\n- ');\n\n// 4. Output a clean item with BOTH IDs for the AI node\nreturn [\n  {\n    json: {\n      instructor_ID: loopData.instructor_ID,\n      term_id: loopData.term_id,            // <--- Passing the term_id forward!\n      formatted_remarks: formatted_remarks\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        -416
+      ],
+      "id": "d67189e7-ca3d-447e-8b11-99bf89b13d29",
+      "name": "Code in JavaScript5"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert educational consultant. Review the following student feedback for an instructor.\nBased on the feedback, provide a comprehensive evaluation structured into four distinct parts.\n\nCRITICAL RULES:\n1. You must output strictly in RAW JSON format. \n2. DO NOT wrap the output in markdown blocks like \n```json. Output ONLY the JSON object starting with { and ending with }.\n3. ALL values must be single STRINGS. DO NOT use arrays [ ] for the positives or improvements.\n\nMatch this exact schema: \n{\n  \"interpretation\": \"A supportive summary of what the students are collectively saying.\",\n  \"positives\": \"A single string paragraph summarizing the key positive themes.\",\n  \"improvements\": \"A single string paragraph summarizing the areas flagged for improvement.\",\n  \"suggestion\": \"A single, constructive, and actionable paragraph of final advice.\"\n}\n\nStudent Feedback:\n{{ $json.formatted_remarks }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -3456,
+        -416
+      ],
+      "id": "bc097132-0c15-43f3-b17b-c50b8c5f62e5",
+      "name": "Basic LLM Chain",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the raw text from Gemini\nconst aiResponse = $input.item.json.text;\n\n// 2. Bulletproof cleanup (Fixed the accidental line break here!)\nconst clean = aiResponse.replace(/```json/gi, \"\").replace(/```/g, \"\").trim();\nconst parsed = JSON.parse(clean);\n\n// 3. Retrieve BOTH IDs directly from the Loop node\nconst loopData = $('Loop Over Items7').item.json;\n\n// 4. Safety Net: Convert arrays to strings just in case Gemini makes a list\nconst formatText = (data) => Array.isArray(data) ? \"- \" + data.join('\\n- ') : data;\n\nreturn [\n  {\n    json: {\n      instructor_id: loopData.instructor_ID,\n      term_id: loopData.term_id,            \n      ai_suggestion: formatText(parsed.suggestion),\n      student_interpretation: formatText(parsed.interpretation),\n      positive_themes: formatText(parsed.positives),\n      improvement_insights: formatText(parsed.improvements)\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3040,
+        -416
+      ],
+      "id": "899203a4-32a7-42e5-9ae3-cacfc5c12c36",
+      "name": "Parse the AI Result"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the raw text from the Gemini node\nconst aiText = $input.item.json.text;\n\n// 2. Clean and parse the AI JSON\nconst jsonStart = aiText.indexOf('{');\nconst jsonEnd = aiText.lastIndexOf('}') + 1;\nconst clean = aiText.substring(jsonStart, jsonEnd);\nconst parsed = JSON.parse(clean);\n\n// 3. THE ULTIMATE SAFETY NET\nlet rawTone = String(parsed.tone).toLowerCase().trim();\nlet finalTone = \"Neutral\"; // Assume Neutral by default\n\nif (rawTone.includes(\"positive\")) {\n    finalTone = \"Positive\";\n} else if (rawTone.includes(\"critical\")) {\n    finalTone = \"Critical\";\n}\n\n// 4. Grab your original form data safely from the Loop node\nconst originalData = $('Loop Over Items8').item.json;\n\n// 5. Combine them and output one clean object for Supabase\nreturn {\n  json: {\n    instructor_ID: originalData.instructor_ID,\n    subject_id: originalData.true_subject_id,   // Fixed: Now sending the UUID, not the text!\n    term_id: originalData.current_term_id,      // Added: The Term ID\n    remark: originalData['Remarks & Suggestions'],\n    tone: finalTone \n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        48
+      ],
+      "id": "94d36a73-28b3-468f-8087-fa5ef55e6a01",
+      "name": "Code in JavaScript6"
+    },
+    {
+      "parameters": {
+        "amount": 0.5
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3040,
+        176
+      ],
+      "id": "d92e42c6-0c0d-4fc6-b8de-e03a43322634",
+      "name": "Wait",
+      "webhookId": "4c26de27-0a01-42a6-8a2d-406ad756e196"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO management_results (\n  instructor_id, term_id, subject_id, total_responses,\n  m1_total, m2_total, m3_total, m4_total, m5_total,\n  m6_total, m7_total, m8_total, m9_total, m10_total, grand_total,\n  m1_mean, m2_mean, m3_mean, m4_mean, m5_mean,\n  m6_mean, m7_mean, m8_mean, m9_mean, m10_mean,\n  overall_management_mean, average_per_response_management\n) VALUES (\n  $1::uuid, $2::uuid, $3::uuid, $4::numeric,\n  $5::numeric, $6::numeric, $7::numeric, $8::numeric, $9::numeric,\n  $10::numeric, $11::numeric, $12::numeric, $13::numeric, $14::numeric, $15::numeric,\n  $16::numeric, $17::numeric, $18::numeric, $19::numeric, $20::numeric,\n  $21::numeric, $22::numeric, $23::numeric, $24::numeric, $25::numeric,\n  $26::numeric, $27::numeric\n)\nON CONFLICT (instructor_id, term_id, subject_id) DO UPDATE SET\n  total_responses = EXCLUDED.total_responses,\n  m1_total = EXCLUDED.m1_total, m2_total = EXCLUDED.m2_total,\n  m3_total = EXCLUDED.m3_total, m4_total = EXCLUDED.m4_total,\n  m5_total = EXCLUDED.m5_total, m6_total = EXCLUDED.m6_total,\n  m7_total = EXCLUDED.m7_total, m8_total = EXCLUDED.m8_total,\n  m9_total = EXCLUDED.m9_total, m10_total = EXCLUDED.m10_total,\n  grand_total = EXCLUDED.grand_total,\n  m1_mean = EXCLUDED.m1_mean, m2_mean = EXCLUDED.m2_mean,\n  m3_mean = EXCLUDED.m3_mean, m4_mean = EXCLUDED.m4_mean,\n  m5_mean = EXCLUDED.m5_mean, m6_mean = EXCLUDED.m6_mean,\n  m7_mean = EXCLUDED.m7_mean, m8_mean = EXCLUDED.m8_mean,\n  m9_mean = EXCLUDED.m9_mean, m10_mean = EXCLUDED.m10_mean,\n  overall_management_mean = EXCLUDED.overall_management_mean,\n  average_per_response_management = EXCLUDED.average_per_response_management",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.instructor_id,\n  $json.term_id,\n  $json.subject_id,\n  $json.total_responses,\n  $json.m1_total, $json.m2_total, $json.m3_total, $json.m4_total, $json.m5_total,\n  $json.m6_total, $json.m7_total, $json.m8_total, $json.m9_total, $json.m10_total,\n  $json.grand_total,\n  $json.m1_mean, $json.m2_mean, $json.m3_mean, $json.m4_mean, $json.m5_mean,\n  $json.m6_mean, $json.m7_mean, $json.m8_mean, $json.m9_mean, $json.m10_mean,\n  $json.overall_management_mean,\n  $json.average_per_response_management\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3680,
+        -1712
+      ],
+      "id": "15facc88-14e8-49ec-8443-1adefd15b772",
+      "name": "send to managment table",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO performance_results (\n  instructor_id, term_id, subject_id, total_responses,\n  p1_total, p2_total, p3_total, p4_total, p5_total,\n  p6_total, p7_total, p8_total, p9_total, p10_total, grand_total,\n  p1_mean, p2_mean, p3_mean, p4_mean, p5_mean,\n  p6_mean, p7_mean, p8_mean, p9_mean, p10_mean,\n  overall_performance_mean, average_per_response_performance\n) VALUES (\n  $1::uuid, $2::uuid, $3::uuid, $4::numeric,\n  $5::numeric, $6::numeric, $7::numeric, $8::numeric, $9::numeric,\n  $10::numeric, $11::numeric, $12::numeric, $13::numeric, $14::numeric, $15::numeric,\n  $16::numeric, $17::numeric, $18::numeric, $19::numeric, $20::numeric,\n  $21::numeric, $22::numeric, $23::numeric, $24::numeric, $25::numeric,\n  $26::numeric, $27::numeric\n)\nON CONFLICT (instructor_id, term_id, subject_id) DO UPDATE SET\n  total_responses = EXCLUDED.total_responses,\n  p1_total = EXCLUDED.p1_total, p2_total = EXCLUDED.p2_total,\n  p3_total = EXCLUDED.p3_total, p4_total = EXCLUDED.p4_total,\n  p5_total = EXCLUDED.p5_total, p6_total = EXCLUDED.p6_total,\n  p7_total = EXCLUDED.p7_total, p8_total = EXCLUDED.p8_total,\n  p9_total = EXCLUDED.p9_total, p10_total = EXCLUDED.p10_total,\n  grand_total = EXCLUDED.grand_total,\n  p1_mean = EXCLUDED.p1_mean, p2_mean = EXCLUDED.p2_mean,\n  p3_mean = EXCLUDED.p3_mean, p4_mean = EXCLUDED.p4_mean,\n  p5_mean = EXCLUDED.p5_mean, p6_mean = EXCLUDED.p6_mean,\n  p7_mean = EXCLUDED.p7_mean, p8_mean = EXCLUDED.p8_mean,\n  p9_mean = EXCLUDED.p9_mean, p10_mean = EXCLUDED.p10_mean,\n  overall_performance_mean = EXCLUDED.overall_performance_mean,\n  average_per_response_performance = EXCLUDED.average_per_response_performance",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.instructor_id,\n  $json.term_id,\n  $json.subject_id,\n  $json.total_responses,\n  $json.p1_total, $json.p2_total, $json.p3_total, $json.p4_total, $json.p5_total,\n  $json.p6_total, $json.p7_total, $json.p8_total, $json.p9_total, $json.p10_total,\n  $json.grand_total,\n  $json.p1_mean, $json.p2_mean, $json.p3_mean, $json.p4_mean, $json.p5_mean,\n  $json.p6_mean, $json.p7_mean, $json.p8_mean, $json.p9_mean, $json.p10_mean,\n  $json.overall_performance_mean,\n  $json.average_per_response_performance\n] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3680,
+        -1056
+      ],
+      "id": "a36076b1-e097-4a61-bcb8-1ea6e5935991",
+      "name": "send to performance node",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH mgmt_stats AS (\n  SELECT \n    COALESCE(SUM(total_responses), 0) AS m_total_resp,\n    COALESCE(SUM(grand_total), 0) AS m_total,\n    COALESCE(SUM(grand_total)::numeric / NULLIF(SUM(total_responses) * 10, 0), 0) AS m_avg\n  FROM public.management_results\n  WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n),\nperf_stats AS (\n  SELECT \n    COALESCE(SUM(total_responses), 0) AS p_total_resp,\n    COALESCE(SUM(grand_total), 0) AS p_total,\n    COALESCE(SUM(grand_total)::numeric / NULLIF(SUM(total_responses) * 10, 0), 0) AS p_avg\n  FROM public.performance_results\n  WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n)\nINSERT INTO public.overall_total_survey (\n  instructor_id, term_id, total_responses, management_total, performance_total, combined_total, management_mean, performance_mean, combined_score_mean\n)\nSELECT \n  $1::uuid, $2::uuid, \n  m.m_total_resp, -- (Note: using Management total as the baseline, or you can use GREATEST(m.m_total_resp, p.p_total_resp))\n  m.m_total, p.p_total, \n  (m.m_total + p.p_total), \n  m.m_avg, \n  p.p_avg, -- Now this correctly uses p.p_total_resp!\n  (m.m_total + p.p_total)::numeric / NULLIF((m.m_total_resp * 10) + (p.p_total_resp * 10), 0)\nFROM mgmt_stats m, perf_stats p\nON CONFLICT (instructor_id, term_id) \nDO UPDATE SET \n  total_responses = EXCLUDED.total_responses,\n  management_total = EXCLUDED.management_total,\n  performance_total = EXCLUDED.performance_total,\n  combined_total = EXCLUDED.combined_total,\n  management_mean = EXCLUDED.management_mean,\n  performance_mean = EXCLUDED.performance_mean,\n  combined_score_mean = EXCLUDED.combined_score_mean;",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_id, $json.term_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3392,
+        -1520
+      ],
+      "id": "960f80ea-62a0-4340-9fd8-b711ce28d19b",
+      "name": "update to overall total",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id AS instructor_id, \n  first_name, \n  last_name,\n  $2 AS subject_search_term\nFROM public.user_info \nORDER BY similarity(COALESCE(first_name, '') || ' ' || COALESCE(last_name, ''), $1) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json['Instructor/Professor'] || 'N/A' }}\n{{ $json['Subject Taught'] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5824,
+        -720
+      ],
+      "id": "b350d9df-7dce-49c2-be24-b89b55437539",
+      "name": "get instructor id",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/system_settings?id=eq.1&select=current_term_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -5376,
+        -720
+      ],
+      "id": "3913d6a3-3836-46d6-9a77-a918ba380b63",
+      "name": "GET TERM BY ID"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.instructor_wordcloud (instructor_id, term_id, word, count)\nVALUES ($1::uuid, $2::uuid, $3::text, $4::int)\nON CONFLICT (instructor_id, term_id, word) \nDO UPDATE SET \n  count = instructor_wordcloud.count + EXCLUDED.count,\n  updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ $json.instructor_id }}\n{{ $json.term_id }}\n{{ $json.word }}\n{{ $json.count }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2528,
+        -768
+      ],
+      "id": "9d0ce2e6-7e59-4f7d-8e30-4e4a0fcee5f2",
+      "name": "insert to word cloud",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.instructor_ai_suggestions (\n  instructor_id, \n  term_id, \n  ai_suggestion, \n  student_interpretation, \n  positive_themes, \n  improvement_insights\n) VALUES (\n  $1::uuid, \n  $2::uuid, \n  $3::text, \n  $4::text, \n  $5::text, \n  $6::text\n)\nON CONFLICT (instructor_id, term_id) \nDO UPDATE SET \n  ai_suggestion = EXCLUDED.ai_suggestion,\n  student_interpretation = EXCLUDED.student_interpretation,\n  positive_themes = EXCLUDED.positive_themes,\n  improvement_insights = EXCLUDED.improvement_insights,\n  updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_id, $json.term_id, $json.ai_suggestion, $json.student_interpretation, $json.positive_themes, $json.improvement_insights] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2752,
+        -304
+      ],
+      "id": "9e12fae4-16d7-4edd-8110-2ebf1b00bf07",
+      "name": "store results",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert sentiment analyzer. Read the following student remark about their instructor. \nThe remark may be written in English, Tagalog, or Bisaya (Cebuano). \n\nDetermine if the overall tone of the remark is Positive, Critical, or Neutral.\n\nCRITICAL RULE: The value for \"tone\" MUST be exactly one of these three words: \"Positive\", \"Critical\", or \"Neutral\". Do not summarize the remark and do not use any other words.\n\nYou must output strictly in JSON format matching this schema:\n{\n  \"tone\": \"<Insert Tone Here>\" \n}\n\nStudent Remark:\n{{ $json['Remarks & Suggestions'] }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -4032,
+        48
+      ],
+      "id": "7064dd41-0a32-4a61-b14a-8d5f86167d60",
+      "name": "Basic LLM Chain2",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Grab ALL 205 items from the If node\nconst allItems = $('If').all();\nconst uniquePairs = {};\n\n// Loop through all of them and find every unique Instructor + Term combo\nfor (const item of allItems) {\n  const instId = item.json.instructor_ID;\n  const termId = item.json.current_term_id;\n  \n  if (instId && termId) {\n    uniquePairs[`${instId}_${termId}`] = {\n      instructor_id: instId,\n      term_id: termId\n    };\n  }\n}\n\n// Return the full list of unique instructors so Postgres updates ALL of them\nreturn Object.values(uniquePairs).map(pair => ({ json: pair }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        -1520
+      ],
+      "id": "ba8225d7-cd06-40d7-b128-1518cff992b1",
+      "name": "Code in JavaScript7"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.overall_question_means (instructor_id, term_id, category, question_number, mean_score)\nWITH m_totals AS (\n    SELECT \n        SUM(total_responses) as tr, \n        SUM(m1_total) as m1, SUM(m2_total) as m2, SUM(m3_total) as m3, SUM(m4_total) as m4, SUM(m5_total) as m5, \n        SUM(m6_total) as m6, SUM(m7_total) as m7, SUM(m8_total) as m8, SUM(m9_total) as m9, SUM(m10_total) as m10\n    FROM public.management_results \n    WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n),\np_totals AS (\n    SELECT \n        SUM(total_responses) as tr, \n        SUM(p1_total) as p1, SUM(p2_total) as p2, SUM(p3_total) as p3, SUM(p4_total) as p4, SUM(p5_total) as p5, \n        SUM(p6_total) as p6, SUM(p7_total) as p7, SUM(p8_total) as p8, SUM(p9_total) as p9, SUM(p10_total) as p10\n    FROM public.performance_results \n    WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n)\nSELECT $1::uuid, $2::uuid, 'Management', 1, COALESCE(ROUND((m1/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 2, COALESCE(ROUND((m2/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 3, COALESCE(ROUND((m3/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 4, COALESCE(ROUND((m4/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 5, COALESCE(ROUND((m5/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 6, COALESCE(ROUND((m6/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 7, COALESCE(ROUND((m7/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 8, COALESCE(ROUND((m8/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 9, COALESCE(ROUND((m9/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 10, COALESCE(ROUND((m10/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 1, COALESCE(ROUND((p1/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 2, COALESCE(ROUND((p2/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 3, COALESCE(ROUND((p3/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 4, COALESCE(ROUND((p4/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 5, COALESCE(ROUND((p5/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 6, COALESCE(ROUND((p6/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 7, COALESCE(ROUND((p7/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 8, COALESCE(ROUND((p8/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 9, COALESCE(ROUND((p9/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 10, COALESCE(ROUND((p10/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals\nON CONFLICT (instructor_id, term_id, category, question_number) \nDO UPDATE SET mean_score = EXCLUDED.mean_score, updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_id, $json.term_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3040,
+        -1520
+      ],
+      "id": "0009c1de-bb6b-4939-a57b-303dacdd9de4",
+      "name": "update to overall_question_means",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "e9a48c6f-2789-4363-9e6e-65cc1965bc86",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -6496,
+        -720
+      ],
+      "id": "e79d41e7-41de-422d-b315-f71bb569a7ab",
+      "name": "Google LINK from phone",
+      "webhookId": "e9a48c6f-2789-4363-9e6e-65cc1965bc86"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "78234a65-98e1-406a-bd44-f6c7f30a5035",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -7840,
+        -1248
+      ],
+      "id": "320d2372-a0e9-493f-bca4-92f711c93e2e",
+      "name": "SAST image from phone",
+      "webhookId": "78234a65-98e1-406a-bd44-f6c7f30a5035"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  // n8n Webhook data is usually inside item.json.body\n  const payload = item.json.body || item.json;\n  \n  const staffId = payload.user_id;\n  const googleLink = payload.link;\n  let sheetId = '';\n  \n  if (googleLink && typeof googleLink === 'string') {\n    const match = googleLink.match(/\\/d\\/(.*?)(\\/|$)/);\n    if (match && match[1]) {\n      sheetId = match[1];\n    }\n  }\n\n  return {\n    json: {\n      staff_id: staffId,\n      google_link: googleLink,\n      sheetId: sheetId,  // Changed this so the Google Node recognizes it automatically!\n      import_type: payload.type,\n      sync_time: payload.timestamp\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6272,
+        -720
+      ],
+      "id": "a6f7a0f3-302c-49d8-be5e-6c46e1164d75",
+      "name": "clean data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mode: Run Once for Each Item\nconst base64Data = $input.item.json.body.image;\nconst taskId     = $input.item.json.body.task_id;\nconst userId     = $input.item.json.body.user_id;\nconst timestamp  = $input.item.json.body.timestamp;\nconst termId     = $input.item.json.body.term_id;      // ← ADD\nconst filename   = $input.item.json.body.filename;     // ← ADD\nconst paperSize  = $input.item.json.body.paper_size;   // ← ADD\n\nif (!base64Data) {\n  throw new Error('No image data in request body');\n}\n\nconst cleanBase64 = base64Data.includes(',')\n  ? base64Data.split(',')[1]\n  : base64Data;\n\nconst buffer     = Buffer.from(cleanBase64, 'base64');\nconst binaryData = await this.helpers.prepareBinaryData(\n  buffer,\n  `${taskId}.jpg`,\n  'image/jpeg'\n);\n\nreturn {\n  binary: { data: binaryData },\n  json: {\n    user_id    : userId,\n    term_id    : termId,      // ← ADD\n    task_id    : taskId,\n    filename   : filename,    // ← ADD\n    paper_size : paperSize,   // ← ADD\n    timestamp  : timestamp,\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7616,
+        -1248
+      ],
+      "id": "6c1f121b-b379-48fb-be88-e4fb40e829c0",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "sast_all_raw_data_survey",
+          "mode": "list",
+          "cachedResultName": "sast_all_raw_data_survey"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "manually_corrected": false
+          },
+          "matchingColumns": [
+            "subject_id",
+            "term_id",
+            "instructor_ID",
+            "student_id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m1",
+              "displayName": "m1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m2",
+              "displayName": "m2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m3",
+              "displayName": "m3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m4",
+              "displayName": "m4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m5",
+              "displayName": "m5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m6",
+              "displayName": "m6",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m7",
+              "displayName": "m7",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m8",
+              "displayName": "m8",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m9",
+              "displayName": "m9",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "m10",
+              "displayName": "m10",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p1",
+              "displayName": "p1",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p2",
+              "displayName": "p2",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p3",
+              "displayName": "p3",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p4",
+              "displayName": "p4",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p5",
+              "displayName": "p5",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p6",
+              "displayName": "p6",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p7",
+              "displayName": "p7",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p8",
+              "displayName": "p8",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p9",
+              "displayName": "p9",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "p10",
+              "displayName": "p10",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "Remarks_and_Suggestions",
+              "displayName": "Remarks_and_Suggestions",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "sao_staff_id",
+              "displayName": "sao_staff_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "student_id",
+              "displayName": "student_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "instructor",
+              "displayName": "instructor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "submitted_date",
+              "displayName": "submitted_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "instructor_ID",
+              "displayName": "instructor_ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "term_id",
+              "displayName": "term_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "subject_id",
+              "displayName": "subject_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "validation_status",
+              "displayName": "validation_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "manually_corrected",
+              "displayName": "manually_corrected",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "boolean",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "task_id",
+              "displayName": "task_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3968,
+        -2048
+      ],
+      "id": "20f4c43e-8185-4542-a90a-8c822a83a362",
+      "name": "Insert or update rows in a table",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "{{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -6944,
+        -1056
+      ],
+      "id": "9d871749-fb92-4ee9-8419-29510ce63e83",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "REDACTED_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Extract text from this CTU Argao evaluation form into JSON.\\nRULES:\\n1. Guess messy handwriting; leave blank ONLY if no ink is present.\\n2. instructor: Full name with credentials.\\n3. subject: Code matching CTU prefixes (DDMGT, IT, CSO, HCI, ADBAS) + digits.\\n4. ay_semester: Year/sem (e.g., '2021', '1st Sem').\\n5. remarks: Exact text (English/Tagalog/Bisaya). Fix obvious OCR typos using context (e.g., 'Danot' -> 'Don't').\\n6. date: Date format (e.g., '01/20/20').\\n7. student_id: Digits only.\\n\\nReturn ONLY valid JSON matching the requested schema.\"\n        },\n        {\n          \"inlineData\": {\n            \"mimeType\": \"image/jpeg\",\n            \"data\": \"{{ $('SAST image from phone').item.json.body.image }}\"\n          }\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0,\n    \"maxOutputTokens\": 200,\n    \"responseMimeType\": \"application/json\",\n    \"responseSchema\": {\n      \"type\": \"OBJECT\",\n      \"properties\": {\n        \"instructor\": {\n          \"type\": \"STRING\"\n        },\n        \"subject\": {\n          \"type\": \"STRING\"\n        },\n        \"ay_semester\": {\n          \"type\": \"STRING\"\n        },\n        \"remarks\": {\n          \"type\": \"STRING\"\n        },\n        \"date\": {\n          \"type\": \"STRING\"\n        },\n        \"student_id\": {\n          \"type\": \"STRING\"\n        }\n      },\n      \"required\": [\n        \"instructor\",\n        \"subject\",\n        \"ay_semester\",\n        \"remarks\",\n        \"date\",\n        \"student_id\"\n      ]\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -6720,
+        -1056
+      ],
+      "id": "d250a570-f4d2-42e5-892e-6034f7907301",
+      "name": "scan crop image via ai"
+    },
+    {
+      "parameters": {
+        "jsCode": "for (const item of $input.all()) {\n  try {\n    // 1. Get the stringified JSON from the AI's response content\n    const contentString = item.json.choices[0].message.content;\n    \n    // 2. Parse the string into a usable JavaScript object\n    const parsedData = JSON.parse(contentString);\n    \n    // 3. Merge the extracted fields (instructor, subject, etc.) directly into the item's main output\n    Object.assign(item.json, parsedData);\n    \n  } catch (error) {\n    // If the AI didn't return valid JSON, catch the error so the workflow doesn't crash\n    item.json.parseError = error.message;\n  }\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6496,
+        -1056
+      ],
+      "id": "6956d3b1-36c2-4654-be48-f37262a11d38",
+      "name": "separate it"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id AS instructor_id, \n  first_name, \n  last_name,\n  $2 AS subject_search_term\nFROM public.user_info \nORDER BY similarity(COALESCE(first_name, '') || ' ' || COALESCE(last_name, ''), $1) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.instructor }}\n{{ $json.subject }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -6272,
+        -1056
+      ],
+      "id": "1e7c0f3f-d73d-41d4-a766-31f4eac44793",
+      "name": "get instructor id1",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const newItems = [];\n\n// Generate today's date formatted as \"Month DD, YYYY\" specifically in Philippine Time\nconst todayFormatted = new Date().toLocaleDateString('en-US', { \n  timeZone: 'Asia/Manila',\n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\n// 1. Fetch the flattened scores (m1-m10, p1-p10) from the previous formatting node\nconst formattedResults = $('2. Format Final Results').first().json;\n\n// 2. Fetch the OCR data (student_id, date) from the \"separate it\" node\nconst separateData = $('separate it').first().json;\n\nfor (const item of $input.all()) {\n  const data = item.json; // This is the input from 'Set Status - Auto'\n  const result = {};\n\n  // 1. Map IDs\n  result[\"instructor_ID\"] = $('get instructor id1').first().json.instructor_id || null;\n  result[\"true_subject_id\"] = $('get subject id1').first().json.subject_id || null;\n  result[\"current_term_id\"] = data.current_term_id || null;\n  \n  // 2. Map standard text fields to your target schema\n  result[\"Student ID\"] =  separateData.student_id || \"\";\n  \n  // Safely combine first name and last name with a space in between\n  const firstName = $('get instructor id1').first().json.first_name || \"\";\n  const lastName = $('get instructor id1').first().json.last_name || \"\";\n  result[\"Instructor/Professor\"] = `${firstName} ${lastName}`.trim();\n  \n  result[\"Subject Taught\"] =  $('get subject id1').first().json.subject_name || \"\";\n  \n  // Handle ay_semester \n  result[\"AY/Semester\"] = (data.academic_terms?.semester || \"\") + \" \" + (data.academic_terms?.academic_year || \"\");\n  \n  result[\"Remarks & Suggestions\"] = $('separate it').first().json.remarks|| \"\";\n  \n  // Handle Date: Check if true, null, undefined, or empty string, then apply local date\n  \n  result[\"Date\"] = todayFormatted;\n  \n  // 3. Map OMR Scores (Converts lowercase m1/p1 to uppercase M1/P1)\n  for (let i = 1; i <= 10; i++) {\n    result[`M${i}`] = formattedResults[`m${i}`] !== undefined ? formattedResults[`m${i}`] : 0;\n    result[`P${i}`] = formattedResults[`p${i}`] !== undefined ? formattedResults[`p${i}`] : 0;\n  }\n\n  newItems.push({ json: result });\n}\n\nreturn newItems;"
+      },
+      "name": "Map to Target Format",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5136,
+        -1056
+      ],
+      "id": "08624998-a24f-43d4-a2a2-3315eb7f1606"
+    },
+    {
+      "parameters": {
+        "jsCode": "const newItems = [];\n\n// 1. Target the correct node that contains the Python OMR API results\n// Updated from 'separate it' to 'image to ocr and omr python'\nconst omrData = $('image to ocr and omr python').first().json;\n\n// 2. Target the AI node for the cleaned remarks\nconst aiData = $('separate it').first().json.remarks;\n\nfor (const item of $input.all()) {\n  const result = {};\n\n  // ── 1. Map OMR scores → m1…m10 and p1…p10 ─────────────────────────────\n  const mgmt = omrData.ratings?.management ?? [];\n  const perf = omrData.ratings?.performance ?? [];\n\n  for (let i = 0; i < 10; i++) {\n    result[`m${i + 1}`] = (mgmt[i] && mgmt[i].detected) ? mgmt[i].score : 0;\n    result[`p${i + 1}`] = (perf[i] && perf[i].detected) ? perf[i].score : 0;\n  }\n\n  // ── 2. Extract Summary Stats from OMR Data ───────────────────────────\n  const s = omrData.summary ?? {};\n  result.answered    = s.answered      ?? null;\n  result.total_score = s.sum           ?? null;\n  result.average     = s.average       ?? null;\n  result.percent     = s.percent_score ?? null;\n\n  // ── 3. Pipeline metadata ─────────────────────────────────────────────\n  result.grid_source = omrData.grid_source ?? null;\n  result.table_found = omrData.table_found ?? null;\n\n  // ── 4. AI Cleaned Remarks ─────────────────────────────────────────────\n  result.cleaned_remarks = $('separate it').first().json.remarks ?? \"\";\n\n  newItems.push({ json: result });\n}\n\nreturn newItems;"
+      },
+      "name": "2. Format Final Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5824,
+        -1056
+      ],
+      "id": "a72f6cf1-1fa8-4633-b055-6c9a8dba5e1e"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  s.id AS subject_id, \n  s.subject_code, \n  s.subject_name,\n  s.department_id,\n  $1 AS instructor_id\nFROM public.subjects s\nJOIN public.instructor_subjects ins \n  ON ins.subject_id = s.id\n  AND ins.instructor_id = $1\n  AND ins.term_id = (\n    SELECT current_term_id \n    FROM public.system_settings \n    LIMIT 1\n  )\nORDER BY similarity(\n  COALESCE(s.subject_code, '') || ' ' || COALESCE(s.subject_name, ''), \n  $2\n) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.instructor_id }}\n{{ $json.subject_search_term }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -6048,
+        -1056
+      ],
+      "id": "cee10532-7587-40c8-ac97-a6e78759ee7f",
+      "name": "get subject id1",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.0.0.128:5000/process",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "task_id",
+              "value": "={{ $json.task_id }}"
+            },
+            {
+              "name": "user_id",
+              "value": "={{ $json.user_id }}"
+            },
+            {
+              "name": "paper_size",
+              "value": "={{ $json.paper_size }}"
+            },
+            {
+              "name": "term_id",
+              "value": "={{ $json.term_id }}"
+            },
+            {
+              "name": "filename",
+              "value": "={{ $json.filename }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -7392,
+        -1248
+      ],
+      "id": "57442157-6ac4-4f4d-8143-4578551c26b2",
+      "name": "image to ocr and omr python"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH mgmt_stats AS (\n  SELECT \n    COALESCE(SUM(total_responses), 0) AS m_total_resp,\n    COALESCE(SUM(grand_total), 0) AS m_total,\n    COALESCE(SUM(grand_total)::numeric / NULLIF(SUM(total_responses) * 10, 0), 0) AS m_avg\n  FROM public.management_results\n  WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n),\nperf_stats AS (\n  SELECT \n    COALESCE(SUM(total_responses), 0) AS p_total_resp,\n    COALESCE(SUM(grand_total), 0) AS p_total,\n    COALESCE(SUM(grand_total)::numeric / NULLIF(SUM(total_responses) * 10, 0), 0) AS p_avg\n  FROM public.performance_results\n  WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n)\nINSERT INTO public.overall_total_survey (\n  instructor_id, term_id, total_responses, management_total, performance_total, combined_total, management_mean, performance_mean, combined_score_mean\n)\nSELECT \n  $1::uuid, $2::uuid, \n  m.m_total_resp, -- (Note: using Management total as the baseline, or you can use GREATEST(m.m_total_resp, p.p_total_resp))\n  m.m_total, p.p_total, \n  (m.m_total + p.p_total), \n  m.m_avg, \n  p.p_avg, -- Now this correctly uses p.p_total_resp!\n  (m.m_total + p.p_total)::numeric / NULLIF((m.m_total_resp * 10) + (p.p_total_resp * 10), 0)\nFROM mgmt_stats m, perf_stats p\nON CONFLICT (instructor_id, term_id) \nDO UPDATE SET \n  total_responses = EXCLUDED.total_responses,\n  management_total = EXCLUDED.management_total,\n  performance_total = EXCLUDED.performance_total,\n  combined_total = EXCLUDED.combined_total,\n  management_mean = EXCLUDED.management_mean,\n  performance_mean = EXCLUDED.performance_mean,\n  combined_score_mean = EXCLUDED.combined_score_mean;",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_id, $json.term_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3392,
+        -1328
+      ],
+      "id": "214d1660-6619-4ecd-94a3-9882419ac6ce",
+      "name": "update to overall total1",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.overall_question_means (instructor_id, term_id, category, question_number, mean_score)\nWITH m_totals AS (\n    SELECT \n        SUM(total_responses) as tr, \n        SUM(m1_total) as m1, SUM(m2_total) as m2, SUM(m3_total) as m3, SUM(m4_total) as m4, SUM(m5_total) as m5, \n        SUM(m6_total) as m6, SUM(m7_total) as m7, SUM(m8_total) as m8, SUM(m9_total) as m9, SUM(m10_total) as m10\n    FROM public.management_results \n    WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n),\np_totals AS (\n    SELECT \n        SUM(total_responses) as tr, \n        SUM(p1_total) as p1, SUM(p2_total) as p2, SUM(p3_total) as p3, SUM(p4_total) as p4, SUM(p5_total) as p5, \n        SUM(p6_total) as p6, SUM(p7_total) as p7, SUM(p8_total) as p8, SUM(p9_total) as p9, SUM(p10_total) as p10\n    FROM public.performance_results \n    WHERE instructor_id = $1::uuid AND term_id = $2::uuid\n)\nSELECT $1::uuid, $2::uuid, 'Management', 1, COALESCE(ROUND((m1/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 2, COALESCE(ROUND((m2/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 3, COALESCE(ROUND((m3/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 4, COALESCE(ROUND((m4/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 5, COALESCE(ROUND((m5/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 6, COALESCE(ROUND((m6/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 7, COALESCE(ROUND((m7/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 8, COALESCE(ROUND((m8/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 9, COALESCE(ROUND((m9/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Management', 10, COALESCE(ROUND((m10/NULLIF(tr,0))::numeric, 2), 0) FROM m_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 1, COALESCE(ROUND((p1/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 2, COALESCE(ROUND((p2/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 3, COALESCE(ROUND((p3/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 4, COALESCE(ROUND((p4/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 5, COALESCE(ROUND((p5/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 6, COALESCE(ROUND((p6/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 7, COALESCE(ROUND((p7/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 8, COALESCE(ROUND((p8/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 9, COALESCE(ROUND((p9/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals UNION ALL\nSELECT $1::uuid, $2::uuid, 'Performance', 10, COALESCE(ROUND((p10/NULLIF(tr,0))::numeric, 2), 0) FROM p_totals\nON CONFLICT (instructor_id, term_id, category, question_number) \nDO UPDATE SET mean_score = EXCLUDED.mean_score, updated_at = now();",
+        "options": {
+          "queryReplacement": "={{ [$json.instructor_id, $json.term_id] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -3040,
+        -1328
+      ],
+      "id": "405b4018-3d8c-4353-8318-eb9b80e17021",
+      "name": "update to overall_question_means1",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "path": "health-check",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "8d07c3ae-604a-464b-8ae1-39188a32748f",
+      "name": "Health Check Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -7840,
+        896
+      ],
+      "webhookId": "556241f6-6172-4974-8018-41823bdcdaf2"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"online\", \"service\": \"n8n\", \"timestamp\": \"{{ $now }}\" }",
+        "options": {}
+      },
+      "id": "6d8f7b39-42bd-4610-8282-bd141117e9b9",
+      "name": "Respond Online",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -7616,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const link = $input.first().json.body.link;\nconst termId = $input.first().json.body.term_id;\nconst userId = $input.first().json.body.user_id;\n\nconst match = link.match(/\\/spreadsheets\\/d\\/([a-zA-Z0-9-_]+)/);\nif (!match) throw new Error('Invalid Google Sheet URL');\nconst sheetId = match[1];\n\nconst gidMatch = link.match(/gid=([0-9]+)/);\nconst gid = gidMatch ? gidMatch[1] : '0';\n\nconst csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;\n\n// Added sheetId here so the next node can use {{$json.sheetId}}\nreturn [{ json: { csvUrl, termId, userId, sheetId } }];"
+      },
+      "id": "3ff99f01-d211-42be-b6cb-bca481068b32",
+      "name": "Parse Sheet URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -7616,
+        1216
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Adds validation_status = auto (clean OCR/OMR result)\nconst items = $input.all();\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    validation_status: 'auto'\n  }\n}));"
+      },
+      "name": "Set Status - Auto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5376,
+        -1056
+      ],
+      "id": "cde3740d-a6c0-4bd6-b480-b8077a35f9d4"
+    },
+    {
+      "parameters": {
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/system_settings?id=eq.1&select=current_term_id,academic_terms(semester,academic_year)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -5600,
+        -1056
+      ],
+      "id": "a61316d3-2f4b-4886-9247-d3f53ee7018e",
+      "name": "GET TERM BY ID2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "cdf554d0-ab32-43f8-ab51-2d3b08ca9f22",
+              "leftValue": "={{ $json.table_found }}",
+              "rightValue": "=false",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -7168,
+        -1248
+      ],
+      "id": "1a53c82a-6b18-4227-a663-54e42f848ba9",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the term_id from GET TERM BY ID3 (current input)\nconst termData = $input.first().json;\n\n// Get the original scan data from If1\nconst ifData = $('If1').first().json;\n\nconst partialData = {\n  instructor:  ifData.ocr_fields?.instructor  ?? '',\n  subject:     ifData.ocr_fields?.subject     ?? '',\n  ay_semester: ifData.ocr_fields?.ay_semester ?? '',\n  remarks:     ifData.ocr_fields?.remarks     ?? '',\n  date:        ifData.ocr_fields?.date        ?? '',\n  student_id:  ifData.ocr_fields?.student_id  ?? '',\n  ratings:     ifData.ratings                 ?? null,\n  summary:     ifData.summary                 ?? null,\n};\n\nconst record = {\n  task_id:       ifData.task_id       ?? null,\n  user_id:       ifData.user_id       ?? null,\n  table_found:   ifData.table_found   ?? false,\n  grid_source:   ifData.grid_source   ?? 'fallback',\n  n8n_ocr_image: ifData.n8n_ocr_image ?? null,\n  status:        'pending',\n  partial_data:  partialData,\n};\n\n// Only add term_id if it has a value\nif (termData.current_term_id) {\n  record.term_id = termData.current_term_id;\n}\n\nreturn [{ json: record }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6720,
+        -1248
+      ],
+      "id": "cf486523-e8c5-437e-a461-f51a190e3008",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/failed_scan_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -6496,
+        -1248
+      ],
+      "id": "09e4c2e4-906b-4e74-a49d-65b3d71d290f",
+      "name": "save to failed_scan_queue"
+    },
+    {
+      "parameters": {
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/system_settings?id=eq.1&select=current_term_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -6944,
+        -1248
+      ],
+      "id": "6441986c-8a0c-4c0c-a4f2-04fa9b6f9776",
+      "name": "GET TERM BY ID3"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "4e980946-97f5-434a-a98d-f225cbbd1fbb",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -6048,
+        -528
+      ],
+      "id": "dc7e5501-f778-4076-8941-a5c8a4247be6",
+      "name": "sast-manual-correction",
+      "webhookId": "4e980946-97f5-434a-a98d-f225cbbd1fbb"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id AS instructor_id, \n  first_name, \n  last_name\nFROM public.user_info \nORDER BY similarity(\n  COALESCE(first_name, '') || ' ' || COALESCE(last_name, ''), \n  $1\n) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.instructor }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5824,
+        -528
+      ],
+      "id": "10a32aa0-693e-43ad-8980-c3fd825b2994",
+      "name": "get instructor id2",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('sast-manual-correction').first().json.body;\nconst instructorId = $('get instructor id2').first().json.instructor_id ?? null;\nconst subjectId    = $('get subject id2').first().json.subject_id ?? null;\n\n// Safety: convert [null] arrays from Flutter → actual null\nconst termId  = Array.isArray(body.term_id)  ? null : (body.term_id  ?? null);\nconst userId  = Array.isArray(body.user_id)  ? null : (body.user_id  ?? null);\nconst taskId  = Array.isArray(body.task_id)  ? null : (body.task_id  ?? null);\n\nconst scores = {};\nfor (let i = 1; i <= 10; i++) {\n  scores[`m${i}`] = parseInt(body[`m${i}`]) || 0;\n  scores[`p${i}`] = parseInt(body[`p${i}`]) || 0;\n}\n\nreturn [{\n  json: {\n    raw: {\n      instructor:              body.instructor ?? '',\n      student_id:              body.student_id ?? '',\n      Remarks_and_Suggestions: body.remarks    ?? '',\n      submitted_date:          new Date().toISOString().split('T')[0],\n      sao_staff_id:            userId,       // ← safe, no [null]\n      term_id:                 termId,       // ← safe, no [null]\n      instructor_ID:           instructorId,\n      subject_id:              subjectId,\n      task_id:                 taskId,       // ← safe, no [null]\n      manually_corrected:      true,\n      validation_status:       'corrected',\n      ...scores,\n    },\n    instructor_ID:  instructorId,\n    subject_id:     subjectId,\n    term_id:        termId,\n    failed_scan_id: body.failed_scan_id,\n    scores,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5376,
+        208
+      ],
+      "id": "59053fe3-4489-4172-b8a6-6b517c3c79ff",
+      "name": "build the record"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\n// Get subject name + department from earlier lookup node\nlet subjectName = '';\nlet departmentId = null;\ntry {\n  const subj = $('get subject id2').first().json;\n  subjectName  = subj.subject_name ?? '';\n  departmentId = subj.department_id ?? null;\n} catch(e) {}\n\nreturn [{\n  json: {\n    // ── TRUE BRANCH FORMAT (feeds existing Management/Performance nodes) ──────\n    instructor_ID:          data.raw.instructor_ID,\n    'Student ID':           data.raw.student_id ?? '',\n    'Instructor/Professor': data.raw.instructor ?? '',\n    'Subject Taught':       subjectName,\n    'AY/Semester':          '',          // not user-entered; term handled via current_term_id\n    M1:  data.raw.m1  ?? 0,  M2:  data.raw.m2  ?? 0,\n    M3:  data.raw.m3  ?? 0,  M4:  data.raw.m4  ?? 0,\n    M5:  data.raw.m5  ?? 0,  M6:  data.raw.m6  ?? 0,\n    M7:  data.raw.m7  ?? 0,  M8:  data.raw.m8  ?? 0,\n    M9:  data.raw.m9  ?? 0,  M10: data.raw.m10 ?? 0,\n    P1:  data.raw.p1  ?? 0,  P2:  data.raw.p2  ?? 0,\n    P3:  data.raw.p3  ?? 0,  P4:  data.raw.p4  ?? 0,\n    P5:  data.raw.p5  ?? 0,  P6:  data.raw.p6  ?? 0,\n    P7:  data.raw.p7  ?? 0,  P8:  data.raw.p8  ?? 0,\n    P9:  data.raw.p9  ?? 0,  P10: data.raw.p10 ?? 0,\n    'Remarks & Suggestions': data.raw.Remarks_and_Suggestions ?? '',\n    Date:                   data.raw.submitted_date ?? '',\n    current_term_id:        data.current_term_id,\n    true_subject_id:        data.raw.subject_id,\n    department_id:          departmentId,\n\n    // ── RAW TABLE INSERT (raw_GoogleSheet_data_result) ────────────────────────\n    raw: {\n      m1:  data.raw.m1  ?? 0,  m2:  data.raw.m2  ?? 0,\n      m3:  data.raw.m3  ?? 0,  m4:  data.raw.m4  ?? 0,\n      m5:  data.raw.m5  ?? 0,  m6:  data.raw.m6  ?? 0,\n      m7:  data.raw.m7  ?? 0,  m8:  data.raw.m8  ?? 0,\n      m9:  data.raw.m9  ?? 0,  m10: data.raw.m10 ?? 0,\n      p1:  data.raw.p1  ?? 0,  p2:  data.raw.p2  ?? 0,\n      p3:  data.raw.p3  ?? 0,  p4:  data.raw.p4  ?? 0,\n      p5:  data.raw.p5  ?? 0,  p6:  data.raw.p6  ?? 0,\n      p7:  data.raw.p7  ?? 0,  p8:  data.raw.p8  ?? 0,\n      p9:  data.raw.p9  ?? 0,  p10: data.raw.p10 ?? 0,\n      Remarks_and_Suggestions: data.raw.Remarks_and_Suggestions ?? '',\n      sao_staff_id:       data.raw.sao_staff_id   ?? null,\n      student_id:         data.raw.student_id      ?? '',\n      instructor:         data.raw.instructor      ?? '',\n      submitted_date:     data.raw.submitted_date  ?? new Date().toISOString().split('T')[0],\n      instructor_ID:      data.raw.instructor_ID   ?? null,\n      term_id:            data.current_term_id     ?? null,  // resolved UUID (not [null])\n      subject_id:         data.raw.subject_id      ?? null,\n      validation_status:  'corrected',\n      manually_corrected: true,\n      task_id:            data.raw.task_id         ?? null,\n    },\n\n    failed_scan_id: data.raw.failed_scan_id ?? null,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4928,
+        -528
+      ],
+      "id": "ad7396cc-0cbe-4465-94c9-ddb1e81f8065",
+      "name": "Code in JavaScript9"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"success\": true }\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -4480,
+        288
+      ],
+      "id": "94b399b8-c992-4786-a48b-7df63dd7e025",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/system_settings?id=eq.1&select=current_term_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -5376,
+        -528
+      ],
+      "id": "b965bbb1-db1e-46b3-8544-8833b171bdba",
+      "name": "GET TERM BY ID4"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -5152,
+        -528
+      ],
+      "id": "aa96d1d1-50b8-42b6-80a8-c7adbac7ab8b",
+      "name": "Merge6"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.failed_scan_queue\nSET status = 'validated', validated_at = NOW()\nWHERE id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ $('sast-manual-correction').first().json.body.failed_scan_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4672,
+        304
+      ],
+      "id": "00708c97-3a37-4207-baa0-7327e64a0cca",
+      "name": "Mark Queue Validated",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const groups = {};\n\n// 1. Group data by Instructor AND Subject\nfor (const item of items) {\n  const id = item.json.instructor_ID;\n  const subjectId = item.json.true_subject_id || item.json.subject_id;\n  if (!id || !subjectId) continue;\n\n  const key = `${id}_${subjectId}`;\n\n  if (!groups[key]) {\n    groups[key] = {\n      instructor_id: id,\n      subject_id: subjectId,\n      term_id: item.json.current_term_id ?? null,\n      count: 0,\n      totals: {\n        p1: 0, p2: 0, p3: 0, p4: 0, p5: 0,\n        p6: 0, p7: 0, p8: 0, p9: 0, p10: 0\n      }\n    };\n  }\n\n  groups[key].count++;\n  for (let i = 1; i <= 10; i++) {\n    const valKey = `P${i}`;\n    const val = Number(item.json[valKey]);\n    if (!isNaN(val)) {\n      groups[key].totals[`p${i}`] += val;\n    }\n  }\n}\n\n// 2. Build output\nconst output = [];\nfor (const key in groups) {\n  const data = groups[key];\n  const means = {};\n  const totalsOut = {};\n  let sumMeans = 0;\n  let grandTotal = 0;\n\n  for (let i = 1; i <= 10; i++) {\n    const total = data.totals[`p${i}`];\n    const mean = total / data.count;\n    totalsOut[`p${i}_total`] = total;\n    means[`p${i}_mean`] = Number(mean.toFixed(2));  // ✅ 2 decimal places\n    sumMeans += mean;\n    grandTotal += total;\n  }\n\n  // ✅ FIX 1: renamed to snake_case to match Supabase column\n  const overall_performance_mean = Number((grandTotal / (data.count * 10)).toFixed(2));\n  const average_per_response_performance = Number((grandTotal / data.count).toFixed(2));\n\n  output.push({\n    json: {\n      instructor_id: data.instructor_id,  // ✅ FIX 2: lowercase 'd'\n      term_id: data.term_id,\n      subject_id: data.subject_id,\n      total_responses: data.count,\n      ...totalsOut,\n      grand_total: grandTotal,\n      ...means,\n      overall_performance_mean,            // ✅ FIX 1: correct column name\n      average_per_response_performance\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4256,
+        -1104
+      ],
+      "id": "69c5b563-cf13-47e5-8868-f8cb56d6e7b9",
+      "name": "calculate performance"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Grab ALL 205 items from the If node\nconst allItems = $('If').all();\nconst uniquePairs = {};\n\n// Loop through all of them and find every unique Instructor + Term combo\nfor (const item of allItems) {\n  const instId = item.json.instructor_ID;\n  const termId = item.json.current_term_id;\n  \n  if (instId && termId) {\n    uniquePairs[`${instId}_${termId}`] = {\n      instructor_id: instId,\n      term_id: termId\n    };\n  }\n}\n\n// Return the full list of unique instructors so Postgres updates ALL of them\nreturn Object.values(uniquePairs).map(pair => ({ json: pair }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3680,
+        -1328
+      ],
+      "id": "21e4d17b-3339-4bcc-ad45-1a024a1b647c",
+      "name": "calc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const groups = {};\n\n// 1. Group data by Instructor AND Subject\nfor (const item of items) {\n  const id = item.json.instructor_ID;\n  const subjectId = item.json.true_subject_id || item.json.subject_id;\n  if (!id || !subjectId) continue;\n\n  const key = `${id}_${subjectId}`;\n\n  if (!groups[key]) {\n    groups[key] = {\n      instructor_id: id,\n      subject_id: subjectId,\n      term_id: item.json.current_term_id ?? null,\n      count: 0,\n      totals: {\n        m1: 0, m2: 0, m3: 0, m4: 0, m5: 0,\n        m6: 0, m7: 0, m8: 0, m9: 0, m10: 0\n      }\n    };\n  }\n\n  groups[key].count++;\n  for (let i = 1; i <= 10; i++) {\n    const valKey = `M${i}`;           // ← M not P\n    const val = Number(item.json[valKey]);\n    if (!isNaN(val)) {\n      groups[key].totals[`m${i}`] += val;\n    }\n  }\n}\n\n// 2. Build output\nconst output = [];\nfor (const key in groups) {\n  const data = groups[key];\n  const means = {};\n  const totalsOut = {};\n  let sumMeans = 0;\n  let grandTotal = 0;\n\n  for (let i = 1; i <= 10; i++) {\n    const total = data.totals[`m${i}`];   // ← m not p\n    const mean = total / data.count;\n    totalsOut[`m${i}_total`] = total;     // ← m not p\n    means[`m${i}_mean`] = Number(mean.toFixed(2));\n    sumMeans += mean;\n    grandTotal += total;\n  }\n\n  const overall_management_mean = Number((grandTotal / (data.count * 10)).toFixed(2));\n  const average_per_response_management = Number((grandTotal / data.count).toFixed(2));\n\n  output.push({\n    json: {\n      instructor_id: data.instructor_id,\n      term_id: data.term_id,\n      subject_id: data.subject_id,\n      total_responses: data.count,\n      ...totalsOut,\n      grand_total: grandTotal,\n      ...means,\n      overall_management_mean,\n      average_per_response_management\n    }\n  });\n}\n\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4256,
+        -1568
+      ],
+      "id": "cc87cc19-039b-4e74-883e-0b36b8c3d12c",
+      "name": "calculate mangement"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "87ab0ff3-a60d-47d2-a010-01bc9a9a2a3f",
+              "leftValue": "={{ $json.error !== undefined }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -3680,
+        -1968
+      ],
+      "id": "bd9a5e08-4caa-4584-941c-c50a2b3a9b9d",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d0a47fc-9eb2-46ea-8cba-99257b3def83",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3392,
+        -1968
+      ],
+      "id": "bab5b76c-6e16-4636-8f87-361e93836a59",
+      "name": "Loop1 Error Flag"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "1860de81-7737-4b97-83f0-f676bae63e06",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -5600,
+        528
+      ],
+      "id": "853b85b9-82e7-4869-9896-41dd7d273f59",
+      "name": "import-error-correction",
+      "webhookId": "1860de81-7737-4b97-83f0-f676bae63e06"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id AS true_subject_id,\n  department_id\nFROM public.subjects\nWHERE id = $1::uuid\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.corrected_subject_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5376,
+        528
+      ],
+      "id": "3cd3b5ba-503b-4897-b351-2ea920f6e758",
+      "name": "get subject id3",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get data from both previous nodes\nconst body = $('import-error-correction').first().json.body;\nconst subjectRow = $('get subject id3').first().json;\nconst raw        = body.raw_data || {};\n\nreturn [{\n  json: {\n    // IDs (corrected by SAO staff)\n    true_subject_id:        body.corrected_subject_id,\n    department_id:          subjectRow.department_id,\n    instructor_ID:          body.corrected_instructor_id,\n    current_term_id:        body.term_id,\n\n    // Row metadata\n    row_number: 1,\n\n    // Original text fields (kept for audit trail)\n    'Student ID':           raw['Student ID']           || raw.student_id       || '',\n    'Instructor/Professor': raw['Instructor/Professor'] || raw.instructor_name  || '',\n    'Subject Taught':       raw['Subject Taught']       || raw.subject_name     || '',\n    'AY/Semester':          raw['AY/Semester']          || raw.ay_semester      || '',\n    Date:                   raw['Date']                 || raw.date             || '',\n\n    // Management scores\n    M1:  Number(raw.M1  ?? raw.m1  ?? 0),\n    M2:  Number(raw.M2  ?? raw.m2  ?? 0),\n    M3:  Number(raw.M3  ?? raw.m3  ?? 0),\n    M4:  Number(raw.M4  ?? raw.m4  ?? 0),\n    M5:  Number(raw.M5  ?? raw.m5  ?? 0),\n    M6:  Number(raw.M6  ?? raw.m6  ?? 0),\n    M7:  Number(raw.M7  ?? raw.m7  ?? 0),\n    M8:  Number(raw.M8  ?? raw.m8  ?? 0),\n    M9:  Number(raw.M9  ?? raw.m9  ?? 0),\n    M10: Number(raw.M10 ?? raw.m10 ?? 0),\n\n    // Performance scores\n    P1:  Number(raw.P1  ?? raw.p1  ?? 0),\n    P2:  Number(raw.P2  ?? raw.p2  ?? 0),\n    P3:  Number(raw.P3  ?? raw.p3  ?? 0),\n    P4:  Number(raw.P4  ?? raw.p4  ?? 0),\n    P5:  Number(raw.P5  ?? raw.p5  ?? 0),\n    P6:  Number(raw.P6  ?? raw.p6  ?? 0),\n    P7:  Number(raw.P7  ?? raw.p7  ?? 0),\n    P8:  Number(raw.P8  ?? raw.p8  ?? 0),\n    P9:  Number(raw.P9  ?? raw.p9  ?? 0),\n    P10: Number(raw.P10 ?? raw.p10 ?? 0),\n\n    // Remarks\n    'Remarks & Suggestions': raw['Remarks & Suggestions'] || raw.remarks || '',\n\n    // Correction tracking (optional — useful for audit)\n    import_error_id: body.import_error_id,\n    resolved_by:     body.resolved_by,\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5152,
+        528
+      ],
+      "id": "1c3cb744-467e-4287-ae80-c07147024906",
+      "name": "Format as workflow row"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.import_errors\nSET\n  status      = 'resolved',\n  resolved_at = now(),\n  resolved_by = $2::uuid\nWHERE id = $1;",
+        "options": {
+          "queryReplacement": "=={{ [$json.import_error_id, $json.resolved_by] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -4704,
+        480
+      ],
+      "id": "88814190-5efd-4e74-98b8-b4c499a30439",
+      "name": "Mark import_error resolved",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6ef67dc4-dd07-4801-bd9d-3b2f34acb1a8",
+              "leftValue": "={{ $json.true_subject_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4928,
+        528
+      ],
+      "id": "7c49d8d7-2007-49a1-8c09-039dbe8d4702",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "errorMessage": "Subject UUID not found in database. The corrected_subject_id no longer exists. Ask staff to re-submit the correction."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -4704,
+        672
+      ],
+      "id": "0795b86a-5682-46ea-9e9d-46999110d615",
+      "name": "Stop and Error1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"success\": true, \"message\": \"Error correction processed successfully\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -4480,
+        480
+      ],
+      "id": "53cccda9-9add-4c37-b7d3-5e19286a14e8",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "de096ca1-c1b8-4ceb-895b-7ba762821dc2",
+              "leftValue": "={{ $json.instructor_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "504616a7-6c44-40df-be4b-351bd6a0447e",
+              "leftValue": "={{ $json.true_subject_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -4896,
+        -1088
+      ],
+      "id": "3daabf6a-bb0c-4a9f-ad75-5e1be0f5aad0",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => {\n  const j = item.json;\n\n  const missingInstructor = !j.instructor_ID;\n  const missingSubject    = !j.true_subject_id;\n\n  let error_type = '';\n  if (missingInstructor && missingSubject) {\n    error_type = 'instructor_and_subject_not_found';\n  } else if (missingInstructor) {\n    error_type = 'instructor_not_found';\n  } else {\n    error_type = 'subject_not_found';\n  }\n\n  // Auto-detect source: scan has task_id, Google Sheet does not\n  const source = j.task_id ? 'scan' : 'google_sheet';\n\n  return {\n    json: {\n      error_type,\n      source,\n      status:              'pending',\n      raw_instructor_name: j['Instructor/Professor'] || null,\n      raw_subject_name:    j['Subject Taught']       || null,\n      raw_student_id:      String(j['Student ID'] || ''),\n      raw_term_id:         j.current_term_id         || null,\n      task_id:             j.task_id                 || null,  // links to scan image!\n      raw_data: JSON.stringify({\n        'Student ID':            j['Student ID'],\n        'Instructor/Professor':  j['Instructor/Professor'],\n        'Subject Taught':        j['Subject Taught'],\n        'AY/Semester':           j['AY/Semester'],\n        Date:                    j['Date'],\n        M1:  j.M1,  M2:  j.M2,  M3:  j.M3,  M4:  j.M4,  M5:  j.M5,\n        M6:  j.M6,  M7:  j.M7,  M8:  j.M8,  M9:  j.M9,  M10: j.M10,\n        P1:  j.P1,  P2:  j.P2,  P3:  j.P3,  P4:  j.P4,  P5:  j.P5,\n        P6:  j.P6,  P7:  j.P7,  P8:  j.P8,  P9:  j.P9,  P10: j.P10,\n        'Remarks & Suggestions': j['Remarks & Suggestions'],\n      })\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4704,
+        16
+      ],
+      "id": "7a6c3311-4674-412e-889d-8fe38f22d658",
+      "name": "Format error for import_errors"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/import_errors",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"error_type\":          \"{{ $json.error_type }}\",\n  \"source\":              \"{{ $json.source }}\",\n  \"status\":              \"{{ $json.status }}\",\n  \"raw_instructor_name\": \"{{ $json.raw_instructor_name }}\",\n  \"raw_subject_name\":    \"{{ $json.raw_subject_name }}\",\n  \"raw_student_id\":      \"{{ $json.raw_student_id }}\",\n  \"raw_term_id\":         \"{{ $json.raw_term_id }}\",\n  \"task_id\":             {{ Array.isArray($json.task_id) ? 'null' : JSON.stringify($json.task_id) }},\n  \"raw_data\":            {{ $json.raw_data }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -4480,
+        16
+      ],
+      "id": "ff5edddb-9a88-4cdd-8d98-4ce922de0059",
+      "name": "Insert import_errors"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  s.id AS subject_id, \n  s.subject_code, \n  s.subject_name,\n  s.department_id,\n  $1 AS instructor_id\nFROM public.subjects s\nJOIN public.instructor_subjects ins \n  ON ins.subject_id = s.id\n  AND ins.instructor_id = $1\n  AND ins.term_id = (\n    SELECT current_term_id \n    FROM public.system_settings \n    LIMIT 1\n  )\nORDER BY similarity(\n  COALESCE(s.subject_code, '') || ' ' || COALESCE(s.subject_name, ''), \n  $2\n) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.instructor_id }}\n{{ $('sast-manual-correction').item.json.body.subject }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5600,
+        -528
+      ],
+      "id": "e0416c61-5154-47ab-bc22-c56bdeacb9ee",
+      "name": "get subject id2",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "13db0305-224b-445c-98e9-c388132d5cff",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "444d1976-2521-467c-a4e0-49a254c42842",
+      "name": "subject-bulk-import",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -7840,
+        1216
+      ],
+      "webhookId": "13db0305-224b-445c-98e9-c388132d5cff"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (\n    SELECT id\n    FROM public.user_info\n    WHERE $1 ILIKE '%' || first_name || '%' \n      AND $1 ILIKE '%' || last_name || '%'\n    LIMIT 1\n) AS \"instructor_ID\";",
+        "options": {
+          "queryReplacement": "={{ $('for subjetc ni').item.json.Instructor || 'N/A' }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -6944,
+        1216
+      ],
+      "id": "706ff7c2-6ac6-44dc-be90-5ab57bc0b6e5",
+      "name": "get instructor id3",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "={{$json.sheetId}}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Subjects",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -7392,
+        1216
+      ],
+      "id": "ea0baecf-7e5c-4d3a-be99-f52a02b36899",
+      "name": "for subjetc ni",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "0KrnHlIEzbB1rl8Q",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.subjects (subject_code, subject_name, department_id)\nVALUES (\n    $1, \n    $2, \n    (SELECT id FROM public.department_name WHERE d_name = $3 LIMIT 1)\n)\nON CONFLICT (subject_code) \nDO UPDATE SET \n    subject_name = EXCLUDED.subject_name,\n    department_id = COALESCE(EXCLUDED.department_id, subjects.department_id)\nRETURNING id AS subject_id, department_id;",
+        "options": {
+          "queryReplacement": "={{ $json['Subject Code'] }}\n{{ $json['Subject Name'] }}\n{{ $json.Department }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -7168,
+        1216
+      ],
+      "id": "4e3033a1-dd1f-4c44-9ce0-84ec6bc9fcf0",
+      "name": "Get or create the subjetc",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "fc321bca-e1bb-4cd0-9320-f19a039b5be2",
+              "leftValue": "={{ $json.instructor_ID }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -6720,
+        1216
+      ],
+      "id": "6f89a2a5-b5f4-4a9b-ac7b-36b26d3ce6e8",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "url": "https://lyorziqedepfsgblqewv.supabase.co/rest/v1/system_settings?id=eq.1&select=current_term_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5b3J6aXFlZGVwZnNnYmxxZXd2Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3OTcwMDQ4NiwiZXhwIjoyMDk1Mjc2NDg2fQ.ZIRqHYahzb7CAJKjElLIZayf2qWLxn1YIkNjVFrkFxI"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates "
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -6496,
+        1120
+      ],
+      "id": "852108ec-fa9e-4076-a9e0-bc1e90e55168",
+      "name": "GET TERM BY ID5"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO public.instructor_subjects (subject_id, instructor_id, term_id)\nVALUES ($1, $2, $3)\nON CONFLICT (subject_id, instructor_id, term_id) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ $('Get or create the subjetc').item.json.subject_id }}\n{{ $('If5').item.json.instructor_ID }}\n{{ $json.current_term_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -6272,
+        1120
+      ],
+      "id": "1dc5b3c8-53e0-43a1-9a5d-373d327c747e",
+      "name": "naay instructor so inster the istructor_subject",
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -6048,
+        1120
+      ],
+      "id": "f1d3a60e-f568-4541-bbca-3bc53f054ce4",
+      "name": "Respond to Webhook4"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -6496,
+        1312
+      ],
+      "id": "8b36c42d-e701-48f8-aa2b-f42990eb1b84",
+      "name": "Respond to Webhook3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const newItems = [];\n\n// Generate today's date formatted as \"Month DD, YYYY\" specifically in Philippine Time\nconst todayFormatted = new Date().toLocaleDateString('en-US', { \n  timeZone: 'Asia/Manila',\n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\n// Fetch term info from the initial Webhook node\nconst webhookData = $('Google LINK from phone').first().json.body;\n\n// Get all items from the respective nodes to map them index-by-index (for all 149 rows)\nconst sheetItems = $('Get row(s) in sheet').all();\nconst instructorItems = $('get instructor id').all();\nconst subjectItems = $('get subject id').all();\nconst termItems = $('GET TERM BY ID').all(); \n\nfor (let i = 0; i < sheetItems.length; i++) {\n  // 1. Pull the data specific to THIS row (Index i)\n  const data = sheetItems[i].json; // This is the Google Sheet row containing M1, P1, Student ID\n  const instructorData = instructorItems[i] ? instructorItems[i].json : {};\n  const subjectData = subjectItems[i] ? subjectItems[i].json : {};\n  const termData = termItems[i] ? termItems[i].json : {};\n\n  const result = {};\n\n  // 2. Map IDs (using index i, avoiding .first() so it doesn't duplicate row 1)\n  result[\"instructor_ID\"] = instructorData.instructor_id || null;\n  result[\"true_subject_id\"] = subjectData.subject_id || null; \n  result[\"current_term_id\"] = termData.current_term_id || webhookData.term_id || null;\n  \n  // 3. Map standard text fields\n  result[\"Student ID\"] = data[\"Student ID\"] || data[\"student_id\"] || \"\";\n  \n  // Combine first and last name \n  const firstName = instructorData.first_name || \"\";\n  const lastName = instructorData.last_name || \"\";\n  result[\"Instructor/Professor\"] = `${firstName} ${lastName}`.trim();\n  \n  // Subject Taught (checks the database lookup first, then falls back to the sheet text)\n  result[\"Subject Taught\"] = subjectData.subject_name || data[\"Subject Taught\"] || \"\";\n  \n  // Handle ay_semester from the webhook body\n  result[\"AY/Semester\"] = (webhookData.semester || \"\") + \" \" + (webhookData.academic_year || \"\");\n  \n  // Extract remarks from the sheet\n  result[\"Remarks & Suggestions\"] = data[\"Remarks & Suggestions\"] || data[\"Remarks\"] || \"\";\n  \n  // Handle Date\n  if (data.Date === true || !data.Date || data.Date.toString().trim() === \"\") {\n    result[\"Date\"] = todayFormatted;\n  } else {\n    result[\"Date\"] = data.Date;\n  }\n\n  // 4. Map Scores\n  for (let j = 1; j <= 10; j++) {\n    // Look for uppercase first, fallback to lowercase\n    let mScore = data[`M${j}`] !== undefined ? data[`M${j}`] : data[`m${j}`];\n    let pScore = data[`P${j}`] !== undefined ? data[`P${j}`] : data[`p${j}`];\n\n    result[`M${j}`] = mScore !== undefined ? mScore : null;\n    result[`P${j}`] = pScore !== undefined ? pScore : null;\n  }\n\n  newItems.push({ json: result });\n}\n\nreturn newItems;"
+      },
+      "name": "Map to Target Format1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5152,
+        -720
+      ],
+      "id": "1a6354cc-05d9-4df0-aea1-3c42339a1245"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  s.id AS subject_id, \n  s.subject_code, \n  s.subject_name,\n  s.department_id,\n  $1 AS instructor_id\nFROM public.subjects s\nJOIN public.instructor_subjects ins \n  ON ins.subject_id = s.id\n  AND ins.instructor_id = $1\n  AND ins.term_id = (\n    SELECT current_term_id \n    FROM public.system_settings \n    LIMIT 1\n  )\nORDER BY similarity(\n  COALESCE(s.subject_code, '') || ' ' || COALESCE(s.subject_name, ''), \n  $2\n) DESC \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.instructor_id }}\n{{ $json.subject_search_term }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -5600,
+        -720
+      ],
+      "id": "22a19b0f-e3d0-40b8-9118-31fcf5465d75",
+      "name": "get subject id",
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "BEB0zDVaiSFMfjaE",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -2784,
+        -512
+      ],
+      "id": "bba0429d-d45b-456b-8fc5-6327258eb9a2",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DJ9wGNttxBVUv9qX",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -3536,
+        -208
+      ],
+      "id": "661c9a6c-1a60-4c66-8d87-2f74ca2ce019",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DJ9wGNttxBVUv9qX",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -4112,
+        256
+      ],
+      "id": "575cc7a4-0203-4ebc-838a-2dca30cf69a7",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "DJ9wGNttxBVUv9qX",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "get instructor id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Performance",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Management Node",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Instructor message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Management Node": {
+      "main": [
+        [
+          {
+            "node": "calculate mangement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Performance": {
+      "main": [
+        [
+          {
+            "node": "calculate performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert or update rows in a table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript7",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "send to managment table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [
+          {
+            "node": "calc",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "send to performance node",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instructor message": {
+      "main": [
+        [
+          {
+            "node": "Group feedback by instructor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Loop Over Items8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group feedback by instructor": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items7",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Clean + Count repeated words",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean + Count repeated words": {
+      "main": [
+        [
+          {
+            "node": "Prepare AI input1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items6": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Result1": {
+      "main": [
+        [
+          {
+            "node": "insert to word cloud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Result1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare AI input1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items7": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items8": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "insert data to student remarks": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Parse the AI Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse the AI Result": {
+      "main": [
+        [
+          {
+            "node": "store results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "insert data to student remarks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send to managment table": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "send to performance node": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update to overall total": {
+      "main": [
+        [
+          {
+            "node": "update to overall_question_means",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get instructor id": {
+      "main": [
+        [
+          {
+            "node": "get subject id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TERM BY ID": {
+      "main": [
+        [
+          {
+            "node": "Map to Target Format1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "insert to word cloud": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "store results": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript7": {
+      "main": [
+        [
+          {
+            "node": "update to overall total",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SAST image from phone": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google LINK from phone": {
+      "main": [
+        [
+          {
+            "node": "clean data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "clean data": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "image to ocr and omr python",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert or update rows in a table": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "scan crop image via ai",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "scan crop image via ai": {
+      "main": [
+        [
+          {
+            "node": "separate it",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "separate it": {
+      "main": [
+        [
+          {
+            "node": "get instructor id1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get instructor id1": {
+      "main": [
+        [
+          {
+            "node": "get subject id1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Format Final Results": {
+      "main": [
+        [
+          {
+            "node": "GET TERM BY ID2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map to Target Format": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get subject id1": {
+      "main": [
+        [
+          {
+            "node": "2. Format Final Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "image to ocr and omr python": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "update to overall total1": {
+      "main": [
+        [
+          {
+            "node": "update to overall_question_means1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Health Check Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond Online",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sheet URL": {
+      "main": [
+        [
+          {
+            "node": "for subjetc ni",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TERM BY ID2": {
+      "main": [
+        [
+          {
+            "node": "Set Status - Auto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "GET TERM BY ID3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "save to failed_scan_queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Status - Auto": {
+      "main": [
+        [
+          {
+            "node": "Map to Target Format",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TERM BY ID3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get instructor id2": {
+      "main": [
+        [
+          {
+            "node": "get subject id2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "sast-manual-correction": {
+      "main": [
+        [
+          {
+            "node": "get instructor id2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "build the record": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript9": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark Queue Validated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TERM BY ID4": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge6": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript9",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Queue Validated": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculate performance": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calc": {
+      "main": [
+        [
+          {
+            "node": "update to overall total1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculate mangement": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Loop1 Error Flag",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get subject id3": {
+      "main": [
+        [
+          {
+            "node": "Format as workflow row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "import-error-correction": {
+      "main": [
+        [
+          {
+            "node": "get subject id3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format as workflow row": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark import_error resolved": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Mark import_error resolved",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop and Error1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format error for import_errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format error for import_errors": {
+      "main": [
+        [
+          {
+            "node": "Insert import_errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get subject id2": {
+      "main": [
+        [
+          {
+            "node": "GET TERM BY ID4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "build the record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "subject-bulk-import": {
+      "main": [
+        [
+          {
+            "node": "Parse Sheet URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "for subjetc ni": {
+      "main": [
+        [
+          {
+            "node": "Get or create the subjetc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get instructor id3": {
+      "main": [
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get or create the subjetc": {
+      "main": [
+        [
+          {
+            "node": "get instructor id3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "GET TERM BY ID5",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET TERM BY ID5": {
+      "main": [
+        [
+          {
+            "node": "naay instructor so inster the istructor_subject",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "naay instructor so inster the istructor_subject": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get subject id": {
+      "main": [
+        [
+          {
+            "node": "GET TERM BY ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Map to Target Format1": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "3a522392-003a-456e-a481-44f754a036a5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fc144666af50c65f738664919f7815b7945676b2851a36650efcbfeab318a880"
+  },
+  "nodeGroups": [],
+  "id": "LT3sKTpFVwmfBSej",
+  "tags": []
+}

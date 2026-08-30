@@ -23,6 +23,19 @@ async function hashString(str: string) {
 // ── H-1 FIX: OTP attempt limit ────────────────────────────────────────────────
 const MAX_OTP_ATTEMPTS = 5
 
+/**
+ * 'Full-Time' / 'Part-Time' when the role name itself states the employment,
+ * otherwise null meaning "leave whatever is on record alone".
+ *
+ * Casing matches what is already in user_info.employment_status.
+ */
+function employmentForRole(roleName: unknown): string | null {
+  const role = String(roleName ?? '').trim().toUpperCase()
+  if (role === 'FULL-TIME' || role === 'FULL_TIME') return 'Full-Time'
+  if (role === 'PART-TIME' || role === 'PART_TIME') return 'Part-Time'
+  return null
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -36,6 +49,7 @@ serve(async (req) => {
       firstName: rawFirstName,
       lastName: rawLastName,
       roleId, roleName, verificationCode, isAcademic, isPromotion,
+      deptId,
     } = await req.json()
 
     if (!targetUserId) throw new Error('Invalid input: missing target user')
@@ -117,9 +131,85 @@ serve(async (req) => {
     }
 
     if (isAcademic) {
-      await supabaseAdmin.from('department_table').update({ roles: roleId }).eq('user_id', targetUserId)
+      // The Department dropdown in "Edit Academic Profile" used to be
+      // decorative: the client never sent a department and this function only
+      // wrote `roles`, so the control looked like it saved and silently did not.
+      const deptUpdate: Record<string, unknown> = { roles: roleId }
+      if (deptId != null) deptUpdate.Department_name_ID = deptId
+
+      const { error: deptError } = await supabaseAdmin
+        .from('department_table')
+        .update(deptUpdate)
+        .eq('user_id', targetUserId)
+      if (deptError) throw deptError
+
+      // department_table and instructor_departments both record the primary
+      // department and must move together. The dean roster reads
+      // instructor_departments while the profile reads department_table, so
+      // updating one alone makes the two screens disagree about where someone
+      // works.
+      if (deptId != null) {
+        // .limit(1) rather than .maybeSingle(): maybeSingle throws when it
+        // finds more than one row, and duplicate primaries are exactly the
+        // state migration 10's unique index exists to clean up.
+        const { data: primaries, error: readError } = await supabaseAdmin
+          .from('instructor_departments')
+          .select('id')
+          .eq('instructor_id', targetUserId)
+          .eq('is_primary', true)
+          .limit(1)
+        if (readError) throw readError
+
+        const existingPrimary = primaries && primaries.length > 0 ? primaries[0] : null
+
+        const primaryWrite = existingPrimary
+          ? await supabaseAdmin
+              .from('instructor_departments')
+              .update({ department_id: deptId })
+              .eq('id', existingPrimary.id)
+          : await supabaseAdmin
+              .from('instructor_departments')
+              .insert({ instructor_id: targetUserId, department_id: deptId, is_primary: true })
+
+        if (primaryWrite.error) {
+          // 23505 on (instructor_id, department_id) means this person is
+          // already linked to that department as a secondary. Say so, rather
+          // than leaking a Postgres error to the dialog.
+          if ((primaryWrite.error as any).code === '23505') {
+            throw new Error('Duplicate: this instructor is already assigned to that department. Remove the secondary assignment first.')
+          }
+          throw primaryWrite.error
+        }
+      }
     } else {
-      await supabaseAdmin.from('Sao_users').update({ role_id: roleId }).eq('user_id', targetUserId)
+      const { error: saoError } = await supabaseAdmin
+        .from('Sao_users').update({ role_id: roleId }).eq('user_id', targetUserId)
+      if (saoError) throw saoError
+    }
+
+    // Employment status is written ONLY when the new role states it.
+    // FULL-TIME and PART-TIME are the two instructor roles and each names its
+    // own employment; DEPARTMENT_HEAD, DEAN and the SAO roles do not, so
+    // overwriting theirs would be a guess. Same rule the signup screen applies.
+    //
+    // This matters beyond tidiness: employment_status is what gates the
+    // "Assign Second Department" action, so a stale value hands out -- or
+    // withholds -- an ability the role no longer matches.
+    const derivedEmployment = employmentForRole(roleName)
+    if (derivedEmployment) {
+      const { error: empError } = await supabaseAdmin
+        .from('user_info')
+        .update({ employment_status: derivedEmployment })
+        .eq('id', targetUserId)
+      if (empError) throw empError
+    }
+
+    // Department name for the notification email, if it moved.
+    let newDeptName: string | null = null
+    if (isAcademic && deptId != null) {
+      const { data: deptRow } = await supabaseAdmin
+        .from('department_name').select('d_name').eq('id', deptId).limit(1)
+      newDeptName = deptRow && deptRow.length > 0 ? deptRow[0].d_name : null
     }
 
     // ── Notify User ───────────────────────────────────────────────────────────
@@ -144,6 +234,8 @@ serve(async (req) => {
           <ul>
             <li><b>Name:</b> ${firstName} ${lastName}</li>
             <li><b>Role:</b> ${roleName}</li>
+            ${newDeptName ? `<li><b>Department:</b> ${newDeptName}</li>` : ''}
+            ${derivedEmployment ? `<li><b>Employment:</b> ${derivedEmployment}</li>` : ''}
             <li><b>Status:</b> ${userData!.account_status.toUpperCase()}</li>
           </ul>
           <p>If you did not request these changes or believe this is an error, please contact the SAO office immediately.</p>
@@ -155,7 +247,12 @@ serve(async (req) => {
     await supabaseAdmin.from('audit_logs').insert({
       user_id: caller.id,
       action: 'ROLE_UPDATED',
-      metadata: { target: targetUserId, new_role: roleName }
+      metadata: {
+        target: targetUserId,
+        new_role: roleName,
+        new_dept: deptId ?? null,
+        new_employment: derivedEmployment ?? null,
+      }
     })
 
     return new Response(JSON.stringify({ message: 'Update successful' }), {

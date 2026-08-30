@@ -12,7 +12,8 @@ class EvaluationSummary {
   final double performanceMean;  // average performance category score
   final int totalEvaluations;    // total number of student responses collected
   final double completionRate;   // how many students actually submitted, 0.0 to 1.0
-  final int facultyCount;        // how many instructors were counted (excludes dept head)
+  final int facultyCount;        // faculty on the roster this term (approved accounts only)
+  final int evaluatedCount;      // how many of them actually have results yet
 
   EvaluationSummary({
     required this.averageScore,
@@ -21,7 +22,18 @@ class EvaluationSummary {
     required this.totalEvaluations,
     required this.completionRate,
     required this.facultyCount,
+    this.evaluatedCount = 0,
   });
+
+  /// True when the term has started but nothing has been scanned yet.
+  ///
+  /// The dashboards need this to say "no evaluations yet" instead of printing
+  /// 0.00, which reads as a department that scored nothing.
+  bool get hasNoData => evaluatedCount == 0;
+
+  /// True when only some of the faculty have been scanned, so every average
+  /// here describes [evaluatedCount] people rather than the whole department.
+  bool get isPartial => evaluatedCount > 0 && evaluatedCount < facultyCount;
 }
 
 // holds performance data for a single instructor -- name, dept, score, trend
@@ -138,6 +150,105 @@ class InterventionReport {
   });
 }
 
+/// Averages [resultRows] per academic term, counting a result only when the
+/// instructor belonged to the department in that term.
+///
+/// [membership] holds `'termId|instructorId'` pairs read from
+/// instructor_department_terms. That snapshot is the whole point: department
+/// membership has no term dimension of its own, so without it a past term's
+/// average is rebuilt from *today's* membership and moving one instructor
+/// silently rewrites numbers that were already reported.
+///
+/// An empty [membership] means no snapshot exists for this department yet, and
+/// every row is kept -- the pre-snapshot behaviour, so a chart degrades to
+/// slightly-wrong rather than empty.
+///
+/// Lives outside EvaluationService so the rule can be tested without a
+/// database; a closed term's number never moving is a property of this
+/// function, not of Supabase.
+List<Map<String, dynamic>> averagePerTerm(
+  List<Map<String, dynamic>> resultRows, {
+  required Set<String> membership,
+}) {
+  final grouped = <String, Map<String, dynamic>>{};
+
+  for (final row in resultRows) {
+    final termId = row['term_id']?.toString() ?? 'unknown';
+    final instructorId = row['instructor_id']?.toString();
+
+    // Earned while the instructor was somewhere else -- not this department's
+    // number to report.
+    if (membership.isNotEmpty &&
+        (instructorId == null ||
+            !membership.contains('$termId|$instructorId'))) {
+      continue;
+    }
+
+    final overall = (row['combined_score_mean'] as num?)?.toDouble() ??
+        (row['overall_mean'] as num?)?.toDouble() ??
+        0.0;
+
+    final bucket = grouped.putIfAbsent(
+      termId,
+      () => {'sum': 0.0, 'count': 0, 'term': row['academic_terms']},
+    );
+    bucket['sum'] = (bucket['sum'] as double) + overall;
+    bucket['count'] = (bucket['count'] as int) + 1;
+  }
+
+  final history = <Map<String, dynamic>>[];
+  grouped.forEach((termId, data) {
+    final count = data['count'] as int;
+    if (count == 0) return;
+    final term = data['term'];
+
+    // Label reads like "1st\n25-26" on the chart axis.
+    String label = 'Sem';
+    if (term != null) {
+      final ay = term['academic_year'].toString();
+      final parts = ay.split('-');
+      final yearShort = parts.length == 2
+          ? '${parts[0].length >= 2 ? parts[0].substring(parts[0].length - 2) : parts[0]}-'
+              '${parts[1].length >= 2 ? parts[1].substring(parts[1].length - 2) : parts[1]}'
+          : ay;
+      final sem = term['semester'].toString();
+      label = '${sem.length >= 3 ? sem.substring(0, 3) : sem}\n$yearShort';
+    }
+
+    history.add({
+      'sem': label,
+      'score':
+          double.parse(((data['sum'] as double) / count).toStringAsFixed(2)),
+      'rawTerm': term,
+    });
+  });
+
+  // Chronological, then 1st / 2nd / Summer within a year.
+  const semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
+  history.sort((a, b) {
+    final aTerm = a['rawTerm'];
+    final bTerm = b['rawTerm'];
+    final aYear = int.tryParse(
+            aTerm?['academic_year']?.toString().split('-').first ?? '0') ??
+        0;
+    final bYear = int.tryParse(
+            bTerm?['academic_year']?.toString().split('-').first ?? '0') ??
+        0;
+    if (aYear != bYear) return aYear.compareTo(bYear);
+    final aSem = aTerm?['semester']?.toString() ?? '';
+    final bSem = bTerm?['semester']?.toString() ?? '';
+    final aKey =
+        semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
+    final bKey =
+        semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
+    return (semOrder[aKey] ?? 99).compareTo(semOrder[bKey] ?? 99);
+  });
+
+  return history
+      .map((e) => {'sem': e['sem'], 'score': e['score']})
+      .toList();
+}
+
 // the main service class -- all database calls live here, not in the widgets
 // dili ta put fetch logic in the UI, importente kaayo to keep this separate
 class EvaluationService {
@@ -192,7 +303,8 @@ class EvaluationService {
       final facultyRows = await _supabase
           .from('instructor_departments')
           .select('instructor_id')
-          .eq('department_id', deptId);
+          .eq('department_id', deptId)
+          .eq('is_primary', true);
       
       // Get all instructors linked to this dept, INCLUDING the dept head themselves
       // because Dept Heads also teach classes and receive student evaluations!
@@ -202,6 +314,26 @@ class EvaluationService {
           .toList();
 
       debugPrint('EvaluationService - Found ${facultyIds.length} instructors for Dept $deptId');
+
+      // Staff headcount excludes accounts that are no longer active. Their
+      // already-collected results still aggregate below: a fired instructor
+      // leaves the roster, but the evaluations students submitted while he was
+      // teaching are not deleted from the term's numbers.
+      var activeFacultyCount = facultyIds.length;
+      if (facultyIds.isNotEmpty) {
+        try {
+          final statusRows = await _supabase
+              .from('user_info')
+              .select('id')
+              .filter('id', 'in', facultyIds)
+              .eq('account_status', 'approved');
+          activeFacultyCount = (statusRows as List).length;
+        } catch (e) {
+          // Non-fatal: fall back to the linked count rather than lose the
+          // whole dashboard over a headcount.
+          debugPrint('EvaluationService - Could not filter faculty by status: $e');
+        }
+      }
 
       if (facultyIds.isEmpty) return _emptySummary(); // no faculty found, show zeros
 
@@ -249,18 +381,29 @@ class EvaluationService {
         totalResponses += (row['total_responses'] as int?) ?? 0;
       }
 
-      final count = list.length;
-      // Calculate rough completion rate: avg responses per faculty / expected max (25 responses = 100%)
-      // 25 is the assumed max number of students per class, dili guarantee accurate
-      final avgResponses = count > 0 ? totalResponses / count : 0;
-      final calculatedRate = (avgResponses / 25.0).clamp(0.0, 1.0); // clamp so it never go above 1.0
+      final count = list.length; // faculty who actually have results this term
+
+      // Completion is measured against the whole roster, not against the
+      // people already scanned. Dividing by `count` meant one instructor with
+      // 25 responses read as 100% complete for a department of twenty.
+      // 25 responses is the assumed full class -- dili guarantee accurate.
+      final expectedResponses =
+          (activeFacultyCount > 0 ? activeFacultyCount : count) * 25.0;
+      final calculatedRate = expectedResponses > 0
+          ? (totalResponses / expectedResponses).clamp(0.0, 1.0)
+          : 0.0;
+
+      // The means stay averaged over `count`. Treating an unscanned instructor
+      // as a zero would be worse than leaving them out -- but evaluatedCount
+      // travels with the result so the dashboard can say which it is.
       return EvaluationSummary(
         averageScore: double.parse((totalOverall / count).toStringAsFixed(2)),
         managementMean: double.parse((totalMgmt / count).toStringAsFixed(2)),
         performanceMean: double.parse((totalPerf / count).toStringAsFixed(2)),
         totalEvaluations: totalResponses,
         completionRate: double.parse(calculatedRate.toStringAsFixed(2)),
-        facultyCount: facultyIds.length,
+        facultyCount: activeFacultyCount,
+        evaluatedCount: count,
       );
     } catch (e) {
       debugPrint('Error fetching department summary: $e');
@@ -268,7 +411,11 @@ class EvaluationService {
     }
   }
 
-  // Gets the historical average score for the entire department across past terms
+  // Historical average for the department across past terms.
+  //
+  // Reads membership from the per-term snapshot, not from current membership,
+  // so reassigning an instructor today cannot change a closed term's average.
+  // See snapshot_term_departments in migration 10.
   Future<List<Map<String, dynamic>>> getDepartmentHistory(String userId) async {
     try {
       final deptData = await _supabase
@@ -280,87 +427,65 @@ class EvaluationService {
       if (deptData == null) return [];
       final deptId = deptData['Department_name_ID'];
 
-      final facultyRows = await _supabase
-          .from('instructor_departments')
-          .select('instructor_id')
-          .eq('department_id', deptId);
-      
-      // Get all instructors linked to this dept, INCLUDING the dept head themselves
-      final facultyIds = (facultyRows as List)
-          .where((row) => row['instructor_id'] != null)
-          .map((row) => row['instructor_id'].toString())
-          .toList();
+      final membership = <String>{};       // 'termId|instructorId'
+      final instructorIds = <String>{};
 
-      if (facultyIds.isEmpty) return [];
+      // Who belonged to this department in which term.
+      //
+      // Its own try/catch on purpose: until migration 10 has been applied the
+      // table does not exist, and letting that reach the outer catch would
+      // return an empty chart instead of falling through to the live-membership
+      // path below.
+      try {
+        final snapshotRows = await _supabase
+            .from('instructor_department_terms')
+            .select('term_id, instructor_id')
+            .eq('department_id', deptId)
+            .eq('is_primary', true);
+
+        for (final row in (snapshotRows as List)) {
+          final termId = row['term_id']?.toString();
+          final instructorId = row['instructor_id']?.toString();
+          if (termId == null || instructorId == null) continue;
+          membership.add('$termId|$instructorId');
+          instructorIds.add(instructorId);
+        }
+      } catch (e) {
+        debugPrint('EvaluationService - Term snapshot unavailable ($e), '
+            'using current membership');
+        membership.clear();
+        instructorIds.clear();
+      }
+
+      // No snapshot yet -- migration 10 has not been run, or no term switch has
+      // happened since. Fall back to current membership so the chart shows the
+      // old (slightly wrong) numbers rather than nothing at all.
+      if (membership.isEmpty) {
+        debugPrint('EvaluationService - No term snapshot for dept $deptId, '
+            'falling back to current membership');
+        final liveRows = await _supabase
+            .from('instructor_departments')
+            .select('instructor_id')
+            .eq('department_id', deptId)
+            .eq('is_primary', true);
+        instructorIds.addAll((liveRows as List)
+            .where((row) => row['instructor_id'] != null)
+            .map((row) => row['instructor_id'].toString()));
+      }
+
+      if (instructorIds.isEmpty) return [];
 
       final historyData = await _supabase
           .from('overall_total_survey')
-          .select('overall_mean, combined_score_mean, term_id, academic_terms(semester, academic_year)')
-          .filter('instructor_id', 'in', facultyIds)
+          .select('overall_mean, combined_score_mean, instructor_id, term_id, '
+              'academic_terms(semester, academic_year)')
+          .filter('instructor_id', 'in', instructorIds.toList())
           .order('created_at', ascending: true);
-          
-      if ((historyData as List).isEmpty) return [];
 
-      // Group by term_id and calculate average
-      Map<String, Map<String, dynamic>> groupedByTerm = {};
-      
-      for (var row in historyData) {
-        final termId = row['term_id']?.toString() ?? 'unknown';
-        final overall = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-        final termsData = row['academic_terms'];
-        
-        if (!groupedByTerm.containsKey(termId)) {
-          groupedByTerm[termId] = {
-            'sum': 0.0,
-            'count': 0,
-            'term': termsData,
-          };
-        }
-        
-        groupedByTerm[termId]!['sum'] += overall;
-        groupedByTerm[termId]!['count'] += 1;
-      }
-      
-      List<Map<String, dynamic>> finalHistory = [];
-      
-      groupedByTerm.forEach((termId, data) {
-        final avgScore = data['sum'] / data['count'];
-        final term = data['term'];
-        String label = 'Sem';
-        if (term != null) {
-          final ay = term['academic_year'].toString();
-          final ayParts = ay.split('-');
-          final yearShort = ayParts.length == 2
-              ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
-                '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
-              : ay;
-          label = '${term['semester'].toString().substring(0, 3)}\n$yearShort';
-        }
-        finalHistory.add({
-          'sem': label,
-          'score': double.parse(avgScore.toStringAsFixed(2)),
-          'rawTerm': term // Keep for sorting
-        });
-      });
-      
-      // Sort semantically
-      final semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
-      finalHistory.sort((a, b) {
-        final aTerm = a['rawTerm'];
-        final bTerm = b['rawTerm'];
-        final aYear = int.tryParse(aTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
-        final bYear = int.tryParse(bTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
-        if (aYear != bYear) return aYear.compareTo(bYear);
-        final aSem = aTerm?['semester']?.toString() ?? '';
-        final bSem = bTerm?['semester']?.toString() ?? '';
-        final aSemKey = semOrder.keys.firstWhere((k) => aSem.startsWith(k), orElse: () => '');
-        final bSemKey = semOrder.keys.firstWhere((k) => bSem.startsWith(k), orElse: () => '');
-        return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
-      });
-      
-      // Clean up rawTerm before returning (no longer limiting to 4, send everything for scrollable graph)
-      return finalHistory.map((e) => {'sem': e['sem'], 'score': e['score']}).toList();
-
+      return averagePerTerm(
+        (historyData as List).cast<Map<String, dynamic>>(),
+        membership: membership,
+      );
     } catch (e) {
       debugPrint('Error fetching dept history: $e');
       return [];
@@ -659,22 +784,33 @@ class EvaluationService {
       final summary = await getDepartmentSummary(userId); // get dept avg for comparison
       final deptAvg = summary.averageScore; // will be used later to compute AI note
 
-      // get all faculty in the dept via instructor_departments (supports Non-Resident multi-dept)
-      final facultyRows = await _supabase
-          .from('instructor_departments')
-          .select('instructor_id')
+      // Which subjects this department owns.
+      //
+      // Attribution here is by SUBJECT, deliberately different from the
+      // department average above. A department's subject analytics are about
+      // its own classes, so a visiting instructor teaching one of them still
+      // appears -- otherwise a dean gets no feedback at all on subjects their
+      // own department runs.
+      //
+      // The department *average* stays per-instructor and primary-only,
+      // because there is exactly one authoritative score per instructor per
+      // term (overall_total_survey -- the same figure the instructor sees on
+      // their own dashboard) and recomputing it per department would produce a
+      // second, conflicting number for the same person.
+      final subjectRows = await _supabase
+          .from('subjects')
+          .select('id')
           .eq('department_id', deptId);
-      
-      // Exclude the dept head themselves -- only count instructor scores
-      final facultyIds = (facultyRows as List)
-          .where((row) => row['instructor_id'] != null && row['instructor_id'] != userId)
-          .map((row) => row['instructor_id'] as String)
+
+      final subjectIds = (subjectRows as List)
+          .where((row) => row['id'] != null)
+          .map((row) => row['id'].toString())
           .toSet()
           .toList();
 
-      if (facultyIds.isEmpty) {
-        debugPrint('SubjectAnalytics - No faculty found.');
-        return []; // no instructors in dept, nothing to analyze
+      if (subjectIds.isEmpty) {
+        debugPrint('SubjectAnalytics - No subjects registered for Dept $deptId.');
+        return []; // department owns no subjects, nothing to analyze
       }
 
       // fetch management results for all faculty -- includes subject and instructor info
@@ -689,20 +825,23 @@ class EvaluationService {
             subject:subjects!subject_id(subject_code, subject_name)
           ''')
           .eq('term_id', termId)
-          .filter('instructor_id', 'in', facultyIds);
+          .filter('subject_id', 'in', subjectIds)
+          .neq('instructor_id', userId); // dept head's own classes excluded
 
       final perfResults = await _supabase
           .from('performance_results')
           .select('overall_performance_mean, instructor_id, subject_id')
           .eq('term_id', termId)
-          .filter('instructor_id', 'in', facultyIds);
+          .filter('subject_id', 'in', subjectIds)
+          .neq('instructor_id', userId); // dept head's own classes excluded
 
       // fetch remarks to calculate sentiment based on tones
       final remarkResults = await _supabase
           .from('student_remarks')
           .select('subject_id, tone')
           .eq('term_id', termId)
-          .filter('instructor_id', 'in', facultyIds);
+          .filter('subject_id', 'in', subjectIds)
+          .neq('instructor_id', userId); // dept head's own classes excluded
 
       if ((mgmtResults as List).isEmpty) return []; // no data at all
 
