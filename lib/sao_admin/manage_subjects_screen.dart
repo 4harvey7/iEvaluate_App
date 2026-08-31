@@ -258,10 +258,58 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     }
   }
 
-  // Delete assignment row only — not the subject itself
+  // Remove an instructor from a subject — allowed only while no evaluation
+  // results exist for that instructor, subject and term.
+  //
+  // Once surveys have been collected the assignment is permanent: it is the
+  // only link the app has between the instructor and the subject, so removing
+  // it leaves the collected results unreachable in the UI while they carry on
+  // counting toward the instructor's overall score. Migration
+  // 20240130000015 refuses it at the database too; this is the explanation,
+  // not the protection.
   Future<void> _deleteAssignment(String assignmentId) async {
     final responses = await _responsesForAssignment(assignmentId);
     if (!mounted) return;
+
+    if (responses > 0) {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_outline,
+                    color: AppColors.error, size: 20),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(child: Text('Cannot Remove')),
+            ],
+          ),
+          content: Text(
+            '$responses evaluation response(s) have already been collected for '
+            'this instructor and subject this term.\n\n'
+            'Removing the assignment would leave those results unreachable in '
+            'the app while they keep counting toward the overall score, '
+            'so it is not allowed. Correct the scanned data instead.',
+            style: const TextStyle(fontSize: 13.5, height: 1.4),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -269,64 +317,15 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Remove Assignment'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Remove this instructor from this subject for the current term? '
-              'The subject will remain available for other terms.',
-            ),
-            if (responses > 0) ...[
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.info_outline,
-                            size: 18, color: AppColors.error),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '$responses evaluation response(s) already collected',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: AppColors.error,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Those results are kept and still count toward the '
-                      "instructor's overall score, but this subject will "
-                      'disappear from their My Subjects list and its report '
-                      'will no longer be reachable. Re-adding the same '
-                      'assignment restores it.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.35,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
+        content: const Text(
+          'Remove this instructor from this subject for the current term? '
+          'No evaluations have been collected for it yet, so nothing is lost. '
+          'The subject remains available for other terms.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () => Navigator.pop(context, true),
@@ -338,12 +337,17 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     if (confirmed != true) return;
     try {
       await _supabase.from('instructor_subjects').delete().eq('id', assignmentId);
-      _showSnack(responses > 0
-          ? 'Assignment removed. $responses response(s) kept but now hidden.'
-          : 'Assignment removed');
+      _showSnack('Assignment removed');
       _loadData();
     } catch (e) {
-      _showSnack('Error: $e', isError: true);
+      // The database trigger raises restrict_violation if results appeared
+      // between the check above and this delete.
+      _showSnack(
+        e.toString().contains('Cannot remove this instructor')
+            ? 'Cannot remove: evaluations exist for this assignment.'
+            : 'Error: $e',
+        isError: true,
+      );
     }
   }
 
@@ -1061,10 +1065,14 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       }
       // If no instructor, the subject is saved/updated with no assignment row — that's fine.
 
-      if (mounted) Navigator.pop(context);
-      widget.onSaved();
+      if (mounted) {
+        Navigator.pop(context);
+        widget.onSaved();
+      }
     } catch (e) {
-      widget.onError('Error saving: $e');
+      if (mounted) {
+        widget.onError('Error saving: $e');
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -1421,13 +1429,19 @@ class _BulkImportModalState extends State<_BulkImportModal> {
           .timeout(const Duration(seconds: 30));
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        if (mounted) Navigator.pop(context);
-        widget.onSuccess();
+        if (mounted) {
+          Navigator.pop(context);
+          widget.onSuccess();
+        }
       } else {
-        widget.onError('Import failed: ${res.body}');
+        if (mounted) {
+          widget.onError('Import failed: ${res.body}');
+        }
       }
     } catch (e) {
-      widget.onError('Error: $e');
+      if (mounted) {
+        widget.onError('Error: $e');
+      }
     } finally {
       if (mounted) setState(() => _isImporting = false);
     }
