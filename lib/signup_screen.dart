@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import 'core/services/address_service.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/department_head_guard.dart';
 import 'core/services/identity_validator.dart';
 import 'theme/app_colors.dart';
 import 'widgets/agreement_reader_page.dart';
@@ -165,6 +166,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
   _Availability _idStatus = _Availability.idle;
   _Availability _emailStatus = _Availability.idle;
   bool _isCheckingStep = false; // Continue pressed, confirming with the server
+
+  /// Set when the chosen department already has a head and the chosen role is
+  /// one. A department gets exactly one, so this is not something the applicant
+  /// can fix by trying again -- it blocks Continue and says why.
+  String? _deptHeadConflict;
+  bool _checkingDeptHead = false;
+  /// Answers can arrive out of order when the role or department is changed
+  /// twice quickly. Only the newest request is allowed to write the result.
+  int _deptHeadCheckSeq = 0;
 
   // Loaded once on open and filtered in memory, so suggestions keep up with
   // typing. Empty when the list could not be fetched, in which case the field
@@ -357,6 +367,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
   ///
   /// The debounced lookups above usually have the answer already, but a fast
   /// typist can press Continue before one lands. Returns the conflict, or null
+  /// Is the department head chair the applicant is asking for already taken?
+  ///
+  /// A department has one head, so a Department Head or Dean applicant who
+  /// picks an occupied department cannot be registered at all -- the database
+  /// trigger refuses the row. Asked as soon as both the role and the department
+  /// are known, rather than at submit, because by submit they have read the NDA
+  /// and the DPA and chosen a password for an account that was never possible.
+  ///
+  /// Clears itself for every other role, so switching away from Department Head
+  /// does not leave a stale warning blocking the form.
+  Future<void> _checkDepartmentHeadVacancy() async {
+    final String role = _roleController.text.trim();
+    final String dept = _departmentController.text.trim();
+
+    if (!isDepartmentHeadRole(role) || dept.isEmpty) {
+      _deptHeadCheckSeq++; // any answer still in flight is now stale
+      if (_deptHeadConflict != null || _checkingDeptHead) {
+        setState(() {
+          _deptHeadConflict = null;
+          _checkingDeptHead = false;
+        });
+      }
+      return;
+    }
+
+    final int seq = ++_deptHeadCheckSeq;
+    setState(() {
+      _checkingDeptHead = true;
+      _deptHeadConflict = null;
+    });
+
+    final String? conflict = await _authService.departmentHeadConflict(
+      roleName: role,
+      departmentName: dept,
+    );
+    if (!mounted || seq != _deptHeadCheckSeq) return;
+
+    setState(() {
+      _checkingDeptHead = false;
+      _deptHeadConflict = conflict;
+    });
+  }
+
   /// when the step is clear.
   Future<IdentityCheckResult?> _confirmStepAvailability() async {
     if (_currentPage != 0 && _currentPage != 1) return null;
@@ -446,6 +499,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
       setState(() => _errorMessage = null); // clear old error if we passed
 
+      // A department head applicant must not be carried past the department
+      // step into a registration the database will refuse. Re-asked here, not
+      // just read from state: the department may have been picked before the
+      // role, and the answer may still have been in flight.
+      if (_currentPage == 1) {
+        await _checkDepartmentHeadVacancy();
+        if (!mounted) return;
+        if (_deptHeadConflict != null) {
+          setState(() => _errorMessage = _deptHeadConflict);
+          return;
+        }
+      }
+
       // Do not carry a known duplicate forward into three more steps.
       final conflict = await _confirmStepAvailability();
       if (!mounted) return;
@@ -527,6 +593,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         (_idStatus == _Availability.taken || _emailStatus == _Availability.taken)) {
       canProceed = false;
     }
+    // Same reasoning for the chair: the department already has a head, so
+    // Continue can only lead to a refusal.
+    if (_currentPage == 1 && _deptHeadConflict != null) canProceed = false;
     final bool busy = _isLoading || _isCheckingStep;
 
     return Scaffold(
@@ -684,12 +753,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 .toList(),
             onChanged: (_isLoading || _isFetchingMetadata)
                 ? null
-                : (val) => setState(() {
+                : (val) {
+                    setState(() {
                       _roleController.text = val!;
                       // SAO staff have no department, so anything already
                       // chosen would be submitted for a field they never saw.
                       if (_isSaoRole) _departmentController.text = '';
-                    }),
+                    });
+                    // The role is what decides whether the chair matters, so
+                    // switching to -- or away from -- Department Head has to
+                    // re-ask about a department that may already be chosen.
+                    _checkDepartmentHeadVacancy();
+                  },
           ),
           const SizedBox(height: 16),
           _buildInput(
@@ -802,8 +877,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   .toList(),
               onChanged: (_isLoading || _isFetchingMetadata)
                   ? null
-                  : (val) => setState(() => _departmentController.text = val!),
+                  : (val) {
+                      setState(() => _departmentController.text = val!);
+                      // Only does anything for a head role; clears itself for
+                      // every other one.
+                      _checkDepartmentHeadVacancy();
+                    },
             ),
+            _buildDeptHeadNotice(),
           ],
           // Employment status only where the role does not already state it.
           // Instructors picked Resident / Non-Resident as part of their role.
@@ -1159,6 +1240,58 @@ class _SignUpScreenState extends State<SignUpScreen> {
   ///
   /// Same icon size, text size and colours as _buildRequirementRow below, so
   /// this and the password checklist read as one idea rather than two.
+  /// "This department already has a head", under the department picker.
+  ///
+  /// Deliberately heavier than the availability rows above it: a taken ID can
+  /// be corrected by typing the right one, but an occupied chair means this
+  /// role is not available for this department at all, and the applicant has to
+  /// choose a different department or a different role.
+  Widget _buildDeptHeadNotice() {
+    if (_checkingDeptHead) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 6, left: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 1.6, color: AppColors.textTertiary),
+            ),
+            SizedBox(width: 8),
+            Text('Checking if this department already has a head…',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ],
+        ),
+      );
+    }
+
+    final String? conflict = _deptHeadConflict;
+    if (conflict == null) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.person_off_outlined, size: 16, color: AppColors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              conflict,
+              style: const TextStyle(fontSize: 12, color: AppColors.error, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAvailabilityRow(
     _Availability status, {
     required String freeLabel,

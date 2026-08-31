@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
+import '../core/services/department_head_guard.dart';
 import '../core/services/identity_validator.dart';
 import '../widgets/duplicate_warning_dialog.dart';
 import '../theme/app_colors.dart';
@@ -11,6 +12,18 @@ import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
+
+/// The head currently sitting for one department.
+///
+/// A department gets exactly one (migration 20240130000016), so this screen
+/// keeps at most one per department id and uses it to say who is in the way
+/// before an OTP is sent or an account is created.
+class _SittingHead {
+  const _SittingHead({required this.userId, required this.name});
+
+  final String? userId;
+  final String name;
+}
 
 // The widget shell — just a box that holds the real stuff inside
 class UserManagementScreen extends StatefulWidget {
@@ -26,7 +39,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   List<Map<String, dynamic>> _allUsers = []; // every academic user fetched from DB
   List<Map<String, dynamic>> _roles = []; // available roles, but only non-SAO ones
   List<Map<String, dynamic>> _allDeptNames = []; // all department names for dropdowns
-  
+
+  /// Which department already has a head, and who it is.
+  ///
+  /// Built from the rows this screen already fetched -- department_table IS the
+  /// list of academic accounts, so naming the sitting head costs no extra
+  /// query. Refreshed by every _fetchData, so it follows a promotion made here.
+  Map<int, _SittingHead> _headByDept = <int, _SittingHead>{};
+
   bool _isLoading = true; // spinner flag — true while we waiting for data
   String _searchQuery = ''; // what the admin typed in the search box
   String _selectedRoleFilter = 'All'; // which role filter is selected, default all
@@ -84,6 +104,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         setState(() {
           _allUsers = List<Map<String, dynamic>>.from(usersResponse);
           _allDeptNames = List<Map<String, dynamic>>.from(deptsResponse);
+          _headByDept = _readHeadsByDept(_allUsers);
           // filter roles to only non-SAO ones — this screen is for academic staff only
           _roles = List<Map<String, dynamic>>.from(rolesResponse)
               .where((r) => !r['Roles'].toString().toUpperCase().contains('SAO'))
@@ -103,6 +124,150 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         );
       }
     }
+  }
+
+  // ── One department head per department ─────────────────────────────────────
+  // The rule is enforced by the trigger department_table_one_head (migration
+  // 20240130000016) and re-checked by admin-create-academic and
+  // admin-update-role. Everything below is so the admin reads a sentence
+  // instead of a rejected write -- and reads it before a verification code is
+  // emailed, since promoting someone to head costs an OTP round trip.
+
+  /// Sitting heads keyed by department id, read from the rows already fetched.
+  ///
+  /// DEAN counts as a head: it routes to the same dashboard as
+  /// DEPARTMENT_HEAD, so two of them over one department is the collision the
+  /// rule exists to stop. A deleted account is not sitting in the chair.
+  Map<int, _SittingHead> _readHeadsByDept(List<Map<String, dynamic>> rows) {
+    final Map<int, _SittingHead> heads = <int, _SittingHead>{};
+    for (final row in rows) {
+      final deptId = row['Department_name_ID'];
+      if (deptId is! int) continue;
+      if (!isDepartmentHeadRole(row['role_data']?['Roles']?.toString())) continue;
+
+      final ui = row['user_info'];
+      if (ui == null) continue;
+      if ((ui['account_status'] ?? '').toString().toLowerCase() == 'deleted') {
+        continue;
+      }
+
+      final name =
+          '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim();
+      heads[deptId] = _SittingHead(
+        userId: row['user_id']?.toString(),
+        name: name.isEmpty ? 'Another account' : name,
+      );
+    }
+    return heads;
+  }
+
+  /// The head standing in the way of making someone head of [deptId], or null
+  /// when the chair is free.
+  ///
+  /// [excludeUserId] is the account being edited, so the sitting head is never
+  /// reported as blocking themselves -- re-saving their own profile, or moving
+  /// them to another department, has to stay possible.
+  _SittingHead? _headBlocking(Object? deptId, {String? excludeUserId}) {
+    if (deptId is! int) return null;
+    final head = _headByDept[deptId];
+    if (head == null) return null;
+    if (excludeUserId != null && head.userId == excludeUserId) return null;
+    return head;
+  }
+
+  String _deptNameFor(Object? deptId) {
+    for (final d in _allDeptNames) {
+      if (d['id'] == deptId) return (d['d_name'] ?? '').toString();
+    }
+    return '';
+  }
+
+  /// The sentence shown for a taken chair, wherever it is shown.
+  String _headTakenMessage(_SittingHead head, Object? deptId) =>
+      DepartmentHeadGuard.conflictMessage(
+        headName: head.name,
+        departmentName: _deptNameFor(deptId),
+      );
+
+  /// Inline warning inside the create / edit dialogs.
+  Widget _buildHeadTakenBanner(String message) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.person_off_outlined, size: 16, color: AppColors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                  fontSize: 12, color: AppColors.error, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Department items for the create / edit dialogs.
+  ///
+  /// When the role being assigned is a head role, departments that already have
+  /// one are disabled and labelled with who holds it -- the admin can see the
+  /// whole picture without opening each department, and cannot pick one that
+  /// would be refused. For every other role all departments stay selectable:
+  /// a department with a head still takes instructors.
+  List<DropdownMenuItem<int>> _departmentItems({
+    required bool forHeadRole,
+    String? excludeUserId,
+  }) {
+    return _allDeptNames.map((d) {
+      final id = d['id'] as int;
+      final name = (d['d_name'] ?? '').toString();
+      final head = forHeadRole
+          ? _headBlocking(id, excludeUserId: excludeUserId)
+          : null;
+      return DropdownMenuItem<int>(
+        value: id,
+        enabled: head == null,
+        child: Text(
+          head == null ? name : '$name — head: ${head.name}',
+          style: TextStyle(
+            color: head == null ? AppColors.textPrimary : AppColors.textTertiary,
+          ),
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }).toList();
+  }
+
+  /// Modal shown when the admin submits anyway (the department was picked
+  /// before the role, or the data went stale under them).
+  Future<void> _showHeadTakenDialog(String message) {
+    return showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: const Icon(Icons.person_off_outlined,
+            color: AppColors.error, size: 32),
+        title: const Text('Department Head Already Assigned',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+        content: Text(message, style: const TextStyle(height: 1.45)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   // computed getter that filters and sorts _allUsers based on current search/filter/sort
@@ -563,11 +728,23 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       context: context,
       barrierDismissible: false, // cannot dismiss by tapping outside, dili ta escape
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) {
+          // Recomputed on every rebuild, so picking a head role or another
+          // department updates the disabled items and the warning at once.
+          final selectedRole = _roles.firstWhere(
+            (r) => r['id'] == selectedRoleId,
+            orElse: () => <String, dynamic>{},
+          );
+          final bool creatingHead =
+              isDepartmentHeadRole(selectedRole['Roles']?.toString());
+          final _SittingHead? blockingHead =
+              creatingHead ? _headBlocking(selectedDeptId) : null;
+
+          return AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           // title changes depending on which step we're on
-          title: Text(needsCode ? 'Verify Authorization' : 'Add Academic Personnel', 
+          title: Text(needsCode ? 'Verify Authorization' : 'Add Academic Personnel',
               style: const TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
@@ -592,14 +769,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedRoleId = val),
                   ),
                   const SizedBox(height: 12),
-                  // pick a department — everyone needs a department
+                  // pick a department — everyone needs a department.
+                  // For a head role the departments that already have one are
+                  // disabled and labelled with who holds it: a department gets
+                  // exactly one head, so those are not choices.
                   DropdownButtonFormField<int>(
                     initialValue: selectedDeptId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Department'),
-                    items: _allDeptNames.map((d) => DropdownMenuItem<int>(value: d['id'], child: Text(d['d_name']))).toList(),
+                    items: _departmentItems(forHeadRole: creatingHead),
                     onChanged: (val) => setDialogState(() => selectedDeptId = val!),
                   ),
+                  if (blockingHead != null)
+                    _buildHeadTakenBanner(
+                        _headTakenMessage(blockingHead, selectedDeptId)),
                 ] else ...[
                   // step 2: verify with OTP code before creating a dept head — extra security
                   const Text('Creating a Department Head requires authorization.', textAlign: TextAlign.center),
@@ -670,6 +853,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   return;
                 }
 
+                // One head per department. Checked before the OTP is requested:
+                // there is no point emailing a code for an account the database
+                // will refuse. admin-create-academic checks again server-side
+                // and the trigger is the actual guarantee, so this is the
+                // message, not the enforcement.
+                if (isDepartmentHeadRole(roleName?.toString())) {
+                  final head = _headBlocking(selectedDeptId);
+                  if (head != null) {
+                    if (!context.mounted) return;
+                    await _showHeadTakenDialog(
+                        _headTakenMessage(head, selectedDeptId));
+                    return;
+                  }
+                }
+
                 // department head needs extra OTP verification — cannot just create one freely
                 if (roleName == 'DEPARTMENT_HEAD' && !needsCode) {
                    final currentUser = _supabase.auth.currentUser;
@@ -730,9 +928,18 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     e,
                     fallback: 'Could not create the user. Please try again.',
                   );
+                  // The chair can be taken between the check above and this
+                  // call -- by another admin, or by a registration approved in
+                  // the meantime. Same modal either way.
+                  final headTaken =
+                      DepartmentHeadGuard.describeConflictError(msg);
+                  if (headTaken != null) {
+                    if (!context.mounted) return;
+                    await _showHeadTakenDialog(headTaken);
+                  }
                   // A duplicate can still reach us here if two admins submit the
                   // same person at once and the unique index catches the second.
-                  if (isDuplicateMessage(msg)) {
+                  else if (isDuplicateMessage(msg)) {
                     if (!context.mounted) return;
                     await showDuplicateWarningDialog(context, message: msg);
                   } else {
@@ -745,12 +952,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 }
               },
               // show spinner when saving, show text otherwise
-              child: isSaving 
+              child: isSaving
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
             ),
           ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -785,11 +993,28 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         selectedRoleId != originalRoleId ||
         selectedDeptId != originalDeptId;
 
+    // This account never blocks itself: the sitting head has to be able to save
+    // their own profile and to be moved to another department.
+    final String? editedUserId = user['user_id']?.toString();
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) {
+          // Recomputed on every rebuild, so the warning and the disabled
+          // departments follow whatever is currently chosen in the dialog.
+          final selectedRole = _roles.firstWhere(
+            (r) => r['id'] == selectedRoleId,
+            orElse: () => <String, dynamic>{},
+          );
+          final bool assigningHead =
+              isDepartmentHeadRole(selectedRole['Roles']?.toString());
+          final _SittingHead? blockingHead = assigningHead
+              ? _headBlocking(selectedDeptId, excludeUserId: editedUserId)
+              : null;
+
+          return AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(needsCode ? 'Verify Authorization' : 'Edit Academic Profile'), // title changes on step 2
@@ -821,13 +1046,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setDialogState(() => selectedRoleId = val!),
                   ),
                   const SizedBox(height: 12),
+                  // Departments that already have a head are disabled while a
+                  // head role is selected, and labelled with who holds it.
                   DropdownButtonFormField<int>(
                     initialValue: selectedDeptId,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Department'),
-                    items: _allDeptNames.map((d) => DropdownMenuItem<int>(value: d['id'], child: Text(d['d_name']))).toList(),
+                    items: _departmentItems(
+                      forHeadRole: assigningHead,
+                      excludeUserId: editedUserId,
+                    ),
                     onChanged: (val) => setDialogState(() => selectedDeptId = val!),
                   ),
+                  if (blockingHead != null)
+                    _buildHeadTakenBanner(
+                        _headTakenMessage(blockingHead, selectedDeptId)),
                 ] else ...[
                   // OTP step — only shown when upgrading someone to department head
                   const Text('Updating to Department Head requires authorization.', textAlign: TextAlign.center),
@@ -896,6 +1129,21 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   return;
                 }
 
+                // One head per department, checked before the OTP is requested.
+                // Covers both ways this dialog can create a second head:
+                // promoting someone in a department that already has one, and
+                // moving a sitting head into a department that already has one.
+                if (isDepartmentHeadRole(roleName?.toString())) {
+                  final head = _headBlocking(selectedDeptId,
+                      excludeUserId: editedUserId);
+                  if (head != null) {
+                    if (!context.mounted) return;
+                    await _showHeadTakenDialog(
+                        _headTakenMessage(head, selectedDeptId));
+                    return;
+                  }
+                }
+
                 // check if they're being promoted to dept head when they weren't before
                 final bool isUpgradingToHead = roleName == 'DEPARTMENT_HEAD' && user['role_data']?['Roles'] != 'DEPARTMENT_HEAD';
 
@@ -943,7 +1191,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     e,
                     fallback: 'Update failed. Please try again.',
                   );
-                  if (isDuplicateMessage(msg)) {
+                  // Someone else filled the chair between the check above and
+                  // this call.
+                  final headTaken =
+                      DepartmentHeadGuard.describeConflictError(msg);
+                  if (headTaken != null) {
+                    if (!context.mounted) return;
+                    await _showHeadTakenDialog(headTaken);
+                  } else if (isDuplicateMessage(msg)) {
                     if (!context.mounted) return;
                     await showDuplicateWarningDialog(context, message: msg);
                   } else {
@@ -960,7 +1215,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   : Text(hasChanges() ? 'Save Changes' : 'Back'),
             ),
           ],
-        ),
+          );
+        },
       ),
     );
   }

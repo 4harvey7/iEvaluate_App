@@ -525,6 +525,17 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
   int _totalEvals = 0;
   List<Map<String, dynamic>> _instructors = [];
 
+  /// The head's OWN evaluation score, when they also teach.
+  ///
+  /// A department head can be assigned to subjects like anyone else
+  /// (manage_subjects_screen offers every department_table member), and when
+  /// they are, their results count toward the department average below. They
+  /// are kept out of the ranked instructor list -- they are not one of the
+  /// people they are being ranked against -- so without this their score was
+  /// counted and shown nowhere.
+  double _headScore = 0.0;
+  int _headEvals = 0;
+
   @override
   void initState() {
     super.initState();
@@ -551,6 +562,9 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
           .eq('Department_name_ID', widget.deptId);
 
       String headName = 'No department head assigned';
+      String? headId;
+      double headScore = 0.0;
+      int headEvals = 0;
       final List<Map<String, dynamic>> instructors = [];
 
       for (final m in (members as List)) {
@@ -566,6 +580,7 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
         if (roleName.toLowerCase().contains('head') ||
             roleName.toLowerCase().contains('dean')) {
           headName = name;
+          headId = m['user_id'] as String?;
         } else {
           instructors.add({
             'id': m['user_id'],
@@ -614,6 +629,13 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
           totalEvals += evalsCount;
           if (computedScore > 0) scoreCount++;
 
+          // The head is not in `instructors`, so their own score has to be
+          // picked up here or it goes into the department average unseen.
+          if (id != null && id == headId) {
+            headScore = double.parse(computedScore.toStringAsFixed(2));
+            headEvals = evalsCount;
+          }
+
           // Attach score to instructor
           for (final inst in instructors) {
             if (inst['id'] == id) {
@@ -638,6 +660,8 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                 double.parse(deptScore.toStringAsFixed(2));
             _totalEvals = totalEvals;
             _instructors = instructors;
+            _headScore = headScore;
+            _headEvals = headEvals;
             _isLoading = false;
           });
         }
@@ -824,9 +848,43 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
                                         color: AppColors.textPrimary)),
+                                // Only when the head also teaches. Their result
+                                // is already inside the department average, so
+                                // saying where it came from beats hiding it.
+                                if (_headEvals > 0 || _headScore > 0)
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 2),
+                                    child: Text(
+                                      'Also teaching this term — counted in the department average',
+                                      style: TextStyle(
+                                          fontSize: 10,
+                                          color: AppColors.textTertiary),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
+                          if (_headEvals > 0 || _headScore > 0)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  _headScore > 0
+                                      ? _headScore.toStringAsFixed(2)
+                                      : '—',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                      color: _scoreColor(_headScore)),
+                                ),
+                                Text(
+                                  _headEvals > 0 ? '$_headEvals evals' : 'No data',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
                         ]),
                       ),
                       const SizedBox(height: 24),

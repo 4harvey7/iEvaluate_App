@@ -7,6 +7,10 @@ import {
   validateIdentityFormat,
 } from '../_shared/identity_guard.ts'
 import { createAdminClient } from '../_shared/admin_client.ts'
+import {
+  assertDepartmentHeadVacant,
+  HEAD_CONFLICT_PREFIX,
+} from '../_shared/department_head_guard.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,6 +80,46 @@ serve(async (req) => {
       .from('Sao_users').select('roles!inner(Roles)').eq('user_id', caller.id).single()
     if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
       throw new Error('Forbidden: Admin access required')
+    }
+
+    // ── One head per department ───────────────────────────────────────────────
+    // Runs before the OTP block on purpose: the admin should learn the chair is
+    // taken before a code is emailed and typed, and before that code is spent.
+    //
+    // The role NAME is re-read from roleId rather than trusted from the body.
+    // roleId is what actually gets written, so a request carrying roleName
+    // 'FULL-TIME' with a department-head roleId would otherwise walk straight
+    // past this check. The trigger department_table_one_head (migration
+    // 20240130000016) would still stop it -- but with a message this function
+    // is not expecting at a point where the user_info update has already been
+    // applied.
+    if (isAcademic) {
+      const { data: roleRow } = await supabaseAdmin
+        .from('roles').select('Roles').eq('id', roleId).limit(1)
+      const effectiveRoleName =
+        roleRow && roleRow.length > 0 ? roleRow[0].Roles : roleName
+
+      // The department dropdown is optional in the dialog. When it is not sent,
+      // the role still lands on whatever department the person is already in,
+      // and that department is the one whose chair has to be free.
+      let targetDeptId = deptId
+      if (targetDeptId == null) {
+        const { data: currentDept } = await supabaseAdmin
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', targetUserId)
+          .limit(1)
+        targetDeptId = currentDept && currentDept.length > 0
+          ? currentDept[0].Department_name_ID
+          : null
+      }
+
+      await assertDepartmentHeadVacant(supabaseAdmin, {
+        roleName: effectiveRoleName,
+        deptId: targetDeptId,
+        // Re-saving the sitting head must not report them as their own blocker.
+        excludeUserId: targetUserId,
+      })
     }
 
     // ── OTP Protection Logic ──────────────────────────────────────────────────
@@ -259,7 +303,10 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Too many failed', 'Invalid verification', 'BREVO_', 'Duplicate', 'Invalid input']
+    // HEAD_CONFLICT_PREFIX covers both sources of that message: the pre-flight
+    // check above, and the trigger's own exception if the race is lost between
+    // the check and the update. Both start with the same words.
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Too many failed', 'Invalid verification', 'BREVO_', 'Duplicate', 'Invalid input', HEAD_CONFLICT_PREFIX]
     const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
       ? error.message
       : 'Operation failed. Please try again.'

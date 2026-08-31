@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import {
+  assertDepartmentHeadVacant,
+  HEAD_CONFLICT_PREFIX,
+} from '../_shared/department_head_guard.ts'
 
 import {
   cleanEmail,
@@ -74,6 +78,14 @@ serve(async (req) => {
 
     const { data: callerRole } = await supabaseAdmin.from('Sao_users').select('roles!inner(Roles)').eq('user_id', caller!.id).single()
     if ((callerRole as any)?.roles?.Roles !== 'SAO_ADMIN') throw new Error("Forbidden")
+
+    // 1.5 🪑 One head per department.
+    //
+    // Ahead of the OTP check on purpose: an admin should be told the chair is
+    // taken before a code is emailed and typed in, not after. The trigger
+    // department_table_one_head (migration 20240130000016) is what actually
+    // guarantees it -- this is the readable message.
+    await assertDepartmentHeadVacant(supabaseAdmin, { roleName, deptId })
 
     // 2. 🛡️ OTP CHECK (Required ONLY for Department Head)
     if (roleName === 'DEPARTMENT_HEAD') {
@@ -165,7 +177,10 @@ serve(async (req) => {
     // Only known-safe messages are returned verbatim; anything else could carry
     // database or internal detail. Matches admin-create-user and
     // admin-update-role, which already filter this way.
-    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Invalid verification', 'Duplicate', 'Invalid input']
+    // HEAD_CONFLICT_PREFIX covers both sources of that message: the pre-flight
+    // check above, and the trigger's own exception if the race is lost between
+    // the check and the insert. Both start with the same words.
+    const safePrefixes = ['Unauthorized', 'Forbidden', 'Verification code expired', 'Invalid verification', 'Duplicate', 'Invalid input', HEAD_CONFLICT_PREFIX]
     const safeMessage = safePrefixes.some(p => error.message?.startsWith(p))
       ? error.message
       : 'Operation failed. Please try again.'

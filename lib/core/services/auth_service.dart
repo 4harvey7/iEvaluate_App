@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'department_head_guard.dart';
 import 'identity_validator.dart';
 
 // simple wrapper class to send both success/failure and data back to the UI
@@ -99,6 +100,22 @@ class AuthService {
           error: availability.error,
           conflictField: availability.field,
         );
+      }
+
+      // STEP 0.6: is the department head chair already taken?
+      //
+      // A department gets one head. This has to be asked BEFORE the auth
+      // account exists: the database trigger rejects the department_table
+      // insert at STEP 5, and by then the auth user and the user_info row are
+      // already written -- and only the service role can remove an auth user,
+      // so the app would leave exactly the orphan STEP 4 goes to such lengths
+      // to avoid.
+      final headConflict = await departmentHeadConflict(
+        roleName: roleName,
+        departmentName: departmentName,
+      );
+      if (headConflict != null) {
+        return AuthResult(success: false, error: headConflict);
       }
 
       // STEP 1: create the user account in supabase auth first
@@ -225,6 +242,20 @@ class AuthService {
       if (msg.contains('SocketException') || msg.contains('Failed host lookup') || msg.contains('errno = 7')) {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
+      // The one-head-per-department trigger rejected the department_table
+      // insert at STEP 5 -- the race STEP 0.6 cannot close, where someone else
+      // takes the chair while this form is being filled in. The auth account
+      // and the user_info row already exist by now and only the service role
+      // can remove them, hence the instruction to contact the SAO office.
+      final headTaken = DepartmentHeadGuard.describeConflictError(e);
+      if (headTaken != null) {
+        debugPrint('[AUTH] Department head chair taken; auth user is orphaned.');
+        await signOut();
+        return AuthResult(
+          success: false,
+          error: '$headTaken\n\nPlease contact the SAO office to have this sorted out.',
+        );
+      }
       // Supabase Auth keeps its own unique index on the email address and never
       // releases it, so an email can be free in user_info yet still taken here.
       final lower = msg.toLowerCase();
@@ -247,6 +278,55 @@ class AuthService {
         );
       }
       return const AuthResult(success: false, error: 'Registration failed. Please try again.');
+    }
+  }
+
+  /// Is the department head chair for [departmentName] already occupied?
+  ///
+  /// Returns the sentence to show the applicant, or null when there is nothing
+  /// in the way -- the role is not a head role, no department is chosen yet, or
+  /// the chair is free.
+  ///
+  /// Shared by the registration screen, which asks as soon as a department is
+  /// picked so the applicant is not carried through three more steps toward a
+  /// registration that cannot succeed, and by [signUp], which asks again at
+  /// submit because the chair can be filled while the form is open.
+  ///
+  /// The department is looked up by name here rather than reusing signUp's
+  /// STEP 3 lookup, because that one runs after the auth account already
+  /// exists and this check has to happen before it.
+  Future<String?> departmentHeadConflict({
+    required String roleName,
+    required String departmentName,
+  }) async {
+    if (!isDepartmentHeadRole(roleName)) return null;
+    final String name = departmentName.trim();
+    if (name.isEmpty) return null;
+
+    try {
+      final dept = await _supabase
+          .from('department_name')
+          .select('id')
+          .eq('d_name', name)
+          .maybeSingle();
+      // An unknown department is signUp's problem to report, not this one's.
+      if (dept == null) return null;
+
+      final taken = await DepartmentHeadGuard.departmentHasHead(
+        client: _supabase,
+        departmentId: dept['id'],
+      );
+      if (!taken) return null;
+
+      // No head name for an applicant: they are not staff yet, and the RPC
+      // deliberately never returns one to an unauthenticated caller.
+      return DepartmentHeadGuard.conflictMessage(departmentName: name);
+    } catch (e) {
+      // Same reasoning as the availability check: a pre-flight courtesy that
+      // must not block registration when it cannot run. The trigger still
+      // rejects the insert, and signUp maps that to the same message.
+      debugPrint('[AUTH] Department head check unavailable: $e');
+      return null;
     }
   }
 
