@@ -1,0 +1,638 @@
+================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+
+USER ACCEPTANCE TESTING - DEPARTMENT HEAD MODULE
+================================================================================
+
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+
+Role under test        : DEPARTMENT_HEAD / DEAN  ("Department Head")
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the department head account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+
+WHAT THIS ROLE DOES
+  The Department Head reviews the faculty in their OWN department, spots who is
+  struggling, and takes formal action through an intervention report. Two
+  properties matter more than anything cosmetic:
+
+    1. SCOPE  - a head sees only their own department, never the whole college.
+    2. EFFECT - an intervention they raise reaches the instructor, and an
+                instructor cannot dismiss it.
+
+  This role can also deactivate an instructor's account, so that path is tested
+  explicitly.
+
+
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in "double quotes" appears on screen exactly as written.
+* Names in [square brackets] are database tables or services to check when a
+  step needs back-end verification.
+* Each step has its own expected result, so a failed case identifies WHICH
+  step failed.
+* "Actual Result" is blank where the case has not been run.
+
+!! WARNING !!
+  Cases marked [LIVE DATA] create real intervention records against real
+  instructors, or deactivate a real account. Run them on staging, or on a
+  throwaway instructor account, and never during a live evaluation period.
+  TC-D08 (deactivating an instructor) is the highest-impact action in this
+  module.
+
+
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                   REACHED BY                          CASE
+  ------------------------ ----------------------------------- --------------
+  Overview                 Tab "Overview"                      TC-D01
+  Faculty Roster           Tab "Faculty"                       TC-D02
+  Instructor Detail        Tap a faculty row                   TC-D03, D08, D09
+  Subject Analytics        Tab "Subjects"                      TC-D07
+  Intervention Reports     Tab "Reports"                       TC-D04, D06
+  Executive Settings       Drawer "Account Settings"           TC-D10
+  (cross-role)             Instructor's dashboard              TC-D05
+
+
+================================================================================
+TC-D01  SIGN IN AS DEPARTMENT HEAD AND READ THE EXECUTIVE OVERVIEW
+================================================================================
+Preconditions : App on the Login screen. Account is active with role
+                DEPARTMENT_HEAD or DEAN, and IS assigned to a department.
+Test Data     : View only. Tables [department_table], [user_info].
+
+STEPS
+ 1. Sign in with the department head credentials.
+    Expected: Routes to the department head landing screen, NOT the instructor
+              or admin dashboard. Bottom tabs read "Overview", "Faculty",
+              "Subjects", "Reports".
+ 2. Confirm the role boundary.
+    Expected: There is NO route to any SAO Admin screen - no Users, no
+              Personnel, no System Settings. A head who can reach an admin
+              screen is a FAIL.
+ 3. Read the header and leadership area.
+    Expected: Shows "Executive Overview" / "Department Overview" and identifies
+              the department this head leads, under "Department Leadership".
+ 4. Read the summary figures.
+    Expected: Shows "Department Average", "Active Faculty" and "Total Forms
+              Processed". The average is qualified by "Based on N of M
+              faculty", so a partly-evaluated department is not mistaken for a
+              complete one.
+ 5. Confirm the department average only covers THIS department.
+    Expected: The figure reconciles with this department's instructors only.
+              No instructor from another department contributes.
+ 6. Read "Department Growth".
+    Expected: Subtitle reads "Weighted mean across recent academic terms." with
+              a value per term. With no history it reads "No historical data
+              available yet".
+ 7. Read "Department Voice (AI Analysis)".
+    Expected: Subtitle reads "Aggregated themes from all student comments
+              across the college." With no data it reads "No feedback data yet
+              for this term."
+ 8. Read the "Action Required" section.
+    Expected: Subtitle reads "Faculty and curriculum signals that need review."
+              With nothing flagged it reads "No critical issues detected."
+ 9. Sign in as a department head with NO department assigned.
+    Expected: The screen explains the account has no department rather than
+              showing an empty or misleading dashboard, and does not crash.
+
+Expected Result : The head lands on their own overview with no admin access,
+                  and every figure is scoped to their department alone.
+Actual Result   :
+Comments        : Step 5 is the substance of this case. A head seeing another
+                  department's figures is a confidentiality failure, not a
+                  cosmetic bug.
+                  Step 7's subtitle says "across the college" while the rest of
+                  the screen is department-scoped. Confirm with the team which
+                  is intended - if the AI analysis really is college-wide on a
+                  department screen, the wording or the scope is wrong.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D02  FACULTY ROSTER - SEARCH, SORT AND FLAGGED FACULTY
+================================================================================
+Preconditions : Signed in as department head with several instructors in the
+                department, at least one scoring below the intervention
+                threshold.
+Test Data     : View only. Table [user_info] filtered by department.
+
+STEPS
+ 1. Open the "Faculty" tab.
+    Expected: Screen titled "Faculty Roster". While loading it reads "Loading
+              faculty roster…"; with none it reads "No instructors yet" and
+              "Faculty assigned to this department will appear here."
+ 2. Confirm who is listed.
+    Expected: ONLY instructors assigned to this head's department. Cross-check
+              against [user_info] for that department ID.
+ 3. Read one faculty row.
+    Expected: Shows the instructor's name, "Overall Score", "Total Evals" and a
+              sentiment split across "Positive", "Neutral" and "Negative".
+ 4. Find an instructor scoring below the threshold.
+    Expected: They carry an "Intervention Required" marker, so a head can spot
+              who needs attention without reading every score.
+ 5. Type a partial name into "Search instructor name...".
+    Expected: The list narrows to matching instructors. Searching by university
+              ID also works.
+ 6. Search for a name that does not exist.
+    Expected: Reads "No matching instructors" and "Try a different name or
+              university ID." - not a blank screen.
+ 7. Tap "Clear Search".
+    Expected: The full roster returns.
+ 8. Search for an instructor who belongs to ANOTHER department.
+    Expected: They are NOT found. Search must not reach outside the
+              department.
+ 9. Apply each sort option: "Name (A-Z)", "Score (Highest to Lowest)",
+    "Score (Lowest to Highest)".
+    Expected: Each reorders the list correctly, and the sort survives a search
+              being applied and cleared.
+10. Tap a faculty row.
+    Expected: The instructor detail page opens for that person.
+
+Expected Result : The roster lists only this department's faculty, flags who
+                  needs intervention, and search and sort work without ever
+                  exposing another department's staff.
+Actual Result   :
+Comments        : Step 8 is the confidentiality check.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D03  INSTRUCTOR DETAIL - PERFORMANCE AND SENTIMENT
+================================================================================
+Preconditions : An instructor with evaluation data is open from the roster.
+Test Data     : View only. Tables [overall_total_survey],
+                [management_results], [student_remarks], [instructor_subjects].
+
+STEPS
+ 1. Open an instructor from the roster.
+    Expected: The profile loads (briefly "Loading instructor profile…") and
+              names the instructor.
+ 2. Read the score summary.
+    Expected: Shows "Management", "Performance" and "Evaluations" for the
+              active term.
+ 3. Cross-check those figures against what the INSTRUCTOR sees on their own
+    dashboard.
+    Expected: Both roles report the SAME numbers for the same instructor and
+              term. A discrepancy here undermines every conversation the head
+              will have with that instructor.
+ 4. Read "Performance Trend".
+    Expected: Subtitle reads "Historical score across all evaluation terms"
+              with a value per term. With none it reads "No historical data
+              available."
+ 5. Read the "Sentiment Analysis" area.
+    Expected: Shows "Comment Polarity Distribution" across "Positive",
+              "Neutral", "Negative" / "Critical", plus "Key Sentiment Tags".
+ 6. Cross-check the sentiment split against [student_remarks] for that
+    instructor and term.
+    Expected: The percentages reflect the stored tone values.
+ 7. Read the subject list.
+    Expected: The instructor's subjects for this term are listed. With none it
+              reads "No subjects this term" and "Assigned subjects will appear
+              here when available."
+ 8. Confirm every verbal description matches its band.
+    Expected: "Outstanding" >=4.20, "Satisfactory" >=2.60, and so on, matching
+              the same bands used elsewhere in the app.
+ 9. Open an instructor with no evaluations yet.
+    Expected: Reads "No Data Yet" / "No data" rather than showing zeros as if
+              they were real scores.
+
+Expected Result : The head sees a complete and accurate picture of one
+                  instructor, and every figure agrees with what that instructor
+                  sees themselves.
+Actual Result   :
+Comments        : Step 3 is the important one. Two roles disagreeing about the
+                  same instructor's score is a serious data defect.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D04  DRAFT AN INTERVENTION REPORT                               [LIVE DATA]
+================================================================================
+Preconditions : Signed in as department head. One flagged instructor, ideally a
+                throwaway account. Table [intervention_reports], written via
+                [evaluation_service].
+Test Data     : One intervention against a throwaway instructor.
+
+STEPS
+ 1. Open the "Reports" tab.
+    Expected: Screen titled "Intervention Reports" with "Manage formal actions
+              and track support for flagged faculty." While loading it reads
+              "Loading interventions…".
+ 2. Read the pending and history areas.
+    Expected: Pending items appear under a "Pending Action Required" heading;
+              resolved ones under "Intervention Log". With nothing pending it
+              reads "All caught up" and "No pending interventions require
+              action."; with no history, "No intervention history" and
+              "Completed and resolved interventions will appear here."
+ 3. Read a flagged alert.
+    Expected: Shows "Instructor:" and "Flagged for:" with the reason, plus the
+              date it was flagged, so the head knows why the system raised it.
+ 4. Tap "Draft Intervention Report" (also reachable from the Faculty Roster).
+    Expected: A form opens to record a formal action against that instructor.
+ 5. Open the action-type selector.
+    Expected: The available actions include "Peer Mentoring Program",
+              "Pedagogy & Teaching Workshop", "Curriculum Review Meeting",
+              "Faculty Support", "Mandated Action" and "Formal Administrative
+              Warning".
+ 6. Submit the form with no action type chosen.
+    Expected: Refused. A formal record must state what action was mandated.
+ 7. Complete the form with an action and notes, then submit.
+    Expected: Message reads "Intervention recorded successfully." and it
+              appears in the pending list marked "PENDING".
+ 8. Submit an intervention with the notes left empty.
+    Expected: Either it is refused, or the record clearly reads "No notes
+              provided." rather than showing an empty gap.
+ 9. Confirm the record in [intervention_reports].
+    Expected: One row exists, naming the correct instructor, the acting head
+              as author, the action type, and the creation date.
+10. Open "Intervention Report Details" on the new record.
+    Expected: Shows "Action:", the notes, "Created:" with the date, and the
+              instructor's name.
+11. Draft a second intervention for the SAME instructor.
+    Expected: Handled sensibly - either allowed as a separate record or
+              refused with a reason. It must not create a corrupt or duplicate
+              row.
+
+Expected Result : A formal intervention can be raised against a flagged
+                  instructor with a mandated action type recorded, and it is
+                  stored and listed as pending.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D05  THE INSTRUCTOR RECEIVES THE INTERVENTION       [CROSS-ROLE, LIVE DATA]
+================================================================================
+Preconditions : The intervention from TC-D04 exists. A SECOND device signed in
+                as that instructor, with their dashboard open.
+Test Data     : The intervention raised in TC-D04.
+
+WHY THIS CASE EXISTS
+  An intervention that the instructor never sees is useless, and one the
+  instructor can delete is not a formal record. This case tests both halves of
+  that, across two roles at once.
+
+STEPS
+ 1. With the instructor's dashboard already open and NOT restarted, raise the
+    intervention from the head's device.
+    Expected: The instructor's dashboard updates by itself. The app subscribes
+              to live changes on [intervention_reports], so no manual refresh
+              or restart should be needed.
+ 2. Read what appears on the instructor's dashboard.
+    Expected: A card headed "Official Notice — Action Required" appears at the
+              top, showing "From:", "Action:" and "Notes:", plus the date.
+ 3. Confirm the content matches what the head submitted.
+    Expected: The action type and notes are exactly what was recorded in
+              TC-D04, attributed to the correct department head.
+ 4. Read the instructor's notification bell.
+    Expected: A count badge appears, and the bell reports the active notice
+              rather than staying silent.
+ 5. As the INSTRUCTOR, attempt to dismiss, delete or hide the notice.
+    Expected: There is NO such control. A lock icon carries the tooltip "Only
+              your department head can remove this notice".
+ 6. Restart the instructor's app.
+    Expected: The notice is still there. It is not a transient message.
+ 7. Confirm a DIFFERENT instructor does not see this notice.
+    Expected: The notice appears only for the instructor it was raised
+              against.
+
+Expected Result : An intervention raised by the head reaches the correct
+                  instructor live, states what was mandated and by whom,
+                  persists across restarts, and cannot be removed by the
+                  instructor.
+Actual Result   :
+Comments        : This is the single most important case in the module, because
+                  it is the only one that proves the intervention feature
+                  actually does its job end to end. Steps 5 and 7 are the
+                  integrity checks.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D06  RESOLVE AN INTERVENTION                                    [LIVE DATA]
+================================================================================
+Preconditions : The pending intervention from TC-D04 exists. The instructor's
+                device is available to observe the effect.
+Test Data     : That intervention.
+
+STEPS
+ 1. On the "Reports" tab, open the pending intervention.
+    Expected: It is marked "PENDING" and offers "Mark as Resolved".
+ 2. Tap "Mark as Resolved".
+    Expected: A confirmation is required before a formal record changes state.
+ 3. Confirm the action.
+    Expected: Message reads "Intervention marked as resolved." and it moves
+              from the pending list into the "Intervention Log".
+ 4. Confirm the pending area updates.
+    Expected: With nothing else outstanding it reads "All caught up".
+ 5. On the INSTRUCTOR's device, observe their dashboard.
+    Expected: The "Official Notice — Action Required" card is removed, or is
+              clearly shown as resolved. A resolved intervention must not keep
+              demanding action from the instructor.
+ 6. Confirm the record still exists in history.
+    Expected: The resolved intervention remains in the "Intervention Log" as a
+              historical record. Resolving is not deleting.
+ 7. Confirm the instructor still cannot alter it.
+    Expected: The instructor has no control over the resolved record either.
+
+Expected Result : A pending intervention can be resolved behind a confirmation,
+                  the instructor's notice clears, and the record is retained in
+                  history rather than deleted.
+Actual Result   :
+Comments        : Step 6 matters for auditability. A resolved intervention that
+                  disappears entirely destroys the department's record of
+                  action taken.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D07  SUBJECT ANALYTICS - CURRICULUM HEALTH
+================================================================================
+Preconditions : Signed in as department head with evaluated subjects in the
+                active term.
+Test Data     : View only. Table [instructor_subjects] and the results tables.
+
+STEPS
+ 1. Open the "Subjects" tab.
+    Expected: Screen titled "Subject Analytics". While loading it reads
+              "Loading curriculum analytics…"; with none it reads "No subject
+              data" and "Analytics will appear after this term receives
+              evaluations."
+ 2. Read the "Subject Health" section.
+    Expected: Subtitle reads "Performance patterns that may require review or
+              teaching support." with a row per subject.
+ 3. Read one subject row.
+    Expected: Shows "Avg Score" and a comparison under "Score vs. Department
+              Average", including "Dept Avg:" so the head can see whether a
+              subject is above or below the department.
+ 4. Confirm the subjects listed belong to this department.
+    Expected: No subject from another department appears.
+ 5. Read the flag categories on a problem subject.
+    Expected: Flags distinguish the KIND of problem - "Curriculum",
+              "Difficulty", "Sentiment", "System Anomaly", "Critical" - rather
+              than a single undifferentiated warning.
+ 6. Confirm a "System Anomaly" flag means what it says.
+    Expected: It indicates a data problem, e.g. an implausible or incomplete
+              result, not a teaching problem. A data fault must not be
+              presented to a head as poor teaching.
+ 7. Tap a subject row ("Tap to view instructor breakdown").
+    Expected: An "Instructor Performance Breakdown" opens showing who teaches
+              that subject and how each performs.
+ 8. Cross-check one subject's average against its instructors' scores for that
+    subject.
+    Expected: The figures reconcile.
+
+Expected Result : Subject-level analytics are scoped to the department,
+                  distinguish curriculum problems from data anomalies, and
+                  reconcile with the per-instructor figures.
+Actual Result   :
+Comments        : Step 6 is worth settling with the team. A head acting on a
+                  "System Anomaly" as if it were a performance problem could
+                  lead to an unfair intervention.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D08  DEACTIVATE AN INSTRUCTOR ACCOUNT                           [LIVE DATA]
+================================================================================
+Preconditions : A THROWAWAY instructor account in this department that can
+                currently sign in. Arrange reactivation with an SAO admin
+                beforehand.
+Test Data     : That account's credentials, held by the tester.
+
+!! HIGHEST-IMPACT ACTION IN THIS MODULE !!
+   A department head can lock an instructor out of the system. Only an SAO
+   admin can reverse it. Never run this against a real instructor.
+
+STEPS
+ 1. Open a throwaway instructor from the roster and find "Deactivate Account".
+    Expected: The control is present but not something that fires on a single
+              stray tap.
+ 2. Tap it.
+    Expected: A dialog titled "Deactivate Account?" appears, asking "Are you
+              sure you want to deactivate {instructor name}", naming the
+              actual instructor so the wrong person cannot be deactivated by
+              accident.
+ 3. Cancel the dialog.
+    Expected: Nothing changes and the account still signs in.
+ 4. Confirm with "Deactivate".
+    Expected: Message reads "Account deactivated successfully." and the
+              instructor is shown as deactivated.
+ 5. Attempt to sign in as that instructor.
+    Expected: Refused with "Your account has been deactivated by the
+              administration." They reach no screen inside the app.
+ 6. Confirm the instructor's evaluation data survives.
+    Expected: Scores and remarks are retained. This is a deactivation, not a
+              deletion.
+ 7. Confirm the action was recorded.
+    Expected: The deactivation appears in the SAO admin's "Security Audit
+              Logs", attributed to this department head. A head deactivating an
+              account with NO audit trail is a serious accountability gap.
+ 8. Attempt to deactivate an instructor from ANOTHER department.
+    Expected: Not possible. A head's authority stops at their own department.
+ 9. Force a failure, e.g. deactivate with no network.
+    Expected: Message reads "Failed to deactivate:" and the account is NOT
+              left half-deactivated.
+10. Have an SAO admin reactivate the account.
+    Expected: Succeeds, and the instructor can sign in again.
+
+Expected Result : A head can deactivate an instructor in their own department
+                  behind a named confirmation, the account is then locked out,
+                  its data survives, the action is audited, and it can be
+                  reversed by an admin.
+Actual Result   :
+Comments        : OPEN QUESTION FOR THE TEAM: this flow appears to have NO
+                  emailed verification code, whereas the SAO admin needs one to
+                  create a privileged account. Deactivating a colleague's
+                  account is comparably consequential. Confirm whether the
+                  absence of a code here is a deliberate design decision. If it
+                  is not, raise it as a defect.
+                  Step 10 is mandatory - leave the account as you found it.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D09  VIEW AN INSTRUCTOR'S OFFICIAL EVALUATION REPORT
+================================================================================
+Preconditions : An instructor with evaluation data is open from the roster.
+Test Data     : View and export.
+
+STEPS
+ 1. From the instructor detail page, open their official evaluation report.
+    Expected: The screen titled "Official Evaluation Report" opens for THAT
+              instructor.
+ 2. Check the header identity fields.
+    Expected: "Instructor Name:", "Instructor ID:", "Academic Year:" and
+              "Department:" are filled for the instructor being viewed - not
+              for the department head who is viewing it.
+ 3. Check the "Academic Year:" field specifically.
+    Expected: It reads the term ONCE, e.g. "2nd Semester 2027-2028". The word
+              "Semester" must NOT appear twice.
+ 4. Verify the summary table and both criterion tables.
+    Expected: "N" / "MANAGEMENT" / "PERFORMANCE" / "OVERALL" with VD codes, and
+              sections "I. Management" and "II. Performance" each listing ten
+              criteria.
+ 5. Cross-check the figures against the instructor detail page.
+    Expected: The report and the detail page agree.
+ 6. Download the PDF.
+    Expected: A PDF is written and the share sheet opens. Its contents match
+              the screen, and its "Academic Year" also reads correctly.
+ 7. Confirm the report is for the correct term.
+    Expected: The academic year matches the term the head is reviewing, not a
+              different one.
+
+Expected Result : The head can open and export the correct instructor's
+                  official report, with identity and term fields rendered
+                  correctly in both the screen and the PDF.
+Actual Result   :
+Comments        : Step 3 exists because of DEF-01, found on 31/08/2026 in the
+                  instructor module: the report printed "1st Semester Semester
+                  2025-2026". The report screen and PDF builder are SHARED with
+                  this role, so the department head path had the same fault.
+                  A fix was applied on 31/08/2026 (detailed_report_screen.dart,
+                  pdf_service.dart, past_semesters_screen.dart) but has NOT yet
+                  been verified on a rebuilt app. Step 3 is the re-test.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-D10  EXECUTIVE SETTINGS - PROFILE, ALERTS AND SECURITY
+================================================================================
+Preconditions : Signed in as department head, Settings opened from the drawer.
+                Access to the account's inbox.
+Test Data     : A new password of at least six characters, NOT recorded in this
+                document.
+
+STEPS
+ 1. Open "Account Settings" from the drawer.
+    Expected: Screen titled "Executive Settings" (briefly "Loading executive
+              settings…"), showing "Executive Profile" and identifying the role
+              as "Dept Head" with the department and "College".
+ 2. Tap "Edit Personal Details" / "Edit Executive Profile", change the name and
+    save.
+    Expected: The profile saves and the new name appears in the drawer header.
+ 3. Find the "Executive Intelligence" section.
+    Expected: Subtitle reads "Choose which department signals should notify
+              you." with two toggles: "Alert when instructor rating drops below
+              3.0." and "Alert on detected negative student feedback."
+ 4. Toggle each alert off, leave Settings, and return.
+    Expected: Both settings persist. On failure the message reads "Failed to
+              update" naming the setting, rather than silently reverting.
+ 5. With the rating alert ON, arrange for an instructor to fall below 3.0.
+    Expected: The head is alerted, and the instructor appears flagged on the
+              roster and under "Action Required".
+ 6. With the rating alert OFF, repeat.
+    Expected: No alert is raised, confirming the toggle actually controls
+              behaviour rather than only appearing to.
+ 7. Tap "Edit Email" and submit a valid new address.
+    Expected: Reads "Enter your new email address. You will receive a
+              confirmation link.", then "Email updated! Check your inbox for
+              confirmation." The old address works until the link is clicked.
+ 8. Tap "Edit Password" and submit mismatched passwords.
+    Expected: Refused with a mismatch message.
+ 9. Submit a valid new password with the WRONG current password.
+    Expected: Refused. The password does not change.
+10. Submit a fully valid password change.
+    Expected: Succeeds and the session ends, requiring a fresh sign-in. On
+              failure it reads "Failed to update password."
+11. Open "Deactivate My Account", then CANCEL.
+    Expected: A warning explains the account can only be restored by the SAO
+              Admin, and cancelling leaves the account active.
+
+Expected Result : The head can maintain their own profile, the two alert
+                  toggles genuinely control whether they are notified, and
+                  every password rule is enforced.
+Actual Result   :
+Comments        : Steps 5 and 6 are the real test. A settings toggle that saves
+                  but changes nothing is a common and easily missed defect.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+SUMMARY
+================================================================================
+  Total cases     : 10
+  Executed        : 0
+  Not executed    : 10
+
+  Cases that change live data : TC-D04, D05, D06, D08
+  Highest-risk case           : TC-D08 (deactivating an instructor)
+  Cross-role case             : TC-D05 (needs a second device)
+
+  WHAT THIS DOCUMENT EXISTS TO PROVE
+    1. A head sees ONLY their own department          (TC-D01/5, D02/2, D02/8)
+    2. A head cannot reach any SAO Admin screen       (TC-D01/2)
+    3. Head and instructor agree on the same scores   (TC-D03/3)
+    4. An intervention reaches the instructor live    (TC-D05/1,2)
+    5. An instructor cannot remove an intervention    (TC-D05/5)
+    6. A resolved intervention is kept, not deleted   (TC-D06/6)
+    7. Deactivating an instructor is confirmed,
+       audited, scoped, and reversible                (TC-D08)
+    8. Alert toggles actually change behaviour        (TC-D10/5,6)
+
+  Items 1 and 2 are confidentiality. Items 4 to 6 decide whether the
+  intervention feature works at all. Item 7 is accountability. Treat failures
+  in those ahead of anything cosmetic.
+
+  TWO OPEN QUESTIONS FOR THE TEAM, both raised in the cases above:
+    a) TC-D08 - a department head can deactivate an instructor with no emailed
+       verification code, while an SAO admin needs one to create a privileged
+       account. Is that asymmetry intended?
+    b) TC-D01 - "Department Voice (AI Analysis)" is subtitled "across the
+       college" on an otherwise department-scoped screen. Is the scope or the
+       wording wrong?
+
+  CARRIED OVER FROM THE INSTRUCTOR UAT
+    DEF-01 (the word "Semester" printed twice on the official report) affected
+    this role too, because the report screen and PDF builder are shared. A fix
+    was applied on 31/08/2026 but is NOT yet verified on a rebuilt app.
+    TC-D09 step 3 is the re-test for this role.
+
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST'S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+================================================================================
+iEvaluate - Department Head Module UAT - Team ERMM
+Cebu Technological University, Argao Campus
+================================================================================

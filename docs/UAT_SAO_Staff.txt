@@ -1,0 +1,546 @@
+================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+
+USER ACCEPTANCE TESTING - SAO STAFF (DATA GATHERER) MODULE
+================================================================================
+
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+
+Role under test        : SAO_STAFF  ("SAO Staff (Data Gatherer)")
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the SAO staff account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+
+WHAT THIS ROLE DOES
+  The SAO Staff member is the person who physically scans completed paper SAST
+  evaluation forms into the system. Their work is a pipeline:
+
+      scan a form  ->  it queues locally  ->  it uploads to n8n  ->
+      anything n8n cannot read is flagged  ->  staff corrects it  ->  it syncs
+
+  This document tests that pipeline, because that is where the role's real work
+  and its real risk of data loss sit. Everything else is secondary.
+
+
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in "double quotes" appears on screen exactly as written.
+* Names in [square brackets] are database tables, edge functions or n8n
+  webhooks to check when a step needs back-end verification.
+* Each step has its own expected result.
+* "Actual Result" is blank where the case has not been run.
+
+!! DATA-LOSS WARNING !!
+  A scanned form represents a real student's evaluation that exists on paper
+  only once. Cases marked [LIVE DATA] upload or discard real records. The
+  single most important property in this whole module is that A SCAN IS NEVER
+  SILENTLY LOST. Several cases below exist only to prove that.
+
+
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                  REACHED BY                          CASE
+  ----------------------- ----------------------------------- ---------------
+  Dashboard               Tab "Dashboard"                     TC-S01
+  Scanner                 Tab "Scanner"                       TC-S02, TC-S03
+  Sync Queue              Tab "Sync Queue"                    TC-S04, TC-S05
+  Validation              Tab "Validation"                    TC-S06
+  Failed Scans            Validation -> "Failed Scans"        TC-S07
+  Google Sheet Import     Dashboard "IMPORT FROM GOOGLE       TC-S08
+                          SHEETS"
+  Settings                Drawer / Settings tab               TC-S09
+
+
+================================================================================
+TC-S01  SIGN IN AS SAO STAFF AND READ THE SHIFT DASHBOARD
+================================================================================
+Preconditions : App on the Login screen. Account is active with role SAO_STAFF.
+Test Data     : View only.
+
+STEPS
+ 1. Sign in with the SAO staff credentials.
+    Expected: Routes to the gatherer screen titled "Dashboard", with tabs
+              "Dashboard", "Scanner", "Validation" and "Sync Queue".
+ 2. Confirm the role boundary.
+    Expected: There is NO route to any SAO Admin screen - no Users, no
+              Personnel, no System Settings, no Security Audit Logs. A staff
+              account that can reach an admin screen is a FAIL.
+ 3. Read the term shown in the app bar.
+    Expected: It is the active term set by the SAO admin.
+ 4. Read the "Shift Activity" section.
+    Expected: Subtitle reads "Live database and local queue totals." with four
+              counters: "ENTRIES TODAY / submitted today", "PENDING / not yet
+              synced", "SUCCESS / synced this session", and the overall survey
+              count "gathered this term".
+ 5. Confirm each counter means what its label says.
+    Expected: ENTRIES TODAY counts today's submissions; PENDING counts scans
+              held locally and not yet uploaded; SUCCESS counts uploads in
+              this session; the term counter matches the "Files Scanned"
+              figure on the SAO admin dashboard for the same term.
+ 6. Scan one form (see TC-S02), then return to the dashboard.
+    Expected: PENDING increases by one. After a successful sync, PENDING falls
+              and SUCCESS rises.
+
+Expected Result : The staff member lands on their own dashboard with no admin
+                  access, and the four shift counters track the real state of
+                  the local queue and the database.
+Actual Result   : PASS on steps 1, 3 and 4 (observed 31/08/2026). Dashboard
+                  showed the term "2nd Semester, 2027-2028", "Shift Activity"
+                  with "Live database and local queue totals.", the counters
+                  "0 ENTRIES TODAY / submitted today", "0 PENDING / not yet
+                  synced", "0 SUCCESS / synced this session" and "152 ...
+                  gathered this term", plus the "IMPORT FROM GOOGLE SHEETS"
+                  button and the four tabs.
+                  The term count of 152 MATCHES the "152 Files Scanned" on the
+                  SAO admin dashboard, so step 5's cross-check passes for that
+                  counter.
+                  Steps 2 and 6 not executed.
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S02  SCAN A COMPLETED FORM - HAPPY PATH                         [LIVE DATA]
+================================================================================
+Preconditions : On the "Scanner" tab. Camera permission granted. One completed
+                paper SAST form. Good lighting and a plain background.
+Test Data     : One real completed form. Note its Student ID and instructor
+                before scanning, so the result can be checked.
+
+STEPS
+ 1. Open the "Scanner" tab for the first time.
+    Expected: The app requests camera permission. Granting it starts the
+              preview; refusing it shows a clear explanation, not a black
+              screen.
+ 2. Read the on-screen guidance.
+    Expected: Shows "FIT SHORT BOND PAPER INSIDE THE FRAME" (or LONG, matching
+              the selected size), "Leave a gap between paper and frame edges",
+              and "Hold steady  -  Plain background  -  Good lighting".
+ 3. Select the paper size matching the form.
+    Expected: "Short Bond" and "Long Bond" are both selectable, and the frame
+              guidance updates to the chosen size.
+ 4. Hold the device in landscape.
+    Expected: The app asks for portrait, reading "PLEASE HOLD PORTRAIT" and
+              "The scanner works best in upright mode". It does not capture a
+              sideways image.
+ 5. Align the form in the frame and hold still.
+    Expected: Status progresses through "FOCUSING…" and "HOLD STEADY…" to
+              "TAP TO CAPTURE".
+ 6. Tap to capture.
+    Expected: The image is taken and analysed, showing "ANALYZING
+              SHARPNESS...".
+ 7. Accept the capture with "USE PHOTO".
+    Expected: The scan is accepted and added to the local queue. The dashboard
+              "PENDING" counter increases by one.
+ 8. Confirm the scan is queued BEFORE any upload.
+    Expected: The scan exists locally even with no network. It is not lost if
+              the app is closed before syncing.
+
+Expected Result : A well-presented form can be captured with clear guidance
+                  throughout, and the accepted scan is stored locally before
+                  any upload is attempted.
+Actual Result   :
+Comments        : Step 8 is the data-safety guarantee. If a captured scan can
+                  vanish because the network was down, that is the most serious
+                  defect this module can have.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S03  SCANNER REJECTS POOR CAPTURES                        [NEGATIVE CASE]
+================================================================================
+Preconditions : On the "Scanner" tab with a paper form.
+Test Data     : One form, deliberately mis-presented.
+
+STEPS
+ 1. Deliberately move the device while capturing, or capture out of focus.
+    Expected: The app warns "IMAGE APPEARS BLURRY" rather than accepting an
+              unreadable scan.
+ 2. Confirm what happens after a blur warning.
+    Expected: The staff member can retake the photo. A blurry image is not
+              silently queued for upload.
+ 3. Tilt the device noticeably while aiming.
+    Expected: The app shows the tilt angle and "HOLD STRAIGHT", warning before
+              capture.
+ 4. Present the form far too small in the frame, or overlapping the frame
+    edges.
+    Expected: The guidance about fitting the paper inside the frame with a gap
+              remains visible, and a badly framed capture is discouraged.
+ 5. Cover the camera completely and capture.
+    Expected: The app reports a problem rather than queueing a black image.
+ 6. Revoke camera permission in Android settings, then reopen the Scanner tab.
+    Expected: A clear message explains the camera is unavailable and how to
+              restore it. The app does not crash.
+ 7. Trigger a camera fault, e.g. open another camera app simultaneously.
+    Expected: The failure is reported to the user, not swallowed silently.
+
+Expected Result : Every unusable capture is refused or clearly warned about
+                  before it enters the queue, and camera faults are reported
+                  rather than hidden.
+Actual Result   :
+Comments        : The purpose of this case is that GARBAGE NEVER ENTERS THE
+                  PIPELINE. A blurry scan that uploads becomes a failed scan
+                  someone has to chase later.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S04  SYNC QUEUE - UPLOAD PENDING SCANS                          [LIVE DATA]
+================================================================================
+Preconditions : At least two scans are queued locally from TC-S02. Network
+                available. The n8n workflow is running.
+Test Data     : The queued scans. n8n webhook URL from its env var.
+
+STEPS
+ 1. Open the "Sync Queue" tab.
+    Expected: Screen headed "Sync Queue" with "Review and upload scanned
+              forms." and an "Upload Pipeline" section. Each queued scan is
+              listed.
+ 2. With nothing queued, read the empty state.
+    Expected: Reads "Everything is synced" and "New scans will appear here
+              before upload."
+ 3. Confirm the queue count matches the dashboard.
+    Expected: The number of queued items equals the dashboard "PENDING"
+              counter.
+ 4. Tap "Sync All Pending".
+    Expected: Status shows "Syncing..." and progresses. It does not hang
+              indefinitely with no feedback.
+ 5. Wait for the upload to finish.
+    Expected: Successfully uploaded scans leave the queue. The dashboard
+              "PENDING" falls and "SUCCESS" rises by the number uploaded.
+ 6. Verify the uploaded data landed in the database for the correct term and
+    instructor.
+    Expected: Each scan's scores are recorded against the right instructor,
+              subject and term - the ones printed on the paper form.
+ 7. Sync again immediately with an empty queue.
+    Expected: Handled gracefully. No duplicate records are created.
+ 8. Scan the SAME physical form twice and sync both.
+    Expected: The duplicate is either rejected or flagged for review, NOT
+              silently counted twice. Double-counting corrupts an instructor's
+              scores.
+
+Expected Result : Queued scans upload with visible progress, leave the queue
+                  only on success, land against the correct instructor and
+                  term, and duplicates are not silently counted.
+Actual Result   :
+Comments        : Step 8 matters most for score integrity. Confirm the intended
+                  behaviour with the team before judging it pass or fail.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S05  SYNC QUEUE - FAILURES, PAUSE AND REMOVAL         [NEGATIVE, LIVE DATA]
+================================================================================
+Preconditions : At least two scans queued. Ability to disable the network and
+                to stop the n8n workflow.
+Test Data     : The queued scans.
+
+STEPS
+ 1. Disable all network, then tap "Sync All Pending".
+    Expected: The upload fails with a clear message such as "Upload failed".
+              The scans REMAIN in the queue. Nothing is lost.
+ 2. Re-enable the network and sync again.
+    Expected: The same scans upload successfully. No scan was dropped by the
+              earlier failure.
+ 3. Stop the n8n workflow, then sync.
+    Expected: The failure is reported. The scans stay queued rather than being
+              marked as sent.
+ 4. Restart n8n and sync.
+    Expected: The scans upload successfully.
+ 5. Send a payload n8n rejects, e.g. an unreadable image.
+    Expected: The scan is not silently dropped. It either stays queued or
+              moves to "Failed Scans" (TC-S07) where it can be recovered.
+ 6. Find the pause control and pause syncing.
+    Expected: Status shows "Sync Paused" and no further uploads are attempted
+              while paused.
+ 7. Resume syncing.
+    Expected: Uploads continue from where they left off.
+ 8. Tap "Remove from queue" on one scan.
+    Expected: A confirmation appears reading "Remove from queue?". Nothing is
+              removed until confirmed.
+ 9. Cancel that confirmation.
+    Expected: The scan stays in the queue.
+10. Confirm the removal.
+    Expected: The scan leaves the queue, and the "PENDING" counter falls by
+              one.
+11. Force-close the app with scans still queued, then reopen it.
+    Expected: The queued scans are STILL THERE. The queue survives an app
+              restart.
+
+Expected Result : Every upload failure leaves the scans safely queued, syncing
+                  can be paused and resumed, removal requires confirmation, and
+                  the queue survives an app restart.
+Actual Result   :
+Comments        : Steps 1, 5 and 11 are the core of this case. A scan lost to a
+                  network failure or an app restart is unrecoverable, because
+                  the paper form has already been handled and set aside.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S06  VALIDATION - CORRECT FLAGGED RECORDS                       [LIVE DATA]
+================================================================================
+Preconditions : At least one uploaded scan has been flagged, typically because
+                the instructor name could not be matched.
+Test Data     : One flagged record, with the paper form on hand to check
+                against.
+
+STEPS
+ 1. Open the "Validation" tab.
+    Expected: Screen shows "Flagged Records". While loading it reads "Loading
+              flagged records…"; with none it reads "No pending verification"
+              and "All records are linked to an instructor."
+ 2. Read a flagged record.
+    Expected: Shows the "Student ID" and the date, plus "Instructor Name (Raw)"
+              - the text as read off the form - and "Unknown Instructor" where
+              no match was found. This is what the staff member needs to
+              correct it.
+ 3. Open "Edit Record".
+    Expected: The editable sections appear: "Management Scores (1-5)",
+              "Performance Scores (1-5)" and "Remarks & Suggestions" / the
+              "Instructor & Remarks" section.
+ 4. Compare the on-screen scores against the paper form.
+    Expected: Every score matches what the student actually marked. This is the
+              point of validation.
+ 5. Enter a score outside 1-5.
+    Expected: Refused. The section is labelled "(1-5)" and must enforce it.
+ 6. Correct the instructor and save.
+    Expected: The record saves. On failure the message reads "Error saving:"
+              rather than appearing to succeed.
+ 7. Tap "Approve & Sync".
+    Expected: Message reads "Data updated and queued for processing." and the
+              record leaves the flagged list.
+ 8. Confirm the corrected record reached the right instructor.
+    Expected: The scores now appear against the instructor named on the paper
+              form, for the correct term.
+ 9. On another flagged record, tap "Discard".
+    Expected: A confirmation is required. On confirming, the message reads
+              "Record discarded." and it leaves the list.
+10. Confirm what discarding actually did.
+    Expected: The discarded record does NOT contribute to any instructor's
+              scores. Confirm with the team whether the raw scan is retained
+              for audit - a discard that erases the only copy of a student's
+              evaluation needs to be a deliberate decision, not a surprise.
+
+Expected Result : Flagged records show enough raw detail to be corrected
+                  against the paper form, scores are constrained to 1-5,
+                  approving routes the data to the correct instructor, and
+                  discarding is confirmed and understood.
+Actual Result   :
+Comments        : Step 4 is the whole reason this screen exists. Step 10 should
+                  be settled with the team before the defense, because a
+                  panelist may well ask it.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S07  FAILED SCANS - RECOVERY QUEUE
+================================================================================
+Preconditions : At least one scan has failed detection, e.g. from TC-S05
+                step 5.
+Test Data     : One failed scan.
+
+STEPS
+ 1. Open "Failed Scans" from the Validation tab.
+    Expected: Screen titled "Failed Scans" with a "Recovery Queue". While
+              loading it reads "Loading failed scans…"; with none it reads "No
+              failed scans" and "Every scan has been processed successfully."
+ 2. Read a failed scan row.
+    Expected: Shows the reason for failure - "Grid detection failed",
+              "Table/corners not detected" or "Detection issue" - plus
+              "Instructor:" and "Student ID:" where known, and "Unknown" or
+              "Unknown date" where not.
+ 3. Confirm the reason is specific enough to act on.
+    Expected: The staff member can tell WHY it failed and therefore whether
+              re-scanning would help. A bare "failed" with no reason is not
+              enough.
+ 4. Open a failed scan's detail.
+    Expected: The detail view opens, showing the captured image or enough
+              information to identify which paper form it was.
+ 5. Establish whether the scan can be recovered.
+    Expected: There is a path to either correct and resubmit it, or to
+              re-scan the original form. A failed scan must not be a dead end,
+              because the paper form may already have been filed away.
+ 6. Recover one failed scan and confirm the outcome.
+    Expected: It leaves the recovery queue and its data reaches the correct
+              instructor.
+ 7. Count the failed scans against the totals.
+    Expected: Scans that failed are NOT counted as successfully gathered on
+              the dashboard or on the admin's "Files Scanned" figure.
+
+Expected Result : Every failed scan is listed with a specific, actionable reason
+                  and can be recovered, and failed scans are never counted as
+                  successful.
+Actual Result   :
+Comments        : Step 7 protects the integrity of the reported totals. Step 5
+                  determines whether a failure means real data loss.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S08  IMPORT FROM GOOGLE SHEETS                                  [LIVE DATA]
+================================================================================
+Preconditions : A prepared Google Sheet of evaluation data. The n8n import
+                workflow is running.
+Test Data     : One prepared sheet, including one deliberately bad row.
+
+STEPS
+ 1. On the dashboard, tap "IMPORT FROM GOOGLE SHEETS".
+    Expected: The import screen opens and states what it expects, rather than
+              presenting an unexplained blank form.
+ 2. Start an import with the prepared sheet.
+    Expected: Progress is shown, and the import ends with a clear success or
+              failure message - never an indefinite spinner.
+ 3. Cross-check the imported rows against the sheet.
+    Expected: Every row is either imported or reported as an error. Nothing is
+              silently skipped.
+ 4. Confirm the deliberately bad row was caught.
+    Expected: It is reported rather than imported. The SAO admin should also
+              see it under "Import Errors".
+ 5. Confirm the imported data landed against the correct term.
+    Expected: The records belong to the active term, not a previous one.
+ 6. Import the SAME sheet a second time.
+    Expected: Duplicates are rejected or flagged, NOT counted twice.
+ 7. Run the import with n8n stopped.
+    Expected: A clear failure. No partial import is left behind.
+ 8. Check the dashboard counters after a successful import.
+    Expected: The term total increases by the number of rows actually
+              imported, and by no more.
+
+Expected Result : A sheet imports with visible progress and an explicit
+                  outcome, bad rows are reported rather than dropped,
+                  re-importing does not double-count, and the counters reflect
+                  exactly what was imported.
+Actual Result   :
+Comments        : Step 6 is the one most likely to fail quietly and the most
+                  damaging if it does.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-S09  STAFF SETTINGS AND END OF SHIFT
+================================================================================
+Preconditions : Signed in as SAO staff. Access to the account's inbox for the
+                email change.
+Test Data     : A new password of at least six characters, NOT recorded in this
+                document.
+
+STEPS
+ 1. Open the gatherer Settings.
+    Expected: The screen loads (briefly "Loading gatherer settings…") and
+              identifies the role as "Data Gatherer". The security section
+              reads "Email, password, and account controls."
+ 2. Tap "Edit Personal Details", change the name and save.
+    Expected: The profile saves and the new name appears in the drawer.
+ 3. Toggle "Haptic Feedback" off and on.
+    Expected: The setting changes and persists after leaving and reopening
+              Settings.
+ 4. Tap "Edit Email" and submit a valid new address.
+    Expected: Message reads "Email updated! Check your inbox for
+              confirmation." The old address keeps working until the link is
+              clicked.
+ 5. Tap "Edit Password" and submit mismatched passwords.
+    Expected: Refused with "Passwords do not match."
+ 6. Submit a password shorter than six characters.
+    Expected: Refused with "Password must be at least 6 characters."
+ 7. Submit a fully valid password change.
+    Expected: Message reads "Password updated successfully. Please log in
+              again." and the app signs out. On failure it reads "Failed to
+              update password."
+ 8. Sign in with the old password, then the new one.
+    Expected: The old password is rejected; the new one is accepted.
+ 9. Queue at least one unsynced scan, then tap "End Shift & Log Out".
+    Expected: A confirmation is required. IMPORTANT: the staff member should be
+              warned that scans are still pending, or the scans must survive
+              the logout. Ending a shift must not silently discard queued work.
+10. Complete the logout, sign back in, and check the Sync Queue.
+    Expected: The pending scans are still there and can be synced.
+11. Open "Deactivate My Account", then CANCEL.
+    Expected: A warning explains the account can only be restored by the SAO
+              Admin, and cancelling leaves the account active.
+
+Expected Result : The staff member can maintain their own account with every
+                  password rule enforced, and ending a shift never loses
+                  queued scans.
+Actual Result   :
+Comments        : Steps 9 and 10 are the important ones. "End Shift & Log Out"
+                  is exactly when a tired user is most likely to lose unsynced
+                  work.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+SUMMARY
+================================================================================
+  Total cases     : 9
+  Executed        : 1 partial  (TC-S01 steps 1, 3, 4, observed 31/08/2026)
+  Not executed    : 8
+
+  Cases that change live data : TC-S02, S04, S05, S06, S08
+  Negative cases              : TC-S03, TC-S05
+
+  WHAT THIS DOCUMENT EXISTS TO PROVE
+    1. A captured scan is stored locally BEFORE any upload      (TC-S02/8)
+    2. A failed upload leaves scans queued, never dropped       (TC-S05/1)
+    3. The queue survives an app restart                        (TC-S05/11)
+    4. Ending a shift does not discard unsynced scans           (TC-S09/9,10)
+    5. Unreadable captures are refused before they queue        (TC-S03)
+    6. Failed scans carry an actionable reason and can recover  (TC-S07)
+    7. The same form is never counted twice                     (TC-S04/8, S08/6)
+    8. A staff account cannot reach any admin screen            (TC-S01/2)
+
+  Items 1 to 4 are about DATA LOSS. A paper form is handled once, so a scan
+  lost anywhere in this pipeline is gone for good. Treat any failure in those
+  four as the highest-severity defect in the project, ahead of anything
+  cosmetic.
+
+  CROSS-CHECK ALREADY CONFIRMED
+    The staff dashboard's term total (152) matches the SAO admin dashboard's
+    "152 Files Scanned" for the same term, so the two roles agree on how much
+    data has been gathered.
+
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST'S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+================================================================================
+iEvaluate - SAO Staff (Data Gatherer) Module UAT - Team ERMM
+Cebu Technological University, Argao Campus
+================================================================================

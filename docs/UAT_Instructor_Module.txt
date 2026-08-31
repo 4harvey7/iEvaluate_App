@@ -1,0 +1,1020 @@
+================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+
+USER ACCEPTANCE TESTING - INSTRUCTOR MODULE
+================================================================================
+
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+
+Execution date         : 31 August 2026
+Build                  : debug, Flutter 3.41.6
+Device                 : Infinix X6525, Android 13 (API 33)
+Package                : com.example.ievaluateapp_final
+Active term            : 2nd Semester, 2027-2028
+Test account role      : Instructor
+
+
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in "double quotes" is text that appears on screen exactly as written.
+  Match it character for character when testing.
+* Table names in [square brackets] are database tables or edge functions to
+  check when a step calls for back-end verification.
+* Every step carries its own expected result, so a failing case identifies
+  WHICH step failed instead of one verdict for the whole scenario.
+* "Actual Result" is left blank where the case has not been executed. It is
+  filled in only for cases actually run on 31 August 2026.
+* One case per screen or flow. Where a screen has both a read path and a write
+  path, both live in the same case, with the write steps marked so they can be
+  left for last.
+
+
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+Every screen an instructor can reach was opened and exercised on the device.
+
+  SCREEN                       REACHED BY                     CASE     RUN
+  ---------------------------- ------------------------------ -------- --------
+  Login                        App launch, no session         TC001    partly
+  My Dashboard                 Tab "Dashboard"                TC002    partly
+  My Subjects                  Tab "My Subjects"              TC003    yes
+  Subject Detail               Tap any subject card           TC003    yes
+  Student Feedback             Tab "Feedback"                 TC004    yes
+  Past Terms                   Tab "Past Terms"               TC005    yes
+  Official Evaluation Report   "View Official SAST Report"    TC006    yes
+                               or "Full Term Report"                   (PDF out)
+  Account Settings             Drawer "Account Settings"      TC007    partly
+  Sign-out / deactivation      Settings or drawer             TC008    no
+  Term Subjects                NO ENTRY POINT EXISTS          none     n/a
+                               (dead code, see DEF-07)
+
+WHAT WAS DELIBERATELY NOT EXECUTED
+  Every step that writes to or locks the live account was left for the tester:
+    - profile, email and password edits   (TC007 steps 4-11)
+    - deactivation with the emailed code  (TC008 steps 7-11)
+    - sign-out and session clearing       (TC008 steps 1-6)
+  The sign-in failure paths in TC001 steps 5-9 were also skipped, because
+  repeating a wrong password trips a real lockout on a working account.
+
+
+================================================================================
+TC001 - SIGN-IN: VALID CREDENTIALS AND FAILURE PATHS
+================================================================================
+Title / Business Scenario : Instructor authenticates and reaches the dashboard,
+                            and every invalid path is refused
+Preconditions             : App installed and launched. No session active, so
+                            the Login screen is shown. Account is ACTIVE and
+                            has the Instructor role.
+Test Data                 : Institutional email of the instructor account.
+                            Password held by the tester, deliberately NOT
+                            recorded in this document. One deactivated
+                            instructor account for step 8.
+NOTE                      : Step 7 trips a real rate limiter. Run steps 5-9
+                            last, or on a throwaway account.
+
+STEPS
+ 1. Launch the app and wait for the splash screen to resolve.
+    Expected: Login screen appears, headed "iEvaluate Portal" with subtitle
+              "Secure access to academic evaluation tools."
+ 2. Enter the university ID or institutional email, then the password, and tap
+    the eye icon at the right of the password field.
+    Expected: First field's placeholder reads "University ID or Institutional
+              Email". Password is masked by default; the eye reveals it and
+              tapping again re-masks it.
+ 3. Tick "I agree to the NDA and DPA", then tap the information icon beside it.
+    Expected: Checkbox ticks. The icon opens a dialog titled "NDA & DPA
+              Agreements", which can be dismissed.
+ 4. Tap "Sign In".
+    Expected: Authentication succeeds and the app routes to "My Dashboard",
+              with the bottom tabs Dashboard, My Subjects, Feedback and Past
+              Terms. No other role's dashboard is shown.
+
+    ---- negative paths below; run last ----
+
+ 5. Sign out. Leave both fields empty, tick the NDA box, tap "Sign In".
+    Expected: Refused with "Please enter your ID/email and password."
+ 6. Fill valid credentials but leave "I agree to the NDA and DPA" unticked.
+    Expected: Refused with "Please agree to the NDA and DPA to log in." No
+              session is created.
+ 7. Enter a valid email with an incorrect password and sign in once, then
+    repeat until the attempt limit trips.
+    Expected: The first attempt fails with an invalid-credentials message and
+              the typed email is not cleared. The limit then blocks with "Too
+              many failed attempts. Please wait Xm Ys before trying again."
+              carrying a live countdown.
+ 8. Sign in with the credentials of a DEACTIVATED instructor account.
+    Expected: Denied with "Your account has been deactivated by the
+              administration." The dashboard is never reached.
+ 9. Tap "Forgot Password?", complete the reset, return and sign in with the new
+    password.
+    Expected: Login screen shows "Password updated successfully! Please log in
+              with your new password." and the new password is accepted.
+
+Expected Result : A valid instructor reaches My Dashboard; every invalid path is
+                  refused with its own specific message; and a deactivated
+                  account cannot reach any instructor screen.
+Actual Result   : PASS on steps 1-4. Login screen rendered as specified; after
+                  sign-in the app landed on "My Dashboard" greeting "Welcome
+                  back, Rodz!"
+                  Steps 5-9 NOT EXECUTED - would lock out a working account.
+Comments        :
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC002 - MY DASHBOARD: SCORES, SYNC, NOTICES AND TERM REACTIVITY
+================================================================================
+Title / Business Scenario : Dashboard shows the instructor's own scores for the
+                            active term, and reacts to sync, notices and a term
+                            change
+Preconditions             : Signed in as instructor with at least one subject
+                            assigned in the active term. For steps 8-9, a second
+                            device signed in as SAO admin, and one unresolved
+                            intervention notice raised by the department head.
+Test Data                 : View only. Cross-check [overall_total_survey],
+                            [management_results], [performance_results],
+                            [intervention_reports],
+                            [system_settings.current_term_id].
+
+STEPS
+ 1. Observe the hero card at the top of "My Dashboard".
+    Expected: Shows "Welcome back, {FirstName}!", "Your Performance Overview",
+              and "Active Term:" followed by the term set by the SAO admin.
+ 2. Read the large score and the badge beside it.
+    Expected: The number is the overall weighted mean to two decimals, labelled
+              "Overall Weighted Mean". The badge matches the band:
+              >=4.20 Outstanding, >=3.40 Very Satisfactory, >=2.60 Satisfactory,
+              >=1.80 Fair, otherwise Unsatisfactory.
+ 3. Compare "Management", "Performance" and "Evaluations" against the database
+    for this instructor and term.
+    Expected: Management and Performance match the stored section means;
+              Evaluations matches the respondent count. The overall mean sits
+              between the two section means.
+ 4. Scroll to "Current Classes", then tap any subject card.
+    Expected: Subtitle reads "Open a subject to review scores and student
+              feedback." Every subject assigned for the active term is listed
+              with code and name, and no subject from another term appears.
+              Tapping a card opens Subject Detail for that subject.
+ 5. Scroll to the bottom two columns.
+    Expected: "Growth" shows a bar per recent term; "Recent Feedback" lists up
+              to five latest remarks, or "No feedback yet" when there are none.
+ 6. Tap the sync icon in the app bar (tooltip "Manual Sync"), then pull down on
+    the dashboard body to refresh.
+    Expected: The icon becomes a disabled spinner while running, then a snackbar
+              reads "Dashboard and local results synced successfully". The pull
+              refresh runs the same sync with the same outcome.
+ 7. Tap the bell icon while there are no active notices.
+    Expected: Snackbar reads "No active intervention notices from your
+              department head." and no badge is drawn on the bell.
+ 8. Have the department head raise an intervention notice, then observe the
+    dashboard WITHOUT restarting the app, and try to dismiss the notice.
+    Expected: A red count badge appears on the bell and a card headed "Official
+              Notice - Action Required" appears at the top, showing "From:",
+              "Action:" and "Notes:". No dismiss control exists - a lock icon
+              carries the tooltip "Only your department head can remove this
+              notice".
+ 9. While the dashboard is open, have the SAO admin switch the active term.
+    Expected: The dashboard reloads on its own and "Active Term:" plus every
+              figure updates, without a manual restart.
+
+Expected Result : The dashboard presents this instructor's own active-term
+                  scores, every figure reconciles with the evaluation tables,
+                  notices are read-only, and a term change propagates without
+                  a restart.
+Actual Result   : PASS on steps 1-5. Observed 2.99 / "Satisfactory", Management
+                  3.00, Performance 2.99, Evaluations 50, active term "2nd
+                  Semester, 2027-2028", with "IAS 301" under Current Classes.
+                  The band correctly matches the 2.60-3.39 rule.
+                  Steps 6-9 NOT EXECUTED - need a second SAO admin session and
+                  a department-head notice.
+Comments        :
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC003 - MY SUBJECTS AND SUBJECT DETAIL
+================================================================================
+Title / Business Scenario : Assigned subjects for the term, and the criterion
+                            breakdown and comments for one subject
+Preconditions             : Signed in as instructor with subjects assigned in
+                            the active term, at least one carrying recorded
+                            evaluations.
+Test Data                 : View only. Cross-check [instructor_subjects],
+                            [management_results] m1-m10,
+                            [performance_results] p1-p10, [student_remarks].
+
+STEPS
+ 1. Tap the "My Subjects" tab and read the summary header.
+    Expected: Screen opens titled "My Subjects". The header shows the term
+              label, "Term Performance", the verbal-description pill, the value
+              under "Overall Weighted Mean", and a count under "Assigned
+              Subjects".
+ 2. Compare the "Assigned Subjects" count with the number of subject cards and
+    with [instructor_subjects].
+    Expected: All three agree. No subject belonging to another instructor or
+              another term is listed.
+ 3. Inspect one subject card, then compare its term total with the dashboard.
+    Expected: The card shows the subject code in capitals, the subject name, a
+              score badge with the mean to two decimals and its code (O / VS /
+              S / F / US, or "N/A" at zero), plus "Management" and "Performance"
+              mini-metrics. The overall mean here matches the dashboard's.
+ 4. Pull down to refresh, then tap a subject card.
+    Expected: The list reloads without error, and the card opens Subject Detail
+              titled with the subject code, with a back arrow, the subject name
+              and "N total respondents".
+ 5. Read the three summary cards on Subject Detail.
+    Expected: "Management", "Performance" and "Overall Weighted Mean" are shown,
+              the third also carrying its verbal description.
+ 6. Expand and collapse "I. Management Breakdown".
+    Expected: Section starts expanded and toggles on tap with the arrow
+              rotating. Table columns are "No." / "Criteria" / "Mean" / "VD"
+              across all ten SS Form 2 management criteria.
+ 7. Expand "II. Performance Breakdown" and verify each mean against the
+    database.
+    Expected: All ten performance criteria are listed and every mean matches
+              p1-p10 for this subject and term.
+ 8. Scroll the "Per-Question Visualization" chart sideways.
+    Expected: Twenty bars labelled "M1"-"M10" and "P1"-"P10", each printing its
+              score, each matching the tables above.
+ 9. Under "Student Feedback", apply each chip - "All", "Positive", "Neutral",
+    "Critical" - including one tone with no comments for this subject.
+    Expected: The counter reads "{filtered} of {total}" and updates per chip.
+              Only remarks of the selected tone remain, and only for this
+              subject. An empty tone reads "No {tone} feedback for this
+              subject." in lower case, e.g. "No critical feedback for this
+              subject."
+10. Cycle the sort dropdown through all four options.
+    Expected: "Date (Newest)", "Date (Oldest)", "Sentiment (Positive First)"
+              and "Sentiment (Critical First)" each reorder correctly, and the
+              sort survives changing the chip.
+
+Expected Result : Every assigned subject is listed with correct scores that
+                  reconcile with the dashboard, and for one subject both
+                  criterion tables, the twenty-bar chart and the filtered
+                  comments agree with the stored results.
+Actual Result   : PASS on steps 1, 3, 4, 5, 6, 8 and the filter half of step 9.
+                  MY SUBJECTS: header showed "2ND SEMESTER 2027-2028", "Term
+                  Performance", the "Satisfactory" pill, 2.99 overall and 4
+                  assigned subjects, matching the dashboard exactly. Both
+                  spot-checked bands are correct: "IAS 301" at 3.55 VS
+                  (Mgmt 3.70 / Perf 3.40) and "NETWORK 202" at 3.03 S
+                  (3.00 / 3.06).
+                  SUBJECT DETAIL: opened "CAPSTONE 401" from a HISTORICAL term.
+                  Header read "Capstone Project 1" / "26 total respondents";
+                  cards showed Management 3.04, Performance 3.02, Overall 3.03
+                  "Satisfactory" - matching the Past Terms card exactly, so
+                  historical scoping is correct. Both breakdowns render with
+                  No./Criteria/Mean/VD and the correct SS Form 2 wording, and
+                  the collapse toggle works (Management collapsed on tap, arrow
+                  flipped). The per-question chart renders with M1-M9 visible
+                  and scrolls for the rest. Feedback showed "3 of 3" with chips
+                  "All 3" / "Positive 0", sort defaulting to "Date (Newest)",
+                  and tone-coloured cards.
+                  Step 2 needs the database cross-check; the empty-tone half of
+                  step 9 and step 10 not executed.
+                  MINOR: long subject names truncate on the card, e.g.
+                  "Information Assurance and..."; "Overall Weighted M..."
+                  truncates in the Subject Detail summary card.
+Comments        :
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC004 - STUDENT FEEDBACK: TONE, AI INSIGHTS, WORD CLOUD AND QUOTES
+                              *** FAIL - DEF-02 (FIXED, AWAITING RE-TEST) ***
+================================================================================
+Title / Business Scenario : Sentiment split, AI-generated interpretation, word
+                            cloud legibility and all quote filters
+Preconditions             : Feedback screen reachable, and the active term has
+                            processed student remarks across at least two
+                            subjects and more than one tone.
+Test Data                 : View only. Verify against [student_remarks],
+                            [instructor_ai_suggestions] and
+                            [instructor_wordcloud] (top 25 by count), matched on
+                            instructor ID and term ID.
+
+STEPS
+ 1. Tap the "Feedback" tab.
+    Expected: Two-line title, "Student Feedback" above the active term. Header
+              reads "Feedback Insights" with subtitle "Sentiment, recurring
+              themes, and individual comments."
+ 2. Inspect "Emotional Tone Overview".
+    Expected: A segmented bar plus three percentages labelled "Positive",
+              "Neutral", "Critical". The three add up to 100%, and the bar
+              segment widths match the percentages.
+ 3. Count the tone values in [student_remarks] for this instructor and term,
+    and compare.
+    Expected: Each on-screen percentage equals its share of the stored tone
+              values. The comment total matches the Direct Quotes counter.
+ 4. Read "What Your Students Are Saying" under "AI Instructor Insights".
+    Expected: Sub-label reads "AI-generated interpretation". The paragraph
+              matches [instructor_ai_suggestions.student_interpretation] for
+              this instructor and term. The pill at the foot reads "Based on N
+              comments" with N equal to the actual comment count.
+ 5. Compare "Key Positive Themes" and "Improvement Insights" against the
+    database.
+    Expected: Every green chip matches an entry in
+              [instructor_ai_suggestions.positive_themes], and each improvement
+              row an entry in improvement_insights, subtitled "Areas flagged in
+              student feedback worth reviewing". Nothing is invented, and either
+              card is hidden when its column is empty.
+ 6. Sign in as an instructor whose AI row has not been generated yet.
+    Expected: The screen still renders. The interpretation area shows its
+              pending or empty-state text, not another instructor's content,
+              and does not crash.
+ 7. Scroll to "AI Word Cloud", read every word in the panel, then pull to
+    refresh and read it again.
+    Expected: EVERY WORD IS FULLY VISIBLE AND LEGIBLE. No word is clipped at
+              any edge of the panel, including rotated words, in ANY
+              arrangement. Larger words correspond to higher counts in
+              [instructor_wordcloud]. Positions reshuffle on refresh by design,
+              but the same set of words is present and none becomes clipped.
+ 8. Scroll to "Direct Quotes" and read the counter beside the heading.
+    Expected: Counter reads "N Comments", is fully on screen and not cut off at
+              the right edge, and equals the number of quote cards below.
+ 9. Tap each tone chip in turn, then open the subject dropdown and pick each
+    entry, then combine a tone chip with a subject selection.
+    Expected: Each chip carries a count badge, the list narrows to that tone,
+              the counter updates, and the badge counts sum to the "All" count.
+              The dropdown's first entry is "All Subjects", followed by every
+              subject code found in the remarks, sorted A-Z. The two filters
+              apply TOGETHER, not one replacing the other, and the counter
+              reflects the combined result.
+10. Cycle the sort dropdown through all four options, then choose a filter
+    combination with no matching comments.
+    Expected: "Date (Newest)" is the default. "Date (Oldest)", "Sentiment
+              (Positive First)" and "Sentiment (Critical First)" each reorder
+              correctly, and the sort holds while filters change. An empty
+              combination replaces the list with "No comments match this
+              filter." and no stale quote cards remain.
+11. Inspect one quote card.
+    Expected: Shows the subject-code pill, the date as YYYY-MM-DD, the remark
+              in italics inside quotation marks, and a tone icon with its
+              label. The card border colour matches the tone.
+
+Expected Result : Tone percentages match the stored remarks, every
+                  AI-generated element traces back to this instructor's own
+                  row, all word-cloud words are legible, and the tone, subject
+                  and sort controls filter correctly alone and combined.
+Actual Result   : FAIL AT STEP 7. The rotated word "Fair grading" is clipped at
+                  the right edge of the word-cloud panel and cannot be read in
+                  full. Raised as DEF-02.
+                  PASS on steps 1, 2 and 4: observed 51% Positive, 14% Neutral,
+                  35% Critical, summing to 100% and consistent with 25 positive
+                  of 49 comments. "What Your Students Are Saying" rendered a
+                  populated interpretation with the correct sub-label.
+                  Filters themselves rendered correctly: "All 49" / "Positive
+                  25", with "All Subjects" and "Date (Newest)" defaults present,
+                  and the chip counts internally consistent (25 positive of 49
+                  matches the 51% tone figure).
+                  Step 8 raised as DEF-04. Steps 3, 5, 6 and 9-11 not fully
+                  executed.
+Comments        : DEF-02 and DEF-04 were fixed on 31/08/2026 - see the defect
+                  log. This case needs re-testing against a rebuilt app; step 7
+                  in particular must be re-read after several pull-to-refreshes,
+                  since the cloud reshuffles each time.
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC005 - PAST TERMS, TREND CHART AND HISTORICAL TERM SELECTION
+================================================================================
+Title / Business Scenario : Historical scores across previous academic terms
+Preconditions             : The instructor has evaluation data in at least two
+                            previous terms.
+Test Data                 : View only. [overall_total_survey] joined to
+                            [academic_terms].
+
+STEPS
+ 1. Tap the "Past Terms" tab and wait for loading to finish.
+    Expected: Screen opens titled "Past Terms", showing "Historical Growth" and
+              "Track evaluation scores across previous academic terms." The
+              placeholder "Loading past terms..." is replaced by content.
+ 2. Inspect the "Performance Trend" chart AND SCROLL IT SIDEWAYS TO ITS END.
+    Expected: One bar per term with data, oldest to newest, each printing its
+              score to two decimals over a two-line term label. EVERY term that
+              has data appears as a bar, INCLUDING the current active term.
+              NOTE: the chart scrolls horizontally and the newest terms sit
+              off-screen until scrolled. Scroll before judging.
+ 3. Tap a bar in the chart, then open the term dropdown and select a different
+    term.
+    Expected: A tapped bar becomes solid white to show selection and the subject
+              list below reloads for that term. The dropdown lists terms newest
+              first, and changes the chart highlight and the subject list
+              together - the two never disagree about which term is selected.
+ 4. For the selected term, check the "Subjects Taught" list.
+    Expected: The counter reads "N Subjects" and matches the number of cards.
+              Every subject belongs to the SELECTED term, not the active one.
+ 5. Select a term with no subject records.
+    Expected: Message reads "No subjects found for this term." and no cards
+              from the previous term remain on screen.
+ 6. Tap a subject card while a HISTORICAL term is selected.
+    Expected: Subject Detail opens showing that historical term's figures, not
+              the active term's.
+
+Expected Result : The trend chart, the dropdown and the subject list stay
+                  consistent with one another, and every historical term's data
+                  is reachable and correctly scoped.
+Actual Result   : PASS on steps 1-4 and 6. The chart holds 8 bars and scrolls
+                  to reveal all of them, ending at "2nd 27-28" at 2.99, drawn
+                  solid white as the selected term and agreeing with the
+                  dashboard. The dropdown lists all 8 terms newest first,
+                  matching the 8 bars. Selecting "1st Semester 2025-2026"
+                  reloaded the list to "4 Subjects", with "CAPSTONE 401" showing
+                  3.03 S, Management 3.04 and Performance 3.02, correctly
+                  banded. Tapping it opened Subject Detail with that historical
+                  term's figures.
+                  Step 5 (a term with no subjects) not executed.
+Comments        :
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC006 - OFFICIAL EVALUATION REPORT AND PDF EXPORT
+                     *** FAIL - DEF-01, DEF-03 (FIXED, AWAITING RE-TEST) ***
+================================================================================
+Title / Business Scenario : Official SAST report on screen and as a PDF
+Preconditions             : The instructor has evaluation data in the active
+                            term and in at least one past term. The device
+                            allows writing to Downloads.
+Test Data                 : View and export. [overall_question_means],
+                            [instructor_wordcloud], [instructor_ai_suggestions]
+
+CORRECTION TO THE PREVIOUS VERSION OF THIS DOCUMENT
+  The download control is NOT on Past Terms. "Full Term Report" only navigates.
+  The download icon lives in the app bar of the report screen.
+
+STEPS
+ 1. From the dashboard hero card, tap "View Official SAST Report".
+    Expected: Screen opens titled "Official Evaluation Report", populated for
+              the ACTIVE term.
+ 2. Go back, open "Past Terms", select a past term, then tap "Full Term Report".
+    Expected: The same report screen opens, populated for the SELECTED PAST
+              term. The academic year in the header is that term's, not the
+              active one's.
+ 3. Check the official header block.
+    Expected: Shows the CTU logo, "Republic of the Philippines", "CEBU
+              TECHNOLOGICAL UNIVERSITY", "ARGAO CAMPUS", then "STUDENTS'
+              ASSESSMENT SURVEY FOR TEACHERS (SAST)", with "Instructor Name:",
+              "Instructor ID:", "Academic Year:" and "Department:" correctly
+              filled AND FULLY READABLE for the signed-in instructor.
+ 4. Verify the summary table and both criterion tables.
+    Expected: Columns "N" / "MANAGEMENT" / "PERFORMANCE" / "OVERALL", each score
+              paired with its VD code. Sections "I. Management" and
+              "II. Performance" each list ten criteria and end with "Section
+              Mean:".
+ 5. Check "COMMENTS & FEEDBACK SUMMARY:" and the "Top Feedback Terms" box.
+    Expected: The AI paragraph is present, and the box lists the top five terms
+              as "word (count)" matching [instructor_wordcloud].
+ 6. Check the "RANGE & Verbal Description (VD):" legend against the scores.
+    Expected: Legend lists the five bands from "4.20 - 5.00 : Outstanding (O)"
+              down to "1.00 - 1.79 : Unsatisfactory (US)", and every VD code
+              printed in the tables obeys it.
+ 7. Tap the download icon in the app bar.
+    Expected: A PDF named "SAST_Report_{Instructor_Name}.pdf" is written to the
+              device's Downloads or Documents folder, and the system share or
+              print sheet opens.
+ 8. Open the saved PDF and compare it with the screen, then repeat the export
+    for a past term.
+    Expected: Scores, criteria and comments match the on-screen report. The
+              PDF additionally carries "INDIVIDUAL SUMMARY REPORT", "SS Form
+              No. 2" and a signature block. THE ACADEMIC YEAR READS CORRECTLY,
+              with the word "Semester" appearing exactly ONCE. The past-term
+              export holds the SELECTED PAST term's figures.
+
+Expected Result : The report renders correctly for both the active and any past
+                  term, and downloads as a PDF whose contents match the term
+                  that was selected.
+Actual Result   : FAIL AT STEPS 3 AND 8.
+                  Steps 2, 4 and 7 PASS: opening "Full Term Report" for "1st
+                  Semester 2025-2026" produced that term's figures (N 100,
+                  Management 3.01, Performance 2.97, Overall 2.99, all banded
+                  S), the official header and criterion tables rendered, and
+                  the download wrote "SAST_Report_Rodz_Harvey_Licayan.pdf"
+                  (736 KB) whose scores match the screen exactly.
+                  STEP 3 FAILS: header fields are truncated on screen to
+                  "Rodz...", "1st Se..." and "College o..." (DEF-03).
+                  STEP 8 FAILS: the PDF reads "Academic Year: 1st Semester
+                  Semester 2025-2026", with the word Semester duplicated
+                  (DEF-01).
+                  Steps 1, 5, 6 and the past-term half of step 8 not executed.
+Comments        : DEF-01 and DEF-03 were both fixed on 31/08/2026 - see the
+                  defect log. This case needs re-testing against a rebuilt app:
+                  step 3 for the header fields and step 8 for the academic year
+                  in the PDF.
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC007 - ACCOUNT SETTINGS: PROFILE, NOTIFICATIONS, EMAIL AND PASSWORD
+================================================================================
+Title / Business Scenario : Profile editing, notification preference, email
+                            confirmation flow and password rules
+Preconditions             : Signed in as instructor, with access to the
+                            account's inbox for steps 8-9.
+Test Data                 : First and last name of the test instructor. A second
+                            existing account's full name, for step 6. A
+                            reachable new email address. A new password of at
+                            least six characters, NOT recorded here.
+NOTE                      : Steps 4-11 all write to the live account, and a
+                            successful password change signs the user out. Run
+                            the read-only steps 1-3 first.
+
+STEPS
+ 1. Open the hamburger menu and read the drawer.
+    Expected: Header shows the initials avatar, full name and the role
+              "Instructor". Items are "Account Settings" and "Log Out".
+ 2. Tap "Account Settings" and confirm which fields can be edited.
+    Expected: Screen opens titled "Account Settings" with the subtitle
+              "Profile, notifications, sign-in, and account security." Name,
+              email and password are editable; title, role and department are
+              DISPLAY ONLY; there is no avatar upload.
+ 3. Scroll to the bottom of Settings.
+    Expected: Footer reads "iEvaluate Version 1.0.0 (Prototype)".
+
+    ---- steps below write to the live account ----
+
+ 4. Tap "Edit Personal Details".
+    Expected: A sheet titled "Edit Profile" opens with "First Name" and "Last
+              Name" fields and a warning that the name must match official
+              school records because it is used for scanner validation.
+ 5. Change the name and tap "Save Changes".
+    Expected: Snackbar reads "Profile updated successfully!" The new name
+              appears in the drawer header and the dashboard greeting.
+ 6. Try to save a full name identical to another existing account.
+    Expected: The save is rejected rather than creating a duplicate identity.
+ 7. Toggle "Push Notifications" off, then on.
+    Expected: Snackbars read "Push notifications disabled." then "Push
+              notifications enabled." The setting survives closing and
+              reopening the screen.
+ 8. Tap "Edit Email", then submit an address with no "@", then an empty field.
+    Expected: Dialog titled "Edit Email" explains a confirmation link will be
+              sent, with a "New Email" field and "Cancel" / "Update" buttons.
+              Neither invalid value is accepted as a change.
+ 9. Submit a valid new address. BEFORE clicking the emailed link, sign out and
+    sign back in with the OLD address. Then click the link and sign in with the
+    new address.
+    Expected: Snackbar reads "Email updated! Check your inbox for
+              confirmation." and the email arrives. The OLD address still works
+              until the link is clicked. Afterwards the new address is accepted
+              and the old one no longer authenticates.
+10. Tap "Edit Password" and submit each invalid case in turn: blank fields; a
+    confirmation that differs; a matching password shorter than six characters;
+    a valid password with the wrong current password.
+    Expected: Each is refused with its own message - "Please fill in all
+              fields.", "Passwords do not match.", "Password must be at least 6
+              characters.", "Current password is incorrect." - and the password
+              is never changed.
+11. Submit a fully valid password change, then sign in with the old password
+    and with the new one.
+    Expected: Snackbar reads "Password updated. Please log in again." and after
+              a short pause the app signs out to the Login screen. The old
+              password is then rejected and the new one accepted.
+
+Expected Result : The instructor can change their own name and notification
+                  preference, duplicate names are refused, read-only fields
+                  cannot be edited, an email change takes effect only once
+                  confirmed, and every password rule has its own message.
+Actual Result   : PASS on steps 1-3. The drawer showed the initials avatar,
+                  "Rodz Harvey Licayan", role "Instructor", and both "Account
+                  Settings" and "Log Out". Settings opened with the correct
+                  heading and subtitle; Profile showed the name over
+                  "FULL-TIME - College of Technology and Engineering" with
+                  "Edit Personal Details". Title and department are display
+                  only with no avatar upload, as required. Security lists
+                  "Edit Email", "Edit Password" and "Deactivate My Account",
+                  above "Sign Out Securely" and the footer "iEvaluate Version
+                  1.0.0 (Prototype)".
+                  Steps 4-11 DELIBERATELY NOT EXECUTED - they write to the live
+                  account.
+                  Defect found: avatar initials disagree between screens
+                  (DEF-05).
+Comments        :
+Tester / Date   : Rodz Harvey D. Licayan  31/08/2026
+Panelist Remarks:
+
+
+================================================================================
+TC008 - SIGN-OUT, SESSION TERMINATION AND SELF-DEACTIVATION
+================================================================================
+Title / Business Scenario : Session and cached data are cleared on sign-out, and
+                            deactivation is guarded by a 6-digit emailed code
+Preconditions             : Signed in as an instructor with the dashboard
+                            already loaded once, so cached data exists. Access
+                            to the account's inbox. A second instructor account
+                            for step 5.
+Test Data                 : The 6-digit code emailed during the run. Edge
+                            functions [send-admin-code] and [delete-user].
+WARNING                   : Steps 7-11 LOCK the account. Only an SAO admin can
+                            reactivate it, so use a disposable test account and
+                            arrange reactivation in advance. Run the sign-out
+                            steps 1-6 first.
+
+STEPS
+ 1. Open "Account Settings", tap "Sign Out Securely", then tap "Cancel".
+    Expected: A confirmation dialog titled "Log Out" appears with "Cancel" and
+              "Log out". Cancel closes it and the session continues.
+ 2. Reopen and tap "Log out".
+    Expected: An overlay reads "Signing you out..." over "Clearing your session
+              data.", then the Login screen appears.
+ 3. Press the Android back button from the Login screen.
+    Expected: The app does not return to the dashboard. No instructor screen is
+              reachable without signing in again.
+ 4. Force-close the app, reopen it, and observe the splash.
+    Expected: The app opens on the Login screen, not a restored session. Run
+              this only after an explicit sign-out.
+ 5. Sign in as a DIFFERENT instructor.
+    Expected: The dashboard shows only the new instructor's data. No cached
+              name, score, subject or comment from the previous account is
+              visible at any point.
+ 6. Repeat the sign-out using "Log Out" from the side drawer instead of
+    Settings.
+    Expected: The drawer route behaves identically to the Settings route.
+
+    ---- steps below LOCK the account ----
+
+ 7. Tap "Deactivate My Account", tap outside the dialog, then tap "Cancel".
+    Expected: A dialog titled "Deactivate Account?" explains the account can
+              only be restored by the SAO Admin, and notes a 6-digit code will
+              be emailed. Buttons are "Cancel" and "Send Code". Tapping outside
+              does NOT dismiss it, so deactivation cannot be triggered
+              accidentally, and Cancel leaves the account fully active.
+ 8. Reopen the dialog and tap "Send Code".
+    Expected: The dialog moves to a 6-digit numeric field hinted "000000", and
+              a code arrives by email.
+ 9. Submit each invalid case: fewer than six digits; six INCORRECT digits;
+    "Resend code" twice in quick succession; a stale code past its expiry.
+    Expected: Refused with "Enter the 6-digit code from your email."; then the
+              server's wrong-code message in red; then a rate-limit message
+              naming the seconds remaining; then refused as expired with a
+              fresh code required. The account stays active throughout.
+10. Enter the correct 6-digit code, typing the sixth digit last, and wait for
+    the flow to finish.
+    Expected: The dialog submits AUTOMATICALLY on the sixth digit, without a
+              second tap, and a blocking overlay reads "Deactivating
+              account..." over "Signing you out and locking the account." The
+              session is then cleared and the app returns to the Login screen
+              with no way to navigate back into the app.
+11. Try to sign in with the deactivated account, then as SAO admin confirm the
+    instructor's evaluation records still exist.
+    Expected: Sign-in is refused with "Your account has been deactivated by the
+              administration." This is a DEACTIVATION, not a deletion - scores
+              and remarks are retained and the account can be reactivated.
+
+Expected Result : Signing out clears the session and cached data with no leak
+                  into the next session. Deactivation completes only after a
+                  correct emailed code, after which the account cannot sign in
+                  but its evaluation data is preserved.
+Actual Result   : NOT EXECUTED - would lock the live account.
+Comments        : Related observation: force-closing the app and relaunching
+                  WITHOUT signing out correctly restored the session and the
+                  previously selected term. Step 4 must be run only after an
+                  explicit sign-out.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+DEFECT LOG - 31 AUGUST 2026
+================================================================================
+Ordered most severe first.
+
+--------------------------------------------------------------------------------
+DEF-01  The word "Semester" is printed twice on the official report
+        SEVERITY: HIGH        STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The exported PDF read "Academic Year: 1st Semester Semester 2025-2026". The
+  report screen had the same fault, hidden only because the field is truncated
+  there (DEF-03).
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The codebase documents its own contract in
+  lib/core/services/system_settings_service.dart lines 11-12: "semester" is a
+  label that ALREADY includes the word, e.g. "1st Semester", and
+  "academicYear" is just "2025-2026". Two things broke that contract:
+
+    1. Both places that compose the field inserted the word a second time:
+         lib/instructor/detailed_report_screen.dart:358
+         lib/core/services/pdf/pdf_service.dart:288
+       Each read '$term Semester $academicYear'.
+    2. lib/instructor/past_semesters_screen.dart:421-422 split the combined
+       label "1st Semester 2025-2026" on the FIRST space, producing
+       term="1st" and academicYear="Semester 2025-2026".
+
+  All three entry points into the report were affected, because the dashboard
+  passes term="2nd Semester" and the department-head page does the same.
+
+  FIX APPLIED
+    - Both composition sites now read '$term $academicYear', since the term
+      already carries the word.
+    - Past Terms now splits on the LAST token via two new helpers,
+      _semesterOf() and _academicYearOf(), giving term="1st Semester" and
+      academicYear="2025-2026" as the contract requires.
+    - "flutter analyze" reports no issues on all three files.
+
+  STILL TO DO: rebuild the app and re-run TC006 steps 3 and 8 to confirm the
+  header now reads "1st Semester 2025-2026" both on screen and in the PDF.
+
+--------------------------------------------------------------------------------
+DEF-02  Word cloud clips words at the panel edge
+        SEVERITY: MEDIUM      STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  In "AI Word Cloud" the rotated term "Fair grading" ran past the right edge of
+  the dark panel and was cut off mid-word, so it could not be read.
+
+  Because the cloud reshuffles on every load, WHICH word was clipped changed
+  between refreshes, making this intermittent rather than tied to one term.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  Nothing bounded a word to the panel. The words sit in a Wrap inside a
+  fixed-padding Container, and each word was a bare Text with no width
+  constraint, so a word wider than the panel simply overflowed it. Rotated
+  words are the ones most at risk: RotatedBox swaps the constraints it passes
+  down, so a rotated word's own text width becomes its vertical extent, and
+  neither extent was capped.
+
+  FIX APPLIED
+    - The word area is now wrapped in a LayoutBuilder, so the panel's real
+      inner width is known at layout time.
+    - Every word is bounded by ConstrainedBox(maxWidth: that width) and drawn
+      through FittedBox(fit: BoxFit.scaleDown), so a word too wide to fit is
+      rendered slightly smaller instead of running off the edge. scaleDown only
+      ever reduces, so no word grows beyond the size its count earned it.
+    - The same bound sits inside RotatedBox, where the swapped constraints make
+      it cap the rotated word's height. Both extents are now bounded, so
+      clipping is impossible by construction rather than by luck of the shuffle.
+    - "flutter analyze" reports no issues on the file.
+
+  STILL TO DO: rebuild the app and re-run TC004 step 7, refreshing several
+  times so more than one shuffle is checked.
+  File: lib/instructor/student_feedback_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-03  Report header fields are truncated on screen
+        SEVERITY: MEDIUM      STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  On "Official Evaluation Report" the identity fields were cut off:
+    "Instructor Name: Rodz..."
+    "Academic Year: 1st Se..."
+    "Department: College o..."
+  The instructor could not confirm from the screen that the report was about
+  them or which term it covered.
+
+  The exported PDF was NOT affected: it renders "Rodz Harvey Licayan" and
+  "College of Technology and Engineering" in full. So this was a layout
+  constraint in the on-screen header, not bad data.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  _headerField rendered the value with overflow: TextOverflow.ellipsis on a
+  single line, and the header places TWO of these side by side in one Row - so
+  each field had only half the screen width to work with. On a phone that is
+  not enough for a full name plus its label, so every long value was cut.
+
+  FIX APPLIED
+    - The value now wraps (softWrap: true, no ellipsis) instead of being cut,
+      and the Row is top-aligned so a wrapped value sits correctly beside its
+      label.
+    - The field grows downward by a line or two on a narrow screen. That is the
+      right trade: this block exists so the instructor can confirm the report is
+      theirs, so being complete matters more than being one line tall.
+    - "flutter analyze" reports no issues on the file.
+
+  STILL TO DO: rebuild the app and re-run TC006 step 3, confirming all four
+  fields read in full.
+  File: lib/instructor/detailed_report_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-04  Direct Quotes counter sits flush against the screen edge
+        SEVERITY: LOW         STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The "N Comments" counter beside the "Direct Quotes" heading reached the right
+  edge of the display with no padding. At the tested count it stayed readable,
+  but a wider value or a larger system font size would have clipped it.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The heading and the counter sat in a spaceBetween Row as two unconstrained
+  Text widgets. Neither could yield, so once the pair exceeded the row width the
+  counter was pushed off the end rather than the heading giving way.
+
+  FIX APPLIED
+    - Both sides are now Flexible with a 12px gap between them, and the counter
+      is end-aligned, so the heading yields first and the number is never cut.
+    - "flutter analyze" reports no issues on the file.
+
+  STILL TO DO: re-run TC004 step 8, ideally once at the largest system font
+  size the device offers.
+  File: lib/instructor/student_feedback_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-05  Avatar initials differ between the drawer and Settings
+        SEVERITY: LOW         STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The same signed-in instructor was shown as "RH" in the side drawer but "RL"
+  on the Settings profile card, so the account appeared to belong to two
+  different people depending on the screen.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The two screens composed the initials from different things. The drawer took
+  the first TWO WORDS of the full display name, so "Rodz Harvey Licayan" gave
+  "RH" - the middle name. Settings used first_name + last_name and gave "RL".
+
+  FIX APPLIED
+    - The drawer now uses a new _initialsOf() helper that takes the FIRST and
+      LAST word of the name, skipping any middle name, so it produces "RL" and
+      agrees with Settings. A single-word name yields one letter, and an empty
+      name still yields "?".
+    - Settings was already correct and is unchanged.
+    - "flutter analyze" reports no issues on the file.
+
+  STILL TO DO: re-run TC007 step 1 and confirm the drawer and the Settings
+  profile card show the same two letters.
+  File: lib/core/navigation/main_scaffold.dart
+
+--------------------------------------------------------------------------------
+DEF-06  Older PDF exports carry malformed filenames
+        SEVERITY: LOW         STATUS: NEEDS CONFIRMATION
+--------------------------------------------------------------------------------
+  The device's Downloads folder holds earlier exports named:
+    SAST_Report_....pdf                   (truncated name leaked into filename)
+    SAST_Report_Instructor.pdf            (fell back to the literal word)
+    SAST_Report_Rodz_Harvey__Licayan.pdf  (doubled underscore)
+
+  NOT REPRODUCED ON THIS BUILD. The 31 August export was named correctly, so
+  this may already be fixed, or may depend on how quickly the export is
+  triggered after the profile loads. Export twice more, once immediately after
+  opening the report, before closing this off.
+
+  Affects TC006 step 7.
+
+--------------------------------------------------------------------------------
+DEF-07  Unreachable screen in the instructor module
+        SEVERITY: LOW (code hygiene)    STATUS: OPEN
+--------------------------------------------------------------------------------
+  lib/instructor/term_subjects_screen.dart is never instantiated anywhere in
+  the codebase. Past Terms renders its own subject list inline instead. It is
+  dead code, so no acceptance test can cover it. Either wire up an entry point
+  or remove the file.
+
+
+--------------------------------------------------------------------------------
+ONE SUSPECTED DEFECT WAS INVESTIGATED AND WITHDRAWN
+--------------------------------------------------------------------------------
+  The Performance Trend chart first appeared to be missing the active term,
+  because its newest VISIBLE bar was "1st 26-27" while the dropdown read
+  "2nd Semester 2027-2028". Scrolling the chart to its right end showed the
+  term is present and correctly selected, so the chart works as intended.
+
+  Recorded here because the same misreading is easy to repeat: THE CHART
+  SCROLLS HORIZONTALLY, AND THE NEWEST TERMS SIT OFF-SCREEN UNTIL SCROLLED.
+
+
+================================================================================
+WHAT CHANGED FROM THE PREVIOUS VERSIONS OF THIS DOCUMENT
+================================================================================
+
+AGAINST THE 4-CASE VERSION OF 26 AUGUST 2026
+
+1. EXPECTED RESULTS WERE WRONG ON THREE OF FOUR CASES. The old TC001-TC003 all
+   ended with "The account is created successfully and the user is redirected
+   to the login page" - a registration outcome carried into three view-only
+   screens. Each case now states the outcome its own steps produce.
+
+2. A LIVE PASSWORD WAS PRINTED IN THE TEST DATA. The old TC004 listed a working
+   credential in a document circulated to panelists. Credentials are now
+   referred to but never written down.
+
+3. THE DOWNLOAD STEP POINTED AT THE WRONG SCREEN. The old TC002 step 4 checked
+   for a download control on Past Terms, where none exists. It now runs in
+   TC006 against the report screen's app bar.
+
+4. EVERY STEP CARRIES ITS OWN EXPECTED RESULT, so a failure identifies the step
+   rather than giving one verdict for the whole scenario.
+
+5. FAILURE PATHS ARE TESTED, NOT JUST HAPPY PATHS - rate limiting,
+   deactivated-account sign-in, password rules, and wrong or expired codes.
+   The old version recorded Pass on every case with no negative testing.
+
+6. RESULTS ARE NO LONGER PRE-FILLED. Only cases actually executed carry a
+   verdict; the rest say NOT EXECUTED and why.
+
+AGAINST THE 14-CASE VERSION OF 31 AUGUST 2026
+
+7. THE SAME COVERAGE IS NOW EIGHT CASES INSTEAD OF FOURTEEN.
+   Nothing was dropped. Cases that tested one screen from two angles, or the
+   read and write halves of one screen, were folded together, so the document
+   reads as one case per screen or flow. Where a merged case mixes a passing
+   read path with an unexecuted write path, the split is stated in the Actual
+   Result and marked in the steps.
+
+   OLD CASE                              NOW
+   ------------------------------------- --------------------------------------
+   TC001 valid sign-in                   TC001 steps 1-4
+   TC002 sign-in failure paths           TC001 steps 5-9
+   TC003 dashboard overview              TC002 steps 1-5
+   TC004 dashboard sync / notices / term TC002 steps 6-9
+   TC005 my subjects                     TC003 steps 1-4
+   TC006 subject detail                  TC003 steps 5-10
+   TC007 feedback tone and AI insights   TC004 steps 1-6
+   TC008 word cloud and quote filters    TC004 steps 7-11
+   TC009 past terms                      TC005
+   TC010 official report and PDF         TC006
+   TC011 settings profile / notification TC007 steps 1-7
+   TC012 email and password              TC007 steps 8-11
+   TC013 self-deactivation               TC008 steps 7-11
+   TC014 sign out                        TC008 steps 1-6
+
+   Defect cross-references were renumbered with the cases. Every DEF- number is
+   unchanged, so anything already citing a defect still matches.
+
+8. SIGN-OUT IS NOW TESTED BEFORE DEACTIVATION.
+   They share a case, and deactivation locks the account. Running sign-out
+   first means the destructive step is genuinely last.
+
+
+================================================================================
+SUMMARY
+================================================================================
+  Total cases                : 8
+  Passed                     : 2   (TC003, TC005)
+  Failed                     : 2   (TC004, TC006)
+  Partly executed            : 3   (TC001, TC002, TC007)
+  Not executed               : 1   (TC008)
+
+  Defects raised             : 7
+    Fixed, pending re-test   : 5   (DEF-01, DEF-02, DEF-03, DEF-04, DEF-05)
+    Open                     : 1   (DEF-07, dead code, no test can cover it)
+    Needs confirmation       : 1   (DEF-06, not reproduced on this build)
+  Suspected defects withdrawn: 1   (Performance Trend chart)
+
+  Every one of the eight reachable instructor screens was opened and exercised
+  on the device. What remains outstanding is, in every case, either a database
+  cross-check or a step that writes to the live account.
+
+  BOTH FAILING CASES HAVE HAD THEIR DEFECTS FIXED IN CODE, and both are
+  awaiting re-test on a rebuilt app. The verdicts above stay as recorded on
+  31 August 2026: a fix in code is not a passed test, and TC004 and TC006 turn
+  green only once the tester re-runs them and signs for it.
+
+
+--------------------------------------------------------------------------------
+RE-TEST CHECKLIST - WHAT TURNS THE TWO FAILURES GREEN
+--------------------------------------------------------------------------------
+  Rebuild the app first. The fixes are in source and are NOT in the build that
+  was tested on 31 August.
+
+  TC004 step 7  AI Word Cloud - every word fully readable, checked over
+                several pull-to-refreshes, since the cloud reshuffles. [DEF-02]
+  TC004 step 8  "N Comments" counter fully on screen, not against the
+                edge. Worth one pass at the largest system font size.  [DEF-04]
+  TC006 step 3  Report header - "Instructor Name:", "Instructor ID:",
+                "Academic Year:" and "Department:" all read in full.   [DEF-03]
+  TC006 step 8  Exported PDF reads "Academic Year: 1st Semester
+                2025-2026", with "Semester" appearing exactly once.    [DEF-01]
+  TC007 step 1  Drawer initials match the Settings profile card.       [DEF-05]
+
+  If each behaves as written, update that case's Actual Result and verdict, and
+  move the defect from PENDING RE-TEST to CLOSED with the re-test date.
+
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+  Tester            : Rodz Harvey D. Licayan    ____________________  Date: ______
+
+  QA Engineer       : Mark Lawrence Medillo     ____________________  Date: ______
+
+  Project Leader    : Rodz Harvey Licayan       ____________________  Date: ______
+
+
+  PANELIST'S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+================================================================================
+iEvaluate - Instructor Module UAT - Team ERMM
+Cebu Technological University, Argao Campus
+================================================================================

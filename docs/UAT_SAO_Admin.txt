@@ -1,0 +1,698 @@
+================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+
+USER ACCEPTANCE TESTING - SAO ADMINISTRATOR MODULE
+================================================================================
+
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+
+Role under test        : SAO_ADMIN  ("SAO Administrator")
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the SAO admin account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+
+
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in "double quotes" appears on screen exactly as written. Match it
+  character for character.
+* Names in [square brackets] are database tables or edge functions to check
+  when a step needs back-end verification.
+* Each step has its own expected result, so a failed case identifies WHICH
+  step failed.
+* "Actual Result" is blank where the case has not been run.
+
+!! DESTRUCTIVE-ACTION WARNING !!
+  This role can create accounts, change roles, disable users, switch the
+  active term for the whole system, and rotate credentials. Cases marked
+  [LIVE DATA] change real records. Run them on staging, or on throwaway
+  accounts you are willing to lose, and never during a live evaluation period.
+
+
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                     REACHED BY                        CASE
+  -------------------------- --------------------------------- ------------
+  Dashboard                  Tab "Dashboard"                   TC-A01
+  Pending Approvals          Dashboard "View All"              TC-A02
+  Users                      Tab "Users"                       TC-A03,A04,A05
+  Personnel                  Tab "Personnel"                   TC-A06
+  Analytics                  Tab "Analytics"                   TC-A07
+  Subject Management         Drawer "Subject Management"       TC-A08
+  Manage Departments         Drawer "Manage Departments"       TC-A09
+  Import Errors              Drawer "Import Errors"            TC-A10
+  Security Audit Logs        Drawer "Security Audit Logs"      TC-A11
+  Live System Metrics        Drawer "Live System Metrics"      TC-A12
+  System Settings            Drawer "System Settings"          TC-A13, A14
+
+
+================================================================================
+TC-A01  SIGN IN AS SAO ADMINISTRATOR AND READ THE SYSTEM OVERVIEW
+================================================================================
+Preconditions : App on the Login screen. Account is active with role SAO_ADMIN.
+Test Data     : View only.
+
+STEPS
+ 1. Sign in with the SAO administrator credentials.
+    Expected: Routes to the admin landing screen titled "Dashboard", NOT any
+              other role's dashboard. Bottom tabs read "Dashboard", "Users",
+              "Personnel", "Analytics".
+ 2. Read the header card.
+    Expected: Shows "SAO ADMINISTRATION", "System Overview" and the subtitle
+              "Operations, evaluation progress, and account activity."
+ 3. Read the health strip.
+    Expected: Shows "Automation" and "Database", each with a status indicator,
+              plus a refresh control. Both read healthy when n8n and Supabase
+              are reachable.
+ 4. Read the two counters.
+    Expected: A count labelled "Total Users" and a count labelled "Files
+              Scanned" for the current term. Both are numbers, not blank or
+              "null".
+ 5. Cross-check "Total Users" against [user_info] / [Sao_users].
+    Expected: The figure equals the number of registered accounts.
+ 6. Cross-check "Files Scanned" against the scan/survey records for the active
+    term.
+    Expected: The figure equals the count gathered this term, and changes only
+              when the term changes or new scans arrive.
+ 7. Turn off Wi-Fi and mobile data, then tap the health-strip refresh.
+    Expected: The affected indicator reports a problem rather than silently
+              staying green. The app does not crash.
+
+Expected Result : The admin lands on the System Overview, and both the health
+                  indicators and the two counters reflect the real state of the
+                  system.
+Actual Result   : PASS on steps 1-4 (observed 31/08/2026). Dashboard rendered
+                  with "SAO ADMINISTRATION" / "System Overview" / "Operations,
+                  evaluation progress, and account activity.", the health strip
+                  showing "Automation" and "Database" both healthy, "17 Total
+                  Users" and "152 Files Scanned this term", and the four tabs
+                  Dashboard / Users / Personnel / Analytics.
+                  Steps 5-7 not executed.
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A02  APPROVE A PENDING ACCOUNT REGISTRATION                     [LIVE DATA]
+================================================================================
+Preconditions : At least one account has registered and is awaiting approval.
+Test Data     : One throwaway registration. Edge function
+                [admin-accept-user]. Tables [user_info], [Sao_users].
+
+STEPS
+ 1. On the dashboard, find the "Pending Approvals" section.
+    Expected: Subtitle reads "Review new accounts before granting access."
+              with a "View All" link. Pending registrations are listed.
+ 2. When there are no pending registrations, read the empty state.
+    Expected: Reads "All caught up" rather than an empty gap or a spinner that
+              never resolves.
+ 3. Tap a pending account.
+    Expected: Full details open, showing "Email Address", "Employment Status",
+              "Academic Dept", "Address" and "Registered On". Fields with no
+              value read "Not provided", not blank or "null".
+ 4. Confirm the requested role is shown and is the role the person actually
+    registered for.
+    Expected: The role label matches the registration, e.g. "SAO Staff (Data
+              Gatherer)", "SAO Administrator", "Department Head", "Instructor".
+ 5. Tap "Approve".
+    Expected: The account is approved via [admin-accept-user], the row leaves
+              the pending list, and the user count on the dashboard increases
+              by one.
+ 6. Have the approved person sign in.
+    Expected: They can now sign in and land on the dashboard for the role they
+              were approved as, and no other.
+ 7. Force a failure (approve with no network) and observe.
+    Expected: Message reads "Action failed. Please try again." and the account
+              is NOT left half-approved: it either stays pending or is fully
+              approved, never both.
+
+Expected Result : A pending registration can be reviewed in full and approved,
+                  after which the person can sign in with exactly the role they
+                  were approved for, and a failed approval leaves no partial
+                  state.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A03  CREATE AN ACADEMIC USER, INCLUDING THE DEPARTMENT HEAD
+        AUTHORIZATION CODE                                         [LIVE DATA]
+================================================================================
+Preconditions : Signed in as SAO admin on the "Users" tab. Access to the
+                admin's email inbox for the verification code.
+Test Data     : A throwaway name and email. Edge functions [send-admin-code],
+                [admin-create-user].
+
+STEPS
+ 1. Open the "Users" tab.
+    Expected: Screen lists academic users. While loading it reads "Loading
+              academic users…"; with none it reads "No academic users found."
+ 2. Tap "Add Academic Personnel" (or "Create User").
+    Expected: A form opens with "First Name", "Last Name", an email field, a
+              role selector and a department selector.
+ 3. Submit the form with required fields left empty.
+    Expected: Refused with a validation message. No account is created.
+ 4. Create a plain INSTRUCTOR account with valid details.
+    Expected: The account is created without asking for a code, and appears in
+              the list.
+ 5. Now create an account with the role DEPARTMENT HEAD.
+    Expected: BEFORE creating anything the app states "Creating a Department
+              Head requires authorization." and asks "Enter the 6-digit code
+              sent to your email:". A code arrives by email.
+ 6. Enter an INCORRECT 6-digit code.
+    Expected: Refused. NO Department Head account is created.
+ 7. Enter the CORRECT code.
+    Expected: The Department Head account is created and appears in the list.
+ 8. Repeat step 5 but cancel at the code prompt.
+    Expected: No account is created and no partial record is left behind.
+ 9. Force a server failure during creation.
+    Expected: Message reads "Could not create the user. Please try again." and
+              no partially-created account is left.
+
+Expected Result : Ordinary instructor accounts can be created directly, while
+                  creating a Department Head is gated behind a correct emailed
+                  6-digit code, and every refusal leaves no partial account.
+Actual Result   :
+Comments        : This is the most security-relevant case in the module. The
+                  privilege escalation guard is the thing being tested, not the
+                  form.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A04  DISABLE AND RE-ENABLE AN ACADEMIC ACCOUNT                  [LIVE DATA]
+================================================================================
+Preconditions : A throwaway academic account exists and can currently sign in.
+Test Data     : That account's credentials, held by the tester.
+
+STEPS
+ 1. On the "Users" tab, open the throwaway account and tap "Disable".
+    Expected: A confirmation is required before anything changes.
+ 2. Confirm the action.
+    Expected: Message reads "Account disabled successfully" (or the equivalent
+              wording for the new status) and the row shows the account as
+              disabled.
+ 3. Attempt to sign in as that disabled account.
+    Expected: Sign-in is refused with "Your account has been deactivated by
+              the administration." The user reaches no screen inside the app.
+ 4. Confirm the account's evaluation data still exists.
+    Expected: Disabling is NOT a deletion. Scores and remarks are retained.
+ 5. Re-enable the same account from the "Users" tab.
+    Expected: Status returns to active with a success message.
+ 6. Sign in as that account again.
+    Expected: Sign-in now succeeds and lands on the correct role's dashboard.
+
+Expected Result : An account can be disabled and re-enabled by the admin, a
+                  disabled account cannot sign in, and no evaluation data is
+                  lost either way.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A05  ASSIGN A SECOND DEPARTMENT TO AN INSTRUCTOR                [LIVE DATA]
+================================================================================
+Preconditions : An instructor account exists with one primary department.
+Test Data     : A second department that already exists.
+
+STEPS
+ 1. On the "Users" tab, open an instructor and tap "Assign Second Dept".
+    Expected: A sheet opens headed "Assign Second Department" with the
+              instructor's name, and shows "Current secondary departments:"
+              and "Add a new secondary department:".
+ 2. Add a second department.
+    Expected: It appears under "Current secondary departments:" and persists
+              after closing and reopening the sheet.
+ 3. Try to add the SAME department twice.
+    Expected: The duplicate is refused rather than listed twice.
+ 4. Remove the secondary department.
+    Expected: It disappears from the list. On failure the message reads
+              "Error removing dept:" rather than failing silently.
+ 5. Force a failure while assigning.
+    Expected: Message reads "Error assigning department. Please try again."
+              and no half-assignment is left.
+ 6. Confirm the instructor's PRIMARY department is unchanged throughout.
+    Expected: Adding or removing a secondary department never alters the
+              primary one.
+
+Expected Result : Secondary departments can be added and removed without
+                  duplicates and without ever disturbing the primary
+                  department.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A06  CREATE SAO PERSONNEL, INCLUDING THE ADMIN AUTHORIZATION
+        CODE                                                       [LIVE DATA]
+================================================================================
+Preconditions : Signed in as SAO admin on the "Personnel" tab. Access to the
+                admin's inbox.
+Test Data     : A throwaway name and email. Edge functions [send-admin-code],
+                [admin-create-user].
+
+STEPS
+ 1. Open the "Personnel" tab.
+    Expected: Screen titled "Personnel Management". While loading it reads
+              "Loading SAO personnel…"; with none it reads "No SAO personnel".
+ 2. Read one personnel row.
+    Expected: Shows the person's role and activity, including "Last Upload",
+              or "No uploads yet" when they have never uploaded.
+ 3. Tap "Add SAO Personnel", then submit with fields empty.
+    Expected: Refused with "Please fill in all required fields".
+ 4. Fill the details but choose no role, then submit.
+    Expected: Refused with "Please select a role first".
+ 5. Create an account with role SAO_STAFF.
+    Expected: Created without a code, with "Personnel created!", and the row
+              appears in the list.
+ 6. Now create an account with role SAO_ADMIN.
+    Expected: The app states "Creating an Admin requires authorization." and
+              asks "Enter the 6-digit code sent to your email:". A code
+              arrives by email.
+ 7. Enter an INCORRECT code.
+    Expected: Refused. NO admin account is created.
+ 8. Enter the CORRECT code.
+    Expected: The admin account is created and appears in the list.
+ 9. Have the new SAO_STAFF account sign in.
+    Expected: They land on the Data Gatherer screen with tabs "Dashboard",
+              "Scanner", "Validation", "Sync Queue" - and have NO access to
+              admin screens such as Users, Personnel or System Settings.
+10. Edit an existing person via "Edit Personnel Profile" and save.
+    Expected: Message reads "Personnel updated successfully!" and the change
+              is visible in the list.
+11. Force a server failure during creation.
+    Expected: Message reads "Could not create the personnel. Please try
+              again." and no partial account is left.
+
+Expected Result : SAO staff accounts can be created directly, creating another
+                  SAO Administrator is gated behind a correct emailed 6-digit
+                  code, and a new staff account is confined to the gatherer
+                  screens.
+Actual Result   :
+Comments        : Step 9 is the privilege-boundary check. A staff account that
+                  can reach any admin screen is a FAIL for the whole case.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A07  ANALYTICS - UNIVERSITY-WIDE PERFORMANCE
+================================================================================
+Preconditions : Signed in as SAO admin with evaluation data in the active term.
+Test Data     : View only.
+
+STEPS
+ 1. Open the "Analytics" tab.
+    Expected: The screen loads without error and shows performance figures for
+              the active term.
+ 2. Confirm the term the figures belong to.
+    Expected: The screen states which term it is reporting on, and it is the
+              active term set in System Settings.
+ 3. Cross-check a department's average against that department's instructors.
+    Expected: The department figure is consistent with its instructors' scores,
+              and no instructor from another department is included.
+ 4. Confirm every verbal description matches its score band.
+    Expected: >=4.20 Outstanding, >=3.40 Very Satisfactory, >=2.60
+              Satisfactory, >=1.80 Fair, otherwise Unsatisfactory.
+ 5. Switch the active term in System Settings, return, and re-read.
+    Expected: The figures follow the newly active term.
+
+Expected Result : Analytics reports the correct term, and every figure and band
+                  reconciles with the underlying evaluation data.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A08  SUBJECT MANAGEMENT - BULK IMPORT AND MANUAL ADD            [LIVE DATA]
+================================================================================
+Preconditions : Drawer item "Subject Management" is reachable. The n8n bulk
+                import workflow is running. A Google Sheet of subject
+                assignments is prepared for the active term.
+Test Data     : One prepared sheet, plus one manual subject. Webhook URL comes
+                from the env var for subject bulk import.
+
+STEPS
+ 1. Open the drawer and tap "Subject Management".
+    Expected: The screen lists subject assignments for the active term and
+              states which term that is.
+ 2. Use the search box and the assigned/unassigned filter.
+    Expected: Search narrows the list, and the filter separates subjects that
+              have an instructor from those that do not.
+ 3. Add ONE subject manually with valid details.
+    Expected: It is created and appears in the list against the active term.
+ 4. Add the SAME subject again.
+    Expected: The duplicate is refused rather than creating a second identical
+              assignment.
+ 5. Run "Import from Google Sheets" with the prepared sheet.
+    Expected: The import runs via the n8n webhook, reports progress, and ends
+              with a clear success or failure message - never an indefinite
+              spinner.
+ 6. Cross-check the imported rows against the sheet.
+    Expected: Every row in the sheet is either imported or reported as an
+              error. Nothing is silently dropped.
+ 7. Deliberately include a bad row (unknown instructor, unknown subject) and
+    re-import.
+    Expected: The bad row does NOT import silently. It appears under
+              "Import Errors" (TC-A10).
+ 8. Run the import with n8n stopped.
+    Expected: A clear failure message. No partial import is left behind.
+ 9. Attempt to delete a subject that already has evaluation results.
+    Expected: Deletion is BLOCKED. Results already recorded against a subject
+              cannot be orphaned.
+
+Expected Result : Subjects can be added manually and in bulk, duplicates and
+                  bad rows are reported rather than silently dropped, and a
+                  subject carrying results cannot be deleted.
+Actual Result   :
+Comments        : Step 9 corresponds to the assignment-protection migration
+                  (20240130000015_protect_assignments_with_results). Confirm
+                  the migration is applied to the environment before judging.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A09  DEPARTMENT MANAGEMENT - ADD AND EDIT                       [LIVE DATA]
+================================================================================
+Preconditions : Drawer item "Manage Departments" is reachable.
+Test Data     : One throwaway department code and name.
+
+STEPS
+ 1. Open "Manage Departments".
+    Expected: Screen titled "Department Management" with "Add or edit
+              departments". While loading it reads "Loading departments…"; with
+              none it reads "No departments yet". A counter reads
+              "All Departments (n)".
+ 2. Tap "Add Department" and submit with fields empty.
+    Expected: Refused. "Department Code *" and "Department Name *" are marked
+              required, with the rule "At least 3 characters".
+ 3. Enter a valid code and name, then submit.
+    Expected: A confirmation appears reading "Are you sure you want to add"
+              with the department named, and a "Confirm Add" button. Nothing
+              is created until it is confirmed.
+ 4. Confirm the addition.
+    Expected: Message reads "Department added successfully" and the new
+              department appears, with the counter increasing by one.
+ 5. Add a department with an existing code.
+    Expected: Refused with "Department already exists". No duplicate row.
+ 6. Edit the department via "Edit Department" and save.
+    Expected: Message reads "Department updated successfully" and the change
+              shows in the list.
+ 7. Open a department to view its detail.
+    Expected: Shows "Department Overview", its "Department Head" (or
+              "No department head assigned"), "Instructors (n)" and
+              "Dept. Average".
+ 8. Look for a way to DELETE a department.
+    Expected: There is NO delete control. Departments are add/edit only, so an
+              existing department cannot be removed out from under the
+              instructors and results attached to it.
+
+Expected Result : Departments can be added behind an explicit confirmation and
+                  edited freely, duplicates are refused, and no delete path
+                  exists.
+Actual Result   :
+Comments        : Step 8 asserts intended behaviour, not a missing feature. If
+                  a delete control HAS appeared, that is a regression against
+                  the no-delete decision.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A10  IMPORT ERRORS - TRIAGE AND FIX
+================================================================================
+Preconditions : At least one import has produced errors, e.g. from TC-A08
+                step 7.
+Test Data     : View, plus one correction.
+
+STEPS
+ 1. Open the drawer and tap "Import Errors".
+    Expected: Screen titled "Import Errors". While loading it reads "Loading
+              import issues…".
+ 2. Read the three tabs.
+    Expected: Tabs read "All (n)", "Instructor (n)" and "Subject (n)", and the
+              two sub-counts add up to the "All" count.
+ 3. Read an error row.
+    Expected: Shows the reason - "Instructor Not Found" or "Subject Not
+              Found" - together with the "Student ID", "Subject" and
+              "Instructor" from the failed row, so the admin can tell WHICH
+              record failed and why.
+ 4. Tap "Fix This" on an error.
+    Expected: A correction path opens that lets the admin resolve the
+              mismatch. It does not dead-end.
+ 5. Resolve the error, then return to the list.
+    Expected: The resolved row leaves the list and the tab counts decrease.
+ 6. Tap "Refresh" with no errors outstanding.
+    Expected: Reads "No pending errors" and "All imported records matched
+              successfully."
+
+Expected Result : Every failed import row is visible with its reason and enough
+                  detail to identify it, can be corrected, and leaves the list
+                  once resolved.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A11  SECURITY AUDIT LOGS
+================================================================================
+Preconditions : Some administrative actions have been performed, e.g. the
+                account creation and disabling from TC-A03 and TC-A04.
+Test Data     : View only.
+
+STEPS
+ 1. Open the drawer and tap "Security Audit Logs".
+    Expected: Screen titled "Security Audit Logs". While loading it reads
+              "Loading security history…"; with no entries it reads "No
+              security events" and "Audit activity will appear here as
+              administrative actions occur."
+ 2. Confirm the actions from earlier cases are recorded.
+    Expected: The account creation (TC-A03) and the disable (TC-A04) both
+              appear as entries. An administrative action that leaves NO audit
+              entry is a FAIL.
+ 3. Read one entry.
+    Expected: Shows what happened, who did it ("By {name}") and when, plus the
+              acting admin's email.
+ 4. Expand an entry's metadata.
+    Expected: A "METADATA (JSON):" block shows the detail of the action.
+ 5. Toggle the sort control.
+    Expected: Switches between "Showing Newest First" and "Showing Oldest
+              First", and the list order actually changes to match.
+ 6. Confirm no entry can be edited or deleted from the app.
+    Expected: The log is append-only from the admin's point of view. An audit
+              trail the admin can rewrite is worthless.
+
+Expected Result : Every administrative action is recorded with actor, action
+                  and timestamp, the log can be re-sorted, and it cannot be
+                  altered from within the app.
+Actual Result   :
+Comments        : Step 2 and step 6 are the substance of this case. The rest is
+                  presentation.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A12  LIVE SYSTEM METRICS
+================================================================================
+Preconditions : Drawer item "Live System Metrics" is reachable.
+Test Data     : View only.
+
+STEPS
+ 1. Open the drawer and tap "Live System Metrics".
+    Expected: The screen loads and shows current system figures without error.
+ 2. Compare the figures with the dashboard counters.
+    Expected: Where the two screens report the same thing, they agree.
+ 3. Perform an action that should move a metric, e.g. approve an account, then
+    return.
+    Expected: The metric reflects the change after a refresh.
+ 4. Disable the network, then open the screen.
+    Expected: It reports that data is unavailable rather than showing stale
+              figures as if they were live, and does not crash.
+
+Expected Result : The metrics screen reports current figures that agree with
+                  the dashboard, and degrades honestly when offline.
+Actual Result   :
+Comments        :
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A13  SYSTEM SETTINGS - SWITCH THE ACTIVE ACADEMIC TERM          [LIVE DATA]
+================================================================================
+Preconditions : Drawer item "System Settings" is reachable. A second device or
+                account signed in as an instructor, to observe the effect.
+Test Data     : Edge function [update-system-settings]. Table
+                [system_settings].
+
+!! HIGHEST-IMPACT ACTION IN THE SYSTEM !!
+   Switching the term changes what every dashboard, report and evaluation in
+   the application points at, for every user. Do not run this during a live
+   evaluation period.
+
+STEPS
+ 1. Open "System Settings" and find the "Academic Term" section.
+    Expected: Shows the current "Active Semester" and "Academic Year", and
+              states that "Changes apply to every dashboard, report, and
+              evaluation."
+ 2. Select a different term and submit.
+    Expected: A confirmation step titled "Confirm Term Change" appears. The
+              term does NOT change until it is confirmed.
+ 3. Cancel at the confirmation.
+    Expected: The active term is unchanged everywhere.
+ 4. Confirm the change.
+    Expected: The new term is saved via [update-system-settings] and the
+              screen shows the new active term.
+ 5. Return to the admin Dashboard and Analytics.
+    Expected: Both now report the newly active term, with figures for that
+              term.
+ 6. On the instructor device, WITHOUT restarting the app, observe the
+    instructor's screens.
+    Expected: Feedback, Past Terms, My Subjects and Subject Detail all reload
+              themselves onto the new term.
+ 7. Attempt the change with the edge function unavailable.
+    Expected: A clear failure is reported, e.g. "Edge Function not found or
+              offline:", and the active term is NOT left half-changed.
+ 8. Switch the term back to the original.
+    Expected: Succeeds, and every screen returns to reporting the original
+              term.
+
+Expected Result : The active term changes only after an explicit confirmation,
+                  propagates to every role without a restart, and a failure
+                  leaves the previous term intact.
+Actual Result   :
+Comments        : Step 8 is mandatory. Leave the system on the term it started
+                  on.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+TC-A14  ADMIN'S OWN ACCOUNT SECURITY, INCLUDING ROLE CHANGE
+        VERIFICATION                                               [LIVE DATA]
+================================================================================
+Preconditions : Signed in as SAO admin on "System Settings", with access to
+                the admin's inbox.
+Test Data     : A new password of at least six characters, NOT recorded in this
+                document. Edge functions [send-admin-code],
+                [admin-update-role].
+
+!! WARNING !!
+   Steps 6-9 change this admin's own role. Getting it wrong can lock you out of
+   the admin module. Have a second SAO_ADMIN account available first.
+
+STEPS
+ 1. Find the "Administrator Profile" section and tap "Edit Personal Details".
+    Expected: An "Edit Admin Profile" form opens with the name fields, and
+              saves successfully.
+ 2. Tap "Edit Email", submit a valid new address.
+    Expected: Message reads "Email updated! Check your inbox for
+              confirmation." The old address keeps working until the link is
+              clicked.
+ 3. Tap "Edit Password" and submit mismatched passwords.
+    Expected: Refused with "Passwords do not match."
+ 4. Submit a valid new password with the WRONG current password.
+    Expected: Refused with "Current password is incorrect." The password does
+              not change.
+ 5. Submit a fully valid password change.
+    Expected: Succeeds and the session is ended, requiring a fresh sign-in with
+              the new password.
+ 6. Attempt to change your own administrative role.
+    Expected: The app states "Changing your administrative role requires
+              identity verification." and asks "Enter the 6-digit code sent to
+              your email:". Only "SAO_ADMIN" and "SAO_STAFF" are offered.
+ 7. Enter an INCORRECT code.
+    Expected: Refused. The role does NOT change.
+ 8. Enter the CORRECT code and change the role to SAO_STAFF.
+    Expected: The role changes via [admin-update-role], and on next sign-in
+              the account lands on the Data Gatherer screens with no access to
+              admin screens.
+ 9. Using the SECOND admin account, change the first account back to
+    SAO_ADMIN.
+    Expected: Succeeds, and the first account regains admin access.
+10. Find "Deactivate My Account" and open it, then CANCEL.
+    Expected: A warning appears explaining the account can only be restored by
+              an SAO Admin, and cancelling leaves the account fully active.
+
+Expected Result : The admin can maintain their own profile, every password rule
+                  is enforced, and changing an administrative role is gated
+                  behind a correct emailed 6-digit code.
+Actual Result   :
+Comments        : Step 6 is the important one. A role change that succeeds
+                  WITHOUT the code is a critical security failure and should be
+                  raised immediately.
+Tester / Date   :
+Panelist Remarks:
+
+
+================================================================================
+SUMMARY
+================================================================================
+  Total cases     : 14
+  Executed        : 1 partial  (TC-A01 steps 1-4, observed 31/08/2026)
+  Not executed    : 13
+
+  Cases that change live data : TC-A02, A03, A04, A05, A06, A08, A09, A13, A14
+  Highest-risk cases          : TC-A13 (system-wide term switch)
+                                TC-A14 (own role change)
+
+  SECURITY GUARDS THIS DOCUMENT EXISTS TO VERIFY
+    1. Creating a Department Head requires an emailed 6-digit code  (TC-A03)
+    2. Creating an SAO Administrator requires an emailed code       (TC-A06)
+    3. Changing an administrative role requires an emailed code     (TC-A14)
+    4. A new SAO_STAFF account cannot reach any admin screen        (TC-A06/9)
+    5. Every administrative action lands in the audit log           (TC-A11/2)
+    6. Departments cannot be deleted                               (TC-A09/8)
+    7. Subjects with results cannot be deleted                     (TC-A08/9)
+  If any one of these fails, record it as a defect before anything cosmetic.
+
+
+================================================================================
+SIGN-OFF
+================================================================================
+
+  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST'S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+================================================================================
+iEvaluate - SAO Administrator Module UAT - Team ERMM
+Cebu Technological University, Argao Campus
+================================================================================
