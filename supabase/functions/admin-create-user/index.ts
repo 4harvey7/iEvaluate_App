@@ -1,7 +1,5 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import {
-import { createAdminClient } from '../_shared/admin_client.ts'
-
   cleanEmail,
   cleanIdentity,
   describeAuthEmailTaken,
@@ -11,6 +9,7 @@ import { createAdminClient } from '../_shared/admin_client.ts'
   rollbackAuthUser,
   validateIdentityFormat,
 } from '../_shared/identity_guard.ts'
+import { createAdminClient } from '../_shared/admin_client.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
