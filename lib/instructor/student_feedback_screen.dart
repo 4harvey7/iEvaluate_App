@@ -1005,7 +1005,26 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                             ),
                           ],
                         ),
-                        child: Wrap(
+                        // DEF-02: a word could run past the panel edge and be
+                        // cut off mid-word, and because the cloud reshuffles on
+                        // every load, WHICH word was clipped changed between
+                        // refreshes. Rotated words were the ones at risk: their
+                        // own text width becomes the vertical extent, and
+                        // nothing bounded either extent to the panel.
+                        //
+                        // LayoutBuilder gives the panel's real inner width, and
+                        // every word below is bounded to it and allowed to
+                        // scale down rather than overflow. That holds for
+                        // rotated words too -- inside a RotatedBox the
+                        // constraints are swapped, so the same maxWidth caps
+                        // what becomes the word's height. Clipping is now
+                        // impossible by construction rather than by luck of the
+                        // shuffle.
+                        child: LayoutBuilder(
+                          builder: (context, panelConstraints) {
+                            final double maxWordExtent =
+                                panelConstraints.maxWidth;
+                            return Wrap(
                           alignment: WrapAlignment.center,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           spacing: 8.0,
@@ -1024,6 +1043,8 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                             final Widget wordText = Text(
                               wordData['word'],
                               textAlign: TextAlign.center,
+                              softWrap: false,
+                              maxLines: 1,
                               style: TextStyle(
                                 fontSize: fontSize,
                                 fontWeight: fontSize > 18
@@ -1042,6 +1063,20 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                               ),
                             );
 
+                            // Bounded to the panel and allowed to shrink, so a
+                            // long word renders smaller instead of running off
+                            // the edge. scaleDown only ever reduces, so short
+                            // words keep the size their count earned them.
+                            final Widget boundedWord = ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxWidth: maxWordExtent,
+                              ),
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: wordText,
+                              ),
+                            );
+
                             // Restore organic layout: every 5th or 7th word goes vertical (bottom→top)
                             if (wordData['rotated'] == true) {
                               return RotatedBox(
@@ -1051,12 +1086,14 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 3,
                                   ),
-                                  child: wordText,
+                                  child: boundedWord,
                                 ),
                               );
                             }
-                            return wordText; // normal horizontal word
+                            return boundedWord; // normal horizontal word
                           }).toList(),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(height: 32),
@@ -1065,23 +1102,34 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                       // INDIVIDUAL FEEDBACK LIST & FILTERS
                       // ==========================================
                       // The raw list of actual student comments — filterable by sentiment type
+                      // DEF-04: the counter had no give in this Row, so a wider
+                      // value or a larger system font size pushed it hard
+                      // against the edge and clipped it. Both sides are now
+                      // Flexible with a gap between, so the heading yields
+                      // before the number is ever cut.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Direct Quotes',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                          const Flexible(
+                            child: Text(
+                              'Direct Quotes',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 12),
                           // Show count of currently filtered results
-                          Text(
-                            '${_filteredFeedback.length} Comments',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontWeight: FontWeight.bold,
+                          Flexible(
+                            child: Text(
+                              '${_filteredFeedback.length} Comments',
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ],

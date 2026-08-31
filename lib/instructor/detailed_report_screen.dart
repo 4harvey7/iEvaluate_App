@@ -355,7 +355,8 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
         ),
         Row(
           children: [
-            Expanded(child: _headerField('Academic Year', '${widget.term} Semester ${widget.academicYear}'.trim())),
+            // term already carries the word "Semester" (e.g. "1st Semester"), so don't add it again
+            Expanded(child: _headerField('Academic Year', '${widget.term} ${widget.academicYear}'.trim())),
             const SizedBox(width: 16),
             Expanded(child: _headerField('Department', widget.department)),
           ],
@@ -364,18 +365,31 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     );
   }
 
+  /// One "Label: value" line of the official header block.
+  ///
+  /// DEF-03: this used to ellipsize the value, and two of these share one Row,
+  /// so each field had only half the screen width -- the instructor read
+  /// "Instructor Name: Rodz...", "Academic Year: 1st Se..." and "Department:
+  /// College o..." and could not confirm from the screen whose report it was or
+  /// which term it covered. The data was never wrong: the PDF renders both in
+  /// full.
+  ///
+  /// The value now WRAPS instead of being cut. The field grows downward by a
+  /// line or two on a narrow screen, which is the correct trade: this block is
+  /// an identity check, so being complete matters more than being one line.
   Widget _headerField(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('$label: ', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           Flexible(
             child: Text(
               value,
               style: const TextStyle(fontSize: 12, decoration: TextDecoration.underline),
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
             ),
           ),
         ],

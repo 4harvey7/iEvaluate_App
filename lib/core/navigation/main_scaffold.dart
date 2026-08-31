@@ -208,17 +208,32 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 
+  /// Avatar initials for a full display name: first name + surname.
+  ///
+  /// A middle name is skipped on purpose. "Rodz Harvey Licayan" gives "RL",
+  /// which is what the Settings profile card shows from first_name and
+  /// last_name -- the two screens have to agree, or the account looks like it
+  /// belongs to two people (DEF-05).
+  static String _initialsOf(String fullName) {
+    final words = fullName
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return '?';
+    if (words.length == 1) return words.first[0].toUpperCase();
+    return '${words.first[0]}${words.last[0]}'.toUpperCase();
+  }
+
   // ── Drawer ────────────────────────────────────────────────────────────────
   Widget _buildDrawer(BuildContext ctx, RoleNavConfig config) {
     final displayName = _userName.isNotEmpty ? _userName : '...';
-    final initials = _userName.isNotEmpty
-        ? _userName
-              .trim()
-              .split(' ')
-              .take(2)
-              .map((w) => w.isNotEmpty ? w[0] : '')
-              .join()
-        : '?';
+    // DEF-05: this took the first TWO words of the full name, so "Rodz Harvey
+    // Licayan" became "RH" in the drawer while Settings showed "RL" from
+    // first_name + last_name -- the same account looked like two different
+    // people depending on the screen. First word + LAST word matches Settings,
+    // and is the pair that actually identifies someone.
+    final initials = _initialsOf(_userName);
 
     return Drawer(
       backgroundColor: AppColors.surface,

@@ -285,7 +285,8 @@ class PdfService {
         ),
         pw.Row(
           children: [
-            pw.Expanded(child: _pwHeaderField('Academic Year', '$term Semester $ay'.trim())),
+            // term already carries the word "Semester" (e.g. "1st Semester"), so don't add it again
+            pw.Expanded(child: _pwHeaderField('Academic Year', '$term $ay'.trim())),
             pw.SizedBox(width: 16),
             pw.Expanded(child: _pwHeaderField('Department', dept)),
           ],

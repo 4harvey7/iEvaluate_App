@@ -54,6 +54,20 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
     _fetchHistory();
   }
 
+  // The stored term label combines both parts, e.g. "1st Semester 2025-2026".
+  // The academic year is always the last token; everything before it is the
+  // semester, which already carries the word "Semester". Splitting it any other
+  // way makes the report header print "Semester" twice.
+  static String _semesterOf(String? combined) {
+    final parts = (combined ?? '').trim().split(RegExp(r'\s+'))..removeWhere((p) => p.isEmpty);
+    return parts.length > 1 ? parts.sublist(0, parts.length - 1).join(' ') : '';
+  }
+
+  static String _academicYearOf(String? combined) {
+    final parts = (combined ?? '').trim().split(RegExp(r'\s+'))..removeWhere((p) => p.isEmpty);
+    return parts.isEmpty ? '' : parts.last;
+  }
+
   Future<void> _fetchInstructorProfile() async {
     try {
       final results = await Future.wait([
@@ -419,8 +433,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                         department: _instructorDept.isNotEmpty ? _instructorDept : 'Faculty',
                         termId: _selectedTermId,
                         // Parse semester and academic year from combined string
-                        term: termData['semester']?.toString().split(' ')[0] ?? '',
-                        academicYear: termData['semester']?.toString().contains(' ') == true ? termData['semester']?.toString().split(' ').sublist(1).join(' ') ?? '' : '',
+                        term: _semesterOf(termData['semester']?.toString()),
+                        academicYear: _academicYearOf(termData['semester']?.toString()),
                         managementScore: (termData['managementScore'] as num?)?.toDouble() ?? 0.0,
                         performanceScore: (termData['performanceScore'] as num?)?.toDouble() ?? 0.0,
                         overallScore: (termData['overallScore'] as num?)?.toDouble() ?? 0.0,
