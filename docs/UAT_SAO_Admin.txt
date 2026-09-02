@@ -47,15 +47,14 @@ SCREEN COVERAGE
   -------------------------- --------------------------------- ------------
   Dashboard                  Tab "Dashboard"                   TC-A01
   Pending Approvals          Dashboard "View All"              TC-A02
-  Users                      Tab "Users"                       TC-A03,A04,A05
-  Personnel                  Tab "Personnel"                   TC-A06
-  Analytics                  Tab "Analytics"                   TC-A07
-  Subject Management         Drawer "Subject Management"       TC-A08
-  Manage Departments         Drawer "Manage Departments"       TC-A09
-  Import Errors              Drawer "Import Errors"            TC-A10
-  Security Audit Logs        Drawer "Security Audit Logs"      TC-A11
-  Live System Metrics        Drawer "Live System Metrics"      TC-A12
-  System Settings            Drawer "System Settings"          TC-A13, A14
+  Users                      Tab "Users"                       TC-A03, A04
+  Personnel                  Tab "Personnel"                   TC-A05
+  Analytics                  Tab "Analytics"                   TC-A06
+  Subject Management         Drawer "Subject Management"       TC-A07
+  Manage Departments         Drawer "Manage Departments"       TC-A08
+  Security Audit Logs        Drawer "Security Audit Logs"      TC-A09
+  Live System Metrics        Drawer "Live System Metrics"      TC-A10
+  System Settings            Drawer "System Settings"          TC-A11, A12
 
 
 ================================================================================
@@ -228,42 +227,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A05  ASSIGN A SECOND DEPARTMENT TO AN INSTRUCTOR                [LIVE DATA]
-================================================================================
-Preconditions : An instructor account exists with one primary department.
-Test Data     : A second department that already exists.
-
-STEPS
- 1. On the "Users" tab, open an instructor and tap "Assign Second Dept".
-    Expected: A sheet opens headed "Assign Second Department" with the
-              instructor's name, and shows "Current secondary departments:"
-              and "Add a new secondary department:".
- 2. Add a second department.
-    Expected: It appears under "Current secondary departments:" and persists
-              after closing and reopening the sheet.
- 3. Try to add the SAME department twice.
-    Expected: The duplicate is refused rather than listed twice.
- 4. Remove the secondary department.
-    Expected: It disappears from the list. On failure the message reads
-              "Error removing dept:" rather than failing silently.
- 5. Force a failure while assigning.
-    Expected: Message reads "Error assigning department. Please try again."
-              and no half-assignment is left.
- 6. Confirm the instructor's PRIMARY department is unchanged throughout.
-    Expected: Adding or removing a secondary department never alters the
-              primary one.
-
-Expected Result : Secondary departments can be added and removed without
-                  duplicates and without ever disturbing the primary
-                  department.
-Actual Result   :
-Comments        :
-Tester / Date   :
-Panelist Remarks:
-
-
-================================================================================
-TC-A06  CREATE SAO PERSONNEL, INCLUDING THE ADMIN AUTHORIZATION
+TC-A05  CREATE SAO PERSONNEL, INCLUDING THE ADMIN AUTHORIZATION
         CODE                                                       [LIVE DATA]
 ================================================================================
 Preconditions : Signed in as SAO admin on the "Personnel" tab. Access to the
@@ -316,7 +280,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A07  ANALYTICS - UNIVERSITY-WIDE PERFORMANCE
+TC-A06  ANALYTICS - UNIVERSITY-WIDE PERFORMANCE
 ================================================================================
 Preconditions : Signed in as SAO admin with evaluation data in the active term.
 Test Data     : View only.
@@ -326,19 +290,18 @@ STEPS
     Expected: The screen loads without error and shows performance figures for
               the active term.
  2. Confirm the term the figures belong to.
-    Expected: The screen states which term it is reporting on, and it is the
-              active term set in System Settings.
- 3. Cross-check a department's average against that department's instructors.
-    Expected: The department figure is consistent with its instructors' scores,
-              and no instructor from another department is included.
- 4. Confirm every verbal description matches its score band.
-    Expected: >=4.20 Outstanding, >=3.40 Very Satisfactory, >=2.60
-              Satisfactory, >=1.80 Fair, otherwise Unsatisfactory.
- 5. Switch the active term in System Settings, return, and re-read.
-    Expected: The figures follow the newly active term.
+    Expected: The screen displays a term selector showing which term it is
+              reporting on, and it is the active term set in System Settings.
+ 3. Read the university average score and instructor leaderboard.
+    Expected: Shows the overall average score for all instructors and lists the
+              top instructors by score with department assignment for each.
+ 4. Switch the active term in System Settings, return, and re-read.
+    Expected: The figures and leaderboard update to reflect the newly active
+              term without requiring a manual refresh.
 
-Expected Result : Analytics reports the correct term, and every figure and band
-                  reconciles with the underlying evaluation data.
+Expected Result : Analytics displays the active term, shows the university
+                  average score and instructor performance rankings, and updates
+                  automatically when the active term changes.
 Actual Result   :
 Comments        :
 Tester / Date   :
@@ -346,7 +309,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A08  SUBJECT MANAGEMENT - BULK IMPORT AND MANUAL ADD            [LIVE DATA]
+TC-A07  SUBJECT MANAGEMENT - BULK IMPORT AND MANUAL ADD            [LIVE DATA]
 ================================================================================
 Preconditions : Drawer item "Subject Management" is reachable. The n8n bulk
                 import workflow is running. A Google Sheet of subject
@@ -363,39 +326,69 @@ STEPS
               have an instructor from those that do not.
  3. Add ONE subject manually with valid details.
     Expected: It is created and appears in the list against the active term.
- 4. Add the SAME subject again.
-    Expected: The duplicate is refused rather than creating a second identical
-              assignment.
- 5. Run "Import from Google Sheets" with the prepared sheet.
+ 4. Add a NEW subject reusing the code from step 3, with a DIFFERENT name.
+    Expected: Refused. A dialog headed "Subject Code Already Used" names the
+              subject holding that code and its department. Reopen the
+              original subject afterwards and confirm its name was NOT
+              rewritten - silently overwriting it is the defect this step
+              exists to catch.
+ 5. Add a NEW subject with a different code but the SAME name as step 3.
+    Expected: A dialog headed "Possible Duplicate" names the existing code.
+              "Cancel" creates nothing. Repeat and choose "Create anyway" and
+              it is created - one name under two codes is allowed, but only
+              deliberately.
+ 6. Open a subject, tap Remove beside an instructor whose assignment has NO
+    evaluation records.
+    Expected: A progress indicator appears while it checks, then a confirm
+              dialog, then the instructor is removed and the list refreshes.
+ 7. Repeat step 6 on an assignment that HAS evaluation records - management
+    results, performance results or student remarks, any ONE of the three is
+    enough.
+    Expected: A dialog headed "Cannot Remove" states how many records exist.
+              The delete is never attempted and the instructor is still listed
+              afterwards. A case with only performance results or only remarks
+              matters most here: those used to read as zero, so the app
+              promised the removal was safe and the database then refused it.
+ 8. Open the edit sheet for an existing assignment, clear the instructor field
+    and save.
+    Expected: Refused, with a message pointing at the Remove button. The sheet
+              must NOT close reporting success while leaving the instructor
+              still assigned.
+ 9. Run "Import from Google Sheets" with the prepared sheet.
     Expected: The import runs via the n8n webhook, reports progress, and ends
               with a clear success or failure message - never an indefinite
               spinner.
- 6. Cross-check the imported rows against the sheet.
+10. Cross-check the imported rows against the sheet.
     Expected: Every row in the sheet is either imported or reported as an
               error. Nothing is silently dropped.
- 7. Deliberately include a bad row (unknown instructor, unknown subject) and
+11. Deliberately include a bad row (unknown instructor, unknown subject) and
     re-import.
-    Expected: The bad row does NOT import silently. It appears under
-              "Import Errors" (TC-A10).
- 8. Run the import with n8n stopped.
+    Expected: The bad row does NOT import silently. It is recorded as an
+              import error and triaged in the SAO Staff module
+              (UAT_SAO_Staff TC-S08), not here.
+12. Run the import with n8n stopped.
     Expected: A clear failure message. No partial import is left behind.
- 9. Attempt to delete a subject that already has evaluation results.
+13. Attempt to delete a subject that already has evaluation results.
     Expected: Deletion is BLOCKED. Results already recorded against a subject
               cannot be orphaned.
 
-Expected Result : Subjects can be added manually and in bulk, duplicates and
-                  bad rows are reported rather than silently dropped, and a
+Expected Result : Subjects can be added manually and in bulk, a subject code
+                  can never be given to a second subject, bad rows are
+                  reported rather than silently dropped, an instructor can be
+                  unassigned only while no evaluation records exist, and a
                   subject carrying results cannot be deleted.
 Actual Result   :
-Comments        : Step 9 corresponds to the assignment-protection migration
-                  (20240130000015_protect_assignments_with_results). Confirm
-                  the migration is applied to the environment before judging.
+Comments        : Steps 4-5 need 20240130000018_one_subject_per_code applied;
+                  without it the app still refuses, but only in Dart, so the
+                  n8n import can create the duplicate anyway. Steps 7 and 13
+                  need 20240130000015_protect_assignments_with_results.
+                  Confirm both are applied before judging any of them.
 Tester / Date   :
 Panelist Remarks:
 
 
 ================================================================================
-TC-A09  DEPARTMENT MANAGEMENT - ADD AND EDIT                       [LIVE DATA]
+TC-A08  DEPARTMENT MANAGEMENT - ADD AND EDIT                       [LIVE DATA]
 ================================================================================
 Preconditions : Drawer item "Manage Departments" is reachable.
 Test Data     : One throwaway department code and name.
@@ -416,25 +409,45 @@ STEPS
  4. Confirm the addition.
     Expected: Message reads "Department added successfully" and the new
               department appears, with the counter increasing by one.
- 5. Add a department with an existing code.
-    Expected: Refused with "Department already exists". No duplicate row.
- 6. Edit the department via "Edit Department" and save.
-    Expected: Message reads "Department updated successfully" and the change
-              shows in the list.
- 7. Open a department to view its detail.
+ 5. Add a department reusing an existing department NAME, with a new code.
+    Expected: Refused BEFORE the confirmation dialog appears. An alert headed
+              "Department Already Exists" names the department holding it and
+              says the NAME is what clashed. No row is created.
+ 6. Add a department reusing an existing department CODE, with a new name.
+    Expected: Refused the same way, and the alert says the CODE is what
+              clashed. This is the case the old build let straight through -
+              only the name was ever checked, so any existing code was
+              accepted.
+ 7. Add a department whose name differs from an existing one only by LETTER
+    CASE or by extra spaces, e.g. "college of  technology".
+    Expected: Still refused. Two rows for one department split its faculty and
+              its department average between them, which is the reason for the
+              rule.
+ 8. Edit an existing department, change nothing, and save.
+    Expected: Message reads "Department updated successfully". A department
+              must never block itself.
+ 9. Edit a department and set its name to ANOTHER department's exact name.
+    Expected: Refused with the same alert. The edit path had no duplicate check
+              at all, so this used to succeed silently.
+10. Open a department to view its detail.
     Expected: Shows "Department Overview", its "Department Head" (or
               "No department head assigned"), "Instructors (n)" and
               "Dept. Average".
- 8. Look for a way to DELETE a department.
+11. Look for a way to DELETE a department.
     Expected: There is NO delete control. Departments are add/edit only, so an
               existing department cannot be removed out from under the
               instructors and results attached to it.
 
 Expected Result : Departments can be added behind an explicit confirmation and
-                  edited freely, duplicates are refused, and no delete path
-                  exists.
+                  edited freely, no name or code can ever be reused on either
+                  path, and no delete path exists.
 Actual Result   :
-Comments        : Step 8 asserts intended behaviour, not a missing feature. If
+Comments        : Steps 5-9 are enforced in the app and, once
+                  20240130000019_one_department_per_name_and_code is applied,
+                  in the database too. Without that migration the refusals
+                  still appear, but only in Dart, so the REST API and two
+                  admins saving at once can still create the duplicate.
+                  Step 11 asserts intended behaviour, not a missing feature. If
                   a delete control HAS appeared, that is a regression against
                   the no-delete decision.
 Tester / Date   :
@@ -442,44 +455,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A10  IMPORT ERRORS - TRIAGE AND FIX
-================================================================================
-Preconditions : At least one import has produced errors, e.g. from TC-A08
-                step 7.
-Test Data     : View, plus one correction.
-
-STEPS
- 1. Open the drawer and tap "Import Errors".
-    Expected: Screen titled "Import Errors". While loading it reads "Loading
-              import issues…".
- 2. Read the three tabs.
-    Expected: Tabs read "All (n)", "Instructor (n)" and "Subject (n)", and the
-              two sub-counts add up to the "All" count.
- 3. Read an error row.
-    Expected: Shows the reason - "Instructor Not Found" or "Subject Not
-              Found" - together with the "Student ID", "Subject" and
-              "Instructor" from the failed row, so the admin can tell WHICH
-              record failed and why.
- 4. Tap "Fix This" on an error.
-    Expected: A correction path opens that lets the admin resolve the
-              mismatch. It does not dead-end.
- 5. Resolve the error, then return to the list.
-    Expected: The resolved row leaves the list and the tab counts decrease.
- 6. Tap "Refresh" with no errors outstanding.
-    Expected: Reads "No pending errors" and "All imported records matched
-              successfully."
-
-Expected Result : Every failed import row is visible with its reason and enough
-                  detail to identify it, can be corrected, and leaves the list
-                  once resolved.
-Actual Result   :
-Comments        :
-Tester / Date   :
-Panelist Remarks:
-
-
-================================================================================
-TC-A11  SECURITY AUDIT LOGS
+TC-A09  SECURITY AUDIT LOGS
 ================================================================================
 Preconditions : Some administrative actions have been performed, e.g. the
                 account creation and disabling from TC-A03 and TC-A04.
@@ -518,7 +494,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A12  LIVE SYSTEM METRICS
+TC-A10  LIVE SYSTEM METRICS
 ================================================================================
 Preconditions : Drawer item "Live System Metrics" is reachable.
 Test Data     : View only.
@@ -544,7 +520,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A13  SYSTEM SETTINGS - SWITCH THE ACTIVE ACADEMIC TERM          [LIVE DATA]
+TC-A11  SYSTEM SETTINGS - SWITCH THE ACTIVE ACADEMIC TERM          [LIVE DATA]
 ================================================================================
 Preconditions : Drawer item "System Settings" is reachable. A second device or
                 account signed in as an instructor, to observe the effect.
@@ -594,7 +570,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-A14  ADMIN'S OWN ACCOUNT SECURITY, INCLUDING ROLE CHANGE
+TC-A12  ADMIN'S OWN ACCOUNT SECURITY, INCLUDING ROLE CHANGE
         VERIFICATION                                               [LIVE DATA]
 ================================================================================
 Preconditions : Signed in as SAO admin on "System Settings", with access to
@@ -654,22 +630,22 @@ Panelist Remarks:
 ================================================================================
 SUMMARY
 ================================================================================
-  Total cases     : 14
+  Total cases     : 12
   Executed        : 1 partial  (TC-A01 steps 1-4, observed 31/08/2026)
-  Not executed    : 13
+  Not executed    : 11
 
-  Cases that change live data : TC-A02, A03, A04, A05, A06, A08, A09, A13, A14
-  Highest-risk cases          : TC-A13 (system-wide term switch)
-                                TC-A14 (own role change)
+  Cases that change live data : TC-A02, A03, A04, A05, A07, A08, A11, A12
+  Highest-risk cases          : TC-A11 (system-wide term switch)
+                                TC-A12 (own role change)
 
   SECURITY GUARDS THIS DOCUMENT EXISTS TO VERIFY
     1. Creating a Department Head requires an emailed 6-digit code  (TC-A03)
-    2. Creating an SAO Administrator requires an emailed code       (TC-A06)
-    3. Changing an administrative role requires an emailed code     (TC-A14)
-    4. A new SAO_STAFF account cannot reach any admin screen        (TC-A06/9)
-    5. Every administrative action lands in the audit log           (TC-A11/2)
-    6. Departments cannot be deleted                               (TC-A09/8)
-    7. Subjects with results cannot be deleted                     (TC-A08/9)
+    2. Creating an SAO Administrator requires an emailed code       (TC-A05)
+    3. Changing an administrative role requires an emailed code     (TC-A12)
+    4. A new SAO_STAFF account cannot reach any admin screen        (TC-A05/9)
+    5. Every administrative action lands in the audit log           (TC-A09/2)
+    6. Departments cannot be deleted                               (TC-A08/8)
+    7. Subjects with results cannot be deleted                     (TC-A07/9)
   If any one of these fails, record it as a defect before anything cosmetic.
 
 

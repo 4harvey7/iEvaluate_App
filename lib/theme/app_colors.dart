@@ -65,4 +65,16 @@ class AppColors {
 
   // Convenience for hero gradients
   static const List<Color> heroGradient = [Color(0xFF0B3B68), primary];
+
+  // ── Score bands ON the hero gradient ───────────────────────────────────────
+  // success / warning / error and textPrimary are tuned for white surfaces. On
+  // heroGradient they fail: textPrimary (0xFF101828) is near-black on dark blue
+  // and effectively invisible, and `primary` IS the gradient's own end stop, so
+  // painting a number in it hides it in the background it sits on. These are
+  // the same five semantics, lightened to stay legible there.
+  static const Color onHeroOutstanding = Color(0xFF7BE8A8);
+  static const Color onHeroGood        = Color(0xFFB3DBFF);
+  static const Color onHeroNeutral     = Color(0xFFFFFFFF);
+  static const Color onHeroFair        = Color(0xFFFFC46B);
+  static const Color onHeroPoor        = Color(0xFFFF9E94);
 }

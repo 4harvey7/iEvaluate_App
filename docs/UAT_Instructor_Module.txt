@@ -322,9 +322,11 @@ STEPS
               values. The comment total matches the Direct Quotes counter.
  4. Read "What Your Students Are Saying" under "AI Instructor Insights".
     Expected: Sub-label reads "AI-generated interpretation". The paragraph
-              matches [instructor_ai_suggestions.student_interpretation] for
-              this instructor and term. The pill at the foot reads "Based on N
-              comments" with N equal to the actual comment count.
+              matches [instructor_ai_suggestions.ai_suggestion] for this
+              instructor and term, and is the SAME paragraph the official
+              evaluation report prints under "COMMENTS & FEEDBACK SUMMARY:".
+              The pill at the foot reads "Based on N comments" with N equal to
+              the actual comment count.
  5. Compare "Key Positive Themes" and "Improvement Insights" against the
     database.
     Expected: Every green chip matches an entry in

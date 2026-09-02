@@ -280,6 +280,19 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     return AppColors.textSecondary; // No data — gray, literally wala pa
   }
 
+  // Same bands as _scoreColor, but for the dark hero gradient at the top of
+  // this page. _scoreColor's Satisfactory band is textPrimary (near-black) and
+  // its Very Satisfactory band is `primary` -- which is heroGradient's own end
+  // stop. Both vanish into the header they are painted on.
+  Color _scoreColorOnHero(double score) {
+    if (score >= 4.20) return AppColors.onHeroOutstanding;
+    if (score >= 3.40) return AppColors.onHeroGood;
+    if (score >= 2.60) return AppColors.onHeroNeutral;
+    if (score >= 1.80) return AppColors.onHeroFair;
+    if (score > 0) return AppColors.onHeroPoor;
+    return AppColors.textInvertedDim; // No data
+  }
+
   // Returns a verbal description of the score — what does the number actually mean
   // Used in the score badge and subject tiles so it readable not just a number
   String _verbalDesc(double score) {
@@ -335,10 +348,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                             // Avatar with first letter of instructor's name
                             CircleAvatar(
                               radius: 30,
-                              backgroundColor: AppColors.primary.withValues(alpha: 0.3),
+                              backgroundColor: AppColors.textInverted.withValues(alpha: 0.22),
                               child: Text(
                                 name.isNotEmpty ? name[0].toUpperCase() : '?',
-                                style: const TextStyle(color: AppColors.primary, fontSize: 24, fontWeight: FontWeight.bold),
+                                style: const TextStyle(color: AppColors.textInverted, fontSize: 24, fontWeight: FontWeight.bold),
                               ),
                             ),
                             const SizedBox(width: 16),
@@ -359,18 +372,18 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                               decoration: BoxDecoration(
-                                color: _scoreColor(score).withValues(alpha: 0.15), // Tinted background
+                                color: _scoreColorOnHero(score).withValues(alpha: 0.22), // Tinted background
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: _scoreColor(score).withValues(alpha: 0.4)),
+                                border: Border.all(color: _scoreColorOnHero(score).withValues(alpha: 0.55)),
                               ),
                               child: Column(
                                 children: [
                                   Text(
                                     score > 0 ? score.toStringAsFixed(2) : '—', // Show dash if no score
-                                    style: TextStyle(color: _scoreColor(score), fontSize: 22, fontWeight: FontWeight.bold),
+                                    style: TextStyle(color: _scoreColorOnHero(score), fontSize: 22, fontWeight: FontWeight.bold),
                                   ),
                                   // Verbal desc below the number — e.g. "Outstanding"
-                                  Text(_verbalDesc(score), style: TextStyle(color: _scoreColor(score), fontSize: 9)),
+                                  Text(_verbalDesc(score), style: TextStyle(color: _scoreColorOnHero(score), fontSize: 9)),
                                 ],
                               ),
                             ),

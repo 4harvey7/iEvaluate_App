@@ -20,7 +20,6 @@ import '../../sao_admin/performance_analysis_screen.dart';
 import '../../sao_admin/manage_subjects_screen.dart';
 import '../../sao_admin/live_system_metrics_screen.dart';
 import '../../sao_admin/system_audit_screen.dart';
-import '../../sao_admin/import_errors_screen.dart';
 import '../../sao_admin/sao_admin_settings.dart';
 import '../../sao_admin/manage_departments_screen.dart';
 
@@ -137,11 +136,6 @@ final Map<UserRole, RoleNavConfig> roleNavConfigs = {
         icon: Icons.security_rounded,
         label: 'Security Audit Logs',
         builder: (_) => const SystemAuditScreen(),
-      ),
-      NavItem(
-        icon: Icons.error_outline_rounded,
-        label: 'Import Errors',
-        builder: (_) => const ImportErrorsScreen(),
       ),
       NavItem(
         icon: Icons.settings_rounded,

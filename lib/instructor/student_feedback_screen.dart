@@ -219,12 +219,25 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
             };
           }
 
-          // Parse AI suggestion fields into usable lists
+          // Parse AI suggestion fields into usable lists.
+          //
+          // All three come from the same [instructor_ai_suggestions] row for
+          // this instructor and term:
+          //   "What Your Students Are Saying" -> ai_suggestion
+          //   "Key Positive Themes"           -> positive_themes
+          //   "Improvement Insights"          -> improvement_insights
+          //
+          // The summary used to prefer student_interpretation and fall back to
+          // ai_suggestion, so this screen and the official evaluation report
+          // could show two different paragraphs for the same term -- the report
+          // has always read ai_suggestion. ai_suggestion is also NOT NULL in
+          // the schema, so there is a value whenever the row exists.
           if (aiSuggestion != null) {
-            _aiInsightSummary =
-                aiSuggestion['student_interpretation'] ??
-                aiSuggestion['ai_suggestion'] ??
-                "No AI interpretation available yet.";
+            final String summary =
+                (aiSuggestion['ai_suggestion'] ?? '').toString().trim();
+            _aiInsightSummary = summary.isNotEmpty
+                ? summary
+                : "No AI interpretation available yet.";
             _positiveThemes = _parseThemes(
               aiSuggestion['positive_themes'],
               '💡',
@@ -259,103 +272,167 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
     }
   }
 
-  // Helper to extract a list of strings from dynamic data (handles PG arrays, JSON, or plain text)
+  // ── AI insight text into bubbles ─────────────────────────────────────────
+  //
+  // The three AI columns hold free text written by the model, and the shape
+  // varies: a Postgres text[] ({"a","b"}), a JSON array, a numbered or newline
+  // list, or one plain paragraph. Whatever the shape, a bubble should hold ONE
+  // SENTENCE - never half of one, and never a stray piece of punctuation.
+  //
+  // The previous splitter broke on two shapes. It split on commas whenever the
+  // text contained no ". ", which shredded a single comma-rich sentence into
+  // fragments, and it recognised quoted array elements by searching for the
+  // literal '","', so an array holding ONE comma-rich element fell through to a
+  // plain comma split. Both paths produced fragment bubbles, and a trailing or
+  // doubled comma produced a bubble holding nothing but punctuation.
+
+  /// The items to show as bubbles, one sentence each.
   List<String> _extractList(dynamic data) {
-    if (data == null) return [];
-    if (data is List) return data.map((e) => e.toString()).toList();
-    if (data is! String || data.trim().isEmpty) return [];
+    // An array has already declared where its items begin and end, so its
+    // elements are only ever split into SENTENCES, never on their commas.
+    // Splitting a stored item further would contradict the row that produced
+    // it: {"Approachable, fair in grading and well-prepared"} is one theme the
+    // model wrote, not three.
+    final bool structured = data is List || _looksLikeArrayLiteral(data);
+
+    final List<String> out = [];
+    for (final element in _unwrapContainer(data)) {
+      out.addAll(_splitIntoSentences(element, allowCommaSplit: !structured));
+    }
+    return out.where(_isDisplayableItem).toList();
+  }
+
+  /// Is this a Postgres text[] or a JSON array, written as a string?
+  bool _looksLikeArrayLiteral(dynamic data) {
+    if (data is! String) return false;
+    final raw = data.trim();
+    return (raw.startsWith('{') && raw.endsWith('}')) ||
+        (raw.startsWith('[') && raw.endsWith(']'));
+  }
+
+  /// Unwraps an array-shaped value into its elements. Anything else comes back
+  /// whole, as a single element, to be split into sentences afterwards.
+  List<String> _unwrapContainer(dynamic data) {
+    if (data == null) return const [];
+    if (data is List) {
+      return data
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    if (data is! String) return const [];
 
     final raw = data.trim();
+    if (raw.isEmpty) return const [];
 
-    // Check if it's a PostgreSQL string array format: {"Item 1","Item 2"} or JSON array ["Item 1", "Item 2"]
-    if ((raw.startsWith('{') && raw.endsWith('}')) ||
-        (raw.startsWith('[') && raw.endsWith(']'))) {
-      String stripped = raw.substring(1, raw.length - 1).trim();
-      if (stripped.isEmpty) return [];
+    if (!_looksLikeArrayLiteral(raw)) return [raw];
 
-      // It might contain quoted strings. Easiest is to split by '","' (for PG arrays) or '", "' (for JSON arrays)
-      if (stripped.contains('","') || stripped.contains('", "')) {
-        final items = stripped.split(RegExp(r'"\s*,\s*"'));
-        return items
-            .map((e) => e.replaceAll('"', '').trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-      } else {
-        // Just comma separated without quotes
-        final items = stripped.split(',');
-        return items
-            .map((e) => e.replaceAll('"', '').trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
+    final inner = raw.substring(1, raw.length - 1).trim();
+    if (inner.isEmpty) return const [];
+    return _splitTopLevelCommas(inner);
+  }
+
+  /// Splits on the commas that sit OUTSIDE double quotes.
+  ///
+  /// This is the part the old code guessed at. A quoted element keeps its own
+  /// commas, so {"Approachable, fair in grading and well-prepared"} stays one
+  /// item instead of becoming three, while an unquoted array still splits.
+  List<String> _splitTopLevelCommas(String value) {
+    final items = <String>[];
+    final buffer = StringBuffer();
+    bool inQuotes = false;
+
+    for (int i = 0; i < value.length; i++) {
+      final char = value[i];
+      if (char == '"') {
+        inQuotes = !inQuotes;
+        continue; // quotes are packaging, never content
       }
+      if (char == ',' && !inQuotes) {
+        items.add(buffer.toString());
+        buffer.clear();
+        continue;
+      }
+      buffer.write(char);
     }
+    items.add(buffer.toString());
 
-    // Otherwise, try normal text splitting logic
-    List<String> parts;
-    final numberedPattern = RegExp(r'\d+\.\s+');
-    if (numberedPattern.hasMatch(raw)) {
-      parts = raw
-          .split(numberedPattern)
-          .where((s) => s.trim().isNotEmpty)
-          .toList();
-    } else if (raw.contains('\n')) {
-      parts = raw.split('\n').where((s) => s.trim().isNotEmpty).toList();
-    } else if (raw.contains(',') && !raw.contains(RegExp(r'\.\s+'))) {
-      // It's a comma-separated list like "Thing 1, Thing 2, Thing 3"
-      parts = raw
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
+    return items.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  }
+
+  /// One sentence per entry.
+  ///
+  /// Commas are split on ONLY when [allowCommaSplit] is set and the text is
+  /// plainly a keyword list: no sentence punctuation anywhere, and every piece
+  /// a few words at most. Prose is left to its full stops, which is what keeps
+  /// a sentence in one bubble.
+  List<String> _splitIntoSentences(String text, {bool allowCommaSplit = true}) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return const [];
+
+    // A numbered or newline list already carries one item per line.
+    final numbered = RegExp(r'\d+[.)]\s+');
+    final List<String> chunks;
+    if (trimmed.contains('\n')) {
+      chunks = trimmed.split('\n');
+    } else if (numbered.hasMatch(trimmed)) {
+      chunks = trimmed.split(numbered);
     } else {
-      parts = raw
-          .split(RegExp(r'\.\s+'))
-          .where((s) => s.trim().isNotEmpty)
-          .toList();
+      chunks = [trimmed];
     }
 
-    const danglers = {
-      'and',
-      'or',
-      'but',
-      'as',
-      'with',
-      'which',
-      'that',
-      'including',
-      'such',
-      'among',
-      'while',
-      'where',
-      'additional',
-      'more',
-      'further',
-    };
-    final merged = <String>[];
-    for (final part in parts) {
-      final trimmed = part.trim();
-      if (trimmed.isEmpty) continue;
-      final firstWord = trimmed
-          .split(' ')
-          .first
-          .toLowerCase()
-          .replaceAll(',', '');
-      if (merged.isNotEmpty && danglers.contains(firstWord)) {
-        merged[merged.length - 1] = '${merged.last} $trimmed';
-      } else {
-        merged.add(trimmed);
+    final sentences = <String>[];
+    for (final chunk in chunks) {
+      final piece = chunk.trim();
+      if (piece.isEmpty) continue;
+
+      if (allowCommaSplit &&
+          !RegExp(r'[.!?]').hasMatch(piece) &&
+          piece.contains(',')) {
+        final parts = piece
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        final bool isKeywordList =
+            parts.length > 1 &&
+            parts.every((e) => e.split(RegExp(r'\s+')).length <= 5);
+        if (isKeywordList) {
+          // "Approachable, fair in grading, and well-prepared" ends on a
+          // conjunction that reads as noise on its own bubble.
+          sentences.addAll(
+            parts.map(
+              (e) => e.replaceFirst(RegExp(r'^(and|or|but)\s+', caseSensitive: false), ''),
+            ),
+          );
+          continue;
+        }
+      }
+
+      // Each match is a sentence plus whatever ended it. Written without a
+      // lookbehind so it behaves identically on every Dart version.
+      for (final match in RegExp(r'[^.!?]+[.!?]*').allMatches(piece)) {
+        final sentence = match.group(0)?.trim() ?? '';
+        if (sentence.isNotEmpty) sentences.add(sentence);
       }
     }
-    return merged;
+    return sentences;
+  }
+
+  /// Is there anything here worth giving a bubble to?
+  ///
+  /// A bubble holding just "," or "-" is the thing this exists to stop: an item
+  /// has to carry at least one letter and be long enough to read as something.
+  bool _isDisplayableItem(String value) {
+    final trimmed = value.trim();
+    if (trimmed.length < 3) return false;
+    return RegExp(r'[A-Za-z]').hasMatch(trimmed);
   }
 
   // Parses a raw string of themes into a list of labeled items.
+  // One bubble per sentence; _extractList has already dropped the fragments.
   List<Map<String, String>> _parseThemes(dynamic data, String defaultIcon) {
-    final merged = _extractList(data);
-    return merged
-        .where(
-          (s) => s.length > 5,
-        ) // skip garbage fragments — too short to be meaningful
+    return _extractList(data)
         .map((s) => {'icon': defaultIcon, 'label': s.endsWith('.') ? s : '$s.'})
         .toList();
   }

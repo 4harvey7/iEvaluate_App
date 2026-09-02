@@ -10,10 +10,18 @@ class EvaluationSummary {
   final double averageScore;     // overall average score across all faculty in dept
   final double managementMean;   // average management category score
   final double performanceMean;  // average performance category score
-  final int totalEvaluations;    // total number of student responses collected
+  final int totalEvaluations;    // responses already folded into the scores
   final double completionRate;   // how many students actually submitted, 0.0 to 1.0
   final int facultyCount;        // faculty on the roster this term (approved accounts only)
   final int evaluatedCount;      // how many of them actually have results yet
+
+  /// Forms actually scanned for this department this term, counted from the
+  /// raw uploads rather than from the aggregates.
+  ///
+  /// Deliberately separate from [totalEvaluations]: n8n folds a scan into
+  /// overall_total_survey some time after the SAO staff uploads it, so this is
+  /// the larger, earlier number. The difference is the backlog.
+  final int formsScanned;
 
   EvaluationSummary({
     required this.averageScore,
@@ -23,7 +31,12 @@ class EvaluationSummary {
     required this.completionRate,
     required this.facultyCount,
     this.evaluatedCount = 0,
+    this.formsScanned = 0,
   });
+
+  /// Forms collected but not yet reflected in any score.
+  int get formsAwaitingProcessing =>
+      formsScanned > totalEvaluations ? formsScanned - totalEvaluations : 0;
 
   /// True when the term has started but nothing has been scanned yet.
   ///
@@ -299,7 +312,7 @@ class EvaluationService {
         return _emptySummary(); // no active term, nothing to show
       }
 
-      // get all users in the dept via instructor_departments (supports Non-Resident multi-dept)
+      // get all instructors in the dept via instructor_departments
       final facultyRows = await _supabase
           .from('instructor_departments')
           .select('instructor_id')
@@ -337,6 +350,32 @@ class EvaluationService {
 
       if (facultyIds.isEmpty) return _emptySummary(); // no faculty found, show zeros
 
+      // Forms actually collected, counted from the raw scans rather than by
+      // summing overall_total_survey.total_responses.
+      //
+      // Those are not the same number, and the gap is the whole point: n8n
+      // aggregates an upload into overall_total_survey some time after the SAO
+      // staff scans it, so an instructor with scans but no aggregate row yet
+      // contributed NOTHING to the old total. One department read "101 forms
+      // this semester" against 152 actually scanned -- 51 forms collected,
+      // stored, and invisible to the head who has to chase them.
+      //
+      // Counted before the aggregate fetch on purpose, so the "no results yet"
+      // path below can still report the forms that are sitting in the queue.
+      var formsScanned = 0;
+      try {
+        final rawRows = await _supabase
+            .from('sast_all_raw_data_survey')
+            .select('id')
+            .eq('term_id', termId)
+            .filter('instructor_ID', 'in', facultyIds);
+        formsScanned = (rawRows as List).length;
+      } catch (e) {
+        // Non-fatal, and it fails low rather than high: fall back to the
+        // aggregated count so the card never claims more than it can show.
+        debugPrint('EvaluationService - Could not count raw forms: $e');
+      }
+
       // fetch overall survey results for all faculty in this dept for the active term
       final stats = await _supabase
           .from('overall_total_survey')
@@ -355,7 +394,19 @@ class EvaluationService {
 
       if ((stats as List).isEmpty) {
         debugPrint('EvaluationService - No records in overall_total_survey for faculty in term $termId. Dashboard will show 0.0.');
-        return _emptySummary(); // no data found, zeros it is
+        // Scores are genuinely unknown, but forms may still have been
+        // collected and be waiting on n8n. Returning _emptySummary() here told
+        // the head nothing had arrived when it had.
+        return EvaluationSummary(
+          averageScore: 0,
+          managementMean: 0,
+          performanceMean: 0,
+          totalEvaluations: 0,
+          completionRate: 0,
+          facultyCount: activeFacultyCount,
+          evaluatedCount: 0,
+          formsScanned: formsScanned,
+        );
       }
 
       final list = stats as List;
@@ -404,6 +455,7 @@ class EvaluationService {
         completionRate: double.parse(calculatedRate.toStringAsFixed(2)),
         facultyCount: activeFacultyCount,
         evaluatedCount: count,
+        formsScanned: formsScanned > totalResponses ? formsScanned : totalResponses,
       );
     } catch (e) {
       debugPrint('Error fetching department summary: $e');
@@ -644,7 +696,8 @@ class EvaluationService {
           ? userInfo['department_table'] 
           : [userInfo['department_table']];
       
-      // For Non-Resident instructors (multiple depts), show 'Multiple Departments' (Option B)
+      // Defensive: department_table should hold one row per user. More than one
+      // is a data fault, so name it rather than silently picking the first.
       String deptName = 'Unknown'; // default if we cant find the dept name
       if (deptTables.length > 1) {
         deptName = 'Multiple Departments';
@@ -1180,6 +1233,38 @@ class EvaluationService {
               // Filter out duplicate Performance alerts if they already have a Termination alert
         final Set<String> terminationIds = alerts.where((a) => a.type == 'Termination').map((a) => a.instructorId!).toSet();
         alerts.removeWhere((a) => a.type == 'Performance' && terminationIds.contains(a.instructorId));
+
+        // Drop alerts the head has already acted on THIS term.
+        //
+        // The dashboard rendered this list raw while the Interventions screen
+        // filtered the same list against the log, so the two disagreed on the
+        // same data: "1 Alerts" and a 3-Strike card on the dashboard, next to
+        // "All caught up / 0 Pending Action Required" on Interventions. The
+        // rule belongs here, once, so every caller sees the same set.
+        //
+        // Scoped to the active term deliberately. A report closes the loop for
+        // the semester it was filed in; if the scores are still below the line
+        // next term that is a new signal and the head should see it again --
+        // which is the entire point of a 3-strike rule. status is not checked:
+        // Pending or Resolved, an action was taken for the term.
+        try {
+          final handled = await _supabase
+              .from('intervention_reports')
+              .select('instructor_id')
+              .eq('term_id', termId)
+              .filter('instructor_id', 'in', facultyIds);
+          final handledIds = (handled as List)
+              .map((r) => r['instructor_id']?.toString())
+              .whereType<String>()
+              .toSet();
+          if (handledIds.isNotEmpty) {
+            alerts.removeWhere((a) => handledIds.contains(a.instructorId));
+          }
+        } catch (e) {
+          // Non-fatal: a stale alert is better than a missing one, so a failed
+          // read leaves the list exactly as it was.
+          debugPrint('Could not read intervention reports for alert filtering: $e');
+        }
 
         return alerts;
     } catch (e) {

@@ -60,6 +60,122 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     }
   }
 
+  // ── Duplicate guard ───────────────────────────────────────────
+  // A department is identified by BOTH its name and its code, so either one
+  // colliding is a conflict. Normalised case- and whitespace-insensitively,
+  // matching the unique indexes in migration 20240130000019 so the two can
+  // never disagree about what counts as taken.
+
+  static String _normName(Object? v) => (v ?? '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ');
+
+  static String _normCode(Object? v) =>
+      (v ?? '').toString().trim().toUpperCase();
+
+  /// The existing department that blocks saving [name]/[code], or null.
+  ///
+  /// [selfId] is the row being edited, which never blocks itself.
+  ///
+  /// Reads fresh rather than trusting _departments: the screen may have been
+  /// open a while, and another admin adding a department in the meantime is
+  /// exactly what this is meant to catch. Compared in Dart rather than with a
+  /// filter because .ilike() treats _ and % in a typed name as wildcards, and
+  /// because PostgREST cannot express the normalisation the indexes use.
+  ///
+  /// Reports WHICH field clashed: "already exists" without saying whether it
+  /// was the name or the code leaves the admin guessing at what to change.
+  Future<({Map<String, dynamic> dept, bool nameClash, bool codeClash})?>
+      _findConflict({
+    required String name,
+    required String code,
+    Object? selfId,
+  }) async {
+    final rows =
+        await _supabase.from('department_name').select('id, d_name, d_code');
+
+    final wantName = _normName(name);
+    final wantCode = _normCode(code);
+
+    for (final row in (rows as List)) {
+      final r = Map<String, dynamic>.from(row as Map);
+      if (selfId != null && r['id']?.toString() == selfId.toString()) continue;
+
+      final nameClash = _normName(r['d_name']) == wantName;
+      // A blank code is not an identity and cannot clash. d_code arrived in
+      // migration 07 with DEFAULT '', so older rows legitimately hold one.
+      final codeClash =
+          wantCode.isNotEmpty && _normCode(r['d_code']) == wantCode;
+
+      if (nameClash || codeClash) {
+        return (dept: r, nameClash: nameClash, codeClash: codeClash);
+      }
+    }
+    return null;
+  }
+
+  String _codeSuffix(Object? code) {
+    final c = (code ?? '').toString().trim();
+    return c.isEmpty ? '' : ' ($c)';
+  }
+
+  Future<void> _showDuplicateAlert({
+    required BuildContext context,
+    required Map<String, dynamic> dept,
+    required bool nameClash,
+    required bool codeClash,
+  }) async {
+    final what = nameClash && codeClash
+        ? 'name and code'
+        : nameClash
+            ? 'name'
+            : 'code';
+    await showDialog<void>(
+      context: context,
+      // dialogCtx, never a State or parent context. MainScaffold gives each tab
+      // its own nested Navigator while showDialog pushes onto the ROOT one, so
+      // Navigator.of(someOtherContext) resolves to the wrong navigator and pops
+      // the wrong route.
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block, color: AppColors.error, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Department Already Exists')),
+          ],
+        ),
+        content: Text(
+          'That $what already belongs to "${dept['d_name']}"'
+          '${_codeSuffix(dept['d_code'])}.\n\n'
+          'A department is identified by both its name and its code, so '
+          'neither can be reused. Two departments sharing either one would '
+          'split their faculty and their evaluation averages between the two '
+          'records.\n\n'
+          'Edit the existing department instead, or use a different name and '
+          'code.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Department Detail Sheet ────────────────────────────────────
 
   void _showDepartmentDetail(Map<String, dynamic> dept) {
@@ -191,14 +307,59 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           return;
                         }
                         final name = _nameController.text.trim();
+                        final code =
+                            _codeController.text.trim().toUpperCase();
                         // Captured up front: everything below this point runs
                         // after at least one await.
                         final navigator = Navigator.of(context);
+                        final dialogContext = context;
+
+                        // Checked BEFORE the confirmation, and on the EDIT path
+                        // too. The old check ran only when adding, only against
+                        // d_name, and with .ilike(...).maybeSingle() -- so the
+                        // code was never checked at all, renaming one
+                        // department onto another's name simply succeeded, and
+                        // a name already held twice made maybeSingle throw,
+                        // surfacing as a raw "Error:" instead of a refusal.
+                        setState(() => isSaving = true);
+                        final ({
+                          Map<String, dynamic> dept,
+                          bool nameClash,
+                          bool codeClash
+                        })? conflict;
+                        try {
+                          conflict = await _findConflict(
+                            name: name,
+                            code: code,
+                            selfId: dept?['id'],
+                          );
+                        } catch (e) {
+                          debugPrint('Dept conflict check failed: $e');
+                          setState(() => isSaving = false);
+                          _showSnack(
+                              'Could not check for existing departments. '
+                              'Please try again.',
+                              isError: true);
+                          return;
+                        }
+                        setState(() => isSaving = false);
+
+                        if (conflict != null) {
+                          if (!dialogContext.mounted) return;
+                          await _showDuplicateAlert(
+                            context: dialogContext,
+                            dept: conflict.dept,
+                            nameClash: conflict.nameClash,
+                            codeClash: conflict.codeClash,
+                          );
+                          return;
+                        }
 
                         // Show confirmation only when adding
                         if (!isEditing) {
+                          if (!dialogContext.mounted) return;
                           final confirmed = await showDialog<bool>(
-                            context: context,
+                            context: dialogContext,
                             builder: (ctx) => AlertDialog(
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16)),
@@ -258,23 +419,12 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                         setState(() => isSaving = true);
 
                         try {
-                          final code = _codeController.text.trim().toUpperCase();
                           if (isEditing) {
                             await _supabase
                                 .from('department_name')
                                 .update({'d_name': name, 'd_code': code}).eq('id', dept['id']);
                             _showSnack('Department updated successfully');
                           } else {
-                            final existing = await _supabase
-                                .from('department_name')
-                                .select('id')
-                                .ilike('d_name', name)
-                                .maybeSingle();
-                            if (existing != null) {
-                              _showSnack('Department already exists', isError: true);
-                              setState(() => isSaving = false);
-                              return;
-                            }
                             await _supabase
                                 .from('department_name')
                                 .insert({'d_name': name, 'd_code': code});
@@ -284,7 +434,22 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           _clearForm();
                           await _loadDepartments();
                         } catch (e) {
-                          _showSnack('Error: $e', isError: true);
+                          // 23505 is one of the unique indexes from migration
+                          // 20240130000019: someone took the name or the code in
+                          // the seconds since the check above. Saying so beats
+                          // dumping a Postgres error into a snackbar.
+                          final isTaken =
+                              e is PostgrestException && e.code == '23505';
+                          if (!isTaken) debugPrint('Dept save failed: $e');
+                          _showSnack(
+                            isTaken
+                                ? 'That department name or code was just taken '
+                                    'by someone else. Reopen the list and try '
+                                    'again.'
+                                : 'Could not save the department. Please try '
+                                    'again.',
+                            isError: true,
+                          );
                           setState(() => isSaving = false);
                         }
                       },

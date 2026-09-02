@@ -79,12 +79,13 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
 
       if (mounted) {
         setState(() {
-          // Only show alerts that don't have a corresponding log entry yet
-          // We filter out instructors who already have an intervention recorded
-          _pendingInterventions = alerts.where((alert) {
-            if (alert.instructorId == null) return false; // Skip alerts without instructor ID
-            return !logs.any((log) => log.instructorId == alert.instructorId); // Not yet logged
-          }).toList();
+          // getDepartmentAlerts already drops anyone with a report filed this
+          // term, so re-filtering against `logs` here would DIVERGE from the
+          // dashboard rather than agree with it: getInterventionLog spans every
+          // term, so a report from two semesters ago would hide a fresh signal
+          // on this screen only.
+          _pendingInterventions =
+              alerts.where((alert) => alert.instructorId != null).toList();
           
           _completedInterventions = logs; // All logged interventions — includes resolved ones
           

@@ -97,6 +97,14 @@ STEPS
     Expected: Subtitle reads "Weighted mean across recent academic terms." with
               a value per term. With no history it reads "No historical data
               available yet".
+ 6b. Read the "Forms Collected" panel and cross-check it against
+    [sast_all_raw_data_survey] for this department and term.
+    Expected: The count equals the number of forms actually SCANNED, not the
+              number already folded into the scores. Where some are still
+              queued it adds "n not yet reflected in the average". The old card
+              read "Total Forms Processed" and printed the aggregated figure,
+              which understated a real department by 51 forms and gave the head
+              no way to tell a quiet week from a stalled n8n pipeline.
  7. Read "Department Voice (AI Analysis)".
     Expected: Subtitle reads "Aggregated themes from all student comments
               across the college." With no data it reads "No feedback data yet
@@ -104,7 +112,20 @@ STEPS
  8. Read the "Action Required" section.
     Expected: Subtitle reads "Faculty and curriculum signals that need review."
               With nothing flagged it reads "No critical issues detected."
- 9. Sign in as a department head with NO department assigned.
+ 9. Note every instructor listed under "Action Required", then open the
+    "Reports" tab and compare against "Pending Action Required".
+    Expected: The two lists MATCH. The dashboard must never show a flagged
+              instructor that Reports counts as handled.
+10. File an intervention report for one flagged instructor, then return to the
+    dashboard and pull to refresh.
+    Expected: That instructor's alert is gone and the bell count drops by one.
+              An alert the head has already acted on this term must not keep
+              demanding action.
+11. Confirm the alert is suppressed for THIS term only.
+    Expected: The suppression is scoped to the active term. If the instructor
+              is still below the line in a later term, the alert is expected to
+              return - that is the 3-strike rule working, not a regression.
+12. Sign in as a department head with NO department assigned.
     Expected: The screen explains the account has no department rather than
               showing an empty or misleading dashboard, and does not crash.
 

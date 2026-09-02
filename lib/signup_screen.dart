@@ -273,11 +273,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
   ///
   /// It is a separate column, but for two roles it is the same fact twice:
   /// FULL-TIME and PART-TIME already state it. Asking again let the two
-  /// disagree -- role FULL-TIME with employment Part-Time -- and that is not
-  /// cosmetic: the "Assign Second Dept" action in User Management is gated on
-  /// employment_status, so a contradiction there hands out an ability the role
-  /// was not supposed to have. Derived where the role settles it, asked only
-  /// where it genuinely does not.
+  /// disagree -- role FULL-TIME with employment Part-Time -- and a record that
+  /// contradicts itself is a defect waiting to be read as fact. Derived where
+  /// the role settles it, asked only where it genuinely does not.
   bool get _employmentIsAskable {
     final role = _roleController.text.toUpperCase().trim();
     return role == 'DEPARTMENT_HEAD' ||

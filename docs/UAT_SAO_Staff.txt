@@ -414,8 +414,8 @@ STEPS
     Expected: Every row is either imported or reported as an error. Nothing is
               silently skipped.
  4. Confirm the deliberately bad row was caught.
-    Expected: It is reported rather than imported. The SAO admin should also
-              see it under "Import Errors".
+    Expected: It is reported rather than imported, and appears under the
+              staff's own "Import Errors" tab.
  5. Confirm the imported data landed against the correct term.
     Expected: The records belong to the active term, not a previous one.
  6. Import the SAME sheet a second time.

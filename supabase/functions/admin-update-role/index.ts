@@ -215,11 +215,12 @@ serve(async (req) => {
               .insert({ instructor_id: targetUserId, department_id: deptId, is_primary: true })
 
         if (primaryWrite.error) {
-          // 23505 on (instructor_id, department_id) means this person is
-          // already linked to that department as a secondary. Say so, rather
-          // than leaking a Postgres error to the dialog.
+          // 23505 means a conflicting instructor_departments row already exists.
+          // Since migration 000017 an instructor has exactly one department row,
+          // so this is a data fault, not a second assignment. Say so rather than
+          // leaking a Postgres error to the dialog.
           if ((primaryWrite.error as any).code === '23505') {
-            throw new Error('Duplicate: this instructor is already assigned to that department. Remove the secondary assignment first.')
+            throw new Error('Duplicate department link for this instructor. Ask the SAO office to check their department record.')
           }
           throw primaryWrite.error
         }
@@ -234,10 +235,6 @@ serve(async (req) => {
     // FULL-TIME and PART-TIME are the two instructor roles and each names its
     // own employment; DEPARTMENT_HEAD, DEAN and the SAO roles do not, so
     // overwriting theirs would be a guess. Same rule the signup screen applies.
-    //
-    // This matters beyond tidiness: employment_status is what gates the
-    // "Assign Second Department" action, so a stale value hands out -- or
-    // withholds -- an ability the role no longer matches.
     const derivedEmployment = employmentForRole(roleName)
     if (derivedEmployment) {
       const { error: empError } = await supabaseAdmin

@@ -214,9 +214,9 @@ class AuthService {
           'Department_name_ID': departmentId,
           'roles': roleId,
         });
-        // Also insert into instructor_departments for multi-dept support.
-        // Non-Resident instructors can later be assigned a second dept by SAO Admin.
-        // is_primary = true means this is their home department.
+        // Also record the membership in instructor_departments, which the dept
+        // head roster and department analytics read from. Exactly one row per
+        // instructor, so is_primary is always true.
         try {
           await _supabase.from('instructor_departments').insert({
             'instructor_id': userId,

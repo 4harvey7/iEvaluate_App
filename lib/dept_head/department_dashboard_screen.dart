@@ -46,6 +46,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     'dean': '',
     'overallScore': 0.0,
     'totalEvals': '0',
+    'formsScanned': 0,
+    'formsQueued': 0,
     'completionRate': 0.0,
     'facultyCount': 0,
     'evaluatedCount': 0,
@@ -64,6 +66,19 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     if (evaluated == 0) return 'No evaluations yet this term';
     if (faculty > evaluated) return 'Based on $evaluated of $faculty faculty';
     return null;
+  }
+
+  /// One line when scanned forms have not all reached the scores yet.
+  ///
+  /// The card used to print the AGGREGATED response count under the words
+  /// "Total Forms Processed", so forms sitting in the n8n queue were simply
+  /// missing from it -- 101 shown against 152 scanned. The head had no way to
+  /// tell a quiet week from a stalled pipeline. Now the card reports what was
+  /// collected and this line accounts for the difference.
+  String? get _formsNote {
+    final queued = _deptInfo['formsQueued'] as int? ?? 0;
+    if (queued <= 0) return null;
+    return '$queued not yet reflected in the average';
   }
 
   // Alerts are the problems we hope to never see but always plan for — bahala na
@@ -88,7 +103,14 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             _currentSemester = data['semester'] ?? _currentSemester;
             _currentYear = data['year'] ?? _currentYear;
             _currentTermId = data['termId'] ?? _currentTermId;
-            _deptInfo = Map<String, dynamic>.from(data['deptInfo'] ?? _deptInfo);
+            // Merged OVER the defaults rather than replacing them. A cache
+            // written by an older build has no formsScanned key, and
+            // interpolating a missing one prints "null forms this semester"
+            // until the fresh fetch lands.
+            _deptInfo = {
+              ..._deptInfo,
+              ...?(data['deptInfo'] as Map?)?.cast<String, dynamic>(),
+            };
             
             if (data['wordCloud'] != null) {
               _wordCloudData = List<Map<String, dynamic>>.from(data['wordCloud'].map((x) => Map<String, dynamic>.from(x)));
@@ -200,6 +222,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 ? summary.averageScore.toStringAsFixed(2)
                 : '—',
             'totalEvals': summary.totalEvaluations.toString(),
+            'formsScanned': summary.formsScanned,
+            'formsQueued': summary.formsAwaitingProcessing,
             'completionRate': summary.completionRate,
             'facultyCount': summary.facultyCount,
             'evaluatedCount': summary.evaluatedCount,
@@ -400,9 +424,12 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                   textBaseline: TextBaseline.alphabetic,
                                   children: [
                     // The big number — the overall dept score. Hopefully not low.
+                    // White, not AppColors.primary: primary IS heroGradient's
+                    // end stop, so the headline figure was being painted in the
+                    // colour of the card behind it.
                     Text(
                       '${_deptInfo['overallScore']}',
-                      style: const TextStyle(color: AppColors.primary, fontSize: 40, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: AppColors.textInverted, fontSize: 40, fontWeight: FontWeight.bold),
                     ),
                                     const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
                                   ],
@@ -446,22 +473,29 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                             Container(
                               padding: const EdgeInsets.all(8),
                               decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.2),
+                                color: AppColors.textInverted.withValues(alpha: 0.18),
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.description_outlined, color: AppColors.primary, size: 20),
+                              child: const Icon(Icons.description_outlined, color: AppColors.textInverted, size: 20),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Total Forms Processed', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                                  const Text('Forms Collected', style: TextStyle(color: Colors.white70, fontSize: 12)),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${_deptInfo['totalEvals']} forms this semester',
+                                    '${_deptInfo['formsScanned']} forms this semester',
                                     style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                                   ),
+                                  if (_formsNote != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _formsNote!,
+                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

@@ -25,8 +25,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
   final _supabase = Supabase.instance.client;
   
   // Cache key is 'deptId_termId' so each department has its own slot.
-  // This prevents a second Dept Head from seeing stale data after a Non-Resident
-  // instructor is assigned to their dept by SAO Admin.
+  // This keeps one department head's roster out of another department's slot.
   static final Map<String, List<Map<String, dynamic>>> _rosterCache = {};
   static final Map<String, String> _termIdCache = {};
   
@@ -117,8 +116,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       }
 
       // Build the composite cache key: deptId_termId
-      // This ensures each dept head has their own cache slot — prevents stale data
-      // when a Non-Resident instructor is assigned to a second department by SAO Admin.
+      // This ensures each dept head has their own cache slot per term.
       final cacheKey = '${deptId}_$activeTermId';
       if (_rosterCache.containsKey(cacheKey)) {
         if (mounted) {
@@ -131,7 +129,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       }
 
       // 3. Fetch all instructors linked to this dept via instructor_departments.
-      // This supports Non-Resident instructors who teach in multiple departments.
+      // Filtered to is_primary: an instructor belongs to exactly one department.
       // We query user_info joined through instructor_departments instead of department_table.
       final facultyData = await _supabase
           .from('user_info')
@@ -153,6 +151,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
             )
           ''')
           .eq('instructor_departments.department_id', deptId)
+          .eq('instructor_departments.is_primary', true)
           // Only active accounts belong on an evaluation roster. delete-user
           // soft-deletes by setting account_status = 'deleted' and never
           // removes the instructor_departments row, so without this a fired or
@@ -162,7 +161,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
 
       // Separately fetch role info for each instructor from department_table.
       // We do this separately because role lives in department_table, not instructor_departments.
-      // For Non-Resident instructors, we use their home dept (is_primary=true) role.
+      // department_table holds the instructor's single department and their role.
       final List<String> instructorIds = (facultyData as List)
           .map((f) => f['id'].toString())
           .toList();

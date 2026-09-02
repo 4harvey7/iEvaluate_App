@@ -224,11 +224,21 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     );
   }
 
-  /// How many student responses have already been collected for the exact
+  /// How many evaluation records already exist for the exact
   /// (instructor, subject, term) an assignment row describes.
   ///
+  /// Counts ROWS in the same three tables, on the same triple, as the
+  /// forbid_assignment_delete_with_results trigger in migration
+  /// 20240130000015. Matching the trigger is the whole point: this used to sum
+  /// total_responses out of management_results alone, which under-counted two
+  /// ways -- an assignment carrying only performance results or only student
+  /// remarks came back 0, and so did a management row whose total_responses was
+  /// 0. The screen then promised "nothing is lost", the trigger refused the
+  /// delete anyway, and the instructor could not be removed.
+  ///
   /// Returns 0 on any failure. A count that fails to load must not block the
-  /// removal -- it only means the dialog cannot warn as precisely.
+  /// removal -- the trigger is the actual protection, so a failed count costs
+  /// an explanation, not the guarantee.
   Future<int> _responsesForAssignment(String assignmentId) async {
     try {
       final row = await _supabase
@@ -238,24 +248,72 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           .maybeSingle();
       if (row == null) return 0;
 
+      final instructorId = row['instructor_id'];
+      final subjectId = row['subject_id'];
+      final termId = row['term_id'];
+      // The trigger compares all three with =, which never matches NULL, so an
+      // incomplete row is unprotected there and must read as 0 here too.
+      if (instructorId == null || subjectId == null || termId == null) return 0;
+
       // Results are keyed on the same triple, which is also why re-adding the
       // assignment reconnects them without any repair step.
-      final results = await _supabase
-          .from('management_results')
-          .select('total_responses')
-          .eq('instructor_id', row['instructor_id'])
-          .eq('subject_id', row['subject_id'])
-          .eq('term_id', row['term_id']);
-
       var total = 0;
-      for (final r in results as List) {
-        total += (r['total_responses'] as num?)?.toInt() ?? 0;
+      for (final table in const [
+        'management_results',
+        'performance_results',
+        'student_remarks',
+      ]) {
+        final rows = await _supabase
+            .from(table)
+            .select('id')
+            .eq('instructor_id', instructorId)
+            .eq('subject_id', subjectId)
+            .eq('term_id', termId);
+        total += (rows as List).length;
       }
       return total;
     } catch (e) {
-      debugPrint('Could not count responses for assignment $assignmentId: $e');
+      debugPrint('Could not count results for assignment $assignmentId: $e');
       return 0;
     }
+  }
+
+  // ── Blocking progress barrier ─────────────────────────────────────────────
+  // Tracked with a flag rather than a Navigator key so a stray _hideBusy can
+  // never pop a real route. showDialog pushes synchronously and defaults to the
+  // root navigator, which is the one popped here.
+  bool _busyShown = false;
+
+  void _showBusy(String message) {
+    if (!mounted || _busyShown) return;
+    _busyShown = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(message, style: const TextStyle(fontSize: 13.5)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _hideBusy() {
+    if (!_busyShown) return;
+    _busyShown = false;
+    if (mounted) Navigator.of(context, rootNavigator: true).pop();
   }
 
   // Remove an instructor from a subject — allowed only while no evaluation
@@ -268,13 +326,26 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
   // 20240130000015 refuses it at the database too; this is the explanation,
   // not the protection.
   Future<void> _deleteAssignment(String assignmentId) async {
-    final responses = await _responsesForAssignment(assignmentId);
+    // Counting is three round trips, and the detail sheet has already closed by
+    // the time this runs, so without a barrier the screen sits there showing
+    // nothing -- which reads as a frozen app rather than as work in progress.
+    _showBusy('Checking evaluation records...');
+    final int responses;
+    try {
+      responses = await _responsesForAssignment(assignmentId);
+    } finally {
+      _hideBusy();
+    }
     if (!mounted) return;
 
     if (responses > 0) {
       await showDialog<void>(
         context: context,
-        builder: (_) => AlertDialog(
+        // dialogCtx, never this State's context. MainScaffold gives each tab
+        // its own nested Navigator, and showDialog defaults to the ROOT one --
+        // so Navigator.of(stateContext) resolves to the nested navigator and
+        // pops the wrong route entirely, leaving this dialog on screen.
+        builder: (dialogCtx) => AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
@@ -293,7 +364,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
             ],
           ),
           content: Text(
-            '$responses evaluation response(s) have already been collected for '
+            '$responses evaluation record(s) have already been collected for '
             'this instructor and subject this term.\n\n'
             'Removing the assignment would leave those results unreachable in '
             'the app while they keep counting toward the overall score, '
@@ -302,7 +373,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogCtx),
               child: const Text('OK'),
             ),
           ],
@@ -313,7 +384,11 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      // dialogCtx for the same reason as above. This one mattered most: popping
+      // the nested navigator here dismissed nothing the user could see, left
+      // `confirmed` null, and so the delete never ran -- the instructor simply
+      // would not go away.
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Remove Assignment'),
@@ -324,31 +399,48 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false),
+              onPressed: () => Navigator.pop(dialogCtx, false),
               child: const Text('Cancel')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogCtx, true),
             child: const Text('Remove', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
+
+    _showBusy('Removing assignment...');
+    Object? failure;
     try {
       await _supabase.from('instructor_subjects').delete().eq('id', assignmentId);
+    } catch (e) {
+      failure = e;
+    }
+    _hideBusy();
+    if (!mounted) return;
+
+    if (failure == null) {
       _showSnack('Assignment removed');
       _loadData();
-    } catch (e) {
-      // The database trigger raises restrict_violation if results appeared
-      // between the check above and this delete.
-      _showSnack(
-        e.toString().contains('Cannot remove this instructor')
-            ? 'Cannot remove: evaluations exist for this assignment.'
-            : 'Error: $e',
-        isError: true,
-      );
+      return;
     }
+
+    // restrict_violation (SQLSTATE 23001) is what migration 20240130000015
+    // raises when results appeared between the check above and this delete.
+    // Matched on the code first: rewording the migration's message must not
+    // silently turn this back into a raw Postgres dump in front of an admin.
+    final isProtected =
+        (failure is PostgrestException && failure.code == '23001') ||
+            failure.toString().contains('Cannot remove this instructor');
+    if (!isProtected) debugPrint('Assignment delete failed: $failure');
+    _showSnack(
+      isProtected
+          ? 'Cannot remove: evaluation records exist for this assignment.'
+          : 'Could not remove the assignment. Please try again.',
+      isError: true,
+    );
   }
 
   void _showSnack(String msg, {bool isError = false}) {
@@ -906,6 +998,29 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
   List<Map<String, dynamic>> _filteredInstructors = [];
   bool _isSaving = false;
   String? _editingAssignmentId;
+  // The subject this assignment pointed at when the sheet opened. Renaming a
+  // subject is only allowed for THAT subject -- see _save.
+  String? _editingSubjectId;
+
+  /// True when this sheet is creating a genuinely new subject.
+  ///
+  /// The other two paths reuse an existing subject code on purpose and must
+  /// stay allowed: editing an assignment, and adding a second instructor to a
+  /// subject that already exists (prefilledCode).
+  bool get _isFreshAdd =>
+      _editingAssignmentId == null && widget.prefilledCode == null;
+
+  // Matches the DB index in migration 20240130000018: upper(btrim(code)).
+  static String _normCode(Object? v) =>
+      (v ?? '').toString().trim().toUpperCase();
+
+  // Looser than the code rule on purpose. This one only raises a warning, so it
+  // should also catch "Programming  1" against "Programming 1".
+  static String _normName(Object? v) => (v ?? '')
+      .toString()
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), ' ');
 
   @override
   void initState() {
@@ -920,6 +1035,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       final subject = subjectData is Map
           ? subjectData
           : (subjectData is List && subjectData.isNotEmpty ? subjectData[0] : null);
+      _editingSubjectId = subject?['id']?.toString();
       _codeController.text = subject?['subject_code'] ?? '';
       _nameController.text = subject?['subject_name'] ?? '';
       // Pre-fill department from existing subject
@@ -994,6 +1110,119 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
     _instructorFocusNode.unfocus();
   }
 
+  // " in Computer Studies", or "" when the department cannot be resolved.
+  String _deptLabel(Object? departmentId) {
+    final id = departmentId?.toString();
+    if (id == null) return '';
+    for (final d in widget.departments) {
+      if (d['id']?.toString() == id) {
+        final n = d['name']?.toString() ?? '';
+        return n.isEmpty ? '' : ' in $n';
+      }
+    }
+    return '';
+  }
+
+  /// Hard refusal: this subject code already belongs to a subject.
+  Future<void> _showCodeTakenDialog(
+      String code, Map<String, dynamic> existing) async {
+    await showDialog<void>(
+      context: context,
+      // dialogCtx, never this State's context. This sheet lives on the tab's
+      // nested Navigator while showDialog pushes onto the ROOT one, so
+      // Navigator.of(stateContext) would pop the SHEET and leave the dialog
+      // stranded -- then OK touched a defunct State and threw "This widget has
+      // been unmounted".
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.block, color: AppColors.error, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Subject Code Already Used')),
+          ],
+        ),
+        content: Text(
+          '$code is already registered as '
+          '"${existing['subject_name'] ?? 'an existing subject'}"'
+          '${_deptLabel(existing['department_id'])}.\n\n'
+          'A subject code identifies one subject across every term, so it '
+          'cannot be given to a second one.\n\n'
+          'To let another instructor teach it, close this sheet, open that '
+          'subject and use "Add Instructor". To correct its name or department, '
+          'edit it there instead.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Soft warning: the name is taken, but under a different code.
+  Future<bool?> _confirmNameClash(String name, Map<String, dynamic> existing) {
+    return showDialog<bool>(
+      context: context,
+      // dialogCtx -- see _showCodeTakenDialog. Popping the nested navigator
+      // here would dismiss the sheet and leave this dialog with no way to
+      // return a value, so the save would hang on a null result.
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning_amber_rounded,
+                  color: AppColors.warning, size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Possible Duplicate')),
+          ],
+        ),
+        content: Text(
+          '"$name" already exists as '
+          '${existing['subject_code'] ?? '?'}'
+          '${_deptLabel(existing['department_id'])}.\n\n'
+          'If that is the same course, cancel and add the instructor to it '
+          'instead -- two records would split its evaluation results between '
+          'them.\n\n'
+          'If this is genuinely a different course that happens to share the '
+          'name, continue.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Create anyway',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedDepartmentId == null) {
@@ -1005,7 +1234,17 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       );
       return;
     }
-    // instructor is optional — subject can be saved without one
+    // On a fresh add the instructor is optional -- a subject may exist with
+    // nobody teaching it yet. When EDITING an assignment it is not: clearing
+    // the field used to fall straight through the `_selectedInstructorId != null`
+    // guard below, so the sheet closed reporting success and the instructor was
+    // still there. Removal has one path, and it carries the results check.
+    if (_editingAssignmentId != null && _selectedInstructorId == null) {
+      widget.onError(
+          'Pick an instructor, or use the Remove button on the subject to '
+          'unassign this one.');
+      return;
+    }
     if (widget.currentTermId == null) {
       widget.onError('No active term set. Please configure a term first.');
       return;
@@ -1016,24 +1255,64 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       final code = _codeController.text.trim().toUpperCase();
       final name = _nameController.text.trim();
 
-      // Step 1: Find or create the subject (always saves department_id)
-      final existingSubject = await widget.supabase
+      // One read serves both duplicate checks. The screen already loads every
+      // subject when it opens, so this is the same order of cost, and comparing
+      // in Dart is what lets the check match the DB index exactly -- PostgREST
+      // cannot express upper(btrim(subject_code)) as a filter.
+      final allSubjects = await widget.supabase
           .from('subjects')
-          .select('id')
-          .eq('subject_code', code)
-          .maybeSingle();
+          .select('id, subject_code, subject_name, department_id');
+
+      Map<String, dynamic>? codeMatch;
+      Map<String, dynamic>? nameMatch;
+      for (final row in (allSubjects as List)) {
+        final r = Map<String, dynamic>.from(row as Map);
+        final rowCode = _normCode(r['subject_code']);
+        if (rowCode == code) {
+          codeMatch ??= r;
+        } else if (_normName(r['subject_name']) == _normName(name)) {
+          // Same name under a DIFFERENT code -- the soft case below.
+          nameMatch ??= r;
+        }
+      }
+
+      if (_isFreshAdd && codeMatch != null) {
+        // A subject code identifies one subject across every term. Reusing it
+        // used to silently rewrite that subject's name and department for every
+        // term and every other instructor assigned to it.
+        if (mounted) {
+          setState(() => _isSaving = false);
+          await _showCodeTakenDialog(code, codeMatch);
+        }
+        return;
+      }
+
+      if (_isFreshAdd && nameMatch != null) {
+        // Two departments legitimately running a same-named course under
+        // different codes is real, so this asks rather than refuses.
+        if (!mounted) return;
+        setState(() => _isSaving = false);
+        final proceed = await _confirmNameClash(name, nameMatch);
+        if (proceed != true || !mounted) return;
+        setState(() => _isSaving = true);
+      }
 
       String subjectId;
-      if (existingSubject != null) {
-        subjectId = existingSubject['id'].toString();
-        // Update name and department in case they changed
-        await widget.supabase
-            .from('subjects')
-            .update({
-              'subject_name': name,
-              'department_id': int.tryParse(_selectedDepartmentId!),
-            })
-            .eq('id', subjectId);
+      if (codeMatch != null) {
+        subjectId = codeMatch['id'].toString();
+        // Renaming or moving a subject is allowed only from the edit path, and
+        // only for the subject that assignment already pointed at. The
+        // prefilled path exists to attach another instructor to a subject that
+        // already has a name, so it must reuse the row untouched.
+        if (_editingAssignmentId != null && subjectId == _editingSubjectId) {
+          await widget.supabase
+              .from('subjects')
+              .update({
+                'subject_name': name,
+                'department_id': int.tryParse(_selectedDepartmentId!),
+              })
+              .eq('id', subjectId);
+        }
       } else {
         final insertResult = await widget.supabase
             .from('subjects')
@@ -1049,6 +1328,8 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
 
       // Step 2: instructor_subjects — only when an instructor is selected.
       // instructor_id is NOT NULL in the DB, so we skip entirely if none chosen.
+      // Reachable with none only on a fresh add: the edit path is required to
+      // name one, and unassigning goes through Remove instead.
       if (_selectedInstructorId != null) {
         if (_editingAssignmentId != null) {
           await widget.supabase.from('instructor_subjects').update({
@@ -1071,7 +1352,17 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       }
     } catch (e) {
       if (mounted) {
-        widget.onError('Error saving: $e');
+        // 23505 is subjects_one_per_code (migration 20240130000018) rejecting a
+        // code the check above cleared. That means another admin created it in
+        // the seconds since, so say what happened rather than dumping the
+        // Postgres error into a snackbar.
+        final isTakenCode = e is PostgrestException &&
+            e.code == '23505' &&
+            e.message.contains('subjects_one_per_code');
+        widget.onError(isTakenCode
+            ? 'That subject code was just taken by someone else. Reopen the '
+                'form to see the subject that now holds it.'
+            : 'Error saving: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

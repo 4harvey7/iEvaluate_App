@@ -82,8 +82,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               last_name,
               university_id,
               account_status,
-              email,
-              employment_status
+              email
             ),
             role_data:roles!roles ( Roles ),
             dept_data:department_name!Department_name_ID ( d_name )
@@ -526,188 +525,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
       ]),
-    );
-  }
-
-  // ── Assign Second Department (for Non-Resident instructors) ──────────────
-  // SAO Admin can link a Non-Resident instructor to a second department.
-  // Each dept head of that second dept will then see the instructor in their roster.
-  Future<void> _showAssignSecondDeptDialog(Map<String, dynamic> user) async {
-    final userId = user['user_id'];
-    final ui = user['user_info'];
-    final fullName = '${ui['first_name']} ${ui['last_name']}';
-    int? selectedDeptId;
-    bool isSaving = false;
-
-    // Fetch current secondary departments for this instructor
-    List<Map<String, dynamic>> currentSecondaryDepts = [];
-    try {
-      final rows = await _supabase
-          .from('instructor_departments')
-          .select('department_id, is_primary, department_name:department_id(d_name)')
-          .eq('instructor_id', userId)
-          .eq('is_primary', false);
-      currentSecondaryDepts = List<Map<String, dynamic>>.from(rows);
-    } catch (e) {
-      debugPrint('[USER_MGMT] Error fetching secondary depts: $e');
-    }
-
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text('Assign Second Department\n$fullName',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Show existing secondary depts
-                if (currentSecondaryDepts.isNotEmpty) ...[
-                  const Text('Current secondary departments:',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                  const SizedBox(height: 8),
-                  ...currentSecondaryDepts.map((d) {
-                    final deptNameData = d['department_name'];
-                    final dName = deptNameData is List
-                        ? (deptNameData.isNotEmpty ? deptNameData[0]['d_name'] : 'Unknown')
-                        : deptNameData?['d_name'] ?? 'Unknown';
-                    final deptId = d['department_id'];
-                    return Row(
-                      children: [
-                        const Icon(Icons.apartment, size: 14, color: AppColors.primary),
-                        const SizedBox(width: 6),
-                        Expanded(child: Text(dName.toString(),
-                            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary))),
-                        // Remove button
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle, color: Colors.red, size: 18),
-                          tooltip: 'Remove this secondary dept',
-                          onPressed: () async {
-                            // Capture context references before async gap
-                            final nav = Navigator.of(context);
-                            final messenger = ScaffoldMessenger.of(context);
-                            try {
-                              await _supabase
-                                  .from('instructor_departments')
-                                  .delete()
-                                  .eq('instructor_id', userId)
-                                  .eq('department_id', deptId)
-                                  .eq('is_primary', false);
-                              nav.pop();
-                              if (mounted) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Secondary department removed.'),
-                                    backgroundColor: AppColors.success,
-                                  ),
-                                );
-                              }
-                              _showAssignSecondDeptDialog(user);
-                            } catch (e) {
-                              if (mounted) {
-                                messenger.showSnackBar(
-                                  SnackBar(
-                                    content: Text('Error removing dept: $e'),
-                                    backgroundColor: AppColors.error,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                        ),
-
-                      ],
-                    );
-                  }),
-                  const Divider(height: 24),
-                ],
-                const Text('Add a new secondary department:',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<int>(
-                  initialValue: selectedDeptId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Select Department'),
-                  items: _allDeptNames
-                      .map((d) => DropdownMenuItem<int>(
-                            value: d['id'],
-                            child: Text(d['d_name']),
-                          ))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedDeptId = val),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            StatefulBuilder(
-              builder: (context, setButtonState) => ElevatedButton(
-                onPressed: isSaving || selectedDeptId == null
-                    ? null
-                    : () async {
-                        setButtonState(() => isSaving = true);
-                        // Captured before the await — this context belongs to
-                        // the StatefulBuilder and is popped below.
-                        final navigator = Navigator.of(context);
-                        final messenger = ScaffoldMessenger.of(context);
-                        try {
-                          await _supabase.from('instructor_departments').insert({
-                            'instructor_id': userId,
-                            'department_id': selectedDeptId,
-                            'is_primary': false, // secondary dept
-                          });
-                          if (mounted) {
-                            navigator.pop();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Second department assigned successfully.'),
-                                backgroundColor: AppColors.success,
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          setButtonState(() => isSaving = false);
-                          // Catch duplicate assignment — friendly message instead of raw DB error
-                          final errStr = e.toString();
-                          final isDuplicate = errStr.contains('unique') ||
-                              errStr.contains('duplicate') ||
-                              errStr.contains('23505');
-                          if (mounted) {
-                            messenger.showSnackBar(
-                              SnackBar(
-                                content: Text(isDuplicate
-                                    ? 'This instructor is already assigned to that department.'
-                                    : 'Error assigning department. Please try again.'),
-                                backgroundColor: AppColors.error,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                child: isSaving
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Assign', style: TextStyle(color: Colors.white)),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1370,22 +1187,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),
                                   subtitle: Text('${ui['university_id']} • ${user['role_data']?['Roles'] ?? 'N/A'}\n${user['dept_data']?['d_name'] ?? 'No Dept'}', overflow: TextOverflow.ellipsis),
                                   isThreeLine: true,
-                                   // three dot menu with edit, enable/disable, and second dept options
+                                   // three dot menu with edit and enable/disable options
                                   trailing: PopupMenuButton<String>(
                                     onSelected: (val) {
                                       if (val == 'edit') _showEditUserDialog(user);
                                       if (val == 'status') _toggleUserStatus(user);
-                                      if (val == 'second_dept') _showAssignSecondDeptDialog(user);
                                     },
                                     itemBuilder: (context) {
-                                      final empStatus = user['user_info']?['employment_status']?.toString() ?? '';
-                                      final isNonResident = empStatus.toLowerCase().contains('part') ||
-                                          empStatus.toLowerCase().contains('non');
                                       return [
                                         const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
                                         PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Approve')])),
-                                        if (isNonResident)
-                                          const PopupMenuItem(value: 'second_dept', child: Row(children: [Icon(Icons.apartment, size: 18, color: Colors.teal), SizedBox(width: 8), Text('Assign Second Dept', style: TextStyle(color: Colors.teal))])),
                                       ];
                                     },
                                   ),
