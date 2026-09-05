@@ -62,9 +62,36 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     try {
       final instructorId = widget.instructor['id'] as String;
 
+      // Which department is the HEAD looking at this page from.
+      //
+      // Needed before the fetch below, because the subject list has to be
+      // restricted to subjects this department owns. A cross-department
+      // instructor -- one whose home department is this one but who also
+      // teaches a class for another -- would otherwise show that other
+      // department's subject here, on a page belonging to a head with no
+      // business seeing it. Ronald King licayan teaches CSO 310 and TWRM 210
+      // for Hospitality while sitting in Technology and Engineering, so this
+      // is a live case, not a hypothetical.
+      final headDeptRow = await _supabase
+          .from('department_table')
+          .select('Department_name_ID')
+          .eq('user_id', widget.deptHeadUserId)
+          .maybeSingle();
+      final headDeptId = headDeptRow?['Department_name_ID'];
+      if (headDeptId == null) {
+        // Fail closed. A head whose own department cannot be resolved gets an
+        // empty subject list rather than every subject the instructor teaches.
+        debugPrint(
+            '[InstructorDetail] No department for head ${widget.deptHeadUserId}; '
+            'subject list suppressed.');
+      }
+
       // Parallel fetch: historical totals + current subjects + term metadata + sentiment
       // Future.wait runs all four at the same time — much faster than sequential awaits
-      final results = await Future.wait([
+      // Explicit <dynamic>: the subject entry is either a query builder or a
+      // plain Future when the department could not be resolved, and inference
+      // cannot find a common type across the two.
+      final results = await Future.wait<dynamic>([
         // 1. All historical overall_total_survey rows for this instructor
         // Ordered by year so we get chronological chart data
         _supabase
@@ -79,12 +106,21 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             .order('created_at', ascending: false),
 
         // 2. Subjects for current term via junction table
-        // Only subjects they teach THIS term — not all subjects ever
-        _supabase
-            .from('instructor_subjects')
-            .select('subject_id, subjects(id, subject_code, subject_name, created_at)')
-            .eq('instructor_id', instructorId)
-            .eq('term_id', widget.currentTermId),
+        // Only subjects they teach THIS term — not all subjects ever — and
+        // only the ones THIS department owns. !inner makes the embed a real
+        // join so the department filter can drop the row entirely; a plain
+        // embed would return the instructor_subjects row with a null subject
+        // and the mapper below would render it as "Unknown Subject".
+        if (headDeptId == null)
+          Future.value(const <Map<String, dynamic>>[])
+        else
+          _supabase
+              .from('instructor_subjects')
+              .select(
+                  'subject_id, subjects!inner(id, subject_code, subject_name, created_at, department_id)')
+              .eq('instructor_id', instructorId)
+              .eq('term_id', widget.currentTermId)
+              .eq('subjects.department_id', headDeptId),
 
         // 3. Current term metadata — we need semester name and year for the report button
         _supabase
@@ -186,13 +222,20 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             'performance_mean': null,
           });
         }).toList();
-      } else {
+      } else if (headDeptId != null) {
         // Fallback: derive from management_results — when instructor_subjects has nothing
+        // Carries the SAME department restriction as the primary path above.
+        // Without it this branch became a way around the filter: an instructor
+        // with no instructor_subjects rows would fall through to here and the
+        // head would see every subject the person has results for, including
+        // other departments'.
         final mgmtRows = await _supabase
             .from('management_results')
-            .select('subject_id, overall_management_mean, subjects(id, subject_code, subject_name, created_at)')
+            .select(
+                'subject_id, overall_management_mean, subjects!inner(id, subject_code, subject_name, created_at, department_id)')
             .eq('instructor_id', instructorId)
-            .eq('term_id', widget.currentTermId);
+            .eq('term_id', widget.currentTermId)
+            .eq('subjects.department_id', headDeptId);
 
         // Map the management_results rows into Subject objects
         for (final row in (mgmtRows as List)) {
