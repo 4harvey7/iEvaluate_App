@@ -688,7 +688,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 RepaintBoundary(
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [AppColors.textPrimary, Color(0xFF0F172A)],
@@ -713,8 +713,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                   : Wrap(
                     alignment: WrapAlignment.center,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 12.0,
-                    runSpacing: 12.0,
+                    spacing: 10.0,
+                    runSpacing: 10.0,
                     children: List.generate(_wordCloudData.length, (i) {
                       final wordData = _wordCloudData[i];
                       final count = (wordData['total_count'] as num?)?.toInt() ?? 1;
@@ -723,8 +723,10 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       final maxCount = (_wordCloudData.first['total_count'] as num?)?.toInt() ?? 1;
                       final double ratio = maxCount > 0 ? (count / maxCount) : 1.0;
                       
-                      // Scale between 12px and 32px based on frequency
-                      final double fontSize = 12.0 + (ratio * 20.0);
+                      // Scale between 12px and 28px based on frequency. The top
+                      // of that range used to be 32, which bought very little
+                      // emphasis for the row height it cost.
+                      final double fontSize = 12.0 + (ratio * 16.0);
                       
                       final String word = wordData['word'] ?? '';
                       final color = _cloudColors[i % _cloudColors.length];
@@ -744,16 +746,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                       );
 
-                      // Rotate roughly every 4th word for a dynamic look
-                      if (i % 4 == 0 && i != 0) {
-                        return RotatedBox(
-                          quarterTurns: 3,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: wordText,
-                          ),
-                        );
-                      }
+                      // Every word sits horizontal now. Turning every 4th one
+                      // sideways looked dynamic, but a rotated word is as TALL
+                      // as it is long -- "Practice exercises" alone forced a
+                      // 120px row -- so a handful of them stretched the panel
+                      // past a screen and the cloud had to be scrolled.
                       return wordText;
                     }),
                   ),

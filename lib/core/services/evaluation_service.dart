@@ -1502,7 +1502,11 @@ class EvaluationService {
           .eq('department_id', deptId)
           .eq('term_id', termId)
           .order('total_count', ascending: false) // most used words first
-          .limit(60); // limit to 60 so the cloud dont get too crowded, enough na
+          // 15, not 60. Every word past the first dozen is another row the
+          // panel grows by, and 60 of them made a picture meant to be taken in
+          // at a glance into something the head had to scroll through. The
+          // rows are sorted by count, so these are the loudest 15.
+          .limit(15);
 
       return (words as List).cast<Map<String, dynamic>>();
     } catch (e) {
