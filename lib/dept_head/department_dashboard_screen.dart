@@ -46,8 +46,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     'dean': '',
     'overallScore': 0.0,
     'totalEvals': '0',
-    'formsScanned': 0,
-    'formsQueued': 0,
     'completionRate': 0.0,
     'facultyCount': 0,
     'deactivatedWithResults': 0,
@@ -67,19 +65,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     if (evaluated == 0) return 'No evaluations yet this term';
     if (faculty > evaluated) return 'Based on $evaluated of $faculty faculty';
     return null;
-  }
-
-  /// One line when scanned forms have not all reached the scores yet.
-  ///
-  /// The card used to print the AGGREGATED response count under the words
-  /// "Total Forms Processed", so forms sitting in the n8n queue were simply
-  /// missing from it -- 101 shown against 152 scanned. The head had no way to
-  /// tell a quiet week from a stalled pipeline. Now the card reports what was
-  /// collected and this line accounts for the difference.
-  String? get _formsNote {
-    final queued = _deptInfo['formsQueued'] as int? ?? 0;
-    if (queued <= 0) return null;
-    return '$queued not yet reflected in the average';
   }
 
   /// One line under the Active Faculty number, when it isn't purely a count of
@@ -126,9 +111,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             _currentYear = data['year'] ?? _currentYear;
             _currentTermId = data['termId'] ?? _currentTermId;
             // Merged OVER the defaults rather than replacing them. A cache
-            // written by an older build has no formsScanned key, and
-            // interpolating a missing one prints "null forms this semester"
-            // until the fresh fetch lands.
+            // written by an older build is missing whichever keys that build
+            // did not have, and interpolating a missing one prints "null" on
+            // the card until the fresh fetch lands.
             _deptInfo = {
               ..._deptInfo,
               ...?(data['deptInfo'] as Map?)?.cast<String, dynamic>(),
@@ -244,8 +229,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 ? summary.averageScore.toStringAsFixed(2)
                 : '—',
             'totalEvals': summary.totalEvaluations.toString(),
-            'formsScanned': summary.formsScanned,
-            'formsQueued': summary.formsAwaitingProcessing,
             'completionRate': summary.completionRate,
             'facultyCount': summary.facultyCount,
             'deactivatedWithResults': summary.deactivatedWithResults,
@@ -523,48 +506,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 24),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.textInverted.withValues(alpha: 0.18),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.description_outlined, color: AppColors.textInverted, size: 20),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Forms Collected', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    '${_deptInfo['formsScanned']} forms this semester',
-                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                  if (_formsNote != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      _formsNote!,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ],
                   ),
