@@ -12,8 +12,29 @@ class EvaluationSummary {
   final double performanceMean;  // average performance category score
   final int totalEvaluations;    // responses already folded into the scores
   final double completionRate;   // how many students actually submitted, 0.0 to 1.0
-  final int facultyCount;        // faculty on the roster this term (approved accounts only)
-  final int evaluatedCount;      // how many of them actually have results yet
+  /// Faculty shown on the Overview headcount this term.
+  ///
+  /// NOT "approved accounts only" any more. It is kept equal to
+  /// FacultyRosterScreen's own rule -- active, OR still holding a result for
+  /// this term -- on purpose: this number and the row count on the Faculty tab
+  /// used to disagree the moment someone was deactivated, because this one
+  /// dropped immediately while the roster kept showing the person (correctly)
+  /// until their last term with results ended. A dean deactivating someone
+  /// mid-term would open the Faculty tab to 5 rows under an Overview card that
+  /// had already dropped to 4.
+  ///
+  /// So [facultyCount] now falls by one only once [activeFacultyCount] does
+  /// AND that person's last-recorded term has passed -- the same moment the
+  /// roster stops listing them. See [activeFacultyCount] for the account-status
+  /// count this is built from.
+  final int facultyCount;
+  final int evaluatedCount;      // how many of [facultyCount] actually have results yet
+
+  /// Currently active (account_status = 'approved') faculty, independent of
+  /// term data. This is the number [facultyCount] used to be. Exists
+  /// separately so the UI can say WHY the two headcounts differ -- "5 total,
+  /// 1 deactivated" -- instead of just changing the number with no explanation.
+  final int activeFacultyCount;
 
   /// Forms actually scanned for this department this term, counted from the
   /// raw uploads rather than from the aggregates.
@@ -30,9 +51,13 @@ class EvaluationSummary {
     required this.totalEvaluations,
     required this.completionRate,
     required this.facultyCount,
+    int? activeFacultyCount,
     this.evaluatedCount = 0,
     this.formsScanned = 0,
-  });
+  })  // Every call site already knew its active count before this field existed
+      // except the zero-data fallbacks, where active and total are the same
+      // number anyway (nobody has data to be a deactivated exception to).
+      : activeFacultyCount = activeFacultyCount ?? facultyCount;
 
   /// Forms collected but not yet reflected in any score.
   int get formsAwaitingProcessing =>
@@ -47,6 +72,13 @@ class EvaluationSummary {
   /// True when only some of the faculty have been scanned, so every average
   /// here describes [evaluatedCount] people rather than the whole department.
   bool get isPartial => evaluatedCount > 0 && evaluatedCount < facultyCount;
+
+  /// How many of [facultyCount] are a deactivated account kept only because it
+  /// still holds a result this term. Zero once nobody on the roster is in that
+  /// state -- in particular, always zero once the term rolls past their last
+  /// recorded one, which is what makes [facultyCount] fall to match.
+  int get deactivatedWithResults =>
+      (facultyCount - activeFacultyCount).clamp(0, facultyCount);
 }
 
 // holds performance data for a single instructor -- name, dept, score, trend
@@ -232,6 +264,8 @@ List<Map<String, dynamic>> averagePerTerm(
       'sem': label,
       'score':
           double.parse(((data['sum'] as double) / count).toStringAsFixed(2)),
+      // Kept so the chart can colour both semesters of one school year alike.
+      'year': term?['academic_year']?.toString() ?? '',
       'rawTerm': term,
     });
   });
@@ -258,7 +292,7 @@ List<Map<String, dynamic>> averagePerTerm(
   });
 
   return history
-      .map((e) => {'sem': e['sem'], 'score': e['score']})
+      .map((e) => {'sem': e['sem'], 'score': e['score'], 'year': e['year']})
       .toList();
 }
 
@@ -319,20 +353,33 @@ class EvaluationService {
           .eq('department_id', deptId)
           .eq('is_primary', true);
       
-      // Get all instructors linked to this dept, INCLUDING the dept head themselves
-      // because Dept Heads also teach classes and receive student evaluations!
+      // Every instructor linked to this dept EXCEPT the head reading the card.
+      //
+      // Heads do teach and do get evaluated, so their results were counted here
+      // for a long time. The problem is that faculty_roster_screen ends its
+      // query with `.neq('id', deanId)` -- a head is not on their own roster.
+      // So the card was built from one more person than the list underneath it,
+      // and the head had no row to attribute the difference to: the forms total
+      // read 250 against a roster that added up to less, which is exactly the
+      // reconciliation this card exists to support.
+      //
+      // A head's own teaching results are still theirs to see -- the instructor
+      // dashboard shows them -- they just don't fold into the department
+      // numbers the head is reporting on. Keep this rule and the roster's
+      // `.neq` together: whichever way they point, they must point the same way.
       final facultyIds = (facultyRows as List)
           .where((row) => row['instructor_id'] != null)
           .map((row) => row['instructor_id'].toString())
+          .where((id) => id != userId)
           .toList();
 
-      debugPrint('EvaluationService - Found ${facultyIds.length} instructors for Dept $deptId');
+      debugPrint('EvaluationService - Found ${facultyIds.length} instructors for Dept $deptId (head excluded)');
 
       // Staff headcount excludes accounts that are no longer active. Their
       // already-collected results still aggregate below: a fired instructor
       // leaves the roster, but the evaluations students submitted while he was
       // teaching are not deleted from the term's numbers.
-      var activeFacultyCount = facultyIds.length;
+      var activeFacultyIds = facultyIds;
       if (facultyIds.isNotEmpty) {
         try {
           final statusRows = await _supabase
@@ -340,13 +387,17 @@ class EvaluationService {
               .select('id')
               .filter('id', 'in', facultyIds)
               .eq('account_status', 'approved');
-          activeFacultyCount = (statusRows as List).length;
+          activeFacultyIds = (statusRows as List)
+              .where((row) => row['id'] != null)
+              .map((row) => row['id'].toString())
+              .toList();
         } catch (e) {
           // Non-fatal: fall back to the linked count rather than lose the
           // whole dashboard over a headcount.
           debugPrint('EvaluationService - Could not filter faculty by status: $e');
         }
       }
+      final activeFacultyCount = activeFacultyIds.length;
 
       if (facultyIds.isEmpty) return _emptySummary(); // no faculty found, show zeros
 
@@ -360,37 +411,74 @@ class EvaluationService {
       // this semester" against 152 actually scanned -- 51 forms collected,
       // stored, and invisible to the head who has to chase them.
       //
-      // Counted before the aggregate fetch on purpose, so the "no results yet"
-      // path below can still report the forms that are sitting in the queue.
-      var formsScanned = 0;
-      try {
-        final rawRows = await _supabase
-            .from('sast_all_raw_data_survey')
-            .select('id')
-            .eq('term_id', termId)
-            .filter('instructor_ID', 'in', facultyIds);
-        formsScanned = (rawRows as List).length;
-      } catch (e) {
-        // Non-fatal, and it fails low rather than high: fall back to the
-        // aggregated count so the card never claims more than it can show.
-        debugPrint('EvaluationService - Could not count raw forms: $e');
-      }
-
+      // Counted over the SAME people the faculty roster lists, so the card and
+      // the list underneath it can be reconciled. Counting every id ever linked
+      // to the department made the card read 250 for a roster adding up to 203,
+      // because forms belonging to accounts nobody could see were still in the
+      // total -- deactivated accounts, and the head themselves, who is dropped
+      // from `facultyIds` above for the same reason.
+      //
+      // That set is no longer "active accounts only". The roster now also keeps
+      // a deactivated instructor for as long as their results are still in this
+      // term's numbers -- because the average below has always included them,
+      // and hiding them from the list while counting their scores is what the
+      // head could not reconcile. So the roster's rule is: active, OR still
+      // holding results this term. This count follows the same rule, which is
+      // why the aggregate fetch now happens first: `stats` is what says who
+      // still holds results.
+      //
+      // Scores continue to include those accounts on purpose -- an evaluation a
+      // student submitted is not deleted when the instructor leaves -- and the
+      // formsScanned floor at the end of this method still keeps the card from
+      // ever claiming fewer forms collected than it has scored.
+      //
       // fetch overall survey results for all faculty in this dept for the active term
       final stats = await _supabase
           .from('overall_total_survey')
           .select('''
-            overall_mean, 
+            overall_mean,
             combined_score_mean,
-            management_mean, 
-            performance_mean, 
+            management_mean,
+            performance_mean,
             total_responses,
             instructor_id
           ''')
           .eq('term_id', termId)
           .filter('instructor_id', 'in', facultyIds); // only get rows for our faculty
-      
+
       debugPrint('EvaluationService - Found ${(stats as List).length} overall_total_survey records for faculty: $facultyIds');
+
+      // Active faculty, plus anyone still carrying results this term. Exactly
+      // the roster's set. When nothing has been aggregated yet this collapses
+      // to activeFacultyIds, which is what it used to be in every case.
+      final rosterFacultyIds = <String>{
+        ...activeFacultyIds,
+        for (final row in (stats as List))
+          if (row['instructor_id'] != null) row['instructor_id'].toString(),
+      }.toList();
+
+      // Forms actually collected, counted from the raw scans.
+      //
+      // Counted before the "no results yet" early return below on purpose, so
+      // that path can still report the forms sitting in the n8n queue.
+      var formsScanned = 0;
+      if (rosterFacultyIds.isNotEmpty) {
+        try {
+          final rawRows = await _supabase
+              .from('sast_all_raw_data_survey')
+              .select('id')
+              .eq('term_id', termId)
+              .filter('instructor_ID', 'in', rosterFacultyIds);
+          formsScanned = (rawRows as List).length;
+        } catch (e) {
+          // Non-fatal, and it fails low rather than high: fall back to the
+          // aggregated count so the card never claims more than it can show.
+          debugPrint('EvaluationService - Could not count raw forms: $e');
+        }
+      }
+      debugPrint(
+          'EvaluationService - $formsScanned raw forms this term across ${rosterFacultyIds.length} rostered faculty '
+          '(${activeFacultyIds.length} active, ${facultyIds.length} linked)');
 
       if ((stats as List).isEmpty) {
         debugPrint('EvaluationService - No records in overall_total_survey for faculty in term $termId. Dashboard will show 0.0.');
@@ -403,7 +491,12 @@ class EvaluationService {
           performanceMean: 0,
           totalEvaluations: 0,
           completionRate: 0,
-          facultyCount: activeFacultyCount,
+          // rosterFacultyIds, not activeFacultyIds -- stats is empty on this
+          // path so the two happen to be equal today, but the rule these two
+          // numbers state should always be the same one FacultyRosterScreen
+          // uses, not "whichever is equal right now."
+          facultyCount: rosterFacultyIds.length,
+          activeFacultyCount: activeFacultyCount,
           evaluatedCount: 0,
           formsScanned: formsScanned,
         );
@@ -453,7 +546,18 @@ class EvaluationService {
         performanceMean: double.parse((totalPerf / count).toStringAsFixed(2)),
         totalEvaluations: totalResponses,
         completionRate: double.parse(calculatedRate.toStringAsFixed(2)),
-        facultyCount: activeFacultyCount,
+        // rosterFacultyIds -- active accounts, plus anyone deactivated who still
+        // holds a result this term. Kept equal to activeFacultyCount by
+        // construction is what let the Overview card read "5 Active Faculty"
+        // against a Faculty tab that already, correctly, listed only 4 the
+        // moment someone was deactivated mid-term. This is the same number the
+        // roster counts its rows by, so the two screens can no longer disagree.
+        // `count` (evaluatedCount, below) is always <= this, because every id in
+        // `stats` was added into rosterFacultyIds above -- so "Based on X of Y"
+        // stays a true subset relationship instead of quietly counting a
+        // deactivated account in X while that same account is excluded from Y.
+        facultyCount: rosterFacultyIds.length,
+        activeFacultyCount: activeFacultyCount,
         evaluatedCount: count,
         formsScanned: formsScanned > totalResponses ? formsScanned : totalResponses,
       );

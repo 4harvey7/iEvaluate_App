@@ -1,0 +1,581 @@
+<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate - Test Execution Report</title><style>
+@page { size: Letter landscape; margin: 10mm 9mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 8pt; color:#000;
+       margin:0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+
+.head { display:flex; align-items:center; justify-content:center; gap:12px; }
+.seal { width:40px; height:40px; object-fit:contain; }
+.seal.spacer { visibility:hidden; }
+.htext { text-align:center; line-height:1.14; }
+.htext .l1 { font-size:7.6pt; }
+.htext .l2 { font-size:10.5pt; font-weight:bold; letter-spacing:.3px; }
+.htext .l3 { font-size:7pt; font-weight:bold; }
+.htext .l4 { font-size:6.8pt; }
+.htext .l5 { font-size:6.2pt; }
+.college { text-align:center; font-weight:bold; font-size:9.2pt; margin-top:4px; }
+.dept    { text-align:center; font-weight:bold; font-size:9pt; }
+
+.doctitle { text-align:center; font-weight:bold; font-size:14.5pt; letter-spacing:1px;
+            margin:4px 0 1px; }
+.doctitle.sm2 { font-size:13.5pt; margin:6px 0 1px; }
+.docsub { text-align:center; font-size:8pt; font-style:italic; margin-bottom:3px; }
+.rid { text-align:center; font-size:8.2pt; font-weight:bold; margin-bottom:6px; }
+
+.h2 { font-weight:bold; font-size:9.2pt; margin:4px 0 2px; padding-bottom:2px;
+      border-bottom:1.6px solid #000; }
+
+table { width:100%; border-collapse:collapse; table-layout:fixed; }
+table.kv th, table.kv td { border:1px solid #000; padding:2px 6px;
+                           vertical-align:top; }
+table.kv th { width:19%; text-align:left; font-weight:bold; background:#ececec; }
+table.kv.two th { width:15%; }
+table.kv.quad th { width:16%; } table.kv.quad td { width:34%; }
+table.kv.narrow th { width:38%; }
+.cols { display:flex; gap:12px; align-items:flex-start; }
+.cols .col { flex:1 1 0; min-width:0; }
+
+table.grid th, table.grid td { border:1px solid #000; padding:2px 5px;
+                               vertical-align:top; }
+table.grid thead th { background:#d9d9d9; text-align:center; font-weight:bold;
+                      font-size:7.6pt; }
+table.grid thead { display:table-header-group; }
+tr, td, th { page-break-inside:avoid; }
+
+td.c, th.c { text-align:center; }
+td.b, .b { font-weight:bold; }
+.mono { font-family:"Consolas","Courier New",monospace; font-size:7.1pt;
+        word-break:break-word; }
+.sm { font-size:7.4pt; }
+td.stp { font-size:7.5pt; line-height:1.35; }
+
+table.det td { font-size:7.6pt; line-height:1.32; }
+table.idx td { padding:2px 5px; }
+tr.tot td { font-weight:bold; background:#ececec; }
+
+table.sum tbody tr.big td { text-align:center; font-size:15pt; font-weight:bold;
+                            padding:7px 4px; }
+table.sum .pv { color:#0b6b2f; }
+table.sum .fv { color:#a4101a; }
+table.sum .bv { color:#8a6100; }
+
+td.stat { text-align:center; font-weight:bold; font-size:7.4pt; letter-spacing:.2px; }
+td.stat.pass { background:#d6efd9; color:#0b6b2f; }
+td.stat.fail { background:#f7d5d7; color:#a4101a; }
+td.stat.blk  { background:#fbeacb; color:#8a6100; }
+
+.sev-high   { background:#f7d5d7; color:#a4101a; font-weight:bold; }
+.sev-medium { background:#fbeacb; color:#8a6100; font-weight:bold; }
+.sev-low    { background:#e6e6e6; font-weight:bold; }
+table.def td { font-size:7.4pt; line-height:1.3; }
+
+.bar { display:flex; width:100%; height:13px; margin:4px 0 2px;
+       border:1px solid #000; overflow:hidden; }
+.sg { display:flex; align-items:center; justify-content:center; font-size:7.2pt;
+      font-weight:bold; color:#fff; }
+.sp { background:#1e7a3e; } .sf { background:#b5202c; } .sb { background:#c08a13; }
+.legend { font-size:7.2pt; display:flex; gap:14px; align-items:center;
+          margin-bottom:2px; }
+.legend i.sw { display:inline-block; width:9px; height:9px; margin-right:4px;
+               border:1px solid #000; vertical-align:-1px; }
+.legend .note { font-style:italic; margin-left:auto; }
+
+.verdict { border:1px solid #000; padding:5px 7px; font-size:7.8pt; line-height:1.25; }
+.verdict p { margin:0 0 4px; } .verdict p:last-child { margin:0; }
+
+.nodef { border:1px solid #000; padding:6px 8px; font-size:8pt; font-style:italic;
+         background:#f4f4f4; }
+ul.obs { margin:0; padding-left:16px; font-size:8pt; line-height:1.4; }
+ul.obs li { margin-bottom:3px; }
+
+table.sign { margin-top:5px; }
+table.sign th { border:none; font-size:7.6pt; text-align:center; padding-bottom:11px;
+                font-weight:bold; }
+tr.sigline td { border:none; border-top:1px solid #000; height:1px; }
+tr.signame td { border:none; text-align:center; font-size:8pt; font-weight:bold;
+                padding-top:3px; }
+tr.signame td span { font-weight:normal; font-size:7.2pt; font-style:italic; }
+</style></head><body>
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle">TEST EXECUTION REPORT</div>
+  <div class="docsub">Consolidated report covering five pages / modules</div>
+
+  <table class="kv quad">
+    <tr><th>Capstone Project Title</th><td class="b" colspan="3">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr>
+    <tr><th>Team</th><td colspan="3">ERMM</td></tr>
+    <tr><th>Project Leader</th><td>Rodz Harvey Licayan</td><th>Front-End Programmer</th><td>Michael Thomas Gonzaga</td></tr><tr><th>QA Engineer</th><td>Mark Lawrence Medillo</td><th>Technical Writer</th><td>Evangeline Caruana</td></tr>
+  </table>
+
+  <div class="cols">
+    <div class="col">
+      <div class="h2">1.&nbsp;&nbsp;Test Environment</div>
+      <table class="kv narrow"><tr><th>Application under test</th><td>iEvaluate Mobile Application</td></tr><tr><th>Build</th><td>debug, Flutter 3.41.6</td></tr><tr><th>Package</th><td>com.example.ievaluateapp_final</td></tr><tr><th>Device</th><td>Infinix X6525, Android 13 (API 33)</td></tr><tr><th>Back end</th><td>Supabase (PostgreSQL, Auth, Edge Functions)</td></tr><tr><th>Automation</th><td>n8n workflow engine, live endpoint</td></tr><tr><th>Active academic term</th><td>2nd Semester, 2027-2028</td></tr><tr><th>Network</th><td>Campus Wi-Fi, 5 GHz</td></tr></table>
+    </div>
+    <div class="col">
+      <div class="h2">2.&nbsp;&nbsp;Execution Details</div>
+      <table class="kv narrow">
+        <tr><th>Test level</th><td>System Testing / User Acceptance Testing</td></tr>
+        <tr><th>Test type</th><td>Functional, negative-path and UI-layout verification, executed manually</td></tr>
+        <tr><th>Execution window</th><td>01 - 03 September 2026</td></tr>
+        <tr><th>Executed by</th><td>Mark Lawrence Medillo (QA Engineer)</td></tr>
+        <tr><th>Report prepared by</th><td>Evangeline Caruana (Technical Writer)</td></tr>
+        <tr><th>Reviewed by</th><td>Rodz Harvey Licayan (Project Leader)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="h2">3.&nbsp;&nbsp;Consolidated Summary</div>
+  <table class="grid idx">
+    <thead><tr>
+      <th style="width:5%">#</th><th style="width:9%">Report ID</th>
+      <th>Page / Module Under Test</th>
+      <th style="width:9%">Total<br>Cases</th><th style="width:9%">Passed</th>
+      <th style="width:9%">Failed</th><th style="width:11%">Not<br>Executed</th>
+      <th style="width:10%">Pass<br>Rate</th><th style="width:10%">Defects<br>Logged</th>
+    </tr></thead>
+    <tbody><tr><td class="c">1</td><td class="c">TER-01</td><td>Login Page (Authentication)</td><td class="c">13</td><td class="c">12</td><td class="c">0</td><td class="c">1</td><td class="c b">100.0%</td><td class="c">0</td></tr><tr><td class="c">2</td><td class="c">TER-02</td><td>Registration / Sign-Up Page</td><td class="c">14</td><td class="c">14</td><td class="c">0</td><td class="c">0</td><td class="c b">100.0%</td><td class="c">0</td></tr><tr><td class="c">3</td><td class="c">TER-03</td><td>Instructor - My Dashboard Page</td><td class="c">10</td><td class="c">8</td><td class="c">2</td><td class="c">0</td><td class="c b">80.0%</td><td class="c">2</td></tr><tr><td class="c">4</td><td class="c">TER-04</td><td>Instructor - Student Feedback Page</td><td class="c">9</td><td class="c">6</td><td class="c">2</td><td class="c">1</td><td class="c b">75.0%</td><td class="c">2</td></tr><tr><td class="c">5</td><td class="c">TER-05</td><td>Instructor - Official Evaluation Report &amp; PDF Export</td><td class="c">10</td><td class="c">7</td><td class="c">2</td><td class="c">1</td><td class="c b">77.8%</td><td class="c">3</td></tr>
+      <tr class="tot"><td class="c" colspan="3">TOTAL</td>
+        <td class="c">56</td><td class="c">47</td><td class="c">6</td>
+        <td class="c">3</td><td class="c">88.7%</td><td class="c">7</td></tr>
+    </tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:83.9286%">47</span><span class="sg sf" style="width:10.7143%">6</span><span class="sg sb" style="width:5.3571%">3</span></div>
+  <div class="legend">
+    <span><i class="sw sp"></i>Passed</span>
+    <span><i class="sw sf"></i>Failed</span>
+    <span><i class="sw sb"></i>Not executed / blocked</span>
+    <span class="note">Pass rate = passed &divide; executed cases (blocked cases excluded).</span>
+  </div>
+
+  <div class="h2">4.&nbsp;&nbsp;Overall Verdict</div>
+  <div class="verdict">
+    <p><b>53 of 56</b> cases were executed: <b>47 passed</b>, <b>6 failed</b> &mdash;
+    an overall pass rate of <b>88.7%</b>. The other <b>3</b> are carried forward.</p>
+    <p><b>7 defects</b> were logged (High: 1, Medium: 2, Low: 4). The six failures fall on three pages &mdash;
+    My Dashboard, Student Feedback and the Official Evaluation Report &mdash; and five
+    of them are presentation faults rather than data faults: the underlying value was
+    correct in every case but was clipped, truncated or duplicated on its way to the
+    screen or the exported PDF. The sixth, DEF-07, is an unreachable screen left in the
+    build.</p>
+    <p><b>Recommendation: CONDITIONALLY ACCEPTED.</b> Authentication, registration and
+    core navigation passed without a single defect and are fit for release. The two
+    reporting pages must be rebuilt and re-tested against the fixes applied on
+    31/08/2026 before sign-off, because DEF-01 affects an official document that leaves
+    the system.</p>
+  </div>
+
+  <table class="sign">
+    <tr><th>Prepared by</th><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Evangeline Caruana<br><span>Technical Writer</span></td>
+        <td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle sm2">TEST EXECUTION REPORT</div>
+  <div class="rid">Report TER-01&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module 1 of 5</div>
+
+  <table class="kv two">
+    <tr><th>Page / Module Under Test</th><td class="b" colspan="3">Login Page (Authentication)</td></tr>
+    <tr><th>Source File(s)</th><td class="mono" colspan="3">lib/login_screen.dart</td></tr>
+    <tr><th>Entry Point</th><td colspan="3">App launch with no active session</td></tr>
+    <tr><th>User Role(s)</th><td colspan="3">All roles (Instructor, Department Head, SAO Staff, SAO Administrator)</td></tr>
+    <tr><th>Test Objective</th><td colspan="3">Confirm that a valid user of any role is authenticated and routed to the dashboard of that role only, and that every invalid, unauthorised or abusive sign-in path is refused with a message the user can act on.</td></tr>
+    <tr><th>In Scope</th><td colspan="3">Splash-to-login routing, credential entry, password masking, the NDA/DPA gate, successful authentication, role-based routing, empty-field validation, invalid credentials, rate limiting, deactivated accounts and password reset.</td></tr>
+    <tr><th>Out of Scope</th><td colspan="3">Biometric sign-in (not implemented in this build) and SSO. Session persistence across a device reboot is covered by the Dashboard report.</td></tr>
+    <tr><th>Executed By / Date</th><td>Mark Lawrence Medillo, 01 - 03 September 2026</td>
+        <th style="width:15%">Build / Device</th><td>Flutter 3.41.6 debug / Infinix X6525, Android 13</td></tr>
+  </table>
+
+  <div class="h2">Execution Summary</div>
+  <table class="grid sum">
+    <thead><tr>
+      <th>Total Cases</th><th>Executed</th><th>Passed</th><th>Failed</th>
+      <th>Not Executed</th><th>Pass Rate</th><th>Defects Logged</th>
+    </tr></thead>
+    <tbody><tr class="big">
+      <td>13</td><td>12</td><td class="pv">12</td><td class="fv">0</td>
+      <td class="bv">1</td><td class="b">100.0%</td><td>0</td>
+    </tr></tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:92.3077%">12</span><span class="sg sb" style="width:7.6923%">1</span></div>
+
+  <div class="h2">Test Execution Details</div>
+  <table class="grid det">
+    <thead><tr>
+      <th style="width:7%">Test Case ID</th>
+      <th style="width:13%">Test Scenario</th>
+      <th style="width:19%">Test Steps</th>
+      <th style="width:10%">Test Data</th>
+      <th style="width:19%">Expected Result</th>
+      <th style="width:20%">Actual Result</th>
+      <th style="width:6%">Status</th>
+      <th style="width:6%">Defect Ref.</th>
+    </tr></thead><tbody><tr><td class="c mono">TC-LGN-01</td><td>Login screen is presented on a cold launch</td><td class="stp">1. Force-stop the app and clear the running task.<br>2. Tap the iEvaluate icon and wait for the splash to resolve.</td><td class="sm">No active session on the device</td><td>Login screen appears headed &quot;iEvaluate Portal&quot; with the subtitle &quot;Secure access to academic evaluation tools.&quot; and the CTU seal.</td><td>Login screen rendered in 2.1 s. Heading, subtitle and seal all match the specification character for character.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-02</td><td>Identifier field accepts an ID or an institutional email</td><td class="stp">1. Tap the first field and read its placeholder.<br>2. Type a university ID, clear it, then type an institutional email.</td><td class="sm">ID 2021-00318; email rlicayan@ctu.edu.ph</td><td>Placeholder reads &quot;University ID or Institutional Email&quot;. Both formats are accepted without a client-side format error.</td><td>Placeholder correct. Both the numeric ID and the email were accepted and retained in the field.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-03</td><td>Password masking and reveal toggle</td><td class="stp">1. Type a password into the second field.<br>2. Tap the eye icon at the right of the field.<br>3. Tap the eye icon a second time.</td><td class="sm">Valid instructor password (not recorded)</td><td>Password is masked by default. The first tap reveals the characters, the second re-masks them. Focus and caret position are preserved.</td><td>Behaved exactly as expected across three repetitions. No character loss on toggle.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-04</td><td>NDA and DPA agreement dialog is reachable and dismissible</td><td class="stp">1. Tap the information icon beside &quot;I agree to the NDA and DPA&quot;.<br>2. Scroll the dialog to its end.<br>3. Dismiss the dialog.</td><td class="sm">n/a</td><td>A dialog titled &quot;NDA &amp; DPA Agreements&quot; opens, scrolls to the end of both agreements and closes without altering the checkbox state.</td><td>Dialog opened, scrolled and closed. The checkbox state was unchanged after dismissal.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-05</td><td>Successful sign-in with valid instructor credentials</td><td class="stp">1. Enter the institutional email and password.<br>2. Tick &quot;I agree to the NDA and DPA&quot;.<br>3. Tap &quot;Sign In&quot;.</td><td class="sm">Active instructor account, role = INSTRUCTOR</td><td>Authentication succeeds and the app routes to &quot;My Dashboard&quot; showing the bottom tabs Dashboard, My Subjects, Feedback and Past Terms.</td><td>Signed in within 3.4 s and landed on &quot;My Dashboard&quot; with all four tabs present. No other role&#x27;s dashboard was reachable.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-06</td><td>Role-based routing for the remaining three roles</td><td class="stp">1. Sign out.<br>2. Repeat TC-LGN-05 with a Department Head, an SAO Staff and an SAO Administrator account in turn.</td><td class="sm">One active account per role</td><td>Each account reaches only its own dashboard: the Executive Overview, the SAO Staff shift dashboard and the SAO system overview respectively.</td><td>All three routed correctly. No cross-role screen was reachable by tab, drawer or back gesture.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-07</td><td>Both credential fields left empty</td><td class="stp">1. Leave both fields blank.<br>2. Tick the NDA checkbox.<br>3. Tap &quot;Sign In&quot;.</td><td class="sm">Empty strings</td><td>Sign-in is refused with &quot;Please enter your ID/email and password.&quot; and no network call is made.</td><td>Refused with the exact message. No authentication request was issued.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-08</td><td>NDA / DPA consent not given</td><td class="stp">1. Enter valid credentials.<br>2. Leave &quot;I agree to the NDA and DPA&quot; unticked.<br>3. Tap &quot;Sign In&quot;.</td><td class="sm">Valid instructor credentials</td><td>Refused with &quot;Please agree to the NDA and DPA to log in.&quot; and no session is created.</td><td>Refused with the exact message. No session token was written to secure storage.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-09</td><td>Single invalid-password attempt</td><td class="stp">1. Enter a valid email with a deliberately wrong password.<br>2. Tap &quot;Sign In&quot; once.</td><td class="sm">Valid email, password &quot;wrongpass1&quot;</td><td>Sign-in fails with an invalid-credentials message and the typed email is NOT cleared, so the user need not retype it.</td><td>Failed as expected and the email persisted in the field.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-10</td><td>Rate limiter trips after repeated failures</td><td class="stp">1. Repeat TC-LGN-09 until the attempt limit is reached.<br>2. Observe the countdown and attempt a further sign-in.</td><td class="sm">Throwaway instructor account, wrong password x5</td><td>The limit blocks further attempts with &quot;Too many failed attempts. Please wait Xm Ys before trying again.&quot; carrying a live countdown.</td><td>Blocked on the 5th attempt. The countdown rendered live and decremented each second; sign-in stayed refused until it expired.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-11</td><td>Deactivated account is denied</td><td class="stp">1. Enter the credentials of an account deactivated by the administration.<br>2. Tap &quot;Sign In&quot;.</td><td class="sm">Deactivated instructor account</td><td>Denied with &quot;Your account has been deactivated by the administration.&quot; The dashboard is never reached.</td><td>Denied with the exact message. Routing did not occur.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-12</td><td>Forgot-password reset completes end to end</td><td class="stp">1. Tap &quot;Forgot Password?&quot;.<br>2. Complete the emailed reset.<br>3. Return and sign in with the new password.</td><td class="sm">Institutional mailbox of the test account</td><td>Reset mail arrives, the new password is accepted, and the app confirms with &quot;Password updated successfully! Please log in with your new password.&quot;</td><td>Reset mail arrived in 41 s. The new password was accepted and the confirmation banner appeared. The old password was correctly rejected afterwards.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-LGN-13</td><td>Sign-in attempted with no network connectivity</td><td class="stp">1. Enable airplane mode.<br>2. Enter valid credentials and tap &quot;Sign In&quot;.</td><td class="sm">Valid instructor credentials, radio off</td><td>A connectivity notice is shown, the app does not crash or hang, and the attempt can be retried once the radio is restored.</td><td>NOT EXECUTED. The campus test handset could not be taken off the network during the booked window without losing the remote debugging session. Re-scheduled to the next regression cycle.</td><td class="stat blk">NOT EXEC.</td><td class="c mono sm">-</td></tr></tbody>
+  </table>
+  <div class="h2">Defect Log</div><div class="nodef">No defect was raised against this page. Every executed test case passed.</div>
+
+  <div class="h2">Observations and Follow-up</div>
+  <ul class="obs"><li>No defect was raised against this page. The authentication and rate-limiting paths behaved to specification on every executed case.</li><li>TC-LGN-10 must be run on a throwaway account: the limiter is real and locks the account for the full duration of the countdown.</li></ul>
+
+  <table class="sign">
+    <tr><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle sm2">TEST EXECUTION REPORT</div>
+  <div class="rid">Report TER-02&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module 2 of 5</div>
+
+  <table class="kv two">
+    <tr><th>Page / Module Under Test</th><td class="b" colspan="3">Registration / Sign-Up Page</td></tr>
+    <tr><th>Source File(s)</th><td class="mono" colspan="3">lib/signup_screen.dart</td></tr>
+    <tr><th>Entry Point</th><td colspan="3">Login screen -&gt; &quot;Need an account?&quot; -&gt; &quot;Register&quot;</td></tr>
+    <tr><th>User Role(s)</th><td colspan="3">Prospective user (Instructor, Department Head, SAO Staff, SAO Administrator)</td></tr>
+    <tr><th>Test Objective</th><td colspan="3">Confirm that the four-step registration wizard collects and validates personal, academic and credential data, enforces the one-department-head rule and the duplicate checks, and leaves the account pending SAO Administrator approval rather than active.</td></tr>
+    <tr><th>In Scope</th><td colspan="3">Step navigation, role selection, live availability checks on name, ID and email, department-head uniqueness, address and employment validation, password strength rules, the NDA/DPA gate, submission and the pending-approval confirmation.</td></tr>
+    <tr><th>Out of Scope</th><td colspan="3">The approval action itself, which belongs to the SAO Administrator module, and the notification e-mail template.</td></tr>
+    <tr><th>Executed By / Date</th><td>Mark Lawrence Medillo, 01 - 03 September 2026</td>
+        <th style="width:15%">Build / Device</th><td>Flutter 3.41.6 debug / Infinix X6525, Android 13</td></tr>
+  </table>
+
+  <div class="h2">Execution Summary</div>
+  <table class="grid sum">
+    <thead><tr>
+      <th>Total Cases</th><th>Executed</th><th>Passed</th><th>Failed</th>
+      <th>Not Executed</th><th>Pass Rate</th><th>Defects Logged</th>
+    </tr></thead>
+    <tbody><tr class="big">
+      <td>14</td><td>14</td><td class="pv">14</td><td class="fv">0</td>
+      <td class="bv">0</td><td class="b">100.0%</td><td>0</td>
+    </tr></tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:100.0000%">14</span></div>
+
+  <div class="h2">Test Execution Details</div>
+  <table class="grid det">
+    <thead><tr>
+      <th style="width:7%">Test Case ID</th>
+      <th style="width:13%">Test Scenario</th>
+      <th style="width:19%">Test Steps</th>
+      <th style="width:10%">Test Data</th>
+      <th style="width:19%">Expected Result</th>
+      <th style="width:20%">Actual Result</th>
+      <th style="width:6%">Status</th>
+      <th style="width:6%">Defect Ref.</th>
+    </tr></thead><tbody><tr><td class="c mono">TC-REG-01</td><td>Registration wizard is reachable and step 1 renders</td><td class="stp">1. From the Login screen tap &quot;Register&quot;.<br>2. Read the step indicator and the section heading.</td><td class="sm">n/a</td><td>The wizard opens on &quot;Personal Information&quot; as step 1 of 4, with the remaining steps Academic Information, Create Password and Review &amp; Terms.</td><td>Opened on Personal Information with the four-step indicator rendered correctly.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-02</td><td>Role selection is mandatory before continuing</td><td class="stp">1. Leave &quot;I am registering as&quot; unset.<br>2. Tap &quot;Continue&quot;.</td><td class="sm">No role chosen</td><td>Progress is refused with &quot;Please choose what you are registering as&quot;.</td><td>Refused with the exact message; the wizard stayed on step 1.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-03</td><td>All four roles are offered with the correct labels</td><td class="stp">1. Open the &quot;I am registering as&quot; selector and read every option.</td><td class="sm">n/a</td><td>The list offers &quot;Instructor&quot;, &quot;Department Head&quot;, &quot;SAO Staff (Data Gatherer)&quot; and &quot;SAO Administrator&quot;.</td><td>All four options were present and correctly labelled.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-04</td><td>Live duplicate check on the applicant name</td><td class="stp">1. Enter a first and last name already held by an approved user.<br>2. Enter a name that is not yet in use.</td><td class="sm">Existing &quot;Rodz Licayan&quot;; new &quot;Juan Cruz&quot;</td><td>The taken name is rejected with &quot;Someone is already registered with this exact name&quot;; the free name reports &quot;Juan Cruz is available&quot;.</td><td>Both outcomes were observed. The check debounced correctly and did not fire on every keystroke.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-05</td><td>Live duplicate check on the ID and the institutional email</td><td class="stp">1. Enter an ID already registered, then a free one.<br>2. Enter an email already registered, then a free one.</td><td class="sm">Registered ID and email of an approved account</td><td>Taken values report &quot;This &lt;ID label&gt; is already registered&quot; and &quot;This email is already registered&quot;; free values report the matching &quot;is available&quot; messages.</td><td>All four messages appeared correctly against the live directory.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-06</td><td>Address fields are validated individually</td><td class="stp">1. Leave the house number / street blank and continue.<br>2. Fill it, clear the barangay line and continue.</td><td class="sm">Address &quot;Lamacan, Argao, Cebu&quot;</td><td>Each omission is refused by its own message: &quot;House number / street is required&quot; and &quot;Barangay is required&quot;.</td><td>Both messages appeared against the correct field, and Continue stayed blocked until each was supplied.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-07</td><td>Department is mandatory on the academic step</td><td class="stp">1. Reach Academic Information without selecting a department.<br>2. Tap &quot;Continue&quot;.</td><td class="sm">No department chosen</td><td>Refused with &quot;Please select a department&quot;. The selector lists the departments held in the system, and free text is accepted for one that is not listed.</td><td>Refused with the exact message. The list loaded from the live department table and the free-text fallback worked.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-08</td><td>One-department-head rule is enforced at registration</td><td class="stp">1. Choose the role &quot;Department Head&quot;.<br>2. Select a department that already has an assigned head.<br>3. Select a department that has none.</td><td class="sm">CTE (head assigned); a department with no head</td><td>While the check runs the field reads &quot;Checking if this department already has a head...&quot;; a department that already has one is refused with &quot;This department already has a head&quot;. A vacant department is accepted.</td><td>The interim message appeared and the occupied department was refused. The vacant department was accepted and the wizard advanced.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-09</td><td>Employment status is mandatory for instructor roles</td><td class="stp">1. Choose &quot;Instructor&quot; and leave Employment Status unset.<br>2. Tap &quot;Continue&quot;, then select &quot;Instructor - Resident (Full-Time)&quot;.</td><td class="sm">FULL-TIME / PART-TIME</td><td>Refused with &quot;Please select an employment status&quot; until Resident (Full-Time) or Non-Resident (Part-Time) is chosen.</td><td>Refused as expected, then advanced once Full-Time was selected. The stored value was &quot;FULL-TIME&quot;.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-10</td><td>Password strength rules are enforced and displayed live</td><td class="stp">1. On &quot;Create Password&quot; type a weak password and read the checklist.<br>2. Build up to a compliant password.<br>3. Enter a different confirmation value.</td><td class="sm">Weak &quot;abc&quot;; compliant &quot;Passw0rd_&quot;</td><td>The four rules &quot;At least 8 characters&quot;, &quot;One uppercase letter&quot;, &quot;One number&quot; and &quot;One special character (! @ # - _ ...)&quot; tick individually as they are met. A mismatched confirmation is refused with &quot;Passwords do not match&quot;.</td><td>All four indicators ticked live as each rule was satisfied. The mismatch was refused with the exact message.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-11</td><td>Agreement must be read before it can be accepted</td><td class="stp">1. On &quot;Review &amp; Terms&quot; tap the agreement checkbox without opening the agreement.<br>2. Open &quot;NDA and Data Privacy Agreement&quot;, read to the end, then tick.</td><td class="sm">n/a</td><td>Before the agreement is opened the control reads &quot;Tap to read. Required before you can agree.&quot; and ticking is refused with &quot;Read the agreement above first&quot;. After reading, the checkbox accepts the tick and the link changes to &quot;Read - tap to view again&quot;.</td><td>Ticking was refused before reading and accepted afterwards. The link label changed as specified.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-12</td><td>Review step reflects the data entered</td><td class="stp">1. Tap &quot;Tap to review your details&quot; and compare every field with what was entered.</td><td class="sm">Full instructor application</td><td>The summary shows the composed full name, the role line &quot;Registering as &lt;role&gt;&quot;, department, employment status, address and institutional email, all matching the wizard input.</td><td>Every field matched. The role line read &quot;Registering as Instructor.&quot;</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-13</td><td>Submission leaves the account pending approval</td><td class="stp">1. Tap &quot;Register&quot;.<br>2. Read the confirmation screen.<br>3. Tap &quot;Return to Login&quot; and try to sign in with the new credentials.</td><td class="sm">Complete instructor application</td><td>A &quot;Registration Submitted!&quot; screen explains that the account is waiting for an SAO Administrator to approve it and that notifications go to the submitted address. Sign-in with the new credentials is refused until approval.</td><td>The confirmation screen was shown with the correct e-mail address interpolated. Sign-in was correctly refused, and the record appeared in the SAO Administrator&#x27;s pending queue.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-REG-14</td><td>Duplicate submission of an already-pending application</td><td class="stp">1. Re-run TC-REG-13 with the identical ID and e-mail.</td><td class="sm">Same application submitted twice</td><td>The second submission is refused by the duplicate checks before it can be written, and no second pending record is created.</td><td>The ID and e-mail checks both reported the value as already registered and blocked the wizard on step 1. Only one pending record exists.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr></tbody>
+  </table>
+  <div class="h2">Defect Log</div><div class="nodef">No defect was raised against this page. Every executed test case passed.</div>
+
+  <div class="h2">Observations and Follow-up</div>
+  <ul class="obs"><li>No defect was raised against this page.</li><li>TC-REG-13 and TC-REG-14 write to the live pending-approvals queue. Every record created during this run was removed by the SAO Administrator afterwards, verified in the Users tab.</li></ul>
+
+  <table class="sign">
+    <tr><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle sm2">TEST EXECUTION REPORT</div>
+  <div class="rid">Report TER-03&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module 3 of 5</div>
+
+  <table class="kv two">
+    <tr><th>Page / Module Under Test</th><td class="b" colspan="3">Instructor - My Dashboard Page</td></tr>
+    <tr><th>Source File(s)</th><td class="mono" colspan="3">lib/instructor/ (dashboard) and lib/core/navigation/main_scaffold.dart</td></tr>
+    <tr><th>Entry Point</th><td colspan="3">Sign in as Instructor -&gt; tab &quot;Dashboard&quot;</td></tr>
+    <tr><th>User Role(s)</th><td colspan="3">Instructor</td></tr>
+    <tr><th>Test Objective</th><td colspan="3">Confirm that the instructor&#x27;s landing page presents the correct evaluation scores for the active term, reacts to a term change, surfaces notices and interventions, and that the surrounding navigation identifies the signed-in account consistently.</td></tr>
+    <tr><th>In Scope</th><td colspan="3">Score cards, sync state, notices and intervention banners, pull-to-refresh, term reactivity, bottom-tab navigation, the side drawer identity block and entry-point coverage of every instructor screen.</td></tr>
+    <tr><th>Out of Scope</th><td colspan="3">The Official Evaluation Report and the Student Feedback screens, each covered by its own report.</td></tr>
+    <tr><th>Executed By / Date</th><td>Mark Lawrence Medillo, 01 - 03 September 2026</td>
+        <th style="width:15%">Build / Device</th><td>Flutter 3.41.6 debug / Infinix X6525, Android 13</td></tr>
+  </table>
+
+  <div class="h2">Execution Summary</div>
+  <table class="grid sum">
+    <thead><tr>
+      <th>Total Cases</th><th>Executed</th><th>Passed</th><th>Failed</th>
+      <th>Not Executed</th><th>Pass Rate</th><th>Defects Logged</th>
+    </tr></thead>
+    <tbody><tr class="big">
+      <td>10</td><td>10</td><td class="pv">8</td><td class="fv">2</td>
+      <td class="bv">0</td><td class="b">80.0%</td><td>2</td>
+    </tr></tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:80.0000%">8</span><span class="sg sf" style="width:20.0000%">2</span></div>
+
+  <div class="h2">Test Execution Details</div>
+  <table class="grid det">
+    <thead><tr>
+      <th style="width:7%">Test Case ID</th>
+      <th style="width:13%">Test Scenario</th>
+      <th style="width:19%">Test Steps</th>
+      <th style="width:10%">Test Data</th>
+      <th style="width:19%">Expected Result</th>
+      <th style="width:20%">Actual Result</th>
+      <th style="width:6%">Status</th>
+      <th style="width:6%">Defect Ref.</th>
+    </tr></thead><tbody><tr><td class="c mono">TC-DSH-01</td><td>Dashboard renders the active term&#x27;s scores</td><td class="stp">1. Sign in as Instructor.<br>2. Read the score cards and the term label.</td><td class="sm">Active term: 2nd Semester, 2027-2028</td><td>The overall score, the per-category breakdown and the term label all match the values held for the signed-in instructor in the active term.</td><td>Scores and term label matched the back-end record exactly.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-02</td><td>Pull-to-refresh re-reads the dashboard</td><td class="stp">1. Pull down on the dashboard and release.<br>2. Wait for the indicator to clear.</td><td class="sm">n/a</td><td>A refresh indicator is shown, the data is re-fetched, and the cards settle on the same or newer values without flicker or duplication.</td><td>Refreshed in 1.6 s. Values were re-read and no duplicate cards appeared over ten repetitions.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-03</td><td>Dashboard reacts to a change of active term</td><td class="stp">1. Have the SAO Administrator switch the active academic term.<br>2. Return to the instructor device and refresh.</td><td class="sm">Switch from 2nd Sem 2027-2028 to 1st Sem 2027-2028</td><td>The dashboard re-reads against the new active term: the label updates and the scores change to that term&#x27;s values without a re-install or a re-login.</td><td>The label and the scores both updated on the first refresh after the switch.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-04</td><td>Notices and intervention banners are surfaced</td><td class="stp">1. Have the Department Head issue an intervention for this instructor.<br>2. Refresh the instructor dashboard.</td><td class="sm">One intervention report raised cross-role</td><td>The intervention appears on the dashboard as a notice the instructor can open and read, carrying the department head&#x27;s text.</td><td>The intervention appeared after one refresh with the correct author and body text.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-05</td><td>Bottom tabs reach every instructor screen</td><td class="stp">1. Visit Dashboard, My Subjects, Feedback and Past Terms in turn, then return to Dashboard.</td><td class="sm">n/a</td><td>Each tab loads its own screen, the selected tab is highlighted, and returning to Dashboard restores its scroll position.</td><td>All four tabs loaded correctly and the scroll position was restored.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-06</td><td>Drawer avatar initials identify the signed-in account</td><td class="stp">1. Open the side drawer and read the avatar initials.<br>2. Open &quot;Account Settings&quot; and read the profile card initials.<br>3. Compare the two.</td><td class="sm">Signed-in instructor &quot;Rodz Harvey Licayan&quot;</td><td>Both places show the same initials for the same account, derived from the first and last name.</td><td>FAIL. The drawer showed &quot;RH&quot; (the first two words, so the middle name) while the Settings profile card showed &quot;RL&quot;. The one account appeared to belong to two different people depending on the screen. Raised as DEF-05, fixed on 31/08/2026, awaiting re-test.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-05</td></tr><tr><td class="c mono">TC-DSH-07</td><td>Subject cards open the matching subject detail</td><td class="stp">1. Open &quot;My Subjects&quot; and tap each subject card.<br>2. Confirm the detail screen matches the card tapped.</td><td class="sm">Assigned subjects for the active term</td><td>Every card opens the detail for that subject only, with the same code, title and score as the card.</td><td>All assigned subjects opened the correct detail screen.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-08</td><td>Performance trend chart includes the active term</td><td class="stp">1. Open &quot;Past Terms&quot; and read the Performance Trend chart.<br>2. Scroll the chart horizontally to its right-hand end.</td><td class="sm">Term history of the signed-in instructor</td><td>Every term the instructor has data for is plotted, including the active term, which sits at the right-hand end of a horizontally scrolling axis.</td><td>Initially appeared to be missing the active term, because the newest VISIBLE bar was &quot;1st 26-27&quot;. Scrolling right showed the term present and correctly selected. Suspected defect investigated and WITHDRAWN; recorded here because the misreading is easy to repeat.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-09</td><td>Session survives backgrounding and is cleared on sign-out</td><td class="stp">1. Background the app for five minutes and reopen it.<br>2. Sign out from the drawer, then press the back gesture.</td><td class="sm">n/a</td><td>The session survives backgrounding and the dashboard is restored. After sign-out the Login screen is shown and the back gesture cannot return to any authenticated screen.</td><td>The session survived backgrounding. After sign-out the back gesture stayed on the Login screen and the stored token was cleared.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-DSH-10</td><td>Every instructor screen has a reachable entry point</td><td class="stp">1. Enumerate the instructor screens in the codebase.<br>2. Reach each one from the running app.</td><td class="sm">Static review plus a device walkthrough</td><td>Every instructor screen shipped in the build can be reached through the tabs, the drawer or a card tap.</td><td>FAIL. lib/instructor/term_subjects_screen.dart is never instantiated anywhere in the codebase - Past Terms renders its own subject list inline. It is dead code, so no acceptance test can cover it. Raised as DEF-07, still OPEN.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-07</td></tr></tbody>
+  </table>
+  
+  <div class="h2">Defect Log</div>
+  <table class="grid def">
+    <thead><tr>
+      <th style="width:6%">Defect ID</th><th style="width:8%">Severity</th>
+      <th style="width:6%">Priority</th><th style="width:21%">Description</th>
+      <th style="width:23%">Root Cause</th><th style="width:19%">Fix Applied</th>
+      <th style="width:11%">Status</th><th style="width:6%">Test Case</th>
+    </tr></thead><tbody><tr><td class="c mono">DEF-05</td><td class="c sev-low">LOW</td><td class="c">Low</td><td>Avatar initials differ between the side drawer (&quot;RH&quot;) and the Account Settings profile card (&quot;RL&quot;) for the same signed-in instructor, because the drawer took the first TWO WORDS of the display name and so picked up the middle name.</td><td>lib/core/navigation/main_scaffold.dart composed the initials from the first two words of the full display name, while Settings correctly used first_name + last_name.</td><td>A new _initialsOf() helper takes the FIRST and LAST word of the name, skipping any middle name. A single-word name yields one letter and an empty name still yields &quot;?&quot;. Settings was already correct and is unchanged. flutter analyze reports no issues on the file.</td><td class="c sm">FIXED 31/08/2026, PENDING RE-TEST</td><td class="c mono sm">TC-DSH-06</td></tr><tr><td class="c mono">DEF-07</td><td class="c sev-low">LOW (code hygiene)</td><td class="c">Low</td><td>lib/instructor/term_subjects_screen.dart is unreachable. Nothing in the codebase instantiates it and Past Terms renders its own subject list inline, so the file is dead code that no acceptance test can cover.</td><td>An earlier navigation design was replaced by the inline list in Past Terms, and the orphaned screen was never removed.</td><td>Not yet applied. Either wire up an entry point or delete the file.</td><td class="c sm">OPEN</td><td class="c mono sm">TC-DSH-10</td></tr></tbody>
+  </table>
+
+  <div class="h2">Observations and Follow-up</div>
+  <ul class="obs"><li>DEF-05 must be re-tested by re-running TC-DSH-06 and confirming the drawer and the Settings profile card show the same two letters.</li><li>TC-DSH-08 records a WITHDRAWN suspected defect. The Performance Trend chart scrolls horizontally and the newest terms sit off-screen until scrolled, so a reader who does not scroll will wrongly conclude the active term is missing. Kept in this report so the same misreading is not raised again.</li></ul>
+
+  <table class="sign">
+    <tr><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle sm2">TEST EXECUTION REPORT</div>
+  <div class="rid">Report TER-04&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module 4 of 5</div>
+
+  <table class="kv two">
+    <tr><th>Page / Module Under Test</th><td class="b" colspan="3">Instructor - Student Feedback Page</td></tr>
+    <tr><th>Source File(s)</th><td class="mono" colspan="3">lib/instructor/student_feedback_screen.dart</td></tr>
+    <tr><th>Entry Point</th><td colspan="3">Instructor dashboard -&gt; tab &quot;Feedback&quot;</td></tr>
+    <tr><th>User Role(s)</th><td colspan="3">Instructor</td></tr>
+    <tr><th>Test Objective</th><td colspan="3">Confirm that anonymised student feedback is presented with its sentiment breakdown, AI-generated insights, word cloud and direct quotes, and that every element stays legible inside its panel on the target handset.</td></tr>
+    <tr><th>In Scope</th><td colspan="3">Sentiment tone bands, AI insight generation through the n8n workflow, the AI word cloud, the direct-quotes list and its counter, empty states, and layout robustness at larger system font sizes.</td></tr>
+    <tr><th>Out of Scope</th><td colspan="3">The sentiment model itself and the accuracy of its classification, which are evaluated separately from acceptance testing.</td></tr>
+    <tr><th>Executed By / Date</th><td>Mark Lawrence Medillo, 01 - 03 September 2026</td>
+        <th style="width:15%">Build / Device</th><td>Flutter 3.41.6 debug / Infinix X6525, Android 13</td></tr>
+  </table>
+
+  <div class="h2">Execution Summary</div>
+  <table class="grid sum">
+    <thead><tr>
+      <th>Total Cases</th><th>Executed</th><th>Passed</th><th>Failed</th>
+      <th>Not Executed</th><th>Pass Rate</th><th>Defects Logged</th>
+    </tr></thead>
+    <tbody><tr class="big">
+      <td>9</td><td>8</td><td class="pv">6</td><td class="fv">2</td>
+      <td class="bv">1</td><td class="b">75.0%</td><td>2</td>
+    </tr></tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:66.6667%">6</span><span class="sg sf" style="width:22.2222%">2</span><span class="sg sb" style="width:11.1111%">1</span></div>
+
+  <div class="h2">Test Execution Details</div>
+  <table class="grid det">
+    <thead><tr>
+      <th style="width:7%">Test Case ID</th>
+      <th style="width:13%">Test Scenario</th>
+      <th style="width:19%">Test Steps</th>
+      <th style="width:10%">Test Data</th>
+      <th style="width:19%">Expected Result</th>
+      <th style="width:20%">Actual Result</th>
+      <th style="width:6%">Status</th>
+      <th style="width:6%">Defect Ref.</th>
+    </tr></thead><tbody><tr><td class="c mono">TC-FBK-01</td><td>Feedback screen loads for the active term</td><td class="stp">1. Sign in as Instructor and open the &quot;Feedback&quot; tab.</td><td class="sm">Active-term feedback for the signed-in instructor</td><td>The screen loads the active term&#x27;s feedback with the sentiment summary, AI insights, word cloud and direct quotes sections all present.</td><td>All four sections rendered within 2.8 s.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-02</td><td>Sentiment breakdown totals the responses received</td><td class="stp">1. Read the positive / neutral / negative counts.<br>2. Compare the sum with the response count held for the term.</td><td class="sm">Anonymised responses for the active term</td><td>The three bands sum exactly to the number of responses recorded, and the percentages are consistent with the counts.</td><td>Counts summed correctly and the percentages matched to one decimal place.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-03</td><td>Feedback is anonymous</td><td class="stp">1. Read every quote and insight on the screen.<br>2. Look for any student name, ID or identifying reference.</td><td class="sm">Full feedback set for the term</td><td>No student name, student number or other identifier appears anywhere on the screen.</td><td>No identifying data was present in any quote, insight or tooltip.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-04</td><td>AI insights are generated and displayed</td><td class="stp">1. Read the AI insights panel.<br>2. Refresh and confirm the panel repopulates.</td><td class="sm">n8n workflow endpoint, live</td><td>The panel shows generated insights derived from the term&#x27;s feedback and repopulates on refresh without duplicating earlier text.</td><td>Insights were generated on each load and did not duplicate across five refreshes.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-05</td><td>Word cloud keeps every term inside the panel</td><td class="stp">1. Open &quot;AI Word Cloud&quot;.<br>2. Pull to refresh several times so more than one shuffle is checked.<br>3. Inspect the right-hand edge of the dark panel on each shuffle.</td><td class="sm">Feedback term set; the cloud reshuffles on each load</td><td>Every word, rotated or upright, is drawn wholly inside the dark panel and is readable on every shuffle.</td><td>FAIL. The rotated term &quot;Fair grading&quot; ran past the right edge of the panel and was cut off mid-word. Because the cloud reshuffles on each load, WHICH word was clipped changed between refreshes, so the fault was intermittent rather than tied to one term. Raised as DEF-02, fixed on 31/08/2026, awaiting re-test.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-02</td></tr><tr><td class="c mono">TC-FBK-06</td><td>Direct quotes list and its counter</td><td class="stp">1. Scroll to &quot;Direct Quotes&quot; and read the &quot;N Comments&quot; counter.<br>2. Count the quotes rendered in the list.<br>3. Repeat at the largest system font size the device offers.</td><td class="sm">Device font scale 1.0, then maximum</td><td>The counter equals the number of quotes listed, and both the heading and the counter stay fully inside the screen at every font size.</td><td>FAIL. The &quot;N Comments&quot; counter reached the right edge of the display with no padding. At the tested count it stayed readable, but a wider value or a larger system font size would have clipped it. The count itself was correct. Raised as DEF-04, fixed on 31/08/2026, awaiting re-test.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-04</td></tr><tr><td class="c mono">TC-FBK-07</td><td>Quotes are readable in full</td><td class="stp">1. Open the longest quote in the list.<br>2. Confirm it is not truncated.</td><td class="sm">Longest anonymised comment in the term set</td><td>Long comments wrap or expand rather than being cut off, so the instructor can read the whole comment.</td><td>The longest comment wrapped and was fully readable.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-08</td><td>Empty state for a term with no feedback</td><td class="stp">1. Switch to a historical term that has no recorded feedback.</td><td class="sm">Term with zero responses</td><td>An explanatory empty state is shown instead of empty panels, a zero sentiment chart or an error.</td><td>A clear empty state was shown for the sentiment, cloud and quotes sections.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-FBK-09</td><td>Screen behaves when the AI workflow is unreachable</td><td class="stp">1. Point the build at an unreachable n8n endpoint.<br>2. Open the Feedback tab.</td><td class="sm">Invalid workflow URL</td><td>The AI insights panel degrades to an error or retry state, while the sentiment counts and the quotes, which do not depend on the workflow, still render.</td><td>NOT EXECUTED. Re-pointing the workflow endpoint requires a rebuild against a staging configuration that was not available in the booked window. Carried to the next regression cycle.</td><td class="stat blk">NOT EXEC.</td><td class="c mono sm">-</td></tr></tbody>
+  </table>
+  
+  <div class="h2">Defect Log</div>
+  <table class="grid def">
+    <thead><tr>
+      <th style="width:6%">Defect ID</th><th style="width:8%">Severity</th>
+      <th style="width:6%">Priority</th><th style="width:21%">Description</th>
+      <th style="width:23%">Root Cause</th><th style="width:19%">Fix Applied</th>
+      <th style="width:11%">Status</th><th style="width:6%">Test Case</th>
+    </tr></thead><tbody><tr><td class="c mono">DEF-02</td><td class="c sev-medium">MEDIUM</td><td class="c">High</td><td>In &quot;AI Word Cloud&quot; the rotated term &quot;Fair grading&quot; ran past the right edge of the dark panel and was cut off mid-word, so it could not be read. Intermittent, because the cloud reshuffles on every load and a different word was clipped each time.</td><td>Nothing bounded a word to the panel. The words sit in a Wrap inside a fixed-padding Container and each word was a bare Text with no width constraint. RotatedBox swaps the constraints it passes down, so a rotated word&#x27;s own text width becomes its vertical extent, and neither extent was capped.</td><td>The word area is now wrapped in a LayoutBuilder, so the panel&#x27;s real inner width is known at layout time. Every word is bounded by ConstrainedBox(maxWidth: that width) and drawn through FittedBox(fit: BoxFit.scaleDown), and the same bound sits inside RotatedBox so the swapped constraints cap the rotated word&#x27;s height. Clipping is now impossible by construction rather than by luck of the shuffle. flutter analyze reports no issues on the file.</td><td class="c sm">FIXED 31/08/2026, PENDING RE-TEST</td><td class="c mono sm">TC-FBK-05</td></tr><tr><td class="c mono">DEF-04</td><td class="c sev-low">LOW</td><td class="c">Medium</td><td>The &quot;N Comments&quot; counter beside the &quot;Direct Quotes&quot; heading sat flush against the right edge of the display with no padding. It stayed readable at the tested count, but a wider value or a larger system font size would have clipped it.</td><td>The heading and the counter sat in a spaceBetween Row as two unconstrained Text widgets. Neither could yield, so once the pair exceeded the row width the counter was pushed off the end rather than the heading giving way.</td><td>Both sides are now Flexible with a 12 px gap between them, and the counter is end-aligned, so the heading yields first and the number is never cut. flutter analyze reports no issues on the file.</td><td class="c sm">FIXED 31/08/2026, PENDING RE-TEST</td><td class="c mono sm">TC-FBK-06</td></tr></tbody>
+  </table>
+
+  <div class="h2">Observations and Follow-up</div>
+  <ul class="obs"><li>Both defects on this page are layout faults, not data faults: every count, quote and insight was correct in each failing case.</li><li>Re-test of DEF-02 must include several pull-to-refreshes, because the cloud reshuffles and a single load will not prove the bound holds.</li><li>Re-test of DEF-04 should be run once at the largest system font size the handset offers.</li></ul>
+
+  <table class="sign">
+    <tr><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+
+<section class="page">
+  
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+
+  <div class="doctitle sm2">TEST EXECUTION REPORT</div>
+  <div class="rid">Report TER-05&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module 5 of 5</div>
+
+  <table class="kv two">
+    <tr><th>Page / Module Under Test</th><td class="b" colspan="3">Instructor - Official Evaluation Report &amp; PDF Export</td></tr>
+    <tr><th>Source File(s)</th><td class="mono" colspan="3">lib/instructor/detailed_report_screen.dart and lib/core/services/pdf/pdf_service.dart</td></tr>
+    <tr><th>Entry Point</th><td colspan="3">Instructor dashboard -&gt; &quot;View Official SAST Report&quot; or &quot;Full Term Report&quot;</td></tr>
+    <tr><th>User Role(s)</th><td colspan="3">Instructor</td></tr>
+    <tr><th>Test Objective</th><td colspan="3">Confirm that the official SAST evaluation report shows the correct identity and term header and the correct scores, and that the exported PDF is a faithful, correctly named copy that can be opened outside the app.</td></tr>
+    <tr><th>In Scope</th><td colspan="3">Report header identity fields, term and academic-year composition, score tables, on-screen legibility, PDF generation, the export filename and the exported document&#x27;s contents.</td></tr>
+    <tr><th>Out of Scope</th><td colspan="3">The department head&#x27;s view of the same report, which is covered in the Department Head module.</td></tr>
+    <tr><th>Executed By / Date</th><td>Mark Lawrence Medillo, 01 - 03 September 2026</td>
+        <th style="width:15%">Build / Device</th><td>Flutter 3.41.6 debug / Infinix X6525, Android 13</td></tr>
+  </table>
+
+  <div class="h2">Execution Summary</div>
+  <table class="grid sum">
+    <thead><tr>
+      <th>Total Cases</th><th>Executed</th><th>Passed</th><th>Failed</th>
+      <th>Not Executed</th><th>Pass Rate</th><th>Defects Logged</th>
+    </tr></thead>
+    <tbody><tr class="big">
+      <td>10</td><td>9</td><td class="pv">7</td><td class="fv">2</td>
+      <td class="bv">1</td><td class="b">77.8%</td><td>3</td>
+    </tr></tbody>
+  </table>
+  <div class="bar"><span class="sg sp" style="width:70.0000%">7</span><span class="sg sf" style="width:20.0000%">2</span><span class="sg sb" style="width:10.0000%">1</span></div>
+
+  <div class="h2">Test Execution Details</div>
+  <table class="grid det">
+    <thead><tr>
+      <th style="width:7%">Test Case ID</th>
+      <th style="width:13%">Test Scenario</th>
+      <th style="width:19%">Test Steps</th>
+      <th style="width:10%">Test Data</th>
+      <th style="width:19%">Expected Result</th>
+      <th style="width:20%">Actual Result</th>
+      <th style="width:6%">Status</th>
+      <th style="width:6%">Defect Ref.</th>
+    </tr></thead><tbody><tr><td class="c mono">TC-RPT-01</td><td>Report opens from both entry points</td><td class="stp">1. From the dashboard tap &quot;View Official SAST Report&quot;.<br>2. Return and open the same report through &quot;Full Term Report&quot;.</td><td class="sm">Active term: 2nd Semester, 2027-2028</td><td>Both entry points open the same &quot;Official Evaluation Report&quot; for the signed-in instructor and the active term.</td><td>Both routes opened the same report with identical content.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-RPT-02</td><td>Header identity fields are readable in full on screen</td><td class="stp">1. Read Instructor Name, Academic Year, Department and Semester in the report header.<br>2. Confirm no value is cut off.</td><td class="sm">Instructor &quot;Rodz Harvey Licayan&quot;, College of Technology and Engineering</td><td>All four header fields render their complete value, so the instructor can confirm from the screen that the report is theirs and which term it covers.</td><td>FAIL. Three fields were truncated: &quot;Instructor Name: Rodz...&quot;, &quot;Academic Year: 1st Se...&quot; and &quot;Department: College o...&quot;. The exported PDF was NOT affected, so this was an on-screen layout constraint, not bad data. Raised as DEF-03, fixed on 31/08/2026, awaiting re-test.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-03</td></tr><tr><td class="c mono">TC-RPT-03</td><td>Term and academic year are composed correctly</td><td class="stp">1. Read the Academic Year field on screen.<br>2. Export the report and read the same field in the PDF.<br>3. Repeat for a report opened from Past Terms.</td><td class="sm">System contract: semester = &quot;1st Semester&quot;, academicYear = &quot;2025-2026&quot;</td><td>The field reads &quot;1st Semester 2025-2026&quot;, with the word &quot;Semester&quot; appearing exactly once, from every entry point.</td><td>FAIL. The exported PDF read &quot;Academic Year: 1st Semester Semester 2025-2026&quot;. The report screen had the same fault, hidden only because the field was truncated there by DEF-03. All three entry points were affected. Raised as DEF-01, fixed on 31/08/2026, awaiting re-test.</td><td class="stat fail">FAIL</td><td class="c mono sm">DEF-01</td></tr><tr><td class="c mono">TC-RPT-04</td><td>Report scores match the dashboard and the source data</td><td class="stp">1. Compare the overall and per-category scores in the report with the dashboard cards and with the stored evaluation record.</td><td class="sm">Evaluation record for the active term</td><td>Every score in the report equals the stored value and the value shown on the dashboard.</td><td>All scores matched across the three sources.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-RPT-05</td><td>Report renders the CTU letterhead and official framing</td><td class="stp">1. Inspect the report header and footer on screen and in the PDF.</td><td class="sm">n/a</td><td>The CTU seal, the university and campus lines, and the college and department lines are present and correctly spelled in both outputs.</td><td>The letterhead was correct in both the on-screen report and the exported PDF.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-RPT-06</td><td>PDF export produces an openable document</td><td class="stp">1. Trigger the export.<br>2. Open the file from the device&#x27;s Downloads folder in an external PDF reader.</td><td class="sm">Device storage, Downloads</td><td>A PDF is written to Downloads and opens outside the app with all pages intact and all text selectable.</td><td>Export completed in 2.2 s. The file opened in the external reader with every page intact.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-RPT-07</td><td>Exported PDF matches the on-screen report</td><td class="stp">1. Compare the exported PDF against the report screen, field by field.</td><td class="sm">Same term and instructor</td><td>Identity, term, scores and comments are identical between the two.</td><td>Content matched. The PDF additionally rendered the identity fields in full where the screen truncated them, which is what isolated DEF-03 from DEF-01.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr><tr><td class="c mono">TC-RPT-08</td><td>Export filename is well formed</td><td class="stp">1. Export the report immediately after opening it.<br>2. Export it again after the profile has fully loaded.<br>3. Read both filenames in Downloads.</td><td class="sm">Downloads folder history</td><td>Each export is named from the instructor&#x27;s full name and the term, with no truncation, no literal role word and no doubled separator.</td><td>NOT REPRODUCED ON THIS BUILD - the 31 August export was named correctly. The folder still holds earlier malformed exports: &quot;SAST_Report_....pdf&quot;, &quot;SAST_Report_Instructor.pdf&quot; and &quot;SAST_Report_Rodz_Harvey__Licayan.pdf&quot;. Logged as DEF-06, NEEDS CONFIRMATION; export twice more before closing it off.</td><td class="stat blk">NOT EXEC.</td><td class="c mono sm">DEF-06</td></tr><tr><td class="c mono">TC-RPT-09</td><td>Report for a historical term</td><td class="stp">1. Open &quot;Past Terms&quot;, select an earlier term and open its report.</td><td class="sm">1st Semester, 2025-2026</td><td>The report opens for the selected historical term, with that term&#x27;s header and that term&#x27;s scores.</td><td>The historical report opened with the correct scores. Its header carried the same DEF-01 fault, which is how the Past Terms split was traced.</td><td class="stat pass">PASS</td><td class="c mono sm">DEF-01</td></tr><tr><td class="c mono">TC-RPT-10</td><td>Report for a term with no evaluation data</td><td class="stp">1. Select a term in which the instructor has no evaluation record and open the report.</td><td class="sm">Term with no stored evaluation</td><td>An explanatory empty state is shown and no export is offered, rather than an empty or malformed PDF.</td><td>An empty state was shown and the export control was correctly unavailable.</td><td class="stat pass">PASS</td><td class="c mono sm">-</td></tr></tbody>
+  </table>
+  
+  <div class="h2">Defect Log</div>
+  <table class="grid def">
+    <thead><tr>
+      <th style="width:6%">Defect ID</th><th style="width:8%">Severity</th>
+      <th style="width:6%">Priority</th><th style="width:21%">Description</th>
+      <th style="width:23%">Root Cause</th><th style="width:19%">Fix Applied</th>
+      <th style="width:11%">Status</th><th style="width:6%">Test Case</th>
+    </tr></thead><tbody><tr><td class="c mono">DEF-01</td><td class="c sev-high">HIGH</td><td class="c">Critical</td><td>The exported PDF read &quot;Academic Year: 1st Semester Semester 2025-2026&quot; - the word &quot;Semester&quot; printed twice. The report screen had the same fault, hidden only because the field is truncated there by DEF-03. All three entry points into the report were affected.</td><td>lib/core/services/system_settings_service.dart lines 11-12 document the contract: &quot;semester&quot; is a label that ALREADY includes the word (e.g. &quot;1st Semester&quot;) and &quot;academicYear&quot; is just &quot;2025-2026&quot;. Two things broke it. (1) Both composition sites - detailed_report_screen.dart:358 and pdf_service.dart:288 - read &#x27;$term Semester $academicYear&#x27;. (2) past_semesters_screen.dart:421-422 split the combined label on the FIRST space, giving term=&quot;1st&quot; and academicYear=&quot;Semester 2025-2026&quot;.</td><td>Both composition sites now read &#x27;$term $academicYear&#x27;, since the term already carries the word. Past Terms splits on the LAST token via two new helpers, _semesterOf() and _academicYearOf(), giving term=&quot;1st Semester&quot; and academicYear=&quot;2025-2026&quot; as the contract requires. flutter analyze reports no issues on all three files.</td><td class="c sm">FIXED 31/08/2026, PENDING RE-TEST</td><td class="c mono sm">TC-RPT-03, TC-RPT-09</td></tr><tr><td class="c mono">DEF-03</td><td class="c sev-medium">MEDIUM</td><td class="c">High</td><td>On &quot;Official Evaluation Report&quot; the identity fields were cut off - &quot;Instructor Name: Rodz...&quot;, &quot;Academic Year: 1st Se...&quot; and &quot;Department: College o...&quot;. The instructor could not confirm from the screen that the report was theirs or which term it covered. The exported PDF was NOT affected, so this was a layout constraint, not bad data.</td><td>_headerField rendered the value with overflow: TextOverflow.ellipsis on a single line, and the header places TWO of these side by side in one Row, so each field had only half the screen width to work with. On a phone that is not enough for a full name plus its label.</td><td>The value now wraps (softWrap: true, no ellipsis) instead of being cut, and the Row is top-aligned so a wrapped value sits correctly beside its label. The field grows downward by a line or two on a narrow screen, which is the right trade: this block exists so the instructor can confirm the report is theirs, so being complete matters more than being one line tall. flutter analyze reports no issues on the file.</td><td class="c sm">FIXED 31/08/2026, PENDING RE-TEST</td><td class="c mono sm">TC-RPT-02</td></tr><tr><td class="c mono">DEF-06</td><td class="c sev-low">LOW</td><td class="c">Low</td><td>The device&#x27;s Downloads folder holds earlier exports with malformed filenames: &quot;SAST_Report_....pdf&quot; (a truncated name leaked into the filename), &quot;SAST_Report_Instructor.pdf&quot; (fell back to the literal role word) and &quot;SAST_Report_Rodz_Harvey__Licayan.pdf&quot; (a doubled underscore).</td><td>Not yet established. NOT REPRODUCED on this build - the 31 August export was named correctly - so it may already be fixed, or it may depend on how quickly the export is triggered after the profile loads.</td><td>None applied. Export twice more, once immediately after opening the report, before this is closed off.</td><td class="c sm">NEEDS CONFIRMATION</td><td class="c mono sm">TC-RPT-08</td></tr></tbody>
+  </table>
+
+  <div class="h2">Observations and Follow-up</div>
+  <ul class="obs"><li>DEF-01 and DEF-03 interact: DEF-03 hid DEF-01 on screen, so the doubled word was only visible in the exported PDF. Fixing DEF-03 alone would have exposed DEF-01 to every user rather than resolving it.</li><li>DEF-01 is the most severe finding of this run, because the affected field appears on an official document that leaves the system as a PDF.</li><li>Re-test of both defects requires a rebuild: the fixes are in the working tree and pass flutter analyze, but were not in the binary under test.</li></ul>
+
+  <table class="sign">
+    <tr><th>Executed by</th><th>Reviewed by</th><th>Noted by</th></tr>
+    <tr class="sigline"><td></td><td></td><td></td></tr>
+    <tr class="signame"><td>Mark Lawrence Medillo<br><span>QA Engineer</span></td>
+        <td>Rodz Harvey Licayan<br><span>Project Leader</span></td>
+        <td><br><span>Capstone Adviser</span></td></tr>
+  </table>
+</section>
+</body></html>

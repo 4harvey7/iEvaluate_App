@@ -559,8 +559,23 @@ void main() {
       expect(find.text('Instructor — Resident (Full-Time)'), findsOneWidget);
       expect(find.text('Instructor — Non-Resident (Part-Time)'), findsOneWidget);
       expect(find.text('Department Head'), findsOneWidget);
-      expect(find.text('SAO Administrator'), findsOneWidget);
+      expect(find.text('SAO Staff (Data Gatherer)'), findsOneWidget);
       expect(find.text('FULL-TIME'), findsNothing);
+      expect(find.text('SAO_STAFF'), findsNothing);
+    });
+
+    testWidgets('SAO Administrator cannot be self-registered', (tester) async {
+      // The table still returns SAO_ADMIN and the role still exists -- it is
+      // handed out by an existing administrator, not claimed by whoever fills
+      // in the public form. Neither the wording nor the raw value may appear.
+      await pumpSignUp(tester, FakeAuthService());
+      await tester.tap(find.ancestor(
+        of: find.text('I am registering as'),
+        matching: find.byType(DropdownButtonFormField<String>),
+      ).first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('SAO Administrator'), findsNothing);
       expect(find.text('SAO_ADMIN'), findsNothing);
     });
 
@@ -600,15 +615,16 @@ void main() {
       expect(find.text('Employment Status'), findsNothing);
     });
 
-    testWidgets('department heads are still asked their employment status',
+    testWidgets('department heads get a department and no employment question',
         (tester) async {
-      // Their role name does not state it, so it stays a real question.
+      // Nothing reads employment_status for a head, so it is not asked: the
+      // stored value is the same inert 'Full-Time' the SAO roles get.
       await pumpSignUp(tester, FakeAuthService());
       await fillStep1(tester, role: 'Department Head');
       await tapContinue(tester);
 
       expect(find.text('Select Department'), findsOneWidget);
-      expect(find.text('Employment Status'), findsOneWidget);
+      expect(find.text('Employment Status'), findsNothing);
     });
 
     testWidgets('the step names the role back to you', (tester) async {

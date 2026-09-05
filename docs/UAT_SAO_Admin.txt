@@ -337,6 +337,36 @@ STEPS
               "Cancel" creates nothing. Repeat and choose "Create anyway" and
               it is created - one name under two codes is allowed, but only
               deliberately.
+5a. Open a DIFFERENT subject, tap "Add Instructor", and try to retype the
+    Subject Code to the code used in step 3.
+    Expected: The Subject Code is READ-ONLY and cannot be retyped, with one
+              line under it saying it identifies this subject. The header
+              reads "Add Instructor" and names the subject's code; the button
+              reads "Add Instructor", not "Assign Subject". Subject Name and
+              Department ARE editable here, deliberately - see 5b.
+              This sheet used to accept a retyped code, skip every duplicate
+              check, and silently attach the instructor to whatever subject
+              held that code - reporting success, with the subject actually
+              opened receiving nothing. That is BUG-2026-TC-A07.
+5b. Still on that sheet, change the Subject Name AND the Department to new
+    values nothing else uses, pick an instructor, and save. Reopen the subject.
+    Expected: Both edits are really saved and the instructor is added. No
+              dialog, because neither new value collides. A Department change
+              used to be accepted here, silently ignored on save, and still
+              reported as a success.
+5c. Repeat 5b, but type the EXACT name of a different existing subject.
+    Expected: "Possible Duplicate" names that other subject. Cancel saves
+              nothing at all - neither the name nor the instructor.
+5d. Open a subject that shares its name with another (one created via "Create
+    anyway" in step 5) and add an instructor WITHOUT touching the name.
+    Expected: NO "Possible Duplicate" dialog. The warning is only for a name
+              the admin actually changed; nagging about a pre-existing,
+              deliberately allowed collision on every save is a defect in its
+              own right.
+5e. Open the EDIT sheet for an existing assignment and check the Subject Code.
+    Expected: Read-only there too. Changing a code on this sheet used to
+              repoint the assignment to whatever subject held the new code,
+              silently, reporting "Assignment updated successfully".
  6. Open a subject, tap Remove beside an instructor whose assignment has NO
     evaluation records.
     Expected: A progress indicator appears while it checks, then a confirm
@@ -378,7 +408,18 @@ Expected Result : Subjects can be added manually and in bulk, a subject code
                   unassigned only while no evaluation records exist, and a
                   subject carrying results cannot be deleted.
 Actual Result   :
-Comments        : Steps 4-5 need 20240130000018_one_subject_per_code applied;
+Comments        : Steps 5a-5e were added after BUG-2026-TC-A07: the duplicate
+                  guard behind steps 4-5 was gated on WHICH BUTTON opened the
+                  form, so the edit and add-instructor sheets skipped it while
+                  still letting the code be retyped. The rule now lives in
+                  lib/sao_admin/subject_duplicate_check.dart, is keyed to the
+                  subject being written rather than the entry point, and is
+                  unit-tested in test/sao_admin/. Subject name and department
+                  stay editable on every sheet by request, and are now really
+                  written from the add-instructor sheet as well; only the code
+                  is fixed. Steps 5a-5e are the on-device half of that
+                  verification.
+                  Steps 4-5 need 20240130000018_one_subject_per_code applied;
                   without it the app still refuses, but only in Dart, so the
                   n8n import can create the duplicate anyway. Steps 7 and 13
                   need 20240130000015_protect_assignments_with_results.

@@ -176,13 +176,30 @@ void main() {
     });
 
     test('rawTerm is not leaked to the caller', () {
-      // The chart only wants sem and score; rawTerm is sorting scaffolding.
+      // The chart wants sem, score and year; rawTerm is sorting scaffolding.
       final result = averagePerTerm(
         [row(term: 'A', instructor: 'ana', combined: 4.0)],
         membership: {'A|ana'},
       );
 
-      expect(result.single.keys, unorderedEquals(['sem', 'score']));
+      expect(result.single.keys, unorderedEquals(['sem', 'score', 'year']));
+    });
+
+    test('both semesters of one school year carry the same year key', () {
+      final result = averagePerTerm(
+        [
+          row(term: 'A', instructor: 'ana', combined: 4.0,
+              semester: '1st Semester', year: '2024-2025'),
+          row(term: 'B', instructor: 'ana', combined: 3.0,
+              semester: '2nd Semester', year: '2024-2025'),
+          row(term: 'C', instructor: 'ana', combined: 3.5,
+              semester: '1st Semester', year: '2025-2026'),
+        ],
+        membership: {'A|ana', 'B|ana', 'C|ana'},
+      );
+
+      expect(result.map((e) => e['year']).toList(),
+          ['2024-2025', '2024-2025', '2025-2026']);
     });
 
     test('a malformed academic_year does not crash the label', () {

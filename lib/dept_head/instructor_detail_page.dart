@@ -5,15 +5,15 @@
 
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../core/services/identity_validator.dart';
 import '../theme/app_colors.dart';
 import '../instructor/detailed_report_screen.dart';
-import '../instructor/subject_detail_screen.dart';
 import '../instructor/models/subject.dart';
 import '../widgets/apple_ui.dart';
 
 /// Full-page view of an individual instructor, opened from the Faculty Roster.
 /// Shows: current-term score card, historical trend bar chart,
-/// subjects list (tappable -> SubjectDetailScreen), and Official Report button.
+/// subjects list (read-only), and Official Report button.
 /// Dean can see everything about this person from here. importente page.
 class InstructorDetailPage extends StatefulWidget {
   /// The instructor map built by FacultyRosterScreen (id, name, title, etc.)
@@ -421,7 +421,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                       const SizedBox(height: 32),
 
                       // Subjects — list of subjects this instructor teaches this term
-                      _buildSubjectsSection(instructor),
+                      _buildSubjectsSection(),
                       const SizedBox(height: 32),
                     ]),
                   ),
@@ -506,6 +506,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
               builder: (_) => DetailedReportScreen(
                 userId: instructor['id'],
                 instructorName: instructor['name'],
+                universityId: instructor['university_id']?.toString() ?? '',
                 department: instructor['department'] ?? '',
                 termId: widget.currentTermId,
                 term: _termMeta?['semester'] ?? 'N/A', // Semester name for the report header
@@ -529,8 +530,57 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     );
   }
 
-  // Action button to permanently deactivate a fired instructor
+  // Action button to permanently deactivate a fired instructor.
+  //
+  // An account that is ALREADY deactivated gets a standing notice instead. It
+  // is still reachable from the roster while its results are part of the term's
+  // average, so the head can open it -- but offering "Deactivate Account" on a
+  // deactivated account invites a second attempt that can only be refused, and
+  // reactivation is not this screen's to give.
   Widget _buildDeactivateButton(Map<String, dynamic> instructor) {
+    // Absent means active: only the roster sets this key, and every other way
+    // in has always shown a live account.
+    if (instructor['is_active'] == false) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.error.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.person_off_rounded, color: AppColors.error, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'This account is deactivated',
+                      style: TextStyle(color: AppColors.error, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'They can no longer sign in. The evaluations below were '
+                      'collected while they were teaching and still count '
+                      'toward this term\'s department average. Only the SAO '
+                      'office can reactivate the account.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: SizedBox(
@@ -562,20 +612,60 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 
             if (confirm == true) {
               try {
-                // Deactivate in user_info
-                await Supabase.instance.client
-                    .from('user_info')
-                    .update({'account_status': 'disabled'})
-                    .eq('id', instructor['id'])
-                    .select()
-                    .single(); // enforce RLS fail
+                // Deactivation goes through the edge function, NOT straight to
+                // user_info (BUG-2026-TC-D08).
+                //
+                // The direct write that used to be here could never succeed.
+                // user_info carries exactly one UPDATE policy -- "Users can
+                // update own profile", auth.uid() = id -- so a head writing to
+                // an instructor's row matched zero rows. Postgres does not
+                // raise on an RLS-filtered UPDATE, so the .single() that
+                // followed did it instead, as PGRST116 "The result contains 0
+                // rows" printed raw in a red snackbar.
+                //
+                // Adding an UPDATE policy for heads would have hidden the error
+                // and kept the bug: account_status is only the gate signIn()
+                // reads, and Supabase still hands out a session for an account
+                // that carries no Auth ban -- so the "deactivated" instructor
+                // could still sign in with the anon key that ships in the app.
+                // The function bans in Auth and writes audit_logs, which is the
+                // whole reason to go through it.
+                await Supabase.instance.client.functions.invoke(
+                  'admin-accept-user',
+                  body: {'targetUserId': instructor['id'], 'status': 'disabled'},
+                );
                 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Account deactivated successfully.', style: TextStyle(color: Colors.white)), backgroundColor: AppColors.success));
-                  Navigator.pop(context); // Go back to roster
+                  // true tells the roster its cached list is now stale. It is a
+                  // static cache that otherwise lives until the term changes, so
+                  // the head would pop back to a list still showing the person
+                  // they just locked out.
+                  Navigator.pop(context, true); // Go back to roster
                 }
               } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to deactivate: $e'), backgroundColor: AppColors.error));
+                // A department head is not the person to show a
+                // PostgrestException to. describeEdgeFunctionError digs out the
+                // sentence the server actually wrote -- "that account is not in
+                // your department", and so on -- and falls back to a plain line
+                // for anything else.
+                debugPrint('[DEPT HEAD] Deactivate failed: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        IdentityValidator.describeEdgeFunctionError(
+                          e,
+                          fallback:
+                              'Could not deactivate this account. '
+                              'Please check your connection and try again.',
+                        ),
+                      ),
+                      backgroundColor: AppColors.error,
+                      duration: const Duration(seconds: 6),
+                    ),
+                  );
+                }
               }
             }
           },
@@ -843,9 +933,9 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 
   // ─── Subjects list ────────────────────────────────────────────────────────────
 
-  // Shows all subjects the instructor teaches this term — each one tappable
-  // Tap goes to SubjectDetailScreen for deeper analysis. importente this works.
-  Widget _buildSubjectsSection(Map<String, dynamic> instructor) {
+  // Shows all subjects the instructor teaches this term. Read-only: the head
+  // reads the load and the per-subject score here, nothing opens from it.
+  Widget _buildSubjectsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -872,87 +962,73 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             message: 'Assigned subjects will appear here when available.',
           )
         else
-          // Show each subject as a tappable tile — using spread operator to flatten the list
-          ...(_subjects.map((subject) => _buildSubjectTile(subject, instructor))),
+          // One tile per subject — using spread operator to flatten the list
+          ...(_subjects.map((subject) => _buildSubjectTile(subject))),
       ],
     );
   }
 
-  // A single tappable subject tile — shows subject code, name, and score if available
-  // Tapping opens SubjectDetailScreen for full breakdown. always navigate, dili ta dead-end.
-  Widget _buildSubjectTile(Subject subject, Map<String, dynamic> instructor) {
+  // A single subject tile — shows subject code, name, and score if available.
+  //
+  // Display only, on purpose: no tap target and no chevron, because an arrow
+  // that leads nowhere is worse than no arrow. The per-subject breakdown is the
+  // instructor's own screen; the head reads the summary here.
+  Widget _buildSubjectTile(Subject subject) {
     // Check if we have a score for this subject — basin wala pa evaluation for it
     final hasScore = subject.managementMean != null || subject.performanceMean != null;
     final score = hasScore ? subject.overallMean : 0.0;
 
-    return GestureDetector(
-      onTap: () {
-        // Navigate to subject detail — pass the subject, instructor ID, and term
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => SubjectDetailScreen(
-              subject: subject,
-              userId: instructor['id'] as String,
-              termId: widget.currentTermId,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
+      ),
+      child: Row(
+        children: [
+          // Book icon container — gives the tile some visual character
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.book_rounded, color: AppColors.primary, size: 22),
+          ),
+          const SizedBox(width: 14),
+          // Subject code and name — the identifying info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  subject.code, // e.g. "CS101"
+                  style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  subject.name, // Full subject name — can be long, so ellipsis
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
           ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.04), blurRadius: 8)],
-        ),
-        child: Row(
-          children: [
-            // Book icon container — gives the tile some visual character
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.book_rounded, color: AppColors.primary, size: 22),
+          const SizedBox(width: 8),
+          // Score and verbal desc — only shown if we have evaluation data for this subject
+          if (hasScore)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(score.toStringAsFixed(2), style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(subject.verbalDescription, style: TextStyle(color: _scoreColor(score), fontSize: 10)), // e.g. "Very Satisfactory"
+              ],
             ),
-            const SizedBox(width: 14),
-            // Subject code and name — the identifying info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    subject.code, // e.g. "CS101"
-                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    subject.name, // Full subject name — can be long, so ellipsis
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Score and verbal desc — only shown if we have evaluation data for this subject
-            if (hasScore)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(score.toStringAsFixed(2), style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.bold, fontSize: 16)),
-                  Text(subject.verbalDescription, style: TextStyle(color: _scoreColor(score), fontSize: 10)), // e.g. "Very Satisfactory"
-                ],
-              ),
-            const SizedBox(width: 8),
-            const Icon(Icons.chevron_right, color: AppColors.textSecondary, size: 20), // Tap hint arrow
-          ],
-        ),
+        ],
       ),
     );
   }

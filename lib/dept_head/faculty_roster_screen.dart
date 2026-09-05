@@ -137,6 +137,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
             id,
             first_name,
             last_name,
+            university_id,
+            account_status,
             instructor_departments!inner (
               department_id,
               is_primary
@@ -152,11 +154,18 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
           ''')
           .eq('instructor_departments.department_id', deptId)
           .eq('instructor_departments.is_primary', true)
-          // Only active accounts belong on an evaluation roster. delete-user
-          // soft-deletes by setting account_status = 'deleted' and never
-          // removes the instructor_departments row, so without this a fired or
-          // disabled instructor stays listed as someone to evaluate.
-          .eq('account_status', 'approved')
+          // account_status is NOT filtered here any more, on purpose. It used
+          // to be `.eq('account_status', 'approved')`, which hid deactivated
+          // instructors from the list -- while their results stayed in the
+          // department average, because EvaluationService aggregates over every
+          // instructor_departments row for the department and never filters on
+          // status. The head was reading an average built from people the list
+          // in front of them did not contain, and could not reconcile the two.
+          //
+          // The filter now happens in Dart, below, on a rule the average can
+          // actually agree with: an account is listed if it is active, OR if it
+          // still has results in this term. Everyone in the average is on the
+          // list, and nobody on the list is missing from the average.
           .neq('id', deanId); // Exclude dean from their own roster
 
       // Separately fetch role info for each instructor from department_table.
@@ -220,10 +229,22 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               trend = 'flat';
             }
 
+            // Whether this account is still active, and whether it still counts
+            // toward this term's department average.
+            //
+            // hasTermData is the exact condition EvaluationService uses to
+            // include somebody in the average: one overall_total_survey row for
+            // the active term. Keeping the two rules identical is the point --
+            // it is what stops the list and the average from disagreeing.
+            final status = (f['account_status'] ?? '').toString();
+            final isActive = status.trim().toLowerCase() == 'approved';
+            final hasTermData = survey != null;
+
             // Return the clean faculty map — all the info the UI cards need
             return {
               'id': instructorId,
               'name': '${f['first_name'] ?? ''} ${f['last_name'] ?? ''}'.trim(),
+              'university_id': f['university_id']?.toString() ?? '', // Carried through so the SAST report header can show it
               'title': roleByUserId[instructorId] ?? 'Instructor', // Role from separate lookup
               'department': deptName,
               'score': (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
@@ -231,8 +252,17 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               'perf_score': (survey?['performance_mean'] as num?)?.toDouble() ?? 0.0,
               'evals': survey?['total_responses'] ?? 0,
               'trend': trend,
+              'account_status': status,
+              'is_active': isActive,
+              'has_term_data': hasTermData,
             };
-          }).toList();
+          })
+          // Active faculty always. A deactivated account only while its results
+          // are still part of this term's numbers -- once the term rolls over
+          // and it contributes nothing, it drops off the list on its own,
+          // which is the behaviour the old status filter was reaching for.
+          .where((f) => f['is_active'] == true || f['has_term_data'] == true)
+          .toList();
 
           setState(() {
             _rosterCache[cacheKey] = fetchedList; // Use composite cache key
@@ -273,8 +303,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
 
   // Navigate to the full instructor detail page when a card is tapped
   // Passes instructor map + dept head ID + current term — everything the detail page needs
-  void _showInstructorDetails(Map<String, dynamic> instructor) {
-    Navigator.push(
+  Future<void> _showInstructorDetails(Map<String, dynamic> instructor) async {
+    final deactivated = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
         builder: (_) => InstructorDetailPage(
@@ -284,6 +314,17 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
         ),
       ),
     );
+
+    // The detail page reports true when it deactivated the instructor. The
+    // roster is only rebuilt from _rosterCache, which is static and otherwise
+    // survives until the term changes, so without this the person the head just
+    // locked out is still sitting in the list — the roster filters on
+    // account_status = 'approved', but only at fetch time. TC-D08 step 4 asks
+    // for them to be shown as deactivated.
+    if (deactivated == true && mounted) {
+      _rosterCache.clear();
+      _fetchFacultyData();
+    }
   }
 
   // --- Helper UI Builders to keep code clean ---
@@ -455,16 +496,27 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      // Count label — shows how many instructors match the current filter
+                      // Count label — shows how many instructors match the current filter.
+                      // The deactivated tail is spelled out separately because
+                      // the Overview tab counts only active staff: without this
+                      // the two screens look like they disagree about how many
+                      // people are in the department.
                       Expanded(
-                        child: Text(
-                          '${roster.length} Instructors Found',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Builder(builder: (_) {
+                          final inactive =
+                              roster.where((f) => f['is_active'] != true).length;
+                          final label = inactive == 0
+                              ? '${roster.length} Instructors Found'
+                              : '${roster.length} Instructors Found  ·  $inactive deactivated';
+                          return Text(
+                            label,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        }),
                       ),
 
                       const SizedBox(width: 8),
@@ -564,6 +616,53 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                                   Text(faculty['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 15), overflow: TextOverflow.ellipsis),
                                   const SizedBox(height: 2),
                                   Text(faculty['title'], style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),
+                                  // A deactivated account is on this list only
+                                  // because its results are still in the term's
+                                  // average. Say so plainly -- an unlabelled row
+                                  // reads as somebody still teaching, and the
+                                  // head would have no idea why the numbers
+                                  // include a person who has left.
+                                  if (faculty['is_active'] != true) ...[
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.error.withValues(alpha: 0.10),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: AppColors.error.withValues(alpha: 0.35)),
+                                      ),
+                                      // Flexible, not a bare Text: the card is
+                                      // narrow once a long name pushes on it,
+                                      // and an unbounded label overflows the
+                                      // badge instead of shortening.
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.person_off_rounded, size: 12, color: AppColors.error),
+                                          SizedBox(width: 5),
+                                          Flexible(
+                                            child: Text(
+                                              'DEACTIVATED',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: AppColors.error,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                letterSpacing: 0.4,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    const Text(
+                                      'Results still counted in this term',
+                                      style: TextStyle(color: AppColors.textTertiary, fontSize: 10.5),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

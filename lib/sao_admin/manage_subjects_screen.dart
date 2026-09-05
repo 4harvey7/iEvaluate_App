@@ -10,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
+import 'subject_duplicate_check.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
@@ -518,6 +519,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
           _openAddSubjectModalPrefilledSubject(
             subjectCode: subjectCode,
             subjectName: subjectName,
+            subjectId: subject['id']?.toString(),
             departmentId: departmentId,
           );
         },
@@ -529,6 +531,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
   void _openAddSubjectModalPrefilledSubject({
     required String subjectCode,
     required String subjectName,
+    required String? subjectId,
     String? departmentId,
   }) {
     showModalBottomSheet(
@@ -544,6 +547,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
         prefilledCode: subjectCode,
         prefilledName: subjectName,
         prefilledDepartmentId: departmentId,
+        prefilledSubjectId: subjectId,
         onSaved: () {
           _loadData();
           _showSnack('Instructor assigned successfully');
@@ -966,6 +970,12 @@ class _AddSubjectModal extends StatefulWidget {
   final String? prefilledCode;         // used when adding instructor to existing subject
   final String? prefilledName;
   final String? prefilledDepartmentId; // auto-set from subject when adding instructor
+  // The subject "Add Instructor" was opened against. Carried explicitly rather
+  // than re-derived from prefilledCode, because the duplicate checks in _save
+  // compare subject IDENTITY -- "is this code held by a subject other than the
+  // one I am working on?" -- and resolving that from a code the user can retype
+  // would be circular.
+  final String? prefilledSubjectId;
 
   const _AddSubjectModal({
     required this.instructors,
@@ -978,6 +988,7 @@ class _AddSubjectModal extends StatefulWidget {
     this.prefilledCode,
     this.prefilledName,
     this.prefilledDepartmentId,
+    this.prefilledSubjectId,
   });
 
   @override
@@ -998,29 +1009,41 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
   List<Map<String, dynamic>> _filteredInstructors = [];
   bool _isSaving = false;
   String? _editingAssignmentId;
-  // The subject this assignment pointed at when the sheet opened. Renaming a
-  // subject is only allowed for THAT subject -- see _save.
-  String? _editingSubjectId;
 
-  /// True when this sheet is creating a genuinely new subject.
+  /// The subject this sheet is already operating on, or null on a fresh add.
   ///
-  /// The other two paths reuse an existing subject code on purpose and must
-  /// stay allowed: editing an assignment, and adding a second instructor to a
-  /// subject that already exists (prefilledCode).
-  bool get _isFreshAdd =>
-      _editingAssignmentId == null && widget.prefilledCode == null;
+  /// This is the anchor for both duplicate checks in [_save]. The rule is
+  /// "does this code/name belong to a subject OTHER than this one?", which
+  /// reads the same on all three entry points and needs no exception for any
+  /// of them.
+  ///
+  /// It replaced a getter that asked which BUTTON opened the sheet
+  /// (`_editingAssignmentId == null && prefilledCode == null`) and skipped both
+  /// checks entirely when the answer was "Edit" or "Add Instructor" -- on the
+  /// theory that those two reuse a code deliberately. They do, but the code and
+  /// name fields were editable on them all the same, so retyping another
+  /// subject's code there sailed past every check and silently moved the
+  /// instructor onto that other subject, reporting success (BUG-2026-TC-A07).
+  /// Identity closes that without needing the fields locked -- they are locked
+  /// below as well, so the form stops inviting an edit it would refuse.
+  String? _sheetSubjectId;
 
-  // Matches the DB index in migration 20240130000018: upper(btrim(code)).
-  static String _normCode(Object? v) =>
-      (v ?? '').toString().trim().toUpperCase();
+  /// True when this sheet may CREATE a subject. Only the fresh add may.
+  bool get _isFreshAdd => _sheetSubjectId == null;
 
-  // Looser than the code rule on purpose. This one only raises a warning, so it
-  // should also catch "Programming  1" against "Programming 1".
-  static String _normName(Object? v) => (v ?? '')
-      .toString()
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), ' ');
+  /// "Add Instructor" on an existing subject. Only affects wording and which
+  /// assignment write happens -- the subject fields behave the same as on the
+  /// edit sheet.
+  bool get _isAddInstructor => widget.prefilledSubjectId != null;
+
+  /// The name the anchored subject carried when this sheet opened.
+  ///
+  /// Name and department are editable on every path -- the code is the only
+  /// thing that cannot move, because it is what identifies the subject. What
+  /// this field buys is knowing whether the admin actually CHANGED the name:
+  /// two subjects may share one legitimately, so warning about a name left
+  /// untouched would nag on every save forever.
+  String? _originalName;
 
   @override
   void initState() {
@@ -1035,9 +1058,10 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       final subject = subjectData is Map
           ? subjectData
           : (subjectData is List && subjectData.isNotEmpty ? subjectData[0] : null);
-      _editingSubjectId = subject?['id']?.toString();
+      _sheetSubjectId = subject?['id']?.toString();
       _codeController.text = subject?['subject_code'] ?? '';
       _nameController.text = subject?['subject_name'] ?? '';
+      _originalName = _nameController.text;
       // Pre-fill department from existing subject
       _selectedDepartmentId = subject?['department_id']?.toString();
       _selectedInstructorId = editing['instructor_id'];
@@ -1048,8 +1072,10 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       }
     } else if (widget.prefilledCode != null) {
       // Pre-fill subject code+name+department when adding another instructor to existing subject
+      _sheetSubjectId = widget.prefilledSubjectId;
       _codeController.text = widget.prefilledCode!;
       _nameController.text = widget.prefilledName ?? '';
+      _originalName = _nameController.text;
       _selectedDepartmentId = widget.prefilledDepartmentId;
     }
 
@@ -1173,6 +1199,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
 
   /// Soft warning: the name is taken, but under a different code.
   Future<bool?> _confirmNameClash(String name, Map<String, dynamic> existing) {
+    final displayCode = _codeController.text.trim().toUpperCase();
     return showDialog<bool>(
       context: context,
       // dialogCtx -- see _showCodeTakenDialog. Popping the nested navigator
@@ -1196,15 +1223,28 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
             const Expanded(child: Text('Possible Duplicate')),
           ],
         ),
+        // Two different actions reach this dialog now that the name is
+        // editable on an existing subject, and the advice differs: a fresh add
+        // can be abandoned in favour of the subject that already exists,
+        // whereas a rename has nothing to abandon -- the subject is already
+        // there and only its label is in question. "Create anyway" over a
+        // rename was simply untrue.
         content: Text(
-          '"$name" already exists as '
-          '${existing['subject_code'] ?? '?'}'
-          '${_deptLabel(existing['department_id'])}.\n\n'
-          'If that is the same course, cancel and add the instructor to it '
-          'instead -- two records would split its evaluation results between '
-          'them.\n\n'
-          'If this is genuinely a different course that happens to share the '
-          'name, continue.',
+          _isFreshAdd
+              ? '"$name" already exists as '
+                  '${existing['subject_code'] ?? '?'}'
+                  '${_deptLabel(existing['department_id'])}.\n\n'
+                  'If that is the same course, cancel and add the instructor '
+                  'to it instead -- two records would split its evaluation '
+                  'results between them.\n\n'
+                  'If this is genuinely a different course that happens to '
+                  'share the name, continue.'
+              : 'Renaming $displayCode to "$name" would give it the same name '
+                  'as ${existing['subject_code'] ?? '?'}'
+                  '${_deptLabel(existing['department_id'])}.\n\n'
+                  'Two subjects may share a name, but anyone reading a roster '
+                  'or a report will have only the code to tell them apart.\n\n'
+                  'Cancel to keep the current name.',
           style: const TextStyle(fontSize: 13.5, height: 1.4),
         ),
         actions: [
@@ -1215,8 +1255,8 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () => Navigator.pop(dialogCtx, true),
-            child: const Text('Create anyway',
-                style: TextStyle(color: Colors.white)),
+            child: Text(_isFreshAdd ? 'Create anyway' : 'Rename anyway',
+                style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -1263,57 +1303,70 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
           .from('subjects')
           .select('id, subject_code, subject_name, department_id');
 
-      Map<String, dynamic>? codeMatch;
-      Map<String, dynamic>? nameMatch;
-      for (final row in (allSubjects as List)) {
-        final r = Map<String, dynamic>.from(row as Map);
-        final rowCode = _normCode(r['subject_code']);
-        if (rowCode == code) {
-          codeMatch ??= r;
-        } else if (_normName(r['subject_name']) == _normName(name)) {
-          // Same name under a DIFFERENT code -- the soft case below.
-          nameMatch ??= r;
-        }
-      }
+      final existing = (allSubjects as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
 
-      if (_isFreshAdd && codeMatch != null) {
+      // The rule lives in subject_duplicate_check.dart. It is keyed on
+      // _sheetSubjectId -- the subject this sheet is already working on -- so a
+      // row matching itself is never a duplicate and a row matching anything
+      // else always is. _originalName is what makes the name warning fire on a
+      // real change rather than on every save of a name left alone.
+      final verdict = checkSubjectDuplicates(
+        subjects: existing,
+        code: code,
+        name: name,
+        sheetSubjectId: _sheetSubjectId,
+        originalName: _originalName,
+      );
+
+      final codeTakenBy = verdict.codeTakenBy;
+      if (codeTakenBy != null) {
         // A subject code identifies one subject across every term. Reusing it
-        // used to silently rewrite that subject's name and department for every
-        // term and every other instructor assigned to it.
+        // silently rewrote that subject's name and department for every term
+        // and every other instructor assigned to it; reached from the edit or
+        // add-instructor sheet it instead moved the instructor onto that other
+        // subject and reported success.
         if (mounted) {
           setState(() => _isSaving = false);
-          await _showCodeTakenDialog(code, codeMatch);
+          await _showCodeTakenDialog(code, codeTakenBy);
         }
         return;
       }
 
-      if (_isFreshAdd && nameMatch != null) {
+      final nameClashWith = verdict.nameClashWith;
+      if (nameClashWith != null) {
         // Two departments legitimately running a same-named course under
         // different codes is real, so this asks rather than refuses.
         if (!mounted) return;
         setState(() => _isSaving = false);
-        final proceed = await _confirmNameClash(name, nameMatch);
+        final proceed = await _confirmNameClash(name, nameClashWith);
         if (proceed != true || !mounted) return;
         setState(() => _isSaving = true);
       }
 
+      // Past the code check, so any row holding this code is this sheet's own
+      // subject and may be reused.
+      final ownSubject = existing.firstWhere(
+        (r) => normSubjectCode(r['subject_code']) == code,
+        orElse: () => const <String, dynamic>{},
+      );
+
       String subjectId;
-      if (codeMatch != null) {
-        subjectId = codeMatch['id'].toString();
-        // Renaming or moving a subject is allowed only from the edit path, and
-        // only for the subject that assignment already pointed at. The
-        // prefilled path exists to attach another instructor to a subject that
-        // already has a name, so it must reuse the row untouched.
-        if (_editingAssignmentId != null && subjectId == _editingSubjectId) {
-          await widget.supabase
-              .from('subjects')
-              .update({
-                'subject_name': name,
-                'department_id': int.tryParse(_selectedDepartmentId!),
-              })
-              .eq('id', subjectId);
-        }
-      } else {
+      if (ownSubject.isNotEmpty) {
+        subjectId = ownSubject['id'].toString();
+        // Name and department may be corrected from either anchored sheet --
+        // the edit sheet and the add-instructor sheet both write them. Only the
+        // CODE is fixed, and it is read-only in the form, so this update can
+        // never move the subject's identity.
+        await widget.supabase
+            .from('subjects')
+            .update({
+              'subject_name': name,
+              'department_id': int.tryParse(_selectedDepartmentId!),
+            })
+            .eq('id', subjectId);
+      } else if (_isFreshAdd) {
         final insertResult = await widget.supabase
             .from('subjects')
             .insert({
@@ -1324,6 +1377,19 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
             .select('id')
             .single();
         subjectId = insertResult['id'].toString();
+      } else {
+        // A sheet opened against an existing subject found no subject holding
+        // its own code. The code field is read-only on those sheets, so this is
+        // not a typo -- the subject was deleted or recoded from elsewhere while
+        // this sheet was open. Creating a replacement here would resurrect a
+        // deliberately removed subject, so refuse and let the admin reopen
+        // against current data.
+        if (mounted) {
+          widget.onError(
+              'That subject no longer exists under $code. Close this sheet and '
+              'reopen it to see the current list.');
+        }
+        return;
       }
 
       // Step 2: instructor_subjects — only when an instructor is selected.
@@ -1369,18 +1435,53 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
     }
   }
 
-  InputDecoration _inputDec(String label, IconData icon, {String? hint}) {
+  /// [locked] renders a field that is shown for reference but cannot be edited.
+  ///
+  /// Deliberately light: the first attempt filled it with a solid grey block,
+  /// which read as a broken control rather than a settled value. This keeps the
+  /// same near-white ground as an editable field, mutes only the label and
+  /// icons, and adds a hairline border plus a small lock so the state is
+  /// legible without shouting.
+  InputDecoration _inputDec(String label, IconData icon,
+      {String? hint, bool locked = false, String? helper}) {
+    final lockedBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(
+          color: AppColors.borderSubtle.withValues(alpha: 0.9), width: 1),
+    );
     return InputDecoration(
       labelText: label,
-      hintText: hint,
-      labelStyle: const TextStyle(color: AppColors.textSecondary),
+      hintText: locked ? null : hint,
+      helperText: locked ? helper : null,
+      helperStyle: const TextStyle(
+          color: AppColors.textTertiary, fontSize: 11, height: 1.25),
+      helperMaxLines: 2,
+      labelStyle: TextStyle(
+          color: locked ? AppColors.textTertiary : AppColors.textSecondary),
       hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
-      prefixIcon: Icon(icon, color: AppColors.primary),
+      prefixIcon: Icon(icon,
+          color: locked ? AppColors.textTertiary : AppColors.primary),
+      suffixIcon: locked
+          ? const Icon(Icons.lock_outline_rounded,
+              size: 16, color: AppColors.textTertiary)
+          : null,
+      suffixIconConstraints:
+          const BoxConstraints(minWidth: 38, minHeight: 38),
       filled: true,
-      fillColor: AppColors.background.withValues(alpha: 0.5),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+      fillColor: locked
+          ? AppColors.background.withValues(alpha: 0.28)
+          : AppColors.background.withValues(alpha: 0.5),
+      // A locked field keeps its outline in every state -- it can still take
+      // focus, and losing the border on focus made it flicker like a control
+      // that had just broken.
+      enabledBorder: locked ? lockedBorder : null,
+      border: locked
+          ? lockedBorder
+          : OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      focusedBorder: locked
+          ? lockedBorder
+          : OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
       errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.error, width: 1)),
       focusedErrorBorder: OutlineInputBorder(
@@ -1391,6 +1492,25 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
   @override
   Widget build(BuildContext context) {
     final isEditing = _editingAssignmentId != null;
+    // The sheet used to announce itself as "Add Subject / Assign a subject to
+    // an instructor" even when it was adding one instructor to a subject that
+    // already existed, which is a different job with a different outcome.
+    final String sheetTitle = isEditing
+        ? 'Edit Assignment'
+        : (_isAddInstructor ? 'Add Instructor' : 'Add Subject');
+    final String sheetSubtitle = isEditing
+        ? 'Update subject details'
+        : (_isAddInstructor
+            ? 'Assign another instructor to ${widget.prefilledCode}'
+            : 'Assign a subject to an instructor');
+    final IconData sheetIcon = isEditing
+        ? Icons.edit_rounded
+        : (_isAddInstructor
+            ? Icons.person_add_alt_1_rounded
+            : Icons.add_circle_rounded);
+    final String saveLabel = isEditing
+        ? 'Save Changes'
+        : (_isAddInstructor ? 'Add Instructor' : 'Assign Subject');
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -1432,7 +1552,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(
-                        isEditing ? Icons.edit_rounded : Icons.add_circle_rounded,
+                        sheetIcon,
                         color: AppColors.primary,
                         size: 22,
                       ),
@@ -1442,7 +1562,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isEditing ? 'Edit Assignment' : 'Add Subject',
+                          sheetTitle,
                           style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontWeight: FontWeight.bold,
@@ -1450,7 +1570,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                           ),
                         ),
                         Text(
-                          isEditing ? 'Update subject details' : 'Assign a subject to an instructor',
+                          sheetSubtitle,
                           style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         ),
                       ],
@@ -1460,28 +1580,51 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                 const SizedBox(height: 24),
 
                 // ── Subject Code ──
+                // Read-only unless this is a fresh add. A code identifies one
+                // subject across every term, so on the edit and add-instructor
+                // sheets it is what tells the save WHICH subject it is working
+                // on -- letting it be retyped there is how BUG-2026-TC-A07
+                // moved an instructor onto an unrelated subject in silence.
                 TextFormField(
                   controller: _codeController,
-                  decoration: _inputDec('Subject Code *', Icons.code, hint: 'e.g. CS101'),
+                  readOnly: !_isFreshAdd,
+                  decoration: _inputDec(
+                      _isFreshAdd ? 'Subject Code *' : 'Subject Code',
+                      Icons.code,
+                      hint: 'e.g. CS101',
+                      locked: !_isFreshAdd,
+                      // One quiet line under the one field that is locked, in
+                      // place of the paragraph this used to print over the
+                      // whole form.
+                      helper: 'Identifies this subject — cannot be changed'),
                   textCapitalization: TextCapitalization.characters,
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Subject code is required' : null,
                 ),
                 const SizedBox(height: 14),
 
                 // ── Subject Name ──
+                // Editable on every path, including add-instructor: correcting
+                // a name is a normal thing to want to do from wherever you
+                // happen to be looking at the subject. Saving it runs the same
+                // duplicate check as anywhere else.
                 TextFormField(
                   controller: _nameController,
-                  decoration: _inputDec('Subject Name *', Icons.menu_book, hint: 'e.g. Introduction to Programming'),
+                  decoration: _inputDec('Subject Name *', Icons.menu_book,
+                      hint: 'e.g. Introduction to Programming'),
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Subject name is required' : null,
                 ),
                 const SizedBox(height: 14),
 
                 // ── Department Dropdown (required) ──
-                // Uses DropdownButtonFormField so it validates like a normal form field
+                // Uses DropdownButtonFormField so it validates like a normal form field.
+                // Editable on every path for the same reason as the name -- and
+                // unlike before, a change made here is now actually saved
+                // rather than accepted, ignored and reported as a success.
                 DropdownButtonFormField<String>(
                   initialValue: _selectedDepartmentId,
                   isExpanded: true, // prevents RenderFlex overflow
-                  decoration: _inputDec('Department *', Icons.business_rounded),
+                  decoration:
+                      _inputDec('Department *', Icons.business_rounded),
                   dropdownColor: AppColors.surface,
                   style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                   hint: const Text('Select department',
@@ -1645,10 +1788,12 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : Icon(isEditing ? Icons.save_rounded : Icons.check_rounded,
+                            : Icon(sheetIcon == Icons.person_add_alt_1_rounded
+                                    ? Icons.person_add_alt_1_rounded
+                                    : (isEditing ? Icons.save_rounded : Icons.check_rounded),
                                 color: Colors.white),
                         label: Text(
-                          _isSaving ? 'Saving...' : (isEditing ? 'Save Changes' : 'Assign Subject'),
+                          _isSaving ? 'Saving...' : saveLabel,
                           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         style: ElevatedButton.styleFrom(

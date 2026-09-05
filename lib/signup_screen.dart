@@ -49,6 +49,21 @@ const List<String> kRoleOrder = <String>[
   'SAO_ADMIN',
 ];
 
+/// Roles the sign-up form must never offer.
+///
+/// SAO Administrator is the account that approves registrations, manages
+/// personnel and hands out roles, so it is created by an existing
+/// administrator rather than claimed by whoever fills in the public form --
+/// anyone who could pick it here would be approving their own application.
+///
+/// The label and order entries above stay: accounts that already hold the role
+/// still have to be rendered everywhere else, and the `roles` table is left
+/// alone. This hides the option, it does not delete the role.
+const Set<String> kRolesClosedToSelfRegistration = <String>{
+  'SAO_ADMIN',
+  'SAO-ADMIN',
+};
+
 /// Label for a raw role string.
 ///
 /// A role that appears in the table without an entry in [kRoleLabels] is still
@@ -80,6 +95,14 @@ List<String> sortRoles(List<String> raw) {
   });
   return sorted;
 }
+
+/// The roles the picker may offer: [sortRoles] minus the ones nobody may
+/// register as themselves. Applied to whatever the `roles` table returns, so a
+/// role added to the table later is offered unless it is listed as closed.
+List<String> selectableRoles(List<String> raw) => sortRoles(raw)
+    .where((r) =>
+        !kRolesClosedToSelfRegistration.contains(r.toUpperCase().trim()))
+    .toList();
 
 /// State of a live "is this already taken?" lookup for one field.
 enum _Availability {
@@ -129,11 +152,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final TextEditingController _idController              = TextEditingController();
   final TextEditingController _emailController           = TextEditingController();
   final TextEditingController _departmentController      = TextEditingController();
-  
-  // Null until chosen, so the dropdown shows its "Employment Status" hint the
-  // way Role and Department do. Only ever asked for roles whose name does not
-  // already state it -- see _employmentIsAskable.
-  String? _selectedEmploymentStatus;
   final TextEditingController _roleController            = TextEditingController();
   final TextEditingController _passwordController        = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
@@ -203,7 +221,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (mounted) {
       setState(() {
         _departments = depts;        // store departments
-        _statusrole = sortRoles(roles); // most-registered role first
+        _statusrole = selectableRoles(roles); // most-registered first, no SAO Admin
         _locations = locations;      // barangay suggestions
         _isFetchingMetadata = false; // done loading, dropdowns can show now
       });
@@ -269,29 +287,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ? IdentityValidator.staffIdLabel
       : IdentityValidator.defaultIdLabel;
 
-  /// Whether employment status is still a real question.
+  /// Whether the chosen role states its own employment status.
   ///
-  /// It is a separate column, but for two roles it is the same fact twice:
-  /// FULL-TIME and PART-TIME already state it. Asking again let the two
-  /// disagree -- role FULL-TIME with employment Part-Time -- and a record that
-  /// contradicts itself is a defect waiting to be read as fact. Derived where
-  /// the role settles it, asked only where it genuinely does not.
-  bool get _employmentIsAskable {
+  /// FULL-TIME and PART-TIME are the two instructor roles and each names its
+  /// employment, so the value is derived rather than asked -- asking twice let
+  /// the two disagree (role FULL-TIME with employment Part-Time), and a record
+  /// that contradicts itself is a defect waiting to be read as fact.
+  ///
+  /// No other role names one, and nothing reads the column for those roles: the
+  /// instructor second-department feature that once did was removed by
+  /// 20240130000017_one_department_per_instructor.sql, leaving only the SAO
+  /// Admin user-detail row -- not worth a required question nobody acts on. So
+  /// heads, deans and SAO staff are no longer asked, matching the server rule in
+  /// admin-update-role, which likewise writes the column only for the two
+  /// instructor roles.
+  bool get _employmentIsRoleStated {
     final role = _roleController.text.toUpperCase().trim();
-    return role == 'DEPARTMENT_HEAD' ||
-        role == 'DEPARTMENT-HEAD' ||
-        role == 'DEAN';
+    return role == 'FULL-TIME' || role == 'PART-TIME';
   }
 
-  String get _resolvedEmploymentStatus {
-    final role = _roleController.text.toUpperCase().trim();
-    if (role == 'FULL-TIME') return 'Full-Time';
-    if (role == 'PART-TIME') return 'Part-Time';
-    if (_employmentIsAskable) return _selectedEmploymentStatus ?? 'Full-Time';
-    // SAO office staff. The column is only ever read for the instructor
-    // second-department feature, so this value is inert for them.
-    return 'Full-Time';
-  }
+  /// What goes into `user_info.employment_status`.
+  ///
+  /// Only PART-TIME resolves to Part-Time; 'Full-Time' is both the instructor
+  /// answer and the inert placeholder every other role has always been given.
+  String get _resolvedEmploymentStatus =>
+      _roleController.text.toUpperCase().trim() == 'PART-TIME'
+          ? 'Part-Time'
+          : 'Full-Time';
 
   // ── availability lookups ─────────────────────────────────────────────────
 
@@ -476,9 +498,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
         if (academicError != null) return academicError;
         if (!_isSaoRole && _departmentController.text.trim().isEmpty) {
           return 'Please select a department'; // SAO users dili need department, lucky them
-        }
-        if (_employmentIsAskable && _selectedEmploymentStatus == null) {
-          return 'Please select an employment status';
         }
         return null;
       default:
@@ -884,23 +903,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
             _buildDeptHeadNotice(),
           ],
-          // Employment status only where the role does not already state it.
-          // Instructors picked Resident / Non-Resident as part of their role.
-          if (_employmentIsAskable) ...[
-            const SizedBox(height: 16),
-            _buildDropdownField<String>(
-              hint: 'Employment Status',
-              icon: Icons.schedule_outlined,
-              value: _selectedEmploymentStatus,
-              items: const <DropdownMenuItem<String>>[
-                DropdownMenuItem(value: 'Full-Time', child: Text('Resident (Full-Time)')),
-                DropdownMenuItem(value: 'Part-Time', child: Text('Non-Resident (Part-Time)')),
-              ],
-              onChanged: _isLoading
-                  ? null
-                  : (val) => setState(() => _selectedEmploymentStatus = val!),
-            ),
-          ],
+          // No Employment Status field: the instructor roles state it in their
+          // own name, and no other role is asked -- see _employmentIsRoleStated.
         ],
       ),
     );
@@ -1470,15 +1474,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _buildSummaryRow(_idLabel, _idController.text.trim(), 1),
           _buildSummaryRow('Email', _emailController.text.trim(), 1),
           if (!isSao) _buildSummaryRow('Department', _departmentController.text.trim(), 1),
-          if (!isSao)
+          // Only where the role states it. Printing 'Resident (Full-Time)' for a
+          // head or dean would show the stored placeholder as something they
+          // chose. Jumps back to step 1, where the role was picked.
+          if (_employmentIsRoleStated)
             _buildSummaryRow(
               'Employment',
               _resolvedEmploymentStatus == 'Full-Time'
                   ? 'Resident (Full-Time)'
                   : 'Non-Resident (Part-Time)',
-              // Derived from the role for instructors, so that row points back
-              // at step 1 where the role was chosen.
-              _employmentIsAskable ? 1 : 0,
+              0,
             ),
         ],
       ),

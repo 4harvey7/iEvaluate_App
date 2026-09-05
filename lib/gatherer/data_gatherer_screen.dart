@@ -28,6 +28,8 @@ import '../widgets/apple_ui.dart';
 
 import 'gatherer_drawer.dart';
 import 'models/scan_task.dart';
+import 'services/form_signature.dart';
+import 'services/scan_analysis.dart';
 
 // The widget itself — it a StatefulWidget because EVERYTHING here change constantly
 class DataGathererScreen extends StatefulWidget {
@@ -341,6 +343,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               status: status,
               retryCount: t.retryCount,
               errorMessage: t.errorMessage,
+              formSuspect: t.formSuspect, // survives the restart, same as the file does
             );
           })
           .toList();
@@ -553,12 +556,17 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
   // called when scanner captures a photo — creates a new ScanTask and queues it
   // also trigger haptic if enabled, and auto-upload if not paused
-  void _performScan(String path) {
+  void _performScan(String path, FormCheck formCheck) {
     // create a new scan task with unique ID based on current timestamp
     final newTask = ScanTask(
       id: 'SCAN-${DateTime.now().millisecondsSinceEpoch}', // unique enough. basin mag-duplicate if very fast
       localPath: path,
       status: SyncStatus.pending, // starts as pending, will upload soon
+      // The scanner already warned the gatherer and they chose to send it.
+      // Record that so n8n can hold it for review rather than aggregating it.
+      // Gated on kFormCheckEnforced: while the check is still being tuned it
+      // must not flag real scans, or n8n would quarantine the whole term.
+      formSuspect: kFormCheckEnforced && formCheck.isSuspect,
     );
 
     setState(() {
@@ -634,6 +642,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                   .last, // just the filename, not full path
               'paper_size':
                   paperSize, // explicit paper size — no need for n8n to parse filename
+              // The scanner did not find the SS Form 2 ruled table in this
+              // image. Sent rather than withheld, but flagged: n8n should
+              // route it for review instead of folding it into the scores.
+              'form_suspect': task.formSuspect,
               'timestamp': DateTime.now().toIso8601String(),
             }),
           )

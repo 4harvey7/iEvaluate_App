@@ -6,12 +6,14 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:math';
 import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
-import 'package:image/image.dart' as img;
 import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
+import 'services/form_signature.dart';
+import 'services/scan_analysis.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Paper size definitions (portrait width ÷ height ratio)
@@ -47,7 +49,10 @@ enum PaperSize {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class GathererScannerView extends StatefulWidget {
-  final Function(String path) onScan; // called with image path when scan is accepted
+  /// Called with the image path and what the document check made of it, once
+  /// the gatherer accepts the photo. The verdict rides along so the upload
+  /// queue can flag a suspect scan instead of silently feeding it to n8n.
+  final void Function(String path, FormCheck formCheck) onScan;
   final VoidCallback onOpenSync; // jump to sync queue tab
   final int queueCount; // number shown on sync badge button
   final VoidCallback onOpenImportData; // open google sheet import screen
@@ -81,7 +86,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   // ── Blur Detection state ─────────────────────────────────────────────────────
   bool _isBlurry = false; // true if last captured image failed blur check
-  bool _isCheckingBlur = false; // true while running blur detection algorithm
+  bool _isCheckingBlur = false; // true while the capture is being analysed
+  // What the document check made of the captured photo. Starts unknown, which
+  // shows no badge — we only speak up once we have something to say.
+  FormCheck _formCheck = FormCheck.unknown;
+
+  /// Whether to act on that verdict at all. The check is still being tuned and
+  /// currently misjudges genuine forms, so its result is logged but not shown —
+  /// see kFormCheckEnforced for what has to be true before this flips on.
+  bool get _formCheckSpeaks => kFormCheckEnforced && _formCheck.isSuspect;
 
   // ── Sensor state (Tilt Guard) ────────────────────────────────────────────────
   // we read accelerometer to detect if phone is too tilted for a good scan
@@ -337,19 +350,19 @@ class _GathererScannerViewState extends State<GathererScannerView>
         await _controller!.setFocusMode(FocusMode.auto); // unlock focus after capture
       } catch (_) {}
 
-      // Run blur detection before showing preview — check image sharpness
+      // Analyse before showing the result — sharpness and document type.
       if (mounted) {
         setState(() {
-          _isCheckingBlur = true; // show "ANALYZING SHARPNESS" tag
+          _isCheckingBlur = true; // show "CHECKING SCAN" tag
           _capturedImagePath = photo.path; // switch to preview screen
         });
       }
 
-      await _runBlurDetection(photo.path); // this may take a moment on slow devices
+      await _runScanChecks(photo.path); // runs off the UI thread
 
       if (mounted) {
         setState(() {
-          _isCheckingBlur = false; // blur check done, show result
+          _isCheckingBlur = false; // checks done, show the verdict
         });
       }
     } catch (e) {
@@ -373,69 +386,78 @@ class _GathererScannerViewState extends State<GathererScannerView>
     setState(() {
       _capturedImagePath = null; // clear path = go back to camera view
       _isBlurry = false; // reset blur state
+      _formCheck = FormCheck.unknown; // and forget the last document verdict
     });
   }
 
-  // run blur detection using variance of Laplacian algorithm
-  // this is a proper image processing technique — not just vibes
-  // higher variance = sharper edges = less blur
-  Future<void> _runBlurDetection(String path) async {
+  // Check the captured photo: is it sharp, and is it actually an SS Form 2?
+  //
+  // Both answers come out of one decode on a background isolate. The decode is
+  // the expensive part and it had to happen anyway for the blur check, so the
+  // document check rides along for roughly a millisecond. Running it through
+  // compute() also gets the decode off the UI thread, where it used to freeze
+  // the preview for as long as it took.
+  Future<void> _runScanChecks(String path) async {
     try {
       final bytes = await File(path).readAsBytes();
-      // Decode with a frame limit to avoid memory spikes
-      final image = img.decodeImage(bytes);
-      if (image == null) return; // decode fail — skip blur check
-
-      // 1. Downscale for speed (processing a 12MP image in Dart is slow)
-      // 640px is enough for blur detection accuracy
-      final small = img.copyResize(image, width: 640);
-
-      // 2. Grayscale — blur detection works on luminance, not color
-      final gray = img.grayscale(small);
-
-      // 3. Laplacian filter for edge detection
-      // Standard 3x3 Laplacian kernel — detects edges by second derivative
-      final laplacian = [
-        0,  1, 0,
-        1, -4, 1,
-        0,  1, 0
-      ];
-
-      // Apply convolution — this produce an edge-magnitude image
-      final edges = img.convolution(gray, filter: laplacian);
-
-      // 4. Calculate Variance of Laplacian
-      // Higher variance = sharper edges = less blur — math is importente here
-      double sum = 0;
-      double sumSq = 0;
-      final pixelCount = edges.width * edges.height;
-
-      for (final pixel in edges) {
-        // In img 4.x, pixel is an object. luminance gives 0-255
-        final l = pixel.luminance;
-        sum += l;
-        sumSq += l * l; // accumulate sum of squares for variance calculation
-      }
-
-      final mean = sum / pixelCount;
-      final variance = (sumSq / pixelCount) - (mean * mean); // variance formula: E[X²] - (E[X])²
+      final result = await compute(analyseScan, bytes);
 
       if (mounted) {
         setState(() {
-          // Threshold of 150-250 is usually safe for 640px document images.
-          // Lower values mean more blurry — 200 is a reasonable cutoff.
-          _isBlurry = variance < 200;
+          _isBlurry = result.isBlurry;
+          _formCheck = result.form;
         });
-        debugPrint('Blur Detection Score: $variance (isBlurry: $_isBlurry)');
+        debugPrint('Scan analysis: $result');
       }
     } catch (e) {
-      debugPrint('Blur detection error: $e'); // blur check fail — just show nothing, proceed normally
+      // Fail open. A crashed check must never cost the gatherer a scan — the
+      // paper form is handled once, and a form refused here is data lost.
+      debugPrint('Scan analysis error: $e');
     }
   }
 
+  // User accepted the photo, but it does not look like an SS Form 2. Ask once.
+  //
+  // Deliberately a question and not a wall. At 500 forms a day a wrong refusal
+  // costs far more than a wrong document slipping through — a bad scan gets
+  // caught downstream in validation, a refused form gets filed away unread.
+  // So the gatherer always has the last word here.
+  Future<bool> _confirmSuspectForm() async {
+    final noPage = _formCheck.match == FormMatch.noPage;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(noPage ? 'No form detected?' : 'Not a SAST form?'),
+        content: Text(
+          noPage
+              ? 'No sheet of paper was found in this photo. Scan it anyway?'
+              : 'This page does not look like a Students\' Assessment Survey '
+                  'for Teachers. Scan it anyway?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('RETAKE'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('SCAN ANYWAY'),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false; // dismissed by tapping away = do not scan
+  }
+
   // user accepts the captured image — rename with paper tag and hand off to parent
-  void _acceptImage() {
+  Future<void> _acceptImage() async {
     if (_capturedImagePath == null) return;
+
+    if (_formCheckSpeaks) {
+      final proceed = await _confirmSuspectForm();
+      if (!proceed || !mounted) return; // stay on the preview so they can retake
+      if (_capturedImagePath == null) return; // retaken while the sheet was up
+    }
 
     // Rename file to include paper size tag so the Python backend can read it
     // e.g.  SCAN-1234567890_A4.jpg  /  _LONG.jpg  /  _SHORT.jpg
@@ -450,13 +472,16 @@ class _GathererScannerViewState extends State<GathererScannerView>
         '$dir${Platform.pathSeparator}${base}_${_selectedPaper.fileTag}.jpg'; // add paper tag before extension
     try {
       orig.renameSync(newPath); // rename in place
-      widget.onScan(newPath); // pass the new path to parent for upload
+      widget.onScan(newPath, _formCheck); // pass the new path to parent for upload
     } catch (_) {
       // Rename failed (e.g. cross-device); fall back to original path
       // Not ideal but better than losing the scan entirely
-      widget.onScan(_capturedImagePath!);
+      widget.onScan(_capturedImagePath!, _formCheck);
     }
-    setState(() => _capturedImagePath = null); // clear path = go back to camera
+    setState(() {
+      _capturedImagePath = null; // clear path = go back to camera
+      _formCheck = FormCheck.unknown; // next capture starts with no verdict
+    });
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
@@ -815,12 +840,22 @@ class _GathererScannerViewState extends State<GathererScannerView>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (_isCheckingBlur)
-                      // still analyzing — spinning sync icon while blur check runs
+                      // still analyzing — spinning sync icon while checks run
                       _BlurStatusTag(
                         icon: Icons.sync,
-                        label: 'ANALYZING SHARPNESS...',
+                        label: 'CHECKING SCAN...',
                         color: Colors.white.withValues(alpha: 0.8),
                         isSpinning: true,
+                      )
+                    else if (_formCheckSpeaks)
+                      // Wrong document, or no document. A warning, not a block:
+                      // USE PHOTO still works, it just asks first.
+                      _BlurStatusTag(
+                        icon: Icons.description_outlined,
+                        label: _formCheck.match == FormMatch.noPage
+                            ? 'NO FORM DETECTED'
+                            : 'NOT A SAST FORM',
+                        color: Colors.redAccent,
                       )
                     else if (_isBlurry)
                       // blur detected — warn user image may be unclear for OCR

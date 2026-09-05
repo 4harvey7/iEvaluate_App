@@ -50,6 +50,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     'formsQueued': 0,
     'completionRate': 0.0,
     'facultyCount': 0,
+    'deactivatedWithResults': 0,
     'evaluatedCount': 0,
   };
 
@@ -79,6 +80,27 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     final queued = _deptInfo['formsQueued'] as int? ?? 0;
     if (queued <= 0) return null;
     return '$queued not yet reflected in the average';
+  }
+
+  /// One line under the Active Faculty number, when it isn't purely a count of
+  /// currently-active accounts.
+  ///
+  /// The Faculty tab keeps a deactivated instructor listed for as long as they
+  /// still hold a result this term -- their score is real and it is still
+  /// inside the department average, so hiding them from the roster while
+  /// counting them in the numbers was its own inconsistency. This card's
+  /// headcount agrees with that roster on purpose, which means "Active
+  /// Faculty" can include someone who is not, strictly, active any more. This
+  /// line is the difference showing its work, so the number is never read as
+  /// "5 people currently teaching" when it means "5 people on the roster."
+  /// Gone on its own once the term rolls past that person's last result, the
+  /// same moment the roster stops listing them and the count drops to match.
+  String? get _facultyNote {
+    final deactivated = _deptInfo['deactivatedWithResults'] as int? ?? 0;
+    if (deactivated <= 0) return null;
+    return deactivated == 1
+        ? '1 deactivated, results still counted'
+        : '$deactivated deactivated, results still counted';
   }
 
   // Alerts are the problems we hope to never see but always plan for — bahala na
@@ -226,6 +248,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             'formsQueued': summary.formsAwaitingProcessing,
             'completionRate': summary.completionRate,
             'facultyCount': summary.facultyCount,
+            'deactivatedWithResults': summary.deactivatedWithResults,
             'evaluatedCount': summary.evaluatedCount,
           };
           _dynamicAlerts = alerts; // Store alerts for the dashboard and notification bell
@@ -276,6 +299,40 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   Color _getAlertColor(String type) {
     if (type == 'critical') return AppColors.error; // RED ALERT. not good.
     return AppColors.warning; // Yellow — proceed with caution
+  }
+
+  // Growth-chart colours — one per school year, so 1st and 2nd sem of the same
+  // year always look the same and the eye can group them without reading labels.
+  static const List<Color> _yearColors = [
+    AppColors.primary,   // blue
+    AppColors.teal,      // teal
+    AppColors.indigo,    // indigo
+    AppColors.purple,    // purple
+    AppColors.rose,      // rose
+  ];
+
+  /// School year of a history entry. Prefers the real `academic_year` field;
+  /// falls back to the "1st\n24-25" label suffix so a cached payload written
+  /// before that field existed still groups correctly.
+  String _historyYear(Map<String, dynamic> data) {
+    final year = data['year']?.toString() ?? '';
+    if (year.isNotEmpty) return year;
+    final label = data['sem']?.toString() ?? '';
+    return label.contains('\n') ? label.split('\n').last : label;
+  }
+
+  /// Colour for [year], picked by its chronological position in the chart so
+  /// neighbouring years never collide and the assignment stays stable across
+  /// rebuilds. Wraps around once there are more than five years on screen.
+  Color _yearColor(String year) {
+    final years = <String>[];
+    for (final entry in _deptHistory) {
+      final y = _historyYear(entry);
+      if (!years.contains(y)) years.add(y); // _deptHistory is already sorted oldest → newest
+    }
+    final index = years.indexOf(year);
+    if (index < 0) return AppColors.primary;
+    return _yearColors[index % _yearColors.length];
   }
 
   // Word cloud colours — cycle through these based on word index
@@ -455,6 +512,13 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                 const SizedBox(height: 4),
                                 // Total count of instructors in the dept — just a number, but importente
                                 Text('${_deptInfo['facultyCount']}', style: const TextStyle(color: AppColors.surface, fontSize: 32, fontWeight: FontWeight.bold)),
+                                if (_facultyNote != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _facultyNote!,
+                                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -537,13 +601,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                 // Scale height, max height ~100px out of 5.0
                                 double barHeight = (score / 5.0) * 100;
                                 
-                                // Clean color coding
-                                Color barColor = AppColors.primary;
-                                if (score >= 4.2) {
-                                  barColor = AppColors.success;
-                                } else if (score < 3.0) {
-                                  barColor = AppColors.warning;
-                                }
+                                // Colour by school year — every semester of the
+                                // same year shares one colour.
+                                final Color barColor = _yearColor(_historyYear(data));
 
                                 return Padding(
                                   padding: EdgeInsets.only(right: isScrollable ? 20 : 0),
