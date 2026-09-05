@@ -35,11 +35,28 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
   List<Map<String, dynamic>> _allErrors = []; // all unresolved import errors
   bool _isLoading = true; // true while fetching the list of shame
 
+  // ── Bulk selection ─────────────────────────────────────────────────────────
+  // A single bad import writes one error row per survey row, so these arrive in
+  // the hundreds. Fixing them one at a time is not a real option, hence select
+  // all + delete.
+  //
+  // The set holds import_errors.id, never list indexes: _fetch() can replace
+  // the list underneath the user, and an index-based selection would then point
+  // at a different record than the one they ticked.
+  final Set<int> _selectedIds = <int>{};
+  bool _selectionMode = false;
+  bool _isDeleting = false;
+
   @override
   void initState() {
     super.initState();
     // 3 tabs — All errors, Instructor errors, Subject errors
     _tabController = TabController(length: 3, vsync: this);
+    // Select-all reads the current tab, and the counter in the title says "N of
+    // M". Both go stale on a tab swipe unless this rebuilds.
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _fetch(); // grab errors right away, dili ta mag-pahuway muna
   }
 
@@ -63,6 +80,12 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         setState(() {
           _allErrors = List<Map<String, dynamic>>.from(results as List); // cast from dynamic
           _isLoading = false;
+          // Drop ticks whose row is gone -- resolved elsewhere, or deleted by
+          // another admin -- so the count in the title can never promise more
+          // than the delete could actually act on.
+          final live = _allErrors.map(_idOf).whereType<int>().toSet();
+          _selectedIds.retainAll(live);
+          if (_selectedIds.isEmpty) _selectionMode = false;
         });
       }
     } catch (e) {
@@ -74,13 +97,185 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
 
   // filtered list of only instructor-not-found errors
   // these happen when the scanned/sheet name doesnt match any instructor in the DB
-  List<Map<String, dynamic>> get _instructorErrors =>
-      _allErrors.where((e) => e['error_type'] == 'instructor_not_found').toList();
+  //
+  // 'instructor_and_subject_not_found' is included on purpose. That is the type
+  // the importer actually writes when BOTH lookups miss, and matching only
+  // 'instructor_not_found' meant those rows showed up under All and in neither
+  // tab -- 89 of them in the last sheet import, invisible to anyone filtering.
+  List<Map<String, dynamic>> get _instructorErrors => _allErrors
+      .where((e) =>
+          e['error_type'] == 'instructor_not_found' ||
+          e['error_type'] == 'instructor_and_subject_not_found')
+      .toList();
 
   // filtered list of only subject-not-found errors
   // these happen when the subject code/name doesnt match anything in the subjects table
-  List<Map<String, dynamic>> get _subjectErrors =>
-      _allErrors.where((e) => e['error_type'] == 'subject_not_found').toList();
+  // Same reasoning as above: a combined failure is a subject failure too, so it
+  // belongs in both tabs rather than falling out of both.
+  List<Map<String, dynamic>> get _subjectErrors => _allErrors
+      .where((e) =>
+          e['error_type'] == 'subject_not_found' ||
+          e['error_type'] == 'instructor_and_subject_not_found')
+      .toList();
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+
+  /// The list the user is currently looking at. Select-all has to mean "all of
+  /// what is on screen", not all of what is loaded, or ticking it on the
+  /// Subject tab would quietly take instructor rows with it.
+  List<Map<String, dynamic>> get _visibleErrors {
+    switch (_tabController.index) {
+      case 1:
+        return _instructorErrors;
+      case 2:
+        return _subjectErrors;
+      default:
+        return _allErrors;
+    }
+  }
+
+  static int? _idOf(Map<String, dynamic> e) {
+    final raw = e['id'];
+    if (raw is int) return raw;
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  void _toggleSelected(Map<String, dynamic> error) {
+    final id = _idOf(error);
+    if (id == null) return;
+    setState(() {
+      if (!_selectedIds.remove(id)) _selectedIds.add(id);
+      // Leaving the last item deselected drops out of selection mode, so the
+      // user is never stranded in a mode with nothing selected and no button.
+      if (_selectedIds.isEmpty) _selectionMode = false;
+    });
+  }
+
+  void _enterSelection(Map<String, dynamic> error) {
+    final id = _idOf(error);
+    if (id == null) return;
+    setState(() {
+      _selectionMode = true;
+      _selectedIds.add(id);
+    });
+  }
+
+  void _exitSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelectAll() {
+    final visible = _visibleErrors.map(_idOf).whereType<int>().toSet();
+    final allChosen = visible.isNotEmpty && _selectedIds.containsAll(visible);
+    setState(() {
+      if (allChosen) {
+        _selectedIds.removeAll(visible);
+        if (_selectedIds.isEmpty) _selectionMode = false;
+      } else {
+        _selectedIds.addAll(visible);
+        _selectionMode = _selectedIds.isNotEmpty;
+      }
+    });
+  }
+
+  // ── Bulk delete ────────────────────────────────────────────────────────────
+
+  /// Deletes every selected row, then PROVES they are gone.
+  ///
+  /// The proof is not defensive padding. import_errors is only ever written by
+  /// n8n and only ever updated by the detail screen, so a DELETE policy may
+  /// well not exist -- and PostgREST answers a delete that matched no rows with
+  /// a perfectly ordinary success. Without the re-count this would report
+  /// "Deleted 916" over a table that still holds 916 rows.
+  Future<void> _deleteSelected() async {
+    final ids = _selectedIds.toList();
+    if (ids.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: Row(children: [
+          const Icon(Icons.delete_outline, color: AppColors.error),
+          const SizedBox(width: 10),
+          Flexible(child: Text('Delete ${ids.length} record${ids.length == 1 ? '' : 's'}?')),
+        ]),
+        content: const Text(
+          'These import errors will be permanently removed. The survey data in '
+          'them is discarded and cannot be recovered — re-run the import if you '
+          'still need it.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: AppColors.error, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _isDeleting = true);
+    try {
+      // Chunked because these ids travel in the URL as id=in.(...): a few
+      // hundred at a time keeps every request well inside the URL length limit
+      // that a single 900-id delete would blow straight past.
+      const chunkSize = 200;
+      for (var i = 0; i < ids.length; i += chunkSize) {
+        final chunk = ids.sublist(
+            i, i + chunkSize > ids.length ? ids.length : i + chunkSize);
+        await _supabase.from('import_errors').delete().inFilter('id', chunk);
+      }
+
+      final remaining = await _supabase
+          .from('import_errors')
+          .select('id')
+          .inFilter('id', ids);
+      final stillThere = (remaining as List).length;
+
+      if (!mounted) return;
+      if (stillThere == 0) {
+        _exitSelection();
+        await _fetch();
+        if (mounted) {
+          _snack('Deleted ${ids.length} record${ids.length == 1 ? '' : 's'}.',
+              AppColors.success);
+        }
+      } else {
+        // The delete was accepted and changed nothing — almost always a missing
+        // RLS DELETE policy on import_errors. Say that, rather than claiming a
+        // success the table does not agree with.
+        await _fetch();
+        if (mounted) {
+          _snack(
+            '$stillThere of ${ids.length} could not be deleted. The database '
+            'refused the delete — import_errors is likely missing a DELETE '
+            'policy for your role.',
+            AppColors.error,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ImportErrors] Bulk delete failed: $e');
+      if (mounted) _snack('Delete failed: $e', AppColors.error);
+    } finally {
+      if (mounted) setState(() => _isDeleting = false);
+    }
+  }
+
+  void _snack(String msg, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: color),
+    );
+  }
 
   // ── Build ──────────────────────────────────────────────────────────────────
 
@@ -92,37 +287,88 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         backgroundColor: AppColors.surface,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
-        leading: widget.showBackButton
-            ? const BackButton(color: AppColors.textPrimary)
-            : IconButton(
-                icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
-                tooltip: 'Open menu',
-                onPressed: widget.onMenuPressed ?? () => MainScaffold.drawerKey.currentState?.openDrawer(),
-              ),
+        leading: _selectionMode
+            ? IconButton(
+                icon: const Icon(Icons.close, color: AppColors.textPrimary),
+                tooltip: 'Cancel selection',
+                onPressed: _isDeleting ? null : _exitSelection,
+              )
+            : widget.showBackButton
+                ? const BackButton(color: AppColors.textPrimary)
+                : IconButton(
+                    icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
+                    tooltip: 'Open menu',
+                    onPressed: widget.onMenuPressed ?? () => MainScaffold.drawerKey.currentState?.openDrawer(),
+                  ),
         // title shows count of pending errors — a number that should always be going down
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Import Errors',
-              style: TextStyle(
+            Text(
+              _selectionMode ? '${_selectedIds.length} selected' : 'Import Errors',
+              style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold),
             ),
             Text(
-              '${_allErrors.length} pending resolution', // how many still need fixing
+              _selectionMode
+                  ? 'of ${_visibleErrors.length} shown'
+                  : '${_allErrors.length} pending resolution', // how many still need fixing
               style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 11),
             ),
           ],
         ),
-        actions: [
-          // refresh button — pull latest errors manually
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.primary),
-            onPressed: _fetch,
-            tooltip: 'Refresh',
-          ),
-        ],
+        actions: _selectionMode
+            ? [
+                IconButton(
+                  icon: Icon(
+                    _visibleErrors.isNotEmpty &&
+                            _selectedIds.containsAll(
+                                _visibleErrors.map(_idOf).whereType<int>())
+                        ? Icons.deselect
+                        : Icons.select_all,
+                    color: AppColors.primary,
+                  ),
+                  tooltip: 'Select all in this tab',
+                  onPressed: _isDeleting ? null : _toggleSelectAll,
+                ),
+                _isDeleting
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: AppColors.error),
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: AppColors.error),
+                        tooltip: 'Delete selected',
+                        onPressed:
+                            _selectedIds.isEmpty ? null : _deleteSelected,
+                      ),
+              ]
+            : [
+                // Enters selection mode with nothing ticked, so "select all" is
+                // reachable without first long-pressing some arbitrary card.
+                if (_allErrors.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.checklist_rounded,
+                        color: AppColors.primary),
+                    tooltip: 'Select records',
+                    onPressed: () => setState(() => _selectionMode = true),
+                  ),
+                // refresh button — pull latest errors manually
+                IconButton(
+                  icon: const Icon(Icons.refresh, color: AppColors.primary),
+                  onPressed: _fetch,
+                  tooltip: 'Refresh',
+                ),
+              ],
         // three tabs at the bottom of the appbar — each shows filtered errors
         bottom: TabBar(
           controller: _tabController,
@@ -185,9 +431,13 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
   // builds a single error card showing what went wrong and who/what was affected
   // tappable and has a "Fix This" button that opens the detail/correction screen
   Widget _buildErrorCard(Map<String, dynamic> error) {
-    final isInstructor = error['error_type'] == 'instructor_not_found'; // true = instructor problem
+    final type = error['error_type']?.toString() ?? '';
+    final isBoth = type == 'instructor_and_subject_not_found';
+    final isInstructor = type == 'instructor_not_found' || isBoth; // true = instructor problem
     final isSheet = error['source'] == 'google_sheet'; // true = from sheet, false = from scan
     final errorColor = isInstructor ? AppColors.error : AppColors.warning; // red for instructor, yellow for subject
+    final id = _idOf(error);
+    final selected = id != null && _selectedIds.contains(id);
     final createdAt =
         DateTime.tryParse(error['created_at']?.toString() ?? '');
     final timeAgo =
@@ -199,8 +449,13 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         // subtle colored border based on error type — visual cue for severity
+        // A selected card is outlined in the primary colour instead, so the
+        // tick is not the only thing distinguishing it in a long list.
         border: Border.all(
-            color: errorColor.withValues(alpha: 0.25), width: 1.2),
+            color: selected
+                ? AppColors.primary
+                : errorColor.withValues(alpha: 0.25),
+            width: selected ? 2 : 1.2),
         boxShadow: [
           BoxShadow(
               color: Colors.black.withValues(alpha: 0.04),
@@ -213,7 +468,12 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => _openDetail(error), // tap anywhere on the card to open detail screen
+          // In selection mode a tap must never open the detail screen -- that
+          // is how a bulk delete turns into an accidental single edit.
+          onTap: () => _selectionMode
+              ? _toggleSelected(error)
+              : _openDetail(error), // tap anywhere on the card to open detail screen
+          onLongPress: () => _enterSelection(error),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -223,10 +483,24 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
                 // shows error type badge, source badge (sheet/scan), and how long ago
                 Row(
                   children: [
+                    if (_selectionMode) ...[
+                      Icon(
+                        selected
+                            ? Icons.check_circle
+                            : Icons.radio_button_unchecked,
+                        size: 20,
+                        color: selected
+                            ? AppColors.primary
+                            : AppColors.textTertiary,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     _badge(
-                      isInstructor
-                          ? 'Instructor Not Found'
-                          : 'Subject Not Found', // which thing is missing
+                      isBoth
+                          ? 'Instructor + Subject'
+                          : isInstructor
+                              ? 'Instructor Not Found'
+                              : 'Subject Not Found', // which thing is missing
                       errorColor,
                     ),
                     const SizedBox(width: 6),
@@ -252,9 +526,10 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
                 const SizedBox(height: 5),
                 _infoRow(Icons.book_outlined, 'Subject',
                     error['raw_subject_name'] ?? '—'), // subject it tried to match
-                const SizedBox(height: 5),
-                _infoRow(Icons.badge_outlined, 'Student ID',
-                    error['raw_student_id'] ?? '—'), // which student's record this is
+                // Student ID is deliberately not shown here or on the detail
+                // screen. Resolving an import error needs the instructor and
+                // the subject; who submitted the evaluation is not the admin's
+                // business, and evaluations are answered on that basis.
                 const SizedBox(height: 14),
 
                 // ── Fix button ──────────────────────────────────────────
@@ -273,7 +548,11 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
                           borderRadius: BorderRadius.circular(10)),
                       elevation: 0,
                     ),
-                    onPressed: () => _openDetail(error), // same as tapping the card
+                    // Greyed out while selecting: the card's own tap is bound to
+                    // the tick, and a live Fix button here would contradict it.
+                    onPressed: _selectionMode
+                        ? null
+                        : () => _openDetail(error), // same as tapping the card
                   ),
                 ),
               ],

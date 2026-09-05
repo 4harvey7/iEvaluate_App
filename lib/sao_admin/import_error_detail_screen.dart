@@ -697,7 +697,10 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   // useful for admin to see what the system received before they start correcting
   Widget _buildOriginalDataCard(Map<String, dynamic> raw) {
     final remarks = raw['remarks']?.toString() ?? ''; // optional remarks field
-    final studentId = widget.error['raw_student_id']?.toString() ?? '—'; // the student's ID
+    // The student ID is deliberately NOT shown. Evaluations are answered on the
+    // understanding that they are not attributable, and an admin correcting a
+    // failed import needs the instructor and the subject to fix it -- never who
+    // submitted it. The column is still stored; it is just not put on screen.
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -729,11 +732,10 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
             ],
           ),
           const Divider(height: 16),
-          // display the four key data points from the original record
+          // what the importer actually received, minus anything identifying
           _dataRow('Instructor (raw)',
               widget.error['raw_instructor_name'] ?? '—'), // what the importer received
           _dataRow('Subject (raw)', widget.error['raw_subject_name'] ?? '—'),
-          _dataRow('Student ID', studentId),
           if (remarks.isNotEmpty) _dataRow('Remarks', remarks), // only show if has value
         ],
       ),
