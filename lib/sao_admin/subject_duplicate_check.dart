@@ -17,7 +17,13 @@ library;
 /// `upper(btrim(subject_code))`. If the two ever disagree, the app and the
 /// database disagree about what counts as taken, and the app's answer is the
 /// one the user sees.
-String normSubjectCode(Object? v) => (v ?? '').toString().trim().toUpperCase();
+///
+/// Trims ASCII spaces only, not `String.trim()`: single-argument `btrim` strips
+/// the space character and nothing else, so a code arriving with a tab or a
+/// non-breaking space -- which the n8n bulk import does not clean -- is a
+/// different code to the index, and must be a different code here too.
+String normSubjectCode(Object? v) =>
+    (v ?? '').toString().replaceAll(RegExp(r'^ +| +$'), '').toUpperCase();
 
 /// Normalises a subject name for comparison.
 ///

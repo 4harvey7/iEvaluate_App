@@ -40,12 +40,22 @@ class ScanTask {
     return ScanTask(
       id: map['id'] as String,
       localPath: map['localPath'] as String,
-      status: SyncStatus.values[map['status'] as int? ?? 0],
+      // A stored index outside the enum -- a queue written by a newer build, or
+      // a truncated write -- must not take the screen that loads the queue down
+      // with it. An unreadable status means the scan's fate is unknown, and
+      // pending is the answer that gets it retried rather than dropped.
+      status: _statusFrom(map['status']),
       retryCount: map['retryCount'] as int? ?? 0,
       errorMessage: map['errorMessage'] as String?,
       // Queues written by an older build have no such key — those scans were
       // never checked, so the honest default is "not flagged".
       formSuspect: map['formSuspect'] as bool? ?? false,
     );
+  }
+
+  static SyncStatus _statusFrom(Object? raw) {
+    final idx = raw is int ? raw : 0;
+    if (idx < 0 || idx >= SyncStatus.values.length) return SyncStatus.pending;
+    return SyncStatus.values[idx];
   }
 }

@@ -214,19 +214,29 @@ class AuthService {
           'Department_name_ID': departmentId,
           'roles': roleId,
         });
-        // Also record the membership in instructor_departments, which the dept
-        // head roster and department analytics read from. Exactly one row per
-        // instructor, so is_primary is always true.
-        try {
-          await _supabase.from('instructor_departments').insert({
-            'instructor_id': userId,
-            'department_id': departmentId,
-            'is_primary': true,
-          });
-        } catch (deptLinkError) {
-          // Log but do not fail signup — instructor_departments is supplementary.
-          // The backfill migration ensures existing users are already covered.
-          debugPrint('[AUTH] Warning: Could not insert instructor_departments row: $deptLinkError');
+        // instructor_departments -- what the dept head roster and department
+        // analytics actually read -- is written by the
+        // department_table_sync_instructor_department trigger (migration 21),
+        // NOT from here. This used to be a client insert wrapped in a
+        // try/catch that only debugPrint'ed, and once migration 10 restricted
+        // that table's INSERT policy to is_sao_admin() the write could never
+        // succeed again: every self-registered account since then was created
+        // with no department link, invisible to its own department head and
+        // absent from the department average, while signup still reported
+        // success. Verified rather than assumed, because the difference between
+        // the two is exactly what hid the original failure.
+        final linked = await _supabase
+            .from('instructor_departments')
+            .select('id')
+            .eq('instructor_id', userId)
+            .limit(1);
+        if ((linked as List).isEmpty) {
+          debugPrint(
+            '[AUTH] WARNING: no instructor_departments row for $userId. '
+            'Migration 20240130000021 is probably not applied on this database. '
+            'This account will not appear on its department roster until an SAO '
+            'admin repairs it.',
+          );
         }
       }
 

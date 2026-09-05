@@ -69,9 +69,14 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         // Ordered by year so we get chronological chart data
         _supabase
             .from('overall_total_survey')
-            .select('overall_mean, combined_score_mean, management_mean, performance_mean, term_id, academic_terms(semester, academic_year)')
+            .select('overall_mean, combined_score_mean, management_mean, performance_mean, term_id, created_at, academic_terms(semester, academic_year)')
             .eq('instructor_id', instructorId)
-            .order('academic_terms(academic_year)', ascending: true),
+            .order('academic_terms(academic_year)', ascending: true)
+            // Newest first WITHIN a year, so the dedup below -- which keeps the
+            // first row it sees per term -- keeps the latest one. Ordering by
+            // year alone cannot separate two rows sharing a term, which is
+            // exactly the duplicate case that dedup exists for.
+            .order('created_at', ascending: false),
 
         // 2. Subjects for current term via junction table
         // Only subjects they teach THIS term — not all subjects ever
@@ -112,8 +117,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       final remarksData = (results[3] as List? ?? []);
       final wordcloudData = (results[4] as List? ?? []);
 
-      // Build history list — deduplicate by term, keep first (latest) per term
-      // Same instructor might have multiple rows per term if data is duplicated — filter that
+      // Build history list — deduplicate by term, keeping the newest row per
+      // term (the query orders created_at descending within each year).
+      // overall_total_survey is unique on (instructor_id, term_id), so this
+      // should never fire; it stays for rows predating that constraint.
       final seenTerms = <String>{};
       final history = <_TermScore>[];
       for (final row in historyRows) {
@@ -682,8 +689,12 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     // Let's show a placeholder state so it still looks good.
     final hasData = _sentimentSummary['total'] > 0;
     
+    // No remarks means no distribution to draw. Neutral used to default to 100
+    // here, which painted a full gold bar directly above a legend reading
+    // 0% / 0% / 0% -- the chart and the numbers under it contradicting each
+    // other on the same card. Empty now means empty in both.
     final int posPct = hasData ? _sentimentSummary['positive'] : 0;
-    final int neuPct = hasData ? _sentimentSummary['neutral'] : 100; // default to 100% neutral if no data
+    final int neuPct = hasData ? _sentimentSummary['neutral'] : 0;
     final int negPct = hasData ? _sentimentSummary['negative'] : 0;
     
     final tags = _sentimentTags.isNotEmpty ? _sentimentTags : ['No Data Yet'];
@@ -724,34 +735,38 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
               // Stacked Bar Chart
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Row(
-                  children: [
-                    if (posPct > 0)
-                      Expanded(
-                        flex: posPct,
-                        child: Container(height: 10, color: const Color(0xFF457962)), // Green
-                      ),
-                    if (neuPct > 0)
-                      Expanded(
-                        flex: neuPct,
-                        child: Container(height: 10, color: const Color(0xFFBC7631)), // Gold/Orange
-                      ),
-                    if (negPct > 0)
-                      Expanded(
-                        flex: negPct,
-                        child: Container(height: 10, color: const Color(0xFFC34A2C)), // Red/Deep Orange
-                      ),
-                  ],
-                ),
+                child: hasData
+                    ? Row(
+                        children: [
+                          if (posPct > 0)
+                            Expanded(
+                              flex: posPct,
+                              child: Container(height: 10, color: const Color(0xFF457962)), // Green
+                            ),
+                          if (neuPct > 0)
+                            Expanded(
+                              flex: neuPct,
+                              child: Container(height: 10, color: const Color(0xFFBC7631)), // Gold/Orange
+                            ),
+                          if (negPct > 0)
+                            Expanded(
+                              flex: negPct,
+                              child: Container(height: 10, color: const Color(0xFFC34A2C)), // Red/Deep Orange
+                            ),
+                        ],
+                      )
+                    // Nothing to distribute yet — an empty track, not a filled
+                    // bar in a colour nobody's remarks earned.
+                    : Container(height: 10, color: const Color(0xFFE0DFDC)),
               ),
               const SizedBox(height: 12),
               // Legend
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildSentimentLegendItem('Positive', '${hasData ? posPct : 0}%', const Color(0xFF457962)),
-                  _buildSentimentLegendItem('Neutral', '${hasData ? neuPct : 0}%', const Color(0xFFBC7631)),
-                  _buildSentimentLegendItem('Negative', '${hasData ? negPct : 0}%', const Color(0xFFC34A2C)),
+                  _buildSentimentLegendItem('Positive', '$posPct%', const Color(0xFF457962)),
+                  _buildSentimentLegendItem('Neutral', '$neuPct%', const Color(0xFFBC7631)),
+                  _buildSentimentLegendItem('Negative', '$negPct%', const Color(0xFFC34A2C)),
                 ],
               ),
               const Padding(

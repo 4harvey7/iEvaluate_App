@@ -1,6 +1,7 @@
 // lib/dept_head/faculty_roster_screen.dart
 // The list of all instructors in the department — who they are, how they scoring.
 // Dean can search, sort, and tap to see more. importente screen, treat with respect.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -90,7 +91,12 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       final deanId = widget.userId.isNotEmpty
           ? widget.userId
           : (_supabase.auth.currentUser?.id ?? '');
-      if (deanId.isEmpty) return; // No user ID = no dept = wala data
+      if (deanId.isEmpty) {
+        // Nothing threw, so the catch below never runs and never clears the
+        // flag: returning bare here left the screen on its spinner for good.
+        if (mounted) setState(() => _isLoading = false);
+        return; // No user ID = no dept = wala data
+      }
 
       // Fetch the dept info using the dean's user ID
       final deptData = await _supabase
@@ -102,11 +108,15 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       final deptId = deptData?['Department_name_ID']; // The department UUID
       final deptName = deptData?['department_name']?['d_name'] ?? 'Unknown Department';
 
-      // Debug prints — helpful during development, won't hurt in production
-      debugPrint('--- [DEBUG] Roster Fetch ---');
-      debugPrint('User ID: $deanId');
-      debugPrint('Department ID: $deptId');
-      debugPrint('Department Name: $deptName');
+      // Debug prints — development only. debugPrint is NOT stripped from a
+      // release build, and these three lines name a real person and their
+      // department, so they stay behind kDebugMode.
+      if (kDebugMode) {
+        debugPrint('--- [DEBUG] Roster Fetch ---');
+        debugPrint('User ID: $deanId');
+        debugPrint('Department ID: $deptId');
+        debugPrint('Department Name: $deptName');
+      }
 
       // If dean has no department assigned — something is wrong in the database
       if (deptId == null) {
@@ -184,9 +194,13 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
         for (final row in (roleRows as List)) {
           final uid = row['user_id']?.toString();
           final roleData = row['roles'];
+          // A joined row can exist with a null Roles value; without the ??
+          // on this branch too, roleName.toString() renders the word "null"
+          // as the instructor's title.
           final roleName = roleData is List
-              ? (roleData.isNotEmpty ? roleData[0]['Roles'] : 'Instructor')
-              : roleData?['Roles'] ?? 'Instructor';
+              ? ((roleData.isNotEmpty ? roleData[0]['Roles'] : null) ??
+                  'Instructor')
+              : (roleData?['Roles'] ?? 'Instructor');
           if (uid != null) roleByUserId[uid] = roleName.toString();
         }
       }
@@ -194,7 +208,10 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       debugPrint('Raw Faculty Data Count: ${facultyData.length}');
 
       if (mounted) {
-        debugPrint('Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
+        if (kDebugMode) {
+          debugPrint(
+              'Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
+        }
 
         final fetchedList = (facultyData as List).map<Map<String, dynamic>>((f) {
             final instructorId = f['id']?.toString() ?? '';

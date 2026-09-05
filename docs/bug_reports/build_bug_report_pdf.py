@@ -326,8 +326,12 @@ def letterhead():
 
 
 def sev_class(v):
+    # Anything unrecognised gets its own loud style rather than defaulting to
+    # sev-low: a mistyped "critical" reading as the least urgent tier on a
+    # document whose whole job is to make severity unmistakable is the one
+    # failure this function must not have.
     return {"Critical": "sev-crit", "High": "sev-high",
-            "Medium": "sev-medium", "Low": "sev-low"}.get(v, "sev-low")
+            "Medium": "sev-medium", "Low": "sev-low"}.get(v, "sev-unknown")
 
 
 # ---------------------------------------------------------------- page 1
@@ -591,6 +595,7 @@ td.stp { font-size:7.6pt; line-height:1.35; }
 .sev-high   { background:#f7d5d7; color:#a4101a; font-weight:bold; }
 .sev-medium { background:#fbeacb; color:#8a6100; font-weight:bold; }
 .sev-low    { background:#e6e6e6; font-weight:bold; }
+.sev-unknown { background:#e4d7f2; color:#4a2a6b; font-weight:bold; }
 .pend { font-weight:bold; color:#8a6100; }
 .blank { display:inline-block; width:60%; border-bottom:1px dotted #666;
          height:9px; }
@@ -621,9 +626,10 @@ def main():
           % (BUG["id"], len(BUG["steps"]), len(BUG["variants"])))
     print("wrote %s" % path)
     print("\nprint to PDF with:")
-    print('  "/c/Program Files/Google/Chrome/Application/chrome.exe" '
-          "--headless --disable-gpu --no-pdf-header-footer "
-          '--print-to-pdf="%s.pdf" "%s"' % (BUG["id"], path))
+    print('  "%s" --headless --disable-gpu --no-pdf-header-footer '
+          '--print-to-pdf="%s" "%s"'
+          % (os.environ.get("CHROME", "chrome"),
+             os.path.join(OUT, BUG["id"] + ".pdf"), path))
 
 
 main()

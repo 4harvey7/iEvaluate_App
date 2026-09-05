@@ -226,6 +226,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         });
         if (termChanged) {
           _fetchSupabaseStats(); // term changed, re-fetch everything
+          // Anything captured before the term was known is sitting pending with
+          // nowhere to go. Now it has somewhere.
+          if (settings.termId != null && !_isPaused) _syncData();
         }
       }
     });
@@ -235,6 +238,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   @override
   void dispose() {
     _settingsSubscription?.cancel(); // if we dont cancel, memory leak. bad.
+    _linkController.dispose();
     super.dispose();
   }
 
@@ -306,8 +310,14 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           _entriesToday = (todayData as List).length; // count of today's rows
           _overallSurveyCount =
               (overallData as List).length; // count for whole term
-          _scannedToday =
-              _entriesToday; // sync local counter with database reality
+          // The database only knows about scans it has already ingested. Scans
+          // still sitting in the local queue were taken but are not in that
+          // count yet, so adding them back keeps the gatherer's progress from
+          // dropping while uploads are in flight.
+          final notYetCounted = _localQueue
+              .where((t) => t.status != SyncStatus.success)
+              .length;
+          _scannedToday = _entriesToday + notYetCounted;
         });
       }
       await _saveCachedDashboard();
@@ -426,6 +436,18 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     String link =
         manualLink ?? _linkController.text.trim(); // use provided or from field
     if (link.isEmpty) return; // nothing to submit, ayaw
+
+    // Same rule the scan queue follows: an import with no term belongs to no
+    // term, and n8n has no way to work out which one was meant.
+    if (_currentTermId == null || _currentTermId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active term loaded yet. Try again in a moment.'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
 
     // show a spinner dialog so user know something is happening
     showDialog(
@@ -588,11 +610,14 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     if (!_isPaused) _uploadToN8N(newTask);
 
     // show quick snackbar — "captured!" so user know it registered
+    final awaitingTerm = _currentTermId == null || _currentTermId!.isEmpty;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Captured! Syncing in background...'),
-        backgroundColor: AppColors.success,
-        duration: Duration(seconds: 1), // short — no need to be annoying
+      SnackBar(
+        content: Text(awaitingTerm
+            ? 'Captured! Held until the active term loads.'
+            : 'Captured! Syncing in background...'),
+        backgroundColor: awaitingTerm ? AppColors.warning : AppColors.success,
+        duration: Duration(seconds: awaitingTerm ? 3 : 1),
       ),
     );
   }
@@ -603,7 +628,22 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   // if success, mark as success. if fail, mark as failed and increment retry count
   Future<void> _uploadToN8N(ScanTask task) async {
     if (task.status == SyncStatus.success) return; // already done, skip
+    // Already in flight. Without this, a "Sync Now" tap landing while the
+    // auto-upload is still waiting on n8n POSTs the same image twice and the
+    // term gets the scan counted twice.
+    if (task.status == SyncStatus.uploading) return;
     if (_isPaused) return; // paused, ayaw mag-upload
+
+    // The active term arrives on the settings stream a moment after launch. A
+    // scan taken before it lands used to upload with term_id: null and belong
+    // to no term at all, which nothing downstream can repair. Holding it as
+    // pending costs the gatherer nothing -- the queue flushes as soon as the
+    // term is known, stamped with the right one.
+    final termId = _currentTermId;
+    if (termId == null || termId.isEmpty) {
+      debugPrint('Upload held: no active term yet for task ${task.id}');
+      return;
+    }
 
     // mark as uploading so UI shows spinner for this task
     setState(() {
@@ -634,7 +674,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
               'user_id': widget.userId,
-              'term_id': _currentTermId,
+              'term_id': termId,
               'image': base64Image, // the actual image encoded as base64
               'task_id': task.id,
               'filename': task.localPath
@@ -677,8 +717,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       });
 
       if (isConnectionError && mounted) {
-        _isPaused =
-            true; // Auto-pause the rest of the queue so it doesn't spam errors
+        // Auto-pause the rest of the queue so it doesn't spam errors. Through
+        // setState, or the pause banner and the Sync button keep showing the
+        // queue as running until some unrelated rebuild catches up.
+        setState(() => _isPaused = true);
 
         showDialog(
           context: context,
@@ -718,8 +760,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   // stops if paused mid-loop — respect the pause flag
   void _syncData() async {
     if (_isPaused) return; // paused? stay paused, dili mag-upload
+    // Pending and failed only: "not success" also matches the task currently
+    // uploading, which is how the same scan ended up submitted twice.
     final pendingTasks = _localQueue
-        .where((t) => t.status != SyncStatus.success)
+        .where((t) =>
+            t.status == SyncStatus.pending || t.status == SyncStatus.failed)
         .toList();
     if (pendingTasks.isEmpty) return; // nothing to do
 

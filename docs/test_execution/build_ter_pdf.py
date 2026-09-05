@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """Render the five Test Execution Reports into one CTU-letterheaded HTML document.
 
-The HTML is then printed to PDF with headless Chrome (see build.sh / the command
-printed at the end of this script).
+The HTML is then printed to PDF with headless Chrome, using the command this
+script prints when it finishes. Set CHROME to your browser's path if it is not
+on PATH.
 """
 import html
+import itertools
 import os
 import sys
 
@@ -46,9 +48,23 @@ def steps_html(text):
 
 
 def status_cell(st):
-    cls = {"PASS": "pass", "FAIL": "fail", "BLOCKED": "blk"}[st]
-    label = {"PASS": "PASS", "FAIL": "FAIL", "BLOCKED": "NOT EXEC."}[st]
+    # An unrecognised status is a typo in data_modules.py, made while editing a
+    # retest cycle by hand. Rendering it as UNKNOWN puts it in front of whoever
+    # reads the report; a bare dict lookup aborted the whole build instead.
+    cls, label = {"PASS": ("pass", "PASS"),
+                  "FAIL": ("fail", "FAIL"),
+                  "BLOCKED": ("blk", "NOT EXEC.")}.get(st, ("unknown", "UNKNOWN"))
     return '<td class="stat %s">%s</td>' % (cls, label)
+
+
+def sev_class(v):
+    # Allowlisted rather than lowercased in place: this value lands inside an
+    # HTML class attribute, and it was the one field in the defect row that
+    # never went through e(). An unfamiliar severity gets its own style instead
+    # of quietly inheriting Low's.
+    return {"CRITICAL": "crit", "HIGH": "high",
+            "MEDIUM": "medium", "LOW": "low"}.get(
+                v.split()[0].upper() if v.split() else "", "unknown")
 
 
 def tally(cases):
@@ -118,11 +134,14 @@ def cover(mods):
            t["rate"], len(m["defects"]))
         for m, t in zip(mods, tots))
 
+    # Two members to a row, and an odd count leaves the second cell blank
+    # rather than reading MEMBERS[i + 1] off the end of the list -- which is
+    # what adding or dropping a single member used to do.
     members = "".join(
         '<tr><th>%s</th><td>%s</td><th>%s</th><td>%s</td></tr>'
-        % (e(MEMBERS[i][0]), e(MEMBERS[i][1]), e(MEMBERS[i + 1][0]),
-           e(MEMBERS[i + 1][1]))
-        for i in range(0, len(MEMBERS), 2))
+        % (e(a[0]), e(a[1]), e(b[0]), e(b[1]))
+        for a, b in itertools.zip_longest(MEMBERS[0::2], MEMBERS[1::2],
+                                          fillvalue=("", "")))
     env = "".join('<tr><th>%s</th><td>%s</td></tr>' % (e(k), e(v)) for k, v in ENV)
 
     sevrow = ", ".join("%s: %d" % (k.title(), v) for k, v in
@@ -133,7 +152,7 @@ def cover(mods):
 <section class="page">
   %s
   <div class="doctitle">TEST EXECUTION REPORT</div>
-  <div class="docsub">Consolidated report covering five pages / modules</div>
+  <div class="docsub">Consolidated report covering %d pages / modules</div>
 
   <table class="kv quad">
     <tr><th>Capstone Project Title</th><td class="b" colspan="3">%s</td></tr>
@@ -208,7 +227,7 @@ def cover(mods):
         <td><br><span>Capstone Adviser</span></td></tr>
   </table>
 </section>
-""" % (letterhead(), e(PROJECT_TITLE), e(TEAM), members, env,
+""" % (letterhead(), len(mods), e(PROJECT_TITLE), e(TEAM), members, env,
        e(TEST_LEVEL), e(TEST_TYPE), e(EXEC_WINDOW), e(EXEC_BY), e(PREPARED_BY),
        e(REVIEWED_BY), idx, g["total"], g["p"], g["f"], g["b"], g["rate"],
        len(all_def), bar(g), g["ex"], g["total"], g["p"], g["f"], g["rate"], g["b"],
@@ -233,7 +252,7 @@ def module_page(m):
             '<tr><td class="c mono">%s</td><td class="c sev-%s">%s</td>'
             '<td class="c">%s</td><td>%s</td><td>%s</td><td>%s</td>'
             '<td class="c sm">%s</td><td class="c mono sm">%s</td></tr>'
-            % (e(d["id"]), d["sev"].split()[0].lower(), e(d["sev"]), e(d["pri"]),
+            % (e(d["id"]), sev_class(d["sev"]), e(d["sev"]), e(d["pri"]),
                e(d["desc"]), e(d["root"]), e(d["fix"]), e(d["st"]), e(d["tc"]))
             for d in m["defects"])
         defects = """
@@ -257,7 +276,7 @@ def module_page(m):
 <section class="page">
   %s
   <div class="doctitle sm2">TEST EXECUTION REPORT</div>
-  <div class="rid">Report %s&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module %d of 5</div>
+  <div class="rid">Report %s&nbsp;&nbsp;&middot;&nbsp;&nbsp;Page / Module %d of %d</div>
 
   <table class="kv two">
     <tr><th>Page / Module Under Test</th><td class="b" colspan="3">%s</td></tr>
@@ -310,7 +329,8 @@ def module_page(m):
         <td><br><span>Capstone Adviser</span></td></tr>
   </table>
 </section>
-""" % (letterhead(), e(m["code"]), m["no"], e(m["page"]), e(m["file"]), e(m["entry"]),
+""" % (letterhead(), e(m["code"]), m["no"], len(MODULES), e(m["page"]),
+       e(m["file"]), e(m["entry"]),
        e(m["role"]), e(m["objective"]), e(m["scope_in"]), e(m["scope_out"]),
        e(EXEC_BY.split(" (")[0] + ", " + EXEC_WINDOW),
        e("Flutter 3.41.6 debug / Infinix X6525, Android 13"),
@@ -386,10 +406,13 @@ td.stat { text-align:center; font-weight:bold; font-size:7.4pt; letter-spacing:.
 td.stat.pass { background:#d6efd9; color:#0b6b2f; }
 td.stat.fail { background:#f7d5d7; color:#a4101a; }
 td.stat.blk  { background:#fbeacb; color:#8a6100; }
+td.stat.unknown { background:#e4d7f2; color:#4a2a6b; }
 
 .sev-high   { background:#f7d5d7; color:#a4101a; font-weight:bold; }
 .sev-medium { background:#fbeacb; color:#8a6100; font-weight:bold; }
 .sev-low    { background:#e6e6e6; font-weight:bold; }
+.sev-crit   { background:#f3c9cc; color:#7d0d16; font-weight:bold; }
+.sev-unknown { background:#e4d7f2; color:#4a2a6b; font-weight:bold; }
 table.def td { font-size:7.4pt; line-height:1.3; }
 
 .bar { display:flex; width:100%; height:13px; margin:4px 0 2px;
@@ -435,6 +458,11 @@ def main():
     print("modules=%d  cases=%d  defects=%d  sections=%d"
           % (len(MODULES), total, defs, len(pages)))
     print("wrote %s" % path)
+    print("\nprint to PDF with:")
+    print('  "%s" --headless --disable-gpu --no-pdf-header-footer '
+          '--print-to-pdf="%s" "%s"'
+          % (os.environ.get("CHROME", "chrome"),
+             os.path.join(OUT, "iEvaluate_Test_Execution_Report.pdf"), path))
 
 
 main()

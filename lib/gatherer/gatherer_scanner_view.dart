@@ -112,6 +112,13 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   bool _isInitializing = false; // guard flag to prevent concurrent camera init calls
 
+  /// Why there is no preview, when there is no preview. Null while the camera
+  /// is fine or still starting. A failed init used to leave nothing but
+  /// _isInitialized = false, which the build renders as a spinner — so a denied
+  /// permission or a camera held by another app looked exactly like "loading",
+  /// forever, on the one screen the gatherer's whole job runs through.
+  String? _initError;
+
   // ══════════════════════════════════════════════════════════════════════════════
   //  Lifecycle
   //  Setup camera, sensors, and animation on init. Dispose everything cleanly.
@@ -208,13 +215,23 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
     try {
       if (mounted) {
-        setState(() => _isInitialized = false); // show loading while reinitializing
+        setState(() {
+          _isInitialized = false; // show loading while reinitializing
+          _initError = null; // a fresh attempt starts with no verdict
+        });
       }
 
       final cameras = await availableCameras(); // get list of device cameras
-      if (cameras.isEmpty || !mounted) {
+      if (cameras.isEmpty) {
         _isInitializing = false;
-        return; // no camera found — device problem or permission denied
+        if (mounted) {
+          setState(() => _initError = 'No camera found on this device.');
+        }
+        return;
+      }
+      if (!mounted) {
+        _isInitializing = false;
+        return; // widget gone while we were asking
       }
 
       // Dispose existing controller safely — avoid leak from previous instance
@@ -265,11 +282,17 @@ class _GathererScannerViewState extends State<GathererScannerView>
       await newController.setFocusMode(FocusMode.auto); // start with auto-focus
 
       if (mounted) {
-        setState(() => _isInitialized = true); // camera ready, show preview
+        setState(() {
+          _isInitialized = true; // camera ready, show preview
+          _initError = null;
+        });
       }
     } catch (e) {
+      debugPrint('Camera init error: $e'); // failed to open camera — check permissions
       if (mounted) {
-        debugPrint('Camera init error: $e'); // failed to open camera — check permissions
+        setState(() => _initError =
+            'Could not start the camera. Check that camera permission is '
+            'granted and that no other app is using it, then try again.');
       }
     } finally {
       _isInitializing = false; // always clear flag
@@ -335,9 +358,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
       await _controller!.setFocusMode(FocusMode.locked); // lock focus here
     } catch (_) {} // if focus lock fail, proceed anyway — bahala na
 
+    // Backing out of the scanner during the focus lock disposes the animation
+    // controller and this State; touching either afterwards throws.
+    if (!mounted) return;
+
     // Step 2 — animate frame green while AF settles (700ms)
     _frameAnimCtrl.forward(from: 0); // start green flash animation
     await Future.delayed(const Duration(milliseconds: 700)); // wait for AF
+
+    if (!mounted) return; // 700ms is a long time to still be on this screen
 
     // Step 3 — shoot!
     setState(() {
@@ -371,8 +400,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
         await _controller!.setFocusMode(FocusMode.auto); // restore auto-focus even on error
       } catch (_) {}
     } finally {
-      _frameAnimCtrl.reset(); // reset the green frame animation
-      if (mounted) setState(() => _isTakingPicture = false); // hide "HOLD STEADY"
+      if (mounted) {
+        _frameAnimCtrl.reset(); // reset the green frame animation
+        setState(() => _isTakingPicture = false); // hide "HOLD STEADY"
+      }
     }
   }
 
@@ -531,12 +562,42 @@ class _GathererScannerViewState extends State<GathererScannerView>
   Widget build(BuildContext context) {
     final CameraController? controller = _controller;
 
-    // camera not ready yet — show dark loading screen
+    // camera not ready yet — loading, or stopped with a reason
     if (!_isInitialized || controller == null || !controller.value.isInitialized) {
+      final initError = _initError;
       return Container(
         color: const Color(0xFF0F0F0F), // near-black while loading
-        child:
-        const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        child: Center(
+          child: initError == null
+              ? const CircularProgressIndicator(color: AppColors.primary)
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.no_photography_outlined,
+                          color: Colors.white70, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        initError,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 15, height: 1.4),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: _isInitializing ? null : _initializeCamera,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Try again'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       );
     }
 

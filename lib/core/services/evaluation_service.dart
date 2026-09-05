@@ -111,7 +111,10 @@ class SubjectAnalytic {
   final String difficulty;      // "High", "Moderate", or "Low" difficulty based on score
   final String sentiment;       // "Critical", "Neutral", or "Positive" based on score
   final String trend;           // trend direction -- currently hardcoded "stable"
-  final int sections;           // how many sections this subject has
+  // How many management_results rows stand behind this subject. NOT a count of
+  // distinct sections: that table carries no section identifier, so there is
+  // nothing to count them by. Named for what it is so no caller reads it as one.
+  final int resultRows;
   final String? aiNote;         // optional AI-generated note if score is significantly below dept avg
   final List<SubjectInstructorPerformance> instructorBreakdown; // per-instructor performance for this subject
 
@@ -123,7 +126,7 @@ class SubjectAnalytic {
     required this.difficulty,
     required this.sentiment,
     required this.trend,
-    required this.sections,
+    required this.resultRows,
     this.aiNote,
     this.instructorBreakdown = const [],
   });
@@ -135,14 +138,14 @@ class SubjectInstructorPerformance {
   final String instructorId;    // instructor user id
   final String instructorName;  // instructor full name
   final double avgScore;        // their average score for this subject
-  final int sections;           // number of sections they teach for this subject
+  final int resultRows;         // management_results rows for this pairing -- see SubjectAnalytic.resultRows
   final int totalResponses;     // total student responses they received
 
   SubjectInstructorPerformance({
     required this.instructorId,
     required this.instructorName,
     required this.avgScore,
-    required this.sections,
+    required this.resultRows,
     this.totalResponses = 0, // defaults to 0 if server give nothing
   });
 }
@@ -648,10 +651,26 @@ class EvaluationService {
     }
   }
 
+  // Every read in this class answers with zeros or an empty list when the
+  // backend fails, rather than throwing into the widget that called it: a
+  // dashboard missing one card beats a screen that crashes on a dropped
+  // connection. The five methods below used to be the exceptions.
+  Future<T> _guard<T>(String what, Future<T> Function() body, T fallback) async {
+    try {
+      return await body();
+    } catch (e) {
+      debugPrint('EvaluationService - $what failed: $e');
+      return fallback;
+    }
+  }
+
   // get school-wide global stats: overall avg score, total instructors, total responses.
   // used by SAO/admin for the big picture view of the whole university
   // optionally accepts a termId, otherwise uses the active term
-  Future<Map<String, dynamic>> getGlobalStats({String? termId}) async {
+  Future<Map<String, dynamic>> getGlobalStats({String? termId}) => _guard(
+      'getGlobalStats', () => _globalStats(termId), const <String, dynamic>{});
+
+  Future<Map<String, dynamic>> _globalStats(String? termId) async {
     final resolvedTermId = termId ?? await _getActiveTermId(); // use provided or fetch active
     if (resolvedTermId == null) return {}; // no term, no data, return empty map
 
@@ -680,7 +699,11 @@ class EvaluationService {
   // get average scores grouped by department name.
   // used for charts that compare departments against each other, murag ranking
   // returns list of maps with 'dept' and 'score' keys
-  Future<List<Map<String, dynamic>>> getDepartmentAverages({String? termId}) async {
+  Future<List<Map<String, dynamic>>> getDepartmentAverages({String? termId}) =>
+      _guard('getDepartmentAverages', () => _departmentAverages(termId),
+          const <Map<String, dynamic>>[]);
+
+  Future<List<Map<String, dynamic>>> _departmentAverages(String? termId) async {
     final resolvedTermId = termId ?? await _getActiveTermId();
     if (resolvedTermId == null) return []; // no term, return empty list
 
@@ -732,9 +755,20 @@ class EvaluationService {
     }).toList();
   }
 
+  // The score every figure in this class is built from: combined_score_mean,
+  // with overall_mean standing in only while the performance half is missing.
+  static double _scoreOf(Map<String, dynamic> row) =>
+      (row['combined_score_mean'] as num?)?.toDouble() ??
+      (row['overall_mean'] as num?)?.toDouble() ??
+      0.0;
+
   // get the top 10 instructors by overall score for the active term.
   // sorted descending so the best comes first. deans like to see who on top.
-  Future<List<InstructorPerformance>> getTopInstructors({String? termId}) async {
+  Future<List<InstructorPerformance>> getTopInstructors({String? termId}) =>
+      _guard('getTopInstructors', () => _topInstructors(termId),
+          const <InstructorPerformance>[]);
+
+  Future<List<InstructorPerformance>> _topInstructors(String? termId) async {
     final resolvedTermId = termId ?? await _getActiveTermId();
     if (resolvedTermId == null) return []; // no term, nobody on top today
 
@@ -764,17 +798,25 @@ class EvaluationService {
             instructor_subjects!instructor_id(id, term_id)
           )
         ''')
-        .eq('term_id', resolvedTermId)
-        .order('overall_mean', ascending: false) // highest score first
-        .limit(10); // top 10 only, dili need all of them
+        .eq('term_id', resolvedTermId);
+
+    // ── Rank on the score this list actually shows ───────────────────────────
+    // The query used to end `.order('overall_mean').limit(10)` while the score
+    // displayed below is combined_score_mean, falling back to overall_mean only
+    // when it is null. Ranking on one column and showing another cut
+    // instructors whose combined score belonged in the ten before Dart ever saw
+    // the row, and left the survivors out of order. PostgREST cannot express
+    // the coalesce, so the sort happens here, over one term's rows.
+    final ranked = List<Map<String, dynamic>>.from(data as List)
+      ..sort((a, b) => _scoreOf(b).compareTo(_scoreOf(a)));
+    final top = ranked.take(10).toList();
 
     // ── Batch-fetch previous term scores for trend comparison ────────────────
     // One extra query for all top-10 IDs at once — avoids N+1 per instructor.
     final Map<String, double> prevScores = {};
     if (previousTermId != null) {
-      final instructorIds = (data as List)
-          .map((row) => row['instructor_id'] as String)
-          .toList();
+      final instructorIds =
+          top.map((row) => row['instructor_id'] as String).toList();
 
       if (instructorIds.isNotEmpty) {
         final prevData = await _supabase
@@ -785,13 +827,14 @@ class EvaluationService {
 
         for (final row in prevData as List) {
           final id = row['instructor_id'] as String?;
-          final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-          if (id != null) prevScores[id] = score;
+          if (id != null) {
+            prevScores[id] = _scoreOf(Map<String, dynamic>.from(row as Map));
+          }
         }
       }
     }
 
-    return (data as List).map((row) {
+    return top.map((row) {
       final userInfo = row['user_info'];
       if (userInfo == null) return null; // no user info, skip this row
 
@@ -816,7 +859,7 @@ class EvaluationService {
 
       // ── Real trend: compare current score vs previous term ─────────────────
       // Threshold of 0.1 — anything smaller is noise, not a real change.
-      final currentScore = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+      final currentScore = _scoreOf(row);
       final prevScore = prevScores[row['instructor_id'] as String] ?? 0.0;
       final String trend;
       if (prevScore == 0.0) {
@@ -842,7 +885,12 @@ class EvaluationService {
 
   // get historical score data for a single instructor across all past terms.
   // used for trend charts -- shows if instructor improving or declining over time
-  Future<List<Map<String, dynamic>>> getInstructorHistory(String instructorId) async {
+  Future<List<Map<String, dynamic>>> getInstructorHistory(String instructorId) =>
+      _guard('getInstructorHistory', () => _instructorHistory(instructorId),
+          const <Map<String, dynamic>>[]);
+
+  Future<List<Map<String, dynamic>>> _instructorHistory(
+      String instructorId) async {
     final data = await _supabase
         .from('overall_total_survey')
         .select('overall_mean, combined_score_mean, academic_terms(semester, academic_year)') // join to get term label
@@ -889,7 +937,13 @@ class EvaluationService {
 
   // get the subjects taught by an instructor in the current active term with their scores.
   // used in instructor detail views -- shows per-subject performance breakdown
-  Future<List<Map<String, dynamic>>> getInstructorSubjects(String instructorId) async {
+  Future<List<Map<String, dynamic>>> getInstructorSubjects(
+          String instructorId) =>
+      _guard('getInstructorSubjects', () => _instructorSubjects(instructorId),
+          const <Map<String, dynamic>>[]);
+
+  Future<List<Map<String, dynamic>>> _instructorSubjects(
+      String instructorId) async {
     final termId = await _getActiveTermId();
     if (termId == null) return []; // no active term, nothing to show
 
@@ -1056,7 +1110,6 @@ class EvaluationService {
         // per-instructor data containers for this subject
         final Map<String, List<double>> instructorScores = {};
         final Map<String, String> instructorNames = {};
-        final Map<String, Set<String>> instructorSections = {};
         final Map<String, int> instructorResponses = {};
         final Set<String> processedSubIds = {};
         int posTone = 0;
@@ -1097,20 +1150,17 @@ class EvaluationService {
 
           instructorNames[instId] = iName; // store name for this instructor
           instructorScores.putIfAbsent(instId, () => []).add(combinedScore);
-          instructorSections.putIfAbsent(instId, () => <String>{});
           instructorResponses[instId] = (instructorResponses[instId] ?? 0) + responses;
         }
 
         // build the per-instructor breakdown objects for this subject
         final List<SubjectInstructorPerformance> breakdowns = instructorScores.entries.map((e) {
           final avg = e.value.reduce((a, b) => a + b) / e.value.length; // average scores for this instructor
-          final distinctSections = instructorSections[e.key]?.length ?? 0;
-          final sectionCount = distinctSections > 0 ? distinctSections : e.value.length; // fallback to row count if sections unknown
           return SubjectInstructorPerformance(
             instructorId: e.key,
             instructorName: instructorNames[e.key]!,
             avgScore: double.parse(avg.toStringAsFixed(2)),
-            sections: sectionCount,
+            resultRows: e.value.length,
             totalResponses: instructorResponses[e.key] ?? 0,
           );
         }).toList();
@@ -1148,7 +1198,7 @@ class EvaluationService {
               : deptAvg - avgScore > 0.1
                   ? 'down'
                   : 'stable',
-          sections: rows.length,
+          resultRows: rows.length,
           instructorBreakdown: breakdowns,
           aiNote: (deptAvg - avgScore) > 0.5 ? "AI Note: Significant performance gap vs. department average." : null, // flag if subject is notably below dept avg
         ));
@@ -1177,18 +1227,42 @@ class EvaluationService {
       final termId = await _getActiveTermId();
       if (termId == null) return []; // no active term, no alerts
 
+      // The same roster getDepartmentSummary builds, and for the same reason:
+      // department_table was the source here and it does not agree with it. It
+      // carries no account status, so alerts -- the 3-strike termination flag
+      // among them -- kept firing for instructors who had already been disabled
+      // and were long gone from the list the head reads underneath the card.
       final facultyRows = await _supabase
-          .from('department_table')
-          .select('user_id')
-          .eq('Department_name_ID', deptId);
-      
+          .from('instructor_departments')
+          .select('instructor_id')
+          .eq('department_id', deptId)
+          .eq('is_primary', true);
+
       // Exclude the dept head themselves -- only flag instructors
       // dean flagging themselves would be awkward, dili pwede
-      final facultyIds = (facultyRows as List)
-          .where((row) => row['user_id'] != null && row['user_id'] != userId)
-          .map((row) => row['user_id'] as String)
+      final linkedIds = (facultyRows as List)
+          .where((row) => row['instructor_id'] != null)
+          .map((row) => row['instructor_id'].toString())
+          .where((id) => id != userId)
           .toSet()
           .toList();
+
+      // An alert asks the head to go and do something about a person. A
+      // disabled account is not a person to act on, so this list -- unlike the
+      // department average, which keeps their already-collected results -- is
+      // active accounts only.
+      var facultyIds = linkedIds;
+      if (linkedIds.isNotEmpty) {
+        final activeRows = await _supabase
+            .from('user_info')
+            .select('id')
+            .filter('id', 'in', linkedIds)
+            .eq('account_status', 'approved');
+        facultyIds = (activeRows as List)
+            .where((row) => row['id'] != null)
+            .map((row) => row['id'].toString())
+            .toList();
+      }
 
       if (facultyIds.isEmpty) {
         debugPrint('Subject Analytics - No faculty found in department $deptId');

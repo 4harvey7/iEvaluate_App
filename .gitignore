@@ -73,3 +73,8 @@ _trash_removed_files/
 
 # Firebase Config
 android/app/google-services.json
+
+# Seed/reference exports pulled from the live database.
+# These carry real instructor email addresses and university IDs, so they are
+# kept out of the repo history. Regenerate them when needed.
+docs/seed_data/

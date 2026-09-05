@@ -784,7 +784,10 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
   }
 
   Widget _buildEmptyState() {
-    final isFiltered = _searchQuery.isNotEmpty || _filterMode != 'all';
+    // One of the two filter chips is always active, so asking whether a filter
+    // is set can never be false and hid "No subjects yet" entirely. What the
+    // message actually turns on is whether anything was filtered OUT.
+    final isFiltered = _subjectGroups.isNotEmpty;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1285,6 +1288,13 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
           'unassign this one.');
       return;
     }
+    // Add Instructor exists to attach one. Left blank it wrote no assignment
+    // row at all, yet the sheet closed and the screen announced "Instructor
+    // assigned successfully" over a subject nobody had been assigned to.
+    if (_isAddInstructor && _selectedInstructorId == null) {
+      widget.onError('Pick an instructor to assign to this subject.');
+      return;
+    }
     if (widget.currentTermId == null) {
       widget.onError('No active term set. Please configure a term first.');
       return;
@@ -1398,6 +1408,25 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
       // name one, and unassigning goes through Remove instead.
       if (_selectedInstructorId != null) {
         if (_editingAssignmentId != null) {
+          // A different row may already pair this instructor with this subject
+          // in this term. The fresh-add path below hands that case to
+          // onConflict; an update has no such clause, so the unique index
+          // rejects it and the admin gets a raw PostgrestException. Ask first.
+          final clash = await widget.supabase
+              .from('instructor_subjects')
+              .select('id')
+              .eq('subject_id', subjectId)
+              .eq('instructor_id', _selectedInstructorId!)
+              .eq('term_id', widget.currentTermId!)
+              .neq('id', _editingAssignmentId!)
+              .maybeSingle();
+          if (clash != null) {
+            if (mounted) {
+              widget.onError(
+                  'That instructor already teaches this subject this term.');
+            }
+            return;
+          }
           await widget.supabase.from('instructor_subjects').update({
             'subject_id': subjectId,
             'instructor_id': _selectedInstructorId,
@@ -1422,13 +1451,20 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
         // code the check above cleared. That means another admin created it in
         // the seconds since, so say what happened rather than dumping the
         // Postgres error into a snackbar.
-        final isTakenCode = e is PostgrestException &&
-            e.code == '23505' &&
-            e.message.contains('subjects_one_per_code');
+        final isDuplicate = e is PostgrestException && e.code == '23505';
+        final isTakenCode =
+            isDuplicate && e.message.contains('subjects_one_per_code');
+        // The other 23505 reachable from here: this instructor already holds
+        // this subject for this term. The check above catches it before the
+        // write; this covers the seconds between that check and this one.
+        final isTakenAssignment =
+            isDuplicate && e.message.contains('instructor_subjects');
         widget.onError(isTakenCode
             ? 'That subject code was just taken by someone else. Reopen the '
                 'form to see the subject that now holds it.'
-            : 'Error saving: $e');
+            : isTakenAssignment
+                ? 'That instructor already teaches this subject this term.'
+                : 'Error saving: $e');
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -1670,7 +1706,9 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                       controller: _instructorSearchController,
                       focusNode: _instructorFocusNode,
                       decoration: _inputDec(
-                        'Assign Instructor (optional)',
+                        _isAddInstructor
+                            ? 'Assign Instructor'
+                            : 'Assign Instructor (optional)',
                         Icons.person_search_rounded,
                         hint: _selectedDepartmentId == null
                             ? 'Select a department first...'
@@ -1681,7 +1719,12 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                             : const Icon(Icons.search, color: AppColors.textSecondary, size: 20),
                       ),
                       onTap: () => setState(() => _showSuggestions = true),
-                      validator: (_) => null, // optional — no validation needed
+                      // Optional everywhere except the sheet whose entire
+                      // purpose is to attach an instructor.
+                      validator: (_) =>
+                          _isAddInstructor && _selectedInstructorId == null
+                              ? 'Pick an instructor from the list.'
+                              : null,
                     ),
                     // Suggestion dropdown
                     if (_showSuggestions && _filteredInstructors.isNotEmpty)
@@ -1850,6 +1893,13 @@ class _BulkImportModalState extends State<_BulkImportModal> {
 
   Future<void> _import() async {
     if (!_formKey.currentState!.validate()) return;
+    // The same guard the manual add carries. Without it this posted
+    // `term_id: ''` to n8n and the admin got whatever the webhook said back,
+    // instead of being told the one thing they can actually fix.
+    if (widget.currentTermId == null || widget.currentTermId!.isEmpty) {
+      widget.onError('No active term set. Please configure a term first.');
+      return;
+    }
     setState(() => _isImporting = true);
     try {
       final res = await http

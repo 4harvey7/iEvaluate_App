@@ -290,6 +290,13 @@ FormCheck detectSsForm2(
   //    a run of four, one short, on four of ten real forms.
   var verticals = const <_Rule>[];
   var rating = const <_Rule>[];
+  // The rules from the pass `rating` was taken out of. `verticals` alone is the
+  // LAST pass's list, which is not the same thing: the loop only breaks early
+  // when the run reaches six, so a form settling at the five the checks accept
+  // -- the common case when perspective welds two rules together -- ran the
+  // cascade to its loosest span and measured the table's left edge against
+  // rules the accepted run never came from.
+  var ratingVerticals = const <_Rule>[];
   for (final span in _verticalSpanCascade) {
     verticals = _scanRules(
       dark,
@@ -307,7 +314,10 @@ FormCheck detectSsForm2(
       minSpanFraction: span,
     );
     final run = _evenRun(verticals);
-    if (run.length > rating.length) rating = run;
+    if (run.length > rating.length) {
+      rating = run;
+      ratingVerticals = verticals;
+    }
     if (rating.length >= _minRatingRules + 1) break;
   }
 
@@ -318,8 +328,8 @@ FormCheck detectSsForm2(
   // 4. Proportions, against grid_config's calibrated numbers. The table's left
   //    edge is the leftmost long vertical rule; its right edge IS the last
   //    rating rule, which is why col_xs ends at 2015 of 2048.
-  var tableLeft = verticals.first.center;
-  for (final v in verticals) {
+  var tableLeft = ratingVerticals.first.center;
+  for (final v in ratingVerticals) {
     if (v.center < tableLeft) tableLeft = v.center;
   }
   final blockStartX = rating.first.center;
@@ -337,8 +347,8 @@ FormCheck detectSsForm2(
   // 5. Horizontal rulings, as corroboration only. A handful is all that is
   //    asked for, because a handful is all these photos reliably give.
   var horizontals = const <_Rule>[];
-  for (final keep in _horizontalKeepCascade) {
-    horizontals = _scanRules(
+  for (var i = 0; i < _horizontalKeepCascade.length; i++) {
+    final found = _scanRules(
       dark,
       width,
       height,
@@ -348,10 +358,20 @@ FormCheck detectSsForm2(
       acrossTo: height,
       alongFrom: 0,
       alongTo: width,
-      keepRatio: keep,
+      keepRatio: _horizontalKeepCascade[i],
       minSpanFraction: _minHorizontalSpan,
     );
-    if (horizontals.length >= _minHorizontalRules) break;
+    // Loosening can only ever keep more candidates, so the count climbs until
+    // the page has no more ruling-shaped runs to give. Stop there.
+    //
+    // The exit used to be `length >= _minHorizontalRules`, which is `>= 0` --
+    // true even on an empty result -- so the cascade never got past its
+    // strictest ratio and the four looser ones were dead. It changed no
+    // verdict, since the same `>= 0` gate makes this half of the check a
+    // no-op, but it is the count logged after every capture for retuning, and
+    // that count was one pass rather than the cascade's best.
+    if (i > 0 && found.length <= horizontals.length) break;
+    horizontals = found;
   }
 
   final looksRight = evenness >= _minEvenness &&
