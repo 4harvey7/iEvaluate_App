@@ -102,8 +102,16 @@ class _GathererScannerViewState extends State<GathererScannerView>
   StreamSubscription? _accelSub; // subscription to accelerometer stream
 
   // ── Paper size selection ──────────────────────────────────────────────────────
-  // default to A4 because thats most common. user can change in top bar.
-  PaperSize _selectedPaper = PaperSize.a4;
+  // Short bond, not A4. This default is not cosmetic: whatever is selected here
+  // becomes the filename tag, which becomes the paper_size posted to n8n, which
+  // picks the OMR grid Python reads the bubbles with. A wrong paper_size
+  // measured 25 points of accuracy on the labelled corpus (87.5% -> 62.9%), so
+  // the default wants to be whatever the gatherer is most likely holding.
+  //
+  // It was A4, commented "thats most common". Counted across the 44 labelled
+  // SS Form 2 photographs: 28 short bond, 14 long bond, and NOT ONE A4 — so the
+  // old default was the only one of the three that never actually occurs.
+  PaperSize _selectedPaper = PaperSize.shortBond;
 
   // ── Frame-ready animation: primary colour → greenAccent ──────────────────────
   // the guide frame flashes green when AF locks — visual feedback before capture
@@ -129,6 +137,23 @@ class _GathererScannerViewState extends State<GathererScannerView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // watch app lifecycle (pause/resume)
+
+    // Hold the scanner in portrait while it is open.
+    //
+    // Rotating the phone here produced a genuinely broken screen: the controls
+    // column overflowed the shorter landscape viewport — Flutter's yellow-and-
+    // black "BOTTOM OVERFLOWED BY 119 PIXELS" bar, in front of the gatherer —
+    // and the "PLEASE HOLD PORTRAIT" overlay was painted UNDER those controls,
+    // so the tilt banner sat on top of it and neither could be read.
+    //
+    // Asking for portrait rather than repairing that layout is the honest fix:
+    // this screen already says "the scanner works best in upright mode", the
+    // guide frame is built around a portrait sheet, and there is no landscape
+    // design to fall back to. Released again in dispose().
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
     // animation controller for the frame color flash — 700ms, primary -> greenAccent
     _frameAnimCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 700));
@@ -192,6 +217,9 @@ class _GathererScannerViewState extends State<GathererScannerView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // stop watching lifecycle
+    // Give rotation back to the rest of the app — the lock belongs to this
+    // screen, not to the session.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _accelSub?.cancel(); // stop reading accelerometer
     _frameAnimCtrl.dispose(); // dispose animation controller
     _isInitialized = false;
@@ -695,8 +723,17 @@ class _GathererScannerViewState extends State<GathererScannerView>
             ),
 
           // 6. UI controls (top bar + bottom guidance + capture button)
-          SafeArea(
-            child: Column(
+          //
+          // Withheld while the landscape warning is up. These are laid out as a
+          // tall Column with a fixed-size capture button, so on a landscape
+          // viewport they overflow — and being painted after the warning in
+          // this Stack, they also covered it, leaving the tilt banner and
+          // "PLEASE HOLD PORTRAIT" overlapping and both unreadable. initState
+          // locks to portrait so this should not arise; this stays as the guard
+          // for devices that ignore the lock.
+          if (!_showOrientationWarning)
+            SafeArea(
+              child: Column(
               children: [
                 // Top bar — [Flash] [Paper ▼]  |  Spacer  |  [Link] [Sync]
                 Padding(

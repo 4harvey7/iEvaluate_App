@@ -46,6 +46,27 @@ class DataGathererScreen extends StatefulWidget {
   State<DataGathererScreen> createState() => _DataGathererScreenState();
 }
 
+/// How long to wait for n8n to finish a whole Google Sheet import.
+///
+/// This was 30 seconds, which was shorter than the job it was waiting for. A
+/// 666-row sheet measured 131 seconds end to end, so EVERY successful import
+/// tripped the timeout and the gatherer was told "Could not connect to n8n"
+/// while n8n was still working and went on to finish the import correctly. The
+/// import then appeared to have failed and the obvious response -- send it
+/// again -- was the worst one available.
+///
+/// Five minutes is not a target, it is a ceiling: it needs to be longer than
+/// the biggest sheet anyone will paste, and nothing here gets faster by giving
+/// up early.
+const Duration _kSheetImportTimeout = Duration(minutes: 5);
+
+/// How long to wait for n8n to process a single scanned page.
+///
+/// One page is Python OCR/OMR (2-17s measured across 47 sample scans) plus a
+/// Gemini vision pass plus several Supabase writes. 30 seconds left no room for
+/// the slow end of that on a phone network; 2 minutes does.
+const Duration _kScanUploadTimeout = Duration(minutes: 2);
+
 // The state class where the real suffering happen
 class _DataGathererScreenState extends State<DataGathererScreen> {
   final _settingsService = SystemSettingsService();
@@ -353,7 +374,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               status: status,
               retryCount: t.retryCount,
               errorMessage: t.errorMessage,
-              formSuspect: t.formSuspect, // survives the restart, same as the file does
+              formSuspect:
+                  t.formSuspect, // survives the restart, same as the file does
             );
           })
           .toList();
@@ -495,9 +517,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               'timestamp': DateTime.now().toIso8601String(),
             }),
           )
-          .timeout(
-            const Duration(seconds: 30),
-          ); // 30 seconds — if n8n slow, we wait
+          .timeout(_kSheetImportTimeout);
 
       if (mounted) {
         Navigator.of(context).pop(); // close the loading dialog
@@ -524,14 +544,22 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         }
       }
     } catch (e) {
-      // network error or timeout — n8n might be down, check IP/URL
       if (mounted && !dialogPopped) {
         Navigator.of(context).pop(); // close dialog if not already closed
       }
       if (mounted) {
+        // A timeout and a refused connection are not the same event and must
+        // not be reported as the same thing. If the request was accepted and
+        // simply outlasted the clock, the import is very likely still running
+        // and will finish -- saying it failed invites a re-import that would
+        // process the same sheet twice.
+        final timedOut = e is TimeoutException;
         _showStatusDialog(
-          title: 'Import Failed',
-          message: 'Could not connect to n8n. Make sure the server is running.',
+          title: timedOut ? 'Still Processing' : 'Import Failed',
+          message: timedOut
+              ? 'n8n has not answered yet, but the import is probably still '
+                    'running. Check the results before sending this sheet again.'
+              : 'Could not reach n8n. Make sure the server is running.',
           isSuccess: false,
         );
       }
@@ -613,9 +641,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     final awaitingTerm = _currentTermId == null || _currentTermId!.isEmpty;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(awaitingTerm
-            ? 'Captured! Held until the active term loads.'
-            : 'Captured! Syncing in background...'),
+        content: Text(
+          awaitingTerm
+              ? 'Captured! Held until the active term loads.'
+              : 'Captured! Syncing in background...',
+        ),
         backgroundColor: awaitingTerm ? AppColors.warning : AppColors.success,
         duration: Duration(seconds: awaitingTerm ? 3 : 1),
       ),
@@ -689,7 +719,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               'timestamp': DateTime.now().toIso8601String(),
             }),
           )
-          .timeout(const Duration(seconds: 30)); // 30 seconds max, then timeout
+          .timeout(_kScanUploadTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         setState(
@@ -702,21 +732,27 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       }
     } catch (e) {
       debugPrint('Upload Error: $e');
-      final errorStr = e.toString();
-      final isConnectionError =
-          errorStr.contains('SocketException') ||
-          errorStr.contains('TimeoutException');
+
+      // Three different things used to arrive here wearing the same label.
+      // A refused socket means nothing left the phone. A timeout means the
+      // scan DID reach n8n and only the answer is missing -- it may well have
+      // been processed. Telling the gatherer "No data transmitted" for that
+      // second case is simply untrue, and it is the case that makes them
+      // re-send a page n8n already has.
+      final timedOut = e is TimeoutException;
+      final unreachable = e is SocketException;
 
       setState(() {
         task.status = SyncStatus.failed; // mark as failed so user can retry
-        // give a human-readable error — SocketException mean IP/URL wrong probably
-        task.errorMessage = isConnectionError
-            ? 'Connection Refused (Check IP/URL)'
+        task.errorMessage = unreachable
+            ? 'Cannot reach n8n (check IP/URL)'
+            : timedOut
+            ? 'No answer yet — may have been processed'
             : 'Sync Failed';
         task.retryCount++; // track how many times this task has failed
       });
 
-      if (isConnectionError && mounted) {
+      if ((unreachable || timedOut) && mounted) {
         // Auto-pause the rest of the queue so it doesn't spam errors. Through
         // setState, or the pause banner and the Sync button keep showing the
         // queue as running until some unrelated rebuild catches up.
@@ -725,12 +761,17 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text(
-              'Connection Interrupted',
-              style: TextStyle(color: AppColors.error),
+            title: Text(
+              unreachable ? 'Connection Interrupted' : 'No Answer From n8n',
+              style: const TextStyle(color: AppColors.error),
             ),
-            content: const Text(
-              'If data transmission is interrupted. Try again. No data transmitted.',
+            content: Text(
+              unreachable
+                  ? 'The scan did not leave the phone. Nothing was transmitted, '
+                        'so it is safe to try again.'
+                  : 'The scan was sent but n8n has not answered. It may already '
+                        'have been processed — check the results before sending '
+                        'this page again.',
             ),
             actions: [
               TextButton(
@@ -763,8 +804,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     // Pending and failed only: "not success" also matches the task currently
     // uploading, which is how the same scan ended up submitted twice.
     final pendingTasks = _localQueue
-        .where((t) =>
-            t.status == SyncStatus.pending || t.status == SyncStatus.failed)
+        .where(
+          (t) =>
+              t.status == SyncStatus.pending || t.status == SyncStatus.failed,
+        )
         .toList();
     if (pendingTasks.isEmpty) return; // nothing to do
 
