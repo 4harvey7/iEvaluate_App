@@ -1,15 +1,9 @@
-// lib/gatherer/data_validation_screen.dart
-// This screen is where we fix the messes. Two tabs:
-// 1. Flagged Records — forms where the instructor ID is null (OCR couldn't match them)
-// 2. Failed Scans — scans where the table/grid wasn't detected at all
-// Importente kaayo this screen. Without it, bad data go to database.
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-import 'failed_scans_screen.dart';
+import 'failed_scan_detail_screen.dart';
 import '../widgets/apple_ui.dart';
 
-// StatefulWidget with two tabs — we need state for loading and tab controller
 class DataValidationScreen extends StatefulWidget {
   final String userId;
   const DataValidationScreen({super.key, required this.userId});
@@ -18,80 +12,120 @@ class DataValidationScreen extends StatefulWidget {
   State<DataValidationScreen> createState() => _DataValidationScreenState();
 }
 
-// the state — has a tab controller plus two separate data lists
-class _DataValidationScreenState extends State<DataValidationScreen>
-    with SingleTickerProviderStateMixin {
-  final _supabase = Supabase.instance.client; // our database connection
-  late TabController _tabController; // controls switching between the two tabs
-
-  // ── Flagged records tab ────────────────────────────────────────────────────
-  // loading spinner flag — true while fetching from database
+class _DataValidationScreenState extends State<DataValidationScreen> {
+  final _supabase = Supabase.instance.client;
   bool _isLoading = true;
-  // list of forms where instructor_ID is null — these need manual review
-  List<Map<String, dynamic>> _flaggedForms = [];
+  List<Map<String, dynamic>> _combinedItems = [];
 
-  // ── Failed scans badge count ───────────────────────────────────────────────
-  // shown as a red badge on the "Failed Scans" tab to tell user how many pending
-  int _failedCount = 0;
-
-  // initialize everything when screen open
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this); // 2 tabs, simple
-    _fetchFlaggedData(); // load flagged records on start
-    _loadFailedCount(); // load the badge count for failed scans tab
+    _fetchData();
   }
 
-  // always dispose the tab controller or flutter will complain loudly
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  // ask FailedScansScreen for the count of pending failed scans
-  // used to show the badge number on the tab — so user know something need attention
-  Future<void> _loadFailedCount() async {
-    final count = await FailedScansScreen.getPendingCount(widget.userId);
-    if (mounted) setState(() => _failedCount = count); // update badge
-  }
-
-  // fetch all records where instructor_ID is null — these are "flagged"
-  // meaning OCR scanned the form but couldnt identify the instructor
-  Future<void> _fetchFlaggedData() async {
-    setState(() => _isLoading = true); // show spinner
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
     try {
-      final response = await _supabase
+      final flaggedFuture = _supabase
           .from('sast_all_raw_data_survey')
           .select()
-          .isFilter('instructor_ID', null) // only records with no instructor linked
-          .order('created_at', ascending: false); // newest first
+          .isFilter('instructor_ID', null)
+          .order('created_at', ascending: false);
+
+      final failedFuture = _supabase
+          .from('failed_scan_queue')
+          .select()
+          .eq('status', 'pending')
+          .eq('user_id', widget.userId)
+          .order('created_at', ascending: false);
+
+      final results = await Future.wait([flaggedFuture, failedFuture]);
+
+      final flagged = List<Map<String, dynamic>>.from(results[0]);
+      final failed = List<Map<String, dynamic>>.from(results[1]);
+
+      final combined = [
+        ...flagged.map((e) => {'type': 'flagged', 'data': e}),
+        ...failed.map((e) => {'type': 'failed', 'data': e}),
+      ];
+
+      combined.sort((a, b) {
+        final aData = a['data'] as Map<String, dynamic>;
+        final bData = b['data'] as Map<String, dynamic>;
+        
+        final dateA = DateTime.tryParse(
+                aData['created_at']?.toString() ??
+                    aData['submitted_date']?.toString() ??
+                    '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        final dateB = DateTime.tryParse(
+                bData['created_at']?.toString() ??
+                    bData['submitted_date']?.toString() ??
+                    '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+        return dateB.compareTo(dateA);
+      });
 
       if (mounted) {
         setState(() {
-          _flaggedForms = List<Map<String, dynamic>>.from(response);
-          _isLoading = false; // hide spinner
+          _combinedItems = combined;
+          _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Error fetching flagged data: $e'); // something wrong with db query
-      if (mounted) setState(() => _isLoading = false); // hide spinner even on error
+      debugPrint('Error fetching validation data: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // ── Flagged record detail sheet ────────────────────────────────────────────
+  String _formatDate(String? isoDate) {
+    if (isoDate == null) return 'Unknown date';
+    try {
+      final dt = DateTime.parse(isoDate).toLocal();
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      return '${months[dt.month - 1]} ${dt.day}, ${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return isoDate;
+    }
+  }
 
-  // show a bottom sheet to edit a flagged record
-  // user can fix the instructor name, remarks, and all 20 score fields (m1-m10, p1-p10)
+  String _failReason(Map<String, dynamic> scan) {
+    final tableFound = scan['table_found'];
+    final gridSource = scan['grid_source'];
+    if (tableFound == false) return 'Table/corners not detected';
+    if (gridSource == 'fallback') return 'Grid detection failed';
+    return 'Detection issue';
+  }
+
+  Color _failColor(Map<String, dynamic> scan) {
+    if (scan['table_found'] == false) return AppColors.error;
+    return AppColors.warning;
+  }
+
+  IconData _failIcon(Map<String, dynamic> scan) {
+    if (scan['table_found'] == false) return Icons.crop_free;
+    return Icons.grid_off_rounded;
+  }
+
+  void _openFailedDetail(Map<String, dynamic> scan) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FailedScanDetailScreen(scan: scan),
+      ),
+    );
+    _fetchData();
+  }
+
   void _showValidationSheet(Map<String, dynamic> form) {
-    // pre-fill with existing data from the record
     final instructorCtrl =
         TextEditingController(text: form['instructor'] ?? '');
     final remarksCtrl =
         TextEditingController(text: form['Remarks_and_Suggestions'] ?? '');
 
-    // create controllers for all 20 score fields — m1 to m10 and p1 to p10
     final Map<String, TextEditingController> scoreCtrl = {};
     for (int i = 1; i <= 10; i++) {
       scoreCtrl['m$i'] =
@@ -100,24 +134,22 @@ class _DataValidationScreenState extends State<DataValidationScreen>
           TextEditingController(text: form['p$i']?.toString() ?? '');
     }
 
-    // show as a bottom sheet so user can scroll and edit all fields
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // allow sheet to expand to nearly full screen
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => StatefulBuilder(
         builder: (ctx, _) => AnimatedPadding(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
           padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom), // move up when keyboard open
+              bottom: MediaQuery.of(ctx).viewInsets.bottom),
           child: Container(
-            height: MediaQuery.of(ctx).size.height * 0.90, // take 90% of screen height
+            height: MediaQuery.of(ctx).size.height * 0.90,
             padding: const EdgeInsets.all(24),
             decoration: const BoxDecoration(
               color: AppColors.background,
-              borderRadius:
-                  BorderRadius.vertical(top: Radius.circular(24)), // rounded top corners
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +165,7 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                     IconButton(
                         icon: const Icon(Icons.close,
                             color: AppColors.textSecondary),
-                        onPressed: () => Navigator.pop(ctx)), // close without saving
+                        onPressed: () => Navigator.pop(ctx)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -147,11 +179,11 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
-                        _sheetField('Instructor Name (Raw)', instructorCtrl), // editable instructor name
+                        _sheetField('Instructor Name (Raw)', instructorCtrl),
                         const SizedBox(height: 12),
                         TextField(
                           controller: remarksCtrl,
-                          maxLines: 3, // multi-line for remarks
+                          maxLines: 3,
                           decoration: InputDecoration(
                             labelText: 'Remarks & Suggestions',
                             filled: true,
@@ -166,14 +198,14 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
-                        _scoreGrid(scoreCtrl, 'm'), // grid of m1-m10 inputs
+                        _scoreGrid(scoreCtrl, 'm'),
                         const SizedBox(height: 24),
                         const Text('Performance Scores (1–5)',
                             style: TextStyle(
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold)),
                         const SizedBox(height: 8),
-                        _scoreGrid(scoreCtrl, 'p'), // grid of p1-p10 inputs
+                        _scoreGrid(scoreCtrl, 'p'),
                         const SizedBox(height: 24),
                       ],
                     ),
@@ -184,12 +216,11 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             side: const BorderSide(color: AppColors.error),
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12))),
-                        onPressed: () => _handleDelete(form['id']), // delete this record entirely
+                        onPressed: () => _handleDelete(form['id']),
                         child: const Text('Discard',
                             style: TextStyle(
                                 color: AppColors.error,
@@ -198,11 +229,10 @@ class _DataValidationScreenState extends State<DataValidationScreen>
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      flex: 2, // save button is bigger — more important
+                      flex: 2,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             backgroundColor: AppColors.success,
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12))),
@@ -224,7 +254,6 @@ class _DataValidationScreenState extends State<DataValidationScreen>
     );
   }
 
-  // helper: build a single labeled text field for the bottom sheet
   Widget _sheetField(String label, TextEditingController ctrl) {
     return TextField(
       controller: ctrl,
@@ -237,92 +266,80 @@ class _DataValidationScreenState extends State<DataValidationScreen>
     );
   }
 
-  // build a 5-column grid of score input fields
-  // prefix is 'm' for management scores or 'p' for performance scores
   Widget _scoreGrid(
       Map<String, TextEditingController> controllers, String prefix) {
     return GridView.builder(
-      shrinkWrap: true, // dont take more space than needed
-      physics: const NeverScrollableScrollPhysics(), // disable grid's own scroll — parent handles it
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 5, // 5 columns = 2 rows of 5 for 10 scores
+        crossAxisCount: 5,
         childAspectRatio: 1.2,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),
-      itemCount: 10, // m1-m10 or p1-p10, always 10
+      itemCount: 10,
       itemBuilder: (_, i) {
-        final key = '$prefix${i + 1}'; // e.g. 'm1', 'p5'
+        final key = '$prefix${i + 1}';
         return TextField(
           controller: controllers[key],
-          keyboardType: TextInputType.number, // only numbers allowed
+          keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
           decoration: InputDecoration(
-            labelText: key.toUpperCase(), // M1, P5, etc.
+            labelText: key.toUpperCase(),
             filled: true,
             fillColor: AppColors.surface,
-            contentPadding: EdgeInsets.zero, // compact — it a small grid cell
+            contentPadding: EdgeInsets.zero,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          style:
-              const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         );
       },
     );
   }
 
-  // save the edited record back to supabase
-  // updates instructor name, remarks, and all score fields
-  // then refreshes the flagged list — if instructor_ID got filled, it disappear from list
   Future<void> _handleSave(
       Map<String, dynamic> form,
       String instructorName,
       String remarks,
       Map<String, TextEditingController> scoreCtrl) async {
     try {
-      // build the update map with instructor and remarks
       final updates = <String, dynamic>{
         'instructor': instructorName,
         'Remarks_and_Suggestions': remarks,
       };
-      // add all score fields — parse to int, default 0 if empty or not a number
       for (final e in scoreCtrl.entries) {
         updates[e.key] = int.tryParse(e.value.text) ?? 0;
       }
-      // push the update to supabase — match by row ID
       await _supabase
           .from('sast_all_raw_data_survey')
           .update(updates)
           .eq('id', form['id']);
       if (mounted) {
-        Navigator.pop(context); // close the bottom sheet
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Data updated and queued for processing.'),
             backgroundColor: AppColors.success));
-        _fetchFlaggedData(); // refresh the list — saved record may no longer be flagged
+        _fetchData();
       }
     } catch (e) {
       if (!mounted) return;
-      // show error — something wrong with the update, check network/db
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error saving: $e'),
           backgroundColor: AppColors.error));
     }
   }
 
-  // permanently delete a flagged record from the database
-  // user click Discard — this cannot be undone, so ayaw mag-click by mistake
   Future<void> _handleDelete(dynamic id) async {
     try {
       await _supabase
           .from('sast_all_raw_data_survey')
           .delete()
-          .eq('id', id); // delete by primary key
+          .eq('id', id);
       if (mounted) {
-        Navigator.pop(context); // close the sheet
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Record discarded.')));
-        _fetchFlaggedData(); // refresh the list — removed record gone now
+        _fetchData();
       }
     } catch (e) {
       if (!mounted) return;
@@ -332,174 +349,266 @@ class _DataValidationScreenState extends State<DataValidationScreen>
     }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
-
-  // build the main validation screen with header + tabs + content
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── TabBar ────────────────────────────────────────────────────────
-          // two tabs with badge counts — so user see at a glance how much work waiting
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: TabBar(
-              controller: _tabController,
-              indicatorColor: AppColors.primary,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondary,
-              dividerColor: AppColors.borderSubtle,
-              tabs: [
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.fact_check_outlined, size: 16),
-                      const SizedBox(width: 6),
-                      const Text('Flagged Records',
-                          style: TextStyle(fontSize: 13)),
-                      // show badge only if there are flagged records
-                      if (_flaggedForms.isNotEmpty) ...[
-                        const SizedBox(width: 6),
-                        _badge(_flaggedForms.length, AppColors.warning), // orange badge
-                      ],
-                    ],
-                  ),
-                ),
-                Tab(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.warning_amber_rounded, size: 16),
-                      const SizedBox(width: 6),
-                      const Text('Failed Scans',
-                          style: TextStyle(fontSize: 13)),
-                      // show badge only if there are failed scans waiting
-                      if (_failedCount > 0) ...[
-                        const SizedBox(width: 6),
-                        _badge(_failedCount, AppColors.error), // red badge — more urgent
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
+            child: ApplePageHeader(
+              eyebrow: 'Validation',
+              title: 'Pending Actions',
+              subtitle: 'Correct flagged records and failed scans.',
             ),
           ),
-
-          // ── Tab content ───────────────────────────────────────────────────
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildFlaggedTab(), // flagged records list
-                FailedScansScreen(userId: widget.userId), // failed scans list
-              ],
+          if (!_isLoading && _combinedItems.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pending_actions,
+                        color: AppColors.error, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${_combinedItems.length} record${_combinedItems.length == 1 ? '' : 's'} need manual correction',
+                      style: const TextStyle(
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
             ),
+          Expanded(
+            child: _isLoading
+                ? const AppleLoadingState(label: 'Loading tasks…')
+                : _combinedItems.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: AppleEmptyState(
+                          icon: Icons.check_circle_outline,
+                          title: 'No pending validation',
+                          message: 'All records have been processed successfully.',
+                        ),
+                      )
+                    : RefreshIndicator(
+                        color: AppColors.primary,
+                        onRefresh: _fetchData,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: _combinedItems.length,
+                          itemBuilder: (context, index) {
+                            final item = _combinedItems[index];
+                            if (item['type'] == 'flagged') {
+                              return _buildFlaggedCard(item['data'] as Map<String, dynamic>);
+                            } else {
+                              return _buildFailedCard(item['data'] as Map<String, dynamic>);
+                            }
+                          },
+                        ),
+                      ),
           ),
         ],
       ),
     );
   }
 
-  // small colored rounded badge widget — shows a count number
-  // used on the tab labels to show how many items need attention
-  Widget _badge(int count, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
+  Widget _buildFlaggedCard(Map<String, dynamic> form) {
+    return Card(
+      color: AppColors.surface,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+            color: AppColors.warning.withValues(alpha: 0.35), width: 1.2),
       ),
-      child: Text(
-        '$count',
-        style: const TextStyle(
-            color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _showValidationSheet(form),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.person_search,
+                    color: AppColors.warning, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            form['instructor'] ?? 'Unknown Instructor',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.textPrimary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Text(
+                            'Missing ID',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.warning),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Student ID: ${form['student_id'] ?? 'N/A'}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      _formatDate(form['created_at']?.toString() ?? form['submitted_date']?.toString()),
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textTertiary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, color: AppColors.primary),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  // ── Flagged records tab ────────────────────────────────────────────────────
+  Widget _buildFailedCard(Map<String, dynamic> scan) {
+    final partial = (scan['partial_data'] is Map
+        ? Map<String, dynamic>.from(scan['partial_data'] as Map)
+        : {});
+    final failColor = _failColor(scan);
+    final failIcon = _failIcon(scan);
+    final reason = _failReason(scan);
+    final studentId = partial['student_id']?.toString() ?? '';
+    final instructor = partial['instructor']?.toString() ?? '';
 
-  // build the content of the first tab — list of flagged records
-  // shows loading spinner, empty state, or the list
-  Widget _buildFlaggedTab() {
-    if (_isLoading) {
-      // still fetching from database — show spinner
-      return const AppleLoadingState(label: 'Loading flagged records…');
-    }
-    if (_flaggedForms.isEmpty) {
-      // no flagged records — everything linked, sayang effort pero okay
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: AppleEmptyState(
-          icon: Icons.verified_outlined,
-          title: 'No pending verification',
-          message: 'All records are linked to an instructor.',
-        ),
-      );
-    }
-    // has flagged records — show the list with pull-to-refresh
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: _fetchFlaggedData, // pull down to refresh
-      child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-        itemCount: _flaggedForms.length,
-        itemBuilder: (_, i) {
-          final form = _flaggedForms[i];
-          // each flagged record shown as a card with warning border
-          return Card(
-            color: AppColors.surface,
-            elevation: 0,
-            margin: const EdgeInsets.only(bottom: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-              side: BorderSide(
-                  color: AppColors.warning.withValues(alpha: 0.35), // subtle warning border
-                  width: 1.2),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Container(
-                width: 42,
-                height: 42,
+    return Card(
+      color: AppColors.surface,
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+            color: failColor.withValues(alpha: 0.25), width: 1.5),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _openFailedDetail(scan),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.warning.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+                  color: failColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.person_search,
-                    color: AppColors.warning, size: 20), // person with magnifier — searching for instructor
+                child: Icon(failIcon, color: failColor, size: 22),
               ),
-              title: Text(
-                  form['instructor'] ?? 'Unknown Instructor', // show instructor name or fallback
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                      overflow: TextOverflow.ellipsis)),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 4),
-                  Text('Student ID: ${form['student_id'] ?? 'N/A'}',
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            scan['task_id']?.toString() ?? 'Unknown',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: AppColors.textPrimary),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: failColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            reason,
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: failColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    if (instructor.isNotEmpty)
+                      Text(
+                        'Instructor: $instructor',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (studentId.isNotEmpty)
+                      Text(
+                        'Student ID: $studentId',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    Text(
+                      _formatDate(scan['created_at']?.toString()),
                       style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          overflow: TextOverflow.ellipsis)),
-                  Text('Date: ${form['submitted_date'] ?? 'N/A'}',
-                      style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                          overflow: TextOverflow.ellipsis)),
-                ],
+                          fontSize: 11, color: AppColors.textTertiary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
               ),
-              trailing: const Icon(Icons.chevron_right,
-                  color: AppColors.primary), // tap arrow to open detail sheet
-              onTap: () => _showValidationSheet(form), // open edit sheet on tap
-            ),
-          );
-        },
+              const SizedBox(width: 8),
+              const Icon(Icons.chevron_right, color: AppColors.primary),
+            ],
+          ),
+        ),
       ),
     );
   }
