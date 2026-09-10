@@ -91,10 +91,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
   // shows no badge — we only speak up once we have something to say.
   FormCheck _formCheck = FormCheck.unknown;
 
-  /// Whether to act on that verdict at all. The check is still being tuned and
-  /// currently misjudges genuine forms, so its result is logged but not shown —
-  /// see kFormCheckEnforced for what has to be true before this flips on.
-  bool get _formCheckSpeaks => kFormCheckEnforced && _formCheck.isSuspect;
 
   // ── Sensor state (Tilt Guard) ────────────────────────────────────────────────
   // we read accelerometer to detect if phone is too tilted for a good scan
@@ -319,8 +315,9 @@ class _GathererScannerViewState extends State<GathererScannerView>
       debugPrint('Camera init error: $e'); // failed to open camera — check permissions
       if (mounted) {
         setState(() => _initError =
-            'Could not start the camera. Check that camera permission is '
-            'granted and that no other app is using it, then try again.');
+            'Camera unavailable. Check that camera permission is granted '
+            '(Settings → Apps → iEvaluate → Permissions → Camera) '
+            'and that no other app is using it, then tap Try again.');
       }
     } finally {
       _isInitializing = false; // always clear flag
@@ -423,10 +420,24 @@ class _GathererScannerViewState extends State<GathererScannerView>
         });
       }
     } catch (e) {
+      // TC-S03 step 7: camera faults must be reported, not swallowed silently.
       debugPrint('Capture error: $e');
       try {
         await _controller!.setFocusMode(FocusMode.auto); // restore auto-focus even on error
       } catch (_) {}
+      // Tell the user something went wrong — a silent failure looks like a freeze.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Capture failed. Try again, or check that no other app is using the camera.',
+            ),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } finally {
       if (mounted) {
         _frameAnimCtrl.reset(); // reset the green frame animation
@@ -475,23 +486,19 @@ class _GathererScannerViewState extends State<GathererScannerView>
     }
   }
 
-  // User accepted the photo, but it does not look like an SS Form 2. Ask once.
-  //
-  // Deliberately a question and not a wall. At 500 forms a day a wrong refusal
-  // costs far more than a wrong document slipping through — a bad scan gets
-  // caught downstream in validation, a refused form gets filed away unread.
-  // So the gatherer always has the last word here.
-  Future<bool> _confirmSuspectForm() async {
-    final noPage = _formCheck.match == FormMatch.noPage;
+
+  // TC-S03 step 2: a blurry image must not be silently queued.
+  // This is a question, not a wall — the gatherer can still override — but the
+  // decision must be deliberate, not accidental. Same pattern as _confirmSuspectForm.
+  Future<bool> _confirmBlurry() async {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text(noPage ? 'No form detected?' : 'Not a SAST form?'),
-        content: Text(
-          noPage
-              ? 'No sheet of paper was found in this photo. Scan it anyway?'
-              : 'This page does not look like a Students\' Assessment Survey '
-                  'for Teachers. Scan it anyway?',
+        title: const Text('Image appears blurry'),
+        content: const Text(
+          'This photo may be too blurry for OCR to read accurately.\n\n'
+          'Tap RETAKE to try again with a steadier hold, or QUEUE ANYWAY '
+          'to send it as-is.',
         ),
         actions: [
           TextButton(
@@ -500,23 +507,28 @@ class _GathererScannerViewState extends State<GathererScannerView>
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('SCAN ANYWAY'),
+            child: const Text('QUEUE ANYWAY'),
           ),
         ],
       ),
     );
-    return proceed ?? false; // dismissed by tapping away = do not scan
+    return proceed ?? false;
   }
 
   // user accepts the captured image — rename with paper tag and hand off to parent
   Future<void> _acceptImage() async {
     if (_capturedImagePath == null) return;
 
-    if (_formCheckSpeaks) {
-      final proceed = await _confirmSuspectForm();
-      if (!proceed || !mounted) return; // stay on the preview so they can retake
+    // TC-S03 step 2: blurry images need an explicit confirmation before queuing.
+    // Checked before the form-check so both can be visible, but blur is the
+    // more critical reason to retake — a blurry SAST form is unreadable regardless
+    // of what document it is.
+    if (_isBlurry) {
+      final proceed = await _confirmBlurry();
+      if (!proceed || !mounted) return;
       if (_capturedImagePath == null) return; // retaken while the sheet was up
     }
+
 
     // Rename file to include paper size tag so the Python backend can read it
     // e.g.  SCAN-1234567890_A4.jpg  /  _LONG.jpg  /  _SHORT.jpg
@@ -542,6 +554,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
       _formCheck = FormCheck.unknown; // next capture starts with no verdict
     });
   }
+
 
   // ══════════════════════════════════════════════════════════════════════════════
   //  Guide-frame geometry — respects paper ratio, clamps to screen
@@ -941,27 +954,21 @@ class _GathererScannerViewState extends State<GathererScannerView>
                       // still analyzing — spinning sync icon while checks run
                       _BlurStatusTag(
                         icon: Icons.sync,
-                        label: 'CHECKING SCAN...',
+                        label: 'ANALYZING SHARPNESS...',
                         color: Colors.white.withValues(alpha: 0.8),
                         isSpinning: true,
                       )
-                    else if (_formCheckSpeaks)
-                      // Wrong document, or no document. A warning, not a block:
-                      // USE PHOTO still works, it just asks first.
-                      _BlurStatusTag(
-                        icon: Icons.description_outlined,
-                        label: _formCheck.match == FormMatch.noPage
-                            ? 'NO FORM DETECTED'
-                            : 'NOT A SAST FORM',
-                        color: Colors.redAccent,
-                      )
                     else if (_isBlurry)
-                      // blur detected — warn user image may be unclear for OCR
+                      // blur detected — warn user image may be unclear for OCR.
+                      // Shown BEFORE the form-check tag: a blurry image needs a
+                      // retake regardless of what document it is, so this is the
+                      // more actionable warning and must never be hidden.
                       _BlurStatusTag(
                         icon: Icons.warning_amber_rounded,
                         label: 'IMAGE APPEARS BLURRY',
                         color: Colors.orangeAccent,
                       )
+
                     else
                       // image looks sharp — show paper label and check corners reminder
                       Container(

@@ -415,56 +415,66 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       ),
       body: Column(
         children: [
-          _buildFailureBanner(tableFound, gridSource), // show what went wrong
-          _buildImagesRow(), // show the original scan image if available
+          // ── Scrollable form (banner + image + fields all scroll together) ──
+          // Moving banner and image INSIDE the scroll so keyboard doesn't crush them.
+          // resizeToAvoidBottomInset: true on Scaffold already pushes the whole body
+          // up when the keyboard appears — no extra AnimatedPadding needed.
           Expanded(
-            child: AnimatedPadding(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  left: 20,
-                  right: 20,
-                  top: 16,
-                  bottom: 24, // account for keyboard
-                ),
-                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, // drag to dismiss keyboard
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Fill in or correct the fields below. Tap a suggestion to auto-fill.',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Failure banner ────────────────────────────────────
+                  _buildFailureBanner(tableFound, gridSource),
+
+                  // ── Scan image preview ────────────────────────────────
+                  _buildImagesRow(),
+
+                  // ── Form fields ───────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Fill in or correct the fields below. Tap a suggestion to auto-fill.',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Instructor with autocomplete — type 2+ chars to search
+                        _buildInstructorField(),
+
+                        // Subject with autocomplete — same pattern
+                        _buildSubjectField(),
+
+                        // Other fields — remarks and student ID, no autocomplete
+                        _buildSimpleField('Remarks & Suggestions', _remarksCtrl,
+                            maxLines: 3),
+                        _buildSimpleField('Student ID', _studentIdCtrl,
+                            keyboardType: TextInputType.number, digitsOnly: true),
+
+                        const SizedBox(height: 24),
+
+                        // Management scores — 10 small inputs in a grid
+                        _buildScoreSection('Management Scores (M1–M10)', 'm'),
+                        const SizedBox(height: 20),
+
+                        // Performance scores — another 10
+                        _buildScoreSection('Performance Scores (P1–P10)', 'p'),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    const SizedBox(height: 16),
-
-                    // Instructor with autocomplete — type 2+ chars to search
-                    _buildInstructorField(),
-
-                    // Subject with autocomplete — same pattern
-                    _buildSubjectField(),
-
-                    // Other fields — remarks and student ID, no autocomplete
-                    _buildSimpleField('Remarks & Suggestions', _remarksCtrl,
-                        maxLines: 3),
-                    _buildSimpleField('Student ID', _studentIdCtrl,
-                        keyboardType: TextInputType.number, digitsOnly: true), // numbers only
-
-                    const SizedBox(height: 24),
-
-                    // Management scores — 10 small inputs in a grid
-                    _buildScoreSection('Management Scores (M1–M10)', 'm'),
-                    const SizedBox(height: 20),
-
-                    // Performance scores — another 10
-                    _buildScoreSection('Performance Scores (P1–P10)', 'p'),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),   // SingleChildScrollView
-            ),     // AnimatedPadding
-          ),       // Expanded
+                  ),
+                ],
+              ),
+            ),   // SingleChildScrollView
+          ),     // Expanded
           _buildSubmitBar(), // sticky submit button at the bottom
         ],
       ),

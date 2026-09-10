@@ -428,71 +428,78 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       ),
       body: Column(
         children: [
-          // ── Error type banner ───────────────────────────────────────────
-          // colored banner at the top explaining what is wrong — hard to miss
-          _buildErrorBanner(),
-
-          // ── Scanned image (scan errors only) ────────────────────────────
-          // only show the image section if it came from a scan — sheet has no image
-          if (!_isSheet) _buildImageSection(),
-
-          // ── Scrollable form ─────────────────────────────────────────────
-          // the main correction form — instructor search, subject search, scores
+          // ── Scrollable form (banner + image + fields all scroll together) ──
+          // Moving banner and image INSIDE the scroll so keyboard doesn't crush them.
+          // resizeToAvoidBottomInset: true on Scaffold already pushes the whole body
+          // up when the keyboard appears — no extra AnimatedPadding needed.
           Expanded(
-            child: AnimatedPadding(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeOut,
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(
-                  left: 20, right: 20, top: 16,
-                  bottom: 24, // extra space above keyboard
-                ),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Original data reference card — shows what the importer received
-                    _buildOriginalDataCard(raw),
-                    const SizedBox(height: 20),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Error type banner ─────────────────────────────────
+                  // colored banner explaining what is wrong — hard to miss
+                  _buildErrorBanner(),
 
-                    // Correction section heading
-                    const Text('Correct the Assignment',
-                        style: TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 4),
-                    // brief instructions on what to do — different message for sheet vs scan
-                    Text(
-                      'Search and select the correct instructor and subject. '
-                      '${_isSheet ? 'Scores are locked (sheet values are trusted).' : 'You can also edit the scores below.'}',
-                      style: const TextStyle(
-                          color: AppColors.textSecondary, fontSize: 12),
+                  // ── Scanned image (scan errors only) ──────────────────
+                  // only show if it came from a scan — sheet has no image
+                  if (!_isSheet) _buildImageSection(),
+
+                  // ── Form fields ───────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+
+                        // Original data reference card — shows what the importer received
+                        _buildOriginalDataCard(raw),
+                        const SizedBox(height: 20),
+
+                        // Correction section heading
+                        const Text('Correct the Assignment',
+                            style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
+                        // brief instructions on what to do — different message for sheet vs scan
+                        Text(
+                          'Search and select the correct instructor and subject. '
+                          '${_isSheet ? 'Scores are locked (sheet values are trusted).' : 'You can also edit the scores below.'}',
+                          style: const TextStyle(
+                              color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Autocomplete fields for instructor and subject
+                        _buildInstructorField(),
+                        _buildSubjectField(),
+
+                        const SizedBox(height: 20),
+
+                        // Scores section — editable for scan source, read-only for sheet
+                        // sheet scores are trusted as-is — importente to remember this
+                        _isSheet
+                            ? _buildScoresReadOnly(raw)   // locked view for sheet data
+                            : _buildScoresEditable(),      // editable grid for scan data
+
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    const SizedBox(height: 16),
+                  ),
+                ],
+              ),   // Column
+            ),     // SingleChildScrollView
+          ),       // Expanded
 
-                    // Autocomplete fields for instructor and subject
-                    _buildInstructorField(),
-                    _buildSubjectField(),
-
-                    const SizedBox(height: 20),
-
-                    // Scores section — editable for scan source, read-only for sheet
-                    // sheet scores are trusted as-is — importente to remember this
-                    _isSheet
-                        ? _buildScoresReadOnly(raw)   // locked view for sheet data
-                        : _buildScoresEditable(),      // editable grid for scan data
-
-                    const SizedBox(height: 20),
-                  ],
-                ),   // Column
-              ),     // SingleChildScrollView
-            ),       // AnimatedPadding
-          ),         // Expanded
-
-          // ── Submit bar ──────────────────────────────────────────────────
+          // ── Submit bar ────────────────────────────────────────────────
           // sticky bottom bar with the submit button — always visible
           _buildSubmitBar(),
         ],
