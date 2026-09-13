@@ -549,9 +549,19 @@ class _GathererScannerViewState extends State<GathererScannerView>
       // Not ideal but better than losing the scan entirely
       widget.onScan(_capturedImagePath!, _formCheck);
     }
+    // Restore auto-focus so the camera isn't stuck on a locked point
+    try {
+      await _controller?.setFocusMode(FocusMode.auto);
+    } catch (_) {}
     setState(() {
-      _capturedImagePath = null; // clear path = go back to camera
+      _capturedImagePath = null;      // clear path = go back to camera
       _formCheck = FormCheck.unknown; // next capture starts with no verdict
+      // Reset all transient capture state so the view is clean on return
+      _isBlurry = false;
+      _isCheckingBlur = false;
+      _isTakingPicture = false;
+      _isFocusing = false;
+      _focusPoint = null;             // dismiss any lingering focus ring
     });
   }
 
@@ -1138,7 +1148,8 @@ class _ScanOverlayPainter extends CustomPainter {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Compact paper-size dropdown (sits next to the flash button in the top bar)
-//  Shows Short Bond / A4 / Long Bond as popup menu items.
+//  Shows Short Bond / Long Bond as popup menu items.
+//  A4 is intentionally excluded — not used in practice (0 of 44 labelled forms).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _PaperDropdown extends StatelessWidget {
@@ -1148,12 +1159,14 @@ class _PaperDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A4 removed from choices — only Short Bond and Long Bond are offered.
+    const choices = [PaperSize.shortBond, PaperSize.longBond];
     return PopupMenuButton<PaperSize>(
       onSelected: onChanged, // user picked a paper size
       color: const Color(0xFF1E1E1E), // dark background for the popup — fits the dark camera UI
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       offset: const Offset(0, 54),   // drops directly below the button
-      itemBuilder: (_) => PaperSize.values.map((p) {
+      itemBuilder: (_) => choices.map((p) {
         final active = p == selected; // is this the currently selected size?
         return PopupMenuItem<PaperSize>(
           value: p,

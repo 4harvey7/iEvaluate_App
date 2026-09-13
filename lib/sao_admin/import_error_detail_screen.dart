@@ -4,13 +4,14 @@
 // and optionally edit scores if it was a scan (not a sheet).
 // After fixing, it sends to n8n for re-processing. Importente kaayo ni sya.
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert'; // needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/config/env.dart';
+import '../core/services/scan_image_service.dart';
 
 class ImportErrorDetailScreen extends StatefulWidget {
   final Map<String, dynamic> error; // the error record from the parent screen
@@ -126,33 +127,29 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
     }
   }
 
-  // ── Load image from failed_scan_queue ─────────────────────────────────────
+  // ── Load image from scan_error_images ────────────────────────────────────
 
-  // fetches the base64-encoded scanned form image from the database
-  // uses the task_id from the error to find the corresponding scan record
+  // fetches the scan image bytes via the new scan_error_images table.
+  // import_errors now carries scan_image_id directly on the row — no join
+  // through failed_scan_queue needed. ScanImageService does the lookup.
+  // if scan_image_id is null (Google Sheet row, or image not yet stored),
+  // _imageBytes stays null and the image area is hidden — no crash.
   Future<void> _loadScanImage() async {
-    final taskId = widget.error['task_id']?.toString();
-    if (taskId == null || taskId.isEmpty) return; // no task ID — wala image to load
+    final scanImageId = widget.error['scan_image_id']?.toString();
+
+    if (scanImageId == null || scanImageId.isEmpty) return; // no image for this record
 
     setState(() => _isLoadingImage = true);
     try {
-      final result = await _supabase
-          .from('failed_scan_queue')
-          .select('n8n_ocr_image') // the base64 image column
-          .eq('task_id', taskId)
-          .maybeSingle(); // might not exist — use maybeSingle to avoid crash
-
-      if (mounted && result != null) {
-        final b64 = result['n8n_ocr_image']?.toString();
-        if (b64 != null && b64.isNotEmpty) {
-          // decode base64 string into raw image bytes
-          setState(() => _imageBytes = base64Decode(b64));
-        }
+      final bytes = await ScanImageService.fetchScanImageBytes(
+        _supabase,
+        scanImageId,
+      );
+      if (mounted && bytes != null) {
+        setState(() => _imageBytes = bytes); // decode already done by service
       }
-    } catch (e) {
-      debugPrint('[ImportErrorDetail] Load image error: $e'); // log and move on
     } finally {
-      if (mounted) setState(() => _isLoadingImage = false); // stop image loading spinner
+      if (mounted) setState(() => _isLoadingImage = false); // stop spinner regardless
     }
   }
 

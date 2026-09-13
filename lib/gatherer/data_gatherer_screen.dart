@@ -55,10 +55,10 @@ class DataGathererScreen extends StatefulWidget {
 /// import then appeared to have failed and the obvious response -- send it
 /// again -- was the worst one available.
 ///
-/// Five minutes is not a target, it is a ceiling: it needs to be longer than
+/// Ten minutes is not a target, it is a ceiling: it needs to be longer than
 /// the biggest sheet anyone will paste, and nothing here gets faster by giving
 /// up early.
-const Duration _kSheetImportTimeout = Duration(minutes: 5);
+const Duration _kSheetImportTimeout = Duration(minutes: 10);
 
 /// How long to wait for n8n to process a single scanned page.
 ///
@@ -360,11 +360,16 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           prefs.getStringList(_queueKey) ?? []; // empty list if nothing saved
       final loaded = raw
           .map((s) => ScanTask.fromMap(jsonDecode(s) as Map<String, dynamic>))
+          // Skip already-succeeded tasks — they're already on the server.
+          // No point showing them again after a logout/login cycle; they were
+          // done and there's nothing left to do with them.
+          .where((t) => t.status != SyncStatus.success)
           .map((t) {
             // Reconstruct absolute path safely because app sandbox dir changes on iOS/Android updates
             final filename = p.basename(t.localPath);
             final newPath = p.join(docDir.path, filename);
-            // Don't restore "uploading" — treat as pending on restart
+            // Don't restore "uploading" — treat as pending on restart so it
+            // gets retried rather than stuck in a spinner forever.
             final status = t.status == SyncStatus.uploading
                 ? SyncStatus.pending
                 : t.status;
@@ -384,6 +389,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           () => _localQueue.addAll(loaded),
         ); // put them back in the queue
       }
+      // Persist the pruned queue immediately so the next load starts clean too
+      _saveQueueToStorage();
     } catch (e) {
       debugPrint('loadQueue error: $e'); // storage broken? that unusual
     }

@@ -3,16 +3,14 @@
 // This screen let user manually type in all the data that the machine couldnt read.
 // It like being the backup plan for when robot fail at their job.
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
+import 'dart:convert'; // needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/config/env.dart';
-import 'models/scan_task.dart';
+import '../core/services/scan_image_service.dart';
 
 // this screen takes one failed scan record and shows its data for correction
 class FailedScanDetailScreen extends StatefulWidget {
@@ -27,10 +25,9 @@ class FailedScanDetailScreen extends StatefulWidget {
 class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   final _supabase = Supabase.instance.client; // database connection
 
-  // Local image (for zoom preview only)
-  // we try to find the original scan image so user can see what they correcting
-  File? _localImageFile;
-  bool _localImageAvailable = false; // false until we find the file
+  // Scan image loaded from Supabase (base64-decoded bytes from n8n_ocr_image column)
+  Uint8List? _imageBytes;
+  bool _isLoadingImage = false; // true while fetching from DB
 
   // Text field controllers — one per editable field
   late TextEditingController _instructorCtrl;
@@ -113,7 +110,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       }
     });
 
-    _findLocalImage(); // try to find the original scan image file
+    _loadScanImage(); // fetch scan image from DB (n8n_ocr_image column)
   }
 
   // clean up all controllers and subscriptions — very importente, memory leak kung dili
@@ -133,34 +130,32 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     super.dispose();
   }
 
-  // ── Find local image for zoom preview ──────────────────────────────────────
+  // ── Load scan image from Supabase ──────────────────────────────────────────
 
-  // look in SharedPreferences queue for the image file matching this task_id
-  // if found and file still exist on device, show it for reference
-  Future<void> _findLocalImage() async {
-    final taskId = widget.scan['task_id']?.toString() ?? '';
-    if (taskId.isEmpty) return; // no task_id, cannot find image
+  // fetches the scan image bytes via the new scan_error_images table.
+  // reads scan_image_id from the passed scan map, then delegates to
+  // ScanImageService which queries scan_error_images.image_base64.
+  // if scan_image_id is null or the row is missing, _imageBytes stays null
+  // and the image preview area stays hidden — no crash.
+  Future<void> _loadScanImage() async {
+    final scanImageId = widget.scan['scan_image_id']?.toString();
+
+    if (scanImageId == null || scanImageId.isEmpty) return; // no image for this record
+
+    if (mounted) setState(() => _isLoadingImage = true);
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final userId = widget.scan['user_id']?.toString() ?? '';
-      final queueKey = 'gatherer_sync_queue_$userId';
-      final raw = prefs.getStringList(queueKey) ?? [];
-      for (final s in raw) {
-        final map = jsonDecode(s) as Map<String, dynamic>;
-        final task = ScanTask.fromMap(map);
-        if (task.id == taskId) {
-          final f = File(task.localPath); // construct File from saved path
-          if (await f.exists()) {
-            // file still there — set it for display
-            if (mounted) setState(() { _localImageFile = f; _localImageAvailable = true; });
-          }
-          return; // found the task, stop searching
-        }
+      final bytes = await ScanImageService.fetchScanImageBytes(
+        _supabase,
+        scanImageId,
+      );
+      if (mounted && bytes != null) {
+        setState(() => _imageBytes = bytes);
       }
-    } catch (e) {
-      debugPrint('findLocalImage error: $e'); // file search fail — not critical, just no preview
+    } finally {
+      if (mounted) setState(() => _isLoadingImage = false);
     }
   }
+
 
   // ── Autocomplete — Instructor ───────────────────────────────────────────────
 
@@ -514,15 +509,31 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   // ── Images row (zoom only, no crop) ───────────────────────────────────────
 
   // show the original scan image so user can see what they correcting
+  // image comes from failed_scan_queue.n8n_ocr_image (base64, stored by n8n)
   // user can tap to zoom in for better inspection — useful for small scores
   Widget _buildImagesRow() {
-    if (!_localImageAvailable || _localImageFile == null) return const SizedBox.shrink(); // no image, show nothing
+    // still loading from DB — show a compact spinner
+    if (_isLoadingImage) {
+      return Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: const Center(
+          child: SizedBox(
+            width: 22, height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    if (_imageBytes == null) return const SizedBox.shrink(); // no image available
+
     return Container(
       color: AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: GestureDetector(
         onTap: () => _showZoomedImage(
-          Image.file(_localImageFile!, fit: BoxFit.contain),
+          Image.memory(_imageBytes!, fit: BoxFit.contain),
           'Original Scan',
         ),
         child: Stack(
@@ -530,8 +541,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.file(
-                _localImageFile!,
+              child: Image.memory(
+                _imageBytes!,
                 width: double.infinity,
                 height: 110, // compact preview height
                 fit: BoxFit.cover,
@@ -560,6 +571,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       ),
     );
   }
+
 
   // show image in a fullscreen zoomable dialog — InteractiveViewer allow pinch-zoom
   void _showZoomedImage(Image image, String title) {
