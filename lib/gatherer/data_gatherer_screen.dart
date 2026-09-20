@@ -336,55 +336,71 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final docDir = await getApplicationDocumentsDirectory();
+      final savedTermId = prefs.getString('gatherer_last_term_id');
       final raw =
           prefs.getStringList(_queueKey) ?? []; // empty list if nothing saved
-      final loaded = raw
-          .map((s) => ScanTask.fromMap(jsonDecode(s) as Map<String, dynamic>))
-          // Skip already-succeeded tasks — they're already on the server.
-          // No point showing them again after a logout/login cycle; they were
-          // done and there's nothing left to do with them.
-          .where((t) => t.status != SyncStatus.success)
-          .map((t) {
-            // Resolve the image path:
-            // 1. Use the stored path if the file is already there (happy path —
-            //    _acceptImage now copies into Documents so this should always hit).
-            // 2. Fall back to Documents/<filename> for any older scans that were
-            //    queued before this fix and whose stored path pointed into a temp
-            //    dir that has since been wiped.
-            final filename = p.basename(t.localPath);
-            final storedFile = File(t.localPath);
-            final resolvedPath = storedFile.existsSync()
-                ? t.localPath
-                : p.join(docDir.path, filename);
 
-            // Don't restore "uploading" — treat as pending on restart so it
-            // gets retried rather than stuck in a spinner forever.
-            final status = t.status == SyncStatus.uploading
-                ? SyncStatus.pending
-                : t.status;
-            return ScanTask(
+      final loaded = <ScanTask>[];
+      for (final s in raw) {
+        try {
+          final map = jsonDecode(s) as Map<String, dynamic>;
+          final t = ScanTask.fromMap(map);
+
+          // If the task belongs to an older term that is no longer the active term,
+          // purge it directly to ensure clean queues across academic terms.
+          if (savedTermId != null &&
+              t.termId != null &&
+              t.termId != savedTermId) {
+            try {
+              final oldFile = File(t.localPath);
+              if (oldFile.existsSync()) oldFile.deleteSync();
+            } catch (_) {}
+            continue;
+          }
+
+          final filename = p.basename(t.localPath);
+          final storedFile = File(t.localPath);
+          final resolvedPath = storedFile.existsSync()
+              ? t.localPath
+              : p.join(docDir.path, filename);
+
+          // Don't restore "uploading" — treat as pending on restart so it
+          // gets retried rather than stuck in a spinner forever. Succeeded tasks
+          // remain as success so the gatherer can review them across restarts.
+          final status = t.status == SyncStatus.uploading
+              ? SyncStatus.pending
+              : t.status;
+
+          loaded.add(
+            ScanTask(
               id: t.id,
               localPath: resolvedPath,
               status: status,
               retryCount: t.retryCount,
               errorMessage: t.errorMessage,
-              formSuspect:
-                  t.formSuspect, // survives the restart, same as the file does
-            );
-          })
-          .toList();
-      if (mounted) {
-        setState(
-          () => _localQueue.addAll(loaded),
-        ); // put them back in the queue
+              formSuspect: t.formSuspect,
+              termId: t.termId ?? savedTermId,
+            ),
+          );
+        } catch (e) {
+          debugPrint('Error parsing stored scan task: $e');
+        }
       }
-      // Persist the pruned queue immediately so the next load starts clean too
+
+      if (mounted) {
+        setState(() {
+          _localQueue.addAll(loaded);
+          final notYetCounted = _localQueue
+              .where((t) => t.status != SyncStatus.success)
+              .length;
+          _scannedToday = _entriesToday + notYetCounted;
+        });
+      }
       _saveQueueToStorage();
     } catch (e) {
-      debugPrint('loadQueue error: $e'); // storage broken? that unusual
+      debugPrint('loadQueue error: $e');
     }
   }
-
 
   // save the current queue to SharedPreferences so it survive app restarts
   // encode each task as JSON string — simple but effective
@@ -402,7 +418,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
   // clear the entire local queue and delete the image files
   // called automatically when the term changes to free up space
-  void _clearLocalQueue() {
+  Future<void> _clearLocalQueue() async {
     for (var task in _localQueue) {
       try {
         final file = File(task.localPath);
@@ -413,6 +429,23 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         debugPrint('Failed to delete file: $e'); // ignore if delete fails
       }
     }
+
+    // Also delete any files recorded in storage in case queue wasn't loaded in memory yet
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getStringList(_queueKey) ?? [];
+      for (final s in raw) {
+        try {
+          final map = jsonDecode(s) as Map<String, dynamic>;
+          final path = map['localPath'] as String?;
+          if (path != null) {
+            final f = File(path);
+            if (f.existsSync()) f.deleteSync();
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+
     if (mounted) {
       setState(() {
         _localQueue.clear();
@@ -424,15 +457,28 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   // ─── Queue Actions ────────────────────────────────────────────────────────
 
   // remove one task from the local queue and save immediately
-  // user swipe-delete or press delete — task gone, image file still on device
   void _deleteTask(ScanTask task) {
-    setState(() => _localQueue.remove(task)); // remove from memory
-    _saveQueueToStorage(); // persist the removal
+    try {
+      final file = File(task.localPath);
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    } catch (_) {}
+    setState(() => _localQueue.remove(task));
+    _saveQueueToStorage();
   }
 
   // batch remove multiple tasks in one atomic state update and disk save
   void _deleteMultipleTasks(List<ScanTask> tasks) {
     if (tasks.isEmpty) return;
+    for (final task in tasks) {
+      try {
+        final file = File(task.localPath);
+        if (file.existsSync()) {
+          file.deleteSync();
+        }
+      } catch (_) {}
+    }
     final idsToDelete = tasks.map((t) => t.id).toSet();
     setState(() {
       _localQueue.removeWhere((t) => idsToDelete.contains(t.id));
@@ -625,6 +671,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       // Gated on kFormCheckEnforced: while the check is still being tuned it
       // must not flag real scans, or n8n would quarantine the whole term.
       formSuspect: kFormCheckEnforced && formCheck.isSuspect,
+      termId: _currentTermId,
     );
 
     setState(() {

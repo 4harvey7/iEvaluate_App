@@ -15,6 +15,7 @@ class ScanTask {
   /// Never blocks the upload on its own — that call belongs to the gatherer,
   /// who is standing there holding the paper.
   final bool formSuspect;
+  final String? termId;
 
   ScanTask({
     required this.id,
@@ -23,6 +24,7 @@ class ScanTask {
     this.retryCount = 0,
     this.errorMessage,
     this.formSuspect = false,
+    this.termId,
   });
 
   Map<String, dynamic> toMap() {
@@ -33,6 +35,7 @@ class ScanTask {
       'retryCount': retryCount,
       'errorMessage': errorMessage,
       'formSuspect': formSuspect,
+      'termId': termId,
     };
   }
 
@@ -50,6 +53,7 @@ class ScanTask {
       // Queues written by an older build have no such key — those scans were
       // never checked, so the honest default is "not flagged".
       formSuspect: map['formSuspect'] as bool? ?? false,
+      termId: map['termId'] as String?,
     );
   }
 
