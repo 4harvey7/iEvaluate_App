@@ -92,20 +92,38 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         : <String, dynamic>{});
 
     for (int i = 0; i < 10; i++) {
-      // Try nested format first, then flat uppercase, then python_raw_ratings
+      // Try nested format, flat uppercase, python_raw_ratings, scan scores, gemini scores
       String mScore = '';
-      if (i < mgmt.length && mgmt[i]['detected'] == true) {
+      if (i < mgmt.length && mgmt[i]['score'] != null) {
         mScore = mgmt[i]['score']?.toString() ?? '';
-      } else {
-        final flatM = partial['M${i + 1}'] ?? partial['m${i + 1}'] ?? pyRaw['M${i + 1}'] ?? pyRaw['m${i + 1}'];
+      }
+      if (mScore.isEmpty) {
+        final flatM = partial['M${i + 1}'] ??
+            partial['m${i + 1}'] ??
+            pyRaw['M${i + 1}'] ??
+            pyRaw['m${i + 1}'] ??
+            widget.scan['m${i + 1}'] ??
+            widget.scan['M${i + 1}'] ??
+            (widget.scan['raw_scores'] is Map ? widget.scan['raw_scores']['m${i + 1}'] : null) ??
+            (partial['scores'] is Map ? partial['scores']['m${i + 1}'] : null) ??
+            (partial['gemini_scores'] is Map ? partial['gemini_scores']['M${i + 1}'] : null);
         if (flatM != null) mScore = flatM.toString();
       }
 
       String pScore = '';
-      if (i < perf.length && perf[i]['detected'] == true) {
+      if (i < perf.length && perf[i]['score'] != null) {
         pScore = perf[i]['score']?.toString() ?? '';
-      } else {
-        final flatP = partial['P${i + 1}'] ?? partial['p${i + 1}'] ?? pyRaw['P${i + 1}'] ?? pyRaw['p${i + 1}'];
+      }
+      if (pScore.isEmpty) {
+        final flatP = partial['P${i + 1}'] ??
+            partial['p${i + 1}'] ??
+            pyRaw['P${i + 1}'] ??
+            pyRaw['p${i + 1}'] ??
+            widget.scan['p${i + 1}'] ??
+            widget.scan['P${i + 1}'] ??
+            (widget.scan['raw_scores'] is Map ? widget.scan['raw_scores']['p${i + 1}'] : null) ??
+            (partial['scores'] is Map ? partial['scores']['p${i + 1}'] : null) ??
+            (partial['gemini_scores'] is Map ? partial['gemini_scores']['P${i + 1}'] : null);
         if (flatP != null) pScore = flatP.toString();
       }
 
@@ -889,38 +907,63 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 14)),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         GridView.builder(
           shrinkWrap: true, // dont take extra space
           physics: const NeverScrollableScrollPhysics(), // parent scroll handles scrolling
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 5, // 5 columns
-            childAspectRatio: 1.2,
+            childAspectRatio: 0.82,
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
           itemCount: 10, // always 10 scores
           itemBuilder: (context, index) {
             final key = '$prefix${index + 1}'; // e.g. 'm3', 'p7'
-            return TextField(
-              controller: _scoreCtrlMap[key],
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly], // numbers only
-              decoration: InputDecoration(
-                labelText: key.toUpperCase(), // M3, P7, etc.
-                filled: true,
-                fillColor: AppColors.surface,
-                contentPadding: EdgeInsets.zero, // compact cell padding
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      const BorderSide(color: AppColors.primary, width: 2),
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  key.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 44,
+                  child: TextField(
+                    controller: _scoreCtrlMap[key],
+                    keyboardType: TextInputType.number,
+                    textAlign: TextAlign.center,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[1-5]')),
+                      LengthLimitingTextInputFormatter(1),
+                    ],
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: AppColors.surface,
+                      contentPadding: EdgeInsets.zero,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.borderSubtle),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide:
+                            const BorderSide(color: AppColors.primary, width: 2),
+                      ),
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ),
+              ],
             );
           },
         ),

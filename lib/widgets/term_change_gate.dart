@@ -56,15 +56,8 @@ class _TermChangeGateState extends State<TermChangeGate> {
     return Stack(
       children: [
         widget.child,
-        // IgnorePointer when hidden so the invisible layer never eats taps.
-        IgnorePointer(
-          ignoring: !_visible,
-          child: AnimatedOpacity(
-            opacity: _visible ? 1 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: const _UpdatingTermScrim(),
-          ),
-        ),
+        if (_visible)
+          const _UpdatingTermScrim(),
       ],
     );
   }

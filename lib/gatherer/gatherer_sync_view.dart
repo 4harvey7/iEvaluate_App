@@ -13,6 +13,7 @@ class GathererSyncView extends StatefulWidget {
   final VoidCallback onSync;
   final Function(ScanTask) onRetry;
   final Function(ScanTask) onDelete;
+  final Function(List<ScanTask>)? onDeleteMultiple;
   final VoidCallback onPause;
   final VoidCallback onResume;
 
@@ -24,6 +25,7 @@ class GathererSyncView extends StatefulWidget {
     required this.onSync,
     required this.onRetry,
     required this.onDelete,
+    this.onDeleteMultiple,
     required this.onPause,
     required this.onResume,
   });
@@ -72,24 +74,48 @@ class _GathererSyncViewState extends State<GathererSyncView> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Remove $count item${count > 1 ? 's' : ''}?'),
-        content: Text('This will remove $count item${count > 1 ? 's' : ''} from the queue. Image files will remain on device.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+        title: const Text('Delete selected scans?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Are you sure you want to remove $count scan${count > 1 ? 's' : ''} from the queue? This cannot be undone.',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            ),
+          ],
+        ),
       ),
     ) ?? false;
 
     if (!confirmed) return;
 
     final toDelete = widget.queue.where((t) => _selectedIds.contains(t.id)).toList();
-    for (final task in toDelete) {
-      widget.onDelete(task);
+    if (widget.onDeleteMultiple != null) {
+      widget.onDeleteMultiple!(toDelete);
+    } else {
+      for (final task in toDelete) {
+        widget.onDelete(task);
+      }
     }
     setState(() {
       _isSelectMode = false;
@@ -103,26 +129,53 @@ class _GathererSyncViewState extends State<GathererSyncView> {
       builder: (_) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Remove from queue?'),
-        content: const Text('This will remove the item from the queue. The image file will remain on device.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Remove', style: TextStyle(color: Colors.white)),
-          ),
-        ],
+        title: const Text('Delete this scan?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Are you sure you want to remove this scan from the queue? This cannot be undone.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
+            ),
+            const SizedBox(height: 20),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            ),
+          ],
+        ),
       ),
     ) ?? false;
 
-    if (confirmed) widget.onDelete(task);
+    if (confirmed == true) widget.onDelete(task);
   }
 
   @override
   Widget build(BuildContext context) {
-    final pendingCount = widget.queue.where((t) => t.status == SyncStatus.pending || t.status == SyncStatus.failed).length;
-    final successCount = widget.queue.where((t) => t.status == SyncStatus.success).length;
+    final int pendingCount = widget.queue
+        .where(
+          (t) =>
+              t.status == SyncStatus.pending || t.status == SyncStatus.failed,
+        )
+        .length;
+    final int successCount = widget.queue
+        .where((t) => t.status == SyncStatus.success)
+        .length;
 
     return SafeArea(
       child: Padding(
@@ -134,67 +187,37 @@ class _GathererSyncViewState extends State<GathererSyncView> {
             ApplePageHeader(
               eyebrow: 'Upload Pipeline',
               title: 'Sync Queue',
-              subtitle: 'Review and upload scanned forms.',
+              subtitle: 'Review and upload\nscanned forms.',
               trailing: widget.queue.isNotEmpty
-                  ? Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(_isSelectMode ? Icons.close : Icons.checklist_rounded,
-                              color: _isSelectMode ? AppColors.error : AppColors.textSecondary),
-                          tooltip: _isSelectMode ? 'Cancel selection' : 'Select items',
-                          onPressed: _toggleSelectMode,
+                  ? TextButton.icon(
+                      onPressed: widget.isPaused
+                          ? widget.onResume
+                          : widget.onPause,
+                      icon: Icon(
+                          widget.isPaused
+                              ? Icons.play_arrow_rounded
+                              : Icons.pause_rounded,
+                          color: widget.isPaused
+                              ? AppColors.success
+                              : AppColors.warning,
+                          size: 20),
+                      label: Text(
+                        widget.isPaused ? 'Resume' : 'Pause',
+                        style: TextStyle(
+                          color: widget.isPaused
+                              ? AppColors.success
+                              : AppColors.warning,
+                          fontWeight: FontWeight.bold,
                         ),
-                        TextButton.icon(
-                          onPressed: widget.isPaused ? widget.onResume : widget.onPause,
-                          icon: Icon(widget.isPaused ? Icons.play_arrow_rounded : Icons.pause_rounded,
-                              color: widget.isPaused ? AppColors.success : AppColors.warning, size: 20),
-                          label: Text(widget.isPaused ? 'Resume' : 'Pause',
-                              style: TextStyle(color: widget.isPaused ? AppColors.success : AppColors.warning, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
+                      ),
                     )
                   : null,
             ),
 
-            // Select mode action bar
-            if (_isSelectMode) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  TextButton.icon(
-                    onPressed: _selectAll,
-                    icon: Icon(
-                      _selectedIds.length == widget.queue.length ? Icons.deselect : Icons.select_all,
-                      size: 18,
-                    ),
-                    label: Text(_selectedIds.length == widget.queue.length ? 'Deselect All' : 'Select All'),
-                  ),
-                  const Spacer(),
-                  Flexible(
-                    child: Text(
-                      '${_selectedIds.length} selected',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _selectedIds.isEmpty ? AppColors.textSecondary : AppColors.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    ),
-                    onPressed: _selectedIds.isEmpty ? null : _deleteSelected,
-                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white),
-                    label: const Text('Delete', style: TextStyle(color: Colors.white, fontSize: 13)),
-                  ),
-                ],
-              ),
-            ],
+            const SizedBox(height: 16),
 
-            // Status summary chips
+            // Status summary chips row matching reference screenshot
             if (widget.queue.isNotEmpty && !_isSelectMode) ...[
-              const SizedBox(height: 10),
               Row(
                 children: [
                   _statusChip('$pendingCount pending', AppColors.warning),
@@ -204,8 +227,89 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                     const SizedBox(width: 8),
                     _statusChip('\u23f8 Paused', AppColors.textSecondary),
                   ],
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.tune_rounded, color: AppColors.textSecondary),
+                    tooltip: 'Select multiple',
+                    onPressed: _toggleSelectMode,
+                  ),
                 ],
               ),
+              const SizedBox(height: 12),
+            ],
+
+            // Select mode action bar
+            if (_isSelectMode) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: _selectedIds.length == widget.queue.length &&
+                          widget.queue.isNotEmpty,
+                      onChanged: (_) => _selectAll(),
+                      activeColor: AppColors.primary,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '${_selectedIds.length}/${widget.queue.length} selected',
+                        style: const TextStyle(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedIds.isEmpty
+                            ? AppColors.textSecondary
+                            : AppColors.error,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        elevation: 0,
+                      ),
+                      onPressed:
+                          _selectedIds.isEmpty ? null : _deleteSelected,
+                      icon: const Icon(Icons.delete_outline, size: 15),
+                      label: Text('Delete (${_selectedIds.length})',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                    const SizedBox(width: 6),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: _toggleSelectMode,
+                      child: const Text('Done',
+                          style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
 
             const SizedBox(height: 16),
@@ -225,24 +329,26 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                         final isSelected = _selectedIds.contains(task.id);
                         return Dismissible(
                           key: Key(task.id),
-                          direction: _isSelectMode ? DismissDirection.none : DismissDirection.endToStart,
+                          direction: _isSelectMode
+                              ? DismissDirection.none
+                              : DismissDirection.endToStart,
                           background: Container(
                             alignment: Alignment.centerRight,
                             padding: const EdgeInsets.only(right: 20),
                             decoration: BoxDecoration(
-                              color: AppColors.error.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(12),
+                              color: AppColors.error,
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: const Icon(Icons.delete_outline, color: AppColors.error),
+                            child: const Icon(Icons.delete, color: Colors.white),
                           ),
-                          confirmDismiss: (_) async {
+                          confirmDismiss: (direction) async {
                             return await showDialog<bool>(
                               context: context,
                               builder: (_) => AlertDialog(
                                 backgroundColor: AppColors.surface,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                title: const Text('Remove from queue?'),
-                                content: const Text('This will remove the item from the queue. The image file will remain on device.'),
+                                title: const Text('Remove from queue?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                                content: Text('Are you sure you want to remove scan ${task.id}? This will discard the scan and cannot be undone.', style: const TextStyle(color: AppColors.textSecondary)),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
                                   ElevatedButton(
@@ -255,52 +361,59 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                             ) ?? false;
                           },
                           onDismissed: (_) => widget.onDelete(task),
-                          child: GestureDetector(
-                            onTap: _isSelectMode
-                                ? () => _toggleItem(task.id)
-                                : () {
-                                    Navigator.of(context).push(MaterialPageRoute(
-                                      builder: (_) => ScanImageViewer(
-                                        task: task,
-                                        onDelete: () {
-                                          widget.onDelete(task);
-                                          Navigator.of(context).pop();
-                                        },
-                                      ),
-                                    ));
-                                  },
-                            onLongPress: () {
-                              if (!_isSelectMode) {
-                                setState(() {
-                                  _isSelectMode = true;
-                                  _selectedIds.add(task.id);
-                                });
-                              }
-                            },
-                            child: Card(
-                              color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface,
-                              elevation: 1,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: isSelected
-                                    ? const BorderSide(color: AppColors.primary, width: 1.5)
-                                    : BorderSide.none,
-                              ),
+                          child: Card(
+                            color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface,
+                            elevation: 1,
+                            margin: const EdgeInsets.only(bottom: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: isSelected
+                                  ? const BorderSide(color: AppColors.primary, width: 1.5)
+                                  : BorderSide(color: AppColors.borderSubtle.withValues(alpha: 0.6)),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(16),
+                              onTap: () {
+                                if (_isSelectMode) {
+                                  _toggleItem(task.id);
+                                } else {
+                                  Navigator.of(context).push(MaterialPageRoute(
+                                    builder: (_) => ScanImageViewer(
+                                      task: task,
+                                      onDelete: () {
+                                        widget.onDelete(task);
+                                        Navigator.of(context).pop();
+                                      },
+                                    ),
+                                  ));
+                                }
+                              },
+                              onLongPress: () {
+                                if (!_isSelectMode) {
+                                  setState(() {
+                                    _isSelectMode = true;
+                                    _selectedIds.add(task.id);
+                                  });
+                                }
+                              },
                               child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                enabled: false,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                                 leading: _isSelectMode
-                                    ? Checkbox(
-                                        value: isSelected,
-                                        onChanged: (_) => _toggleItem(task.id),
-                                        activeColor: AppColors.primary,
+                                    ? IgnorePointer(
+                                        child: Checkbox(
+                                          value: isSelected,
+                                          onChanged: null,
+                                          activeColor: AppColors.primary,
+                                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
                                       )
                                     : ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
+                                        borderRadius: BorderRadius.circular(8),
                                         child: Image.file(
                                           File(task.localPath),
-                                          width: 40,
-                                          height: 50,
+                                          width: 44,
+                                          height: 52,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: AppColors.textSecondary),
                                         ),
@@ -318,7 +431,7 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                                             tooltip: 'Remove from queue',
                                             onPressed: () => _confirmSingleDelete(task),
                                             constraints: const BoxConstraints(),
-                                            padding: const EdgeInsets.only(left: 4),
+                                            padding: const EdgeInsets.only(left: 6),
                                           ),
                                         ],
                                       ),
@@ -332,24 +445,28 @@ class _GathererSyncViewState extends State<GathererSyncView> {
 
             const SizedBox(height: 16),
 
-            // Sync All Button
+            // Sync All Button matching screenshot (light grey when paused)
             SizedBox(
               width: double.infinity,
               height: 54,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: widget.isPaused
-                      ? AppColors.textSecondary
+                      ? const Color(0xFFCFD8DC)
                       : (widget.queue.any((t) => t.status != SyncStatus.success) ? AppColors.textPrimary : AppColors.textSecondary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  disabledBackgroundColor: const Color(0xFFCFD8DC),
+                  disabledForegroundColor: Colors.white,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
                 onPressed: widget.isSyncing || widget.isPaused || widget.queue.every((t) => t.status == SyncStatus.success) ? null : widget.onSync,
                 icon: widget.isSyncing
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.cloud_upload, color: Colors.white),
+                    : const Icon(Icons.cloud_upload_outlined, color: Colors.white),
                 label: Text(
                   widget.isPaused ? 'Sync Paused' : (widget.isSyncing ? 'Syncing...' : 'Sync All Pending'),
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),
             ),

@@ -31,7 +31,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
   // --- INTERACTIVE PROFILE STATE ---
   String _firstName = '';
   String _lastName = '';
-  String _userTitle = 'Data Gatherer';
+  String _userTitle = 'SAO_STAFF';
   bool _isLoading = true;
 
   @override
@@ -94,7 +94,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
           
           if (saoData != null) {
             final role = saoData['roles'];
-            _userTitle = role is Map ? role['Roles'] ?? 'Data Gatherer' : 'Data Gatherer';
+            _userTitle = role is Map ? role['Roles'] ?? 'SAO_STAFF' : 'SAO_STAFF';
           }
           
           _isLoading = false;
@@ -317,87 +317,97 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isUpdating ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                  ),
-                  onPressed: isUpdating ? null : () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final navigator = Navigator.of(context);
-                    final rootNavigator = Navigator.of(this.context);
-                    final newPw = newPasswordController.text.trim();
-                    final confirmPw = confirmPasswordController.text.trim();
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildInput(label: 'Current Password *', controller: currentPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'New Password *', controller: newPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'Confirm Password *', controller: confirmPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: isUpdating ? null : () => Navigator.pop(context),
+                        child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: isUpdating ? null : () async {
+                          final messenger = ScaffoldMessenger.of(context);
+                          final navigator = Navigator.of(context);
+                          final rootNavigator = Navigator.of(this.context);
+                          final newPw = newPasswordController.text.trim();
+                          final confirmPw = confirmPasswordController.text.trim();
 
-                    if (newPw.isEmpty || confirmPw.isEmpty) {
-                      messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
-                      return;
-                    }
-
-                    if (newPw != confirmPw) {
-                      messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
-                      return;
-                    }
-
-                    if (newPw.length < 6) {
-                      messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
-                      return;
-                    }
-
-                    setDialogState(() => isUpdating = true);
-                    
-                    try {
-                      final result = await _authService.updatePassword(newPw);
-                      
-                      if (mounted) {
-                        if (result.success) {
-                          navigator.pop();
-                          messenger.showSnackBar(const SnackBar(
-                            content: Text('Password updated successfully. Please log in again.'), 
-                            backgroundColor: AppColors.success
-                          ));
-                          
-                          // Auto sign out for security
-                          await Future.delayed(const Duration(seconds: 2));
-                          await _authService.signOut();
-                          if (mounted) {
-                            rootNavigator.pushAndRemoveUntil(
-                              MaterialPageRoute(builder: (context) => const LoginScreen()), 
-                              (route) => false
-                            );
+                          if (newPw.isEmpty || confirmPw.isEmpty || currentPasswordController.text.trim().isEmpty) {
+                            messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                            return;
                           }
-                        } else {
-                          setDialogState(() => isUpdating = false);
-                          messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
-                        }
-                      }
-                    } catch (e) {
-                      setDialogState(() => isUpdating = false);
-                      if (mounted) {
-                        messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-                      }
-                    }
-                  },
-                  child: isUpdating 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
-                    : const Text('Update', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+
+                          if (newPw != confirmPw) {
+                            messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                            return;
+                          }
+
+                          if (newPw.length < 6) {
+                            messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                            return;
+                          }
+
+                          setDialogState(() => isUpdating = true);
+                          
+                          try {
+                            final result = await _authService.updatePassword(newPw);
+                            
+                            if (mounted) {
+                              if (result.success) {
+                                navigator.pop();
+                                messenger.showSnackBar(const SnackBar(
+                                  content: Text('Password updated successfully. Please log in again.'), 
+                                  backgroundColor: AppColors.success
+                                ));
+                                
+                                // Auto sign out for security
+                                await Future.delayed(const Duration(seconds: 2));
+                                await _authService.signOut();
+                                if (mounted) {
+                                  rootNavigator.pushAndRemoveUntil(
+                                    MaterialPageRoute(builder: (context) => const LoginScreen()), 
+                                    (route) => false
+                                  );
+                                }
+                              } else {
+                                setDialogState(() => isUpdating = false);
+                                messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
+                              }
+                            }
+                          } catch (e) {
+                            setDialogState(() => isUpdating = false);
+                            if (mounted) {
+                              messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                            }
+                          }
+                        },
+                        child: isUpdating 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Text('Update', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           }
         );
@@ -414,8 +424,15 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
         prefixIcon: icon != null ? Icon(icon, color: AppColors.primary) : null,
         filled: true,
         fillColor: AppColors.surface,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.borderSubtle),
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
       ),
     );
   }

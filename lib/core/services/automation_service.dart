@@ -72,6 +72,7 @@ class AutomationService {
         return AutomationResponse(
           isSuccess: false,
           statusCode: status,
+          data: data,
           errorMessage: errorMsg?.toString() ?? 'Server error ($status)',
         );
       }
@@ -85,6 +86,7 @@ class AutomationService {
       return AutomationResponse(
         isSuccess: false,
         statusCode: fe.status,
+        data: details,
         errorMessage: errorMsg ?? fe.reasonPhrase ?? 'Automation gateway error',
       );
     } catch (e) {

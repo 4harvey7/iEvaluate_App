@@ -30,10 +30,14 @@ class ScanAnalysis {
   /// Whether the paper looks like an SS Form 2.
   final FormCheck form;
 
+  /// True when the image is too dark or the camera lens is occluded.
+  final bool isDarkOrOccluded;
+
   const ScanAnalysis({
     required this.isBlurry,
     required this.blurScore,
     required this.form,
+    this.isDarkOrOccluded = false,
   });
 
   /// Used when the image cannot be decoded at all. Claims nothing: a decode
@@ -42,11 +46,12 @@ class ScanAnalysis {
     isBlurry: false,
     blurScore: 0,
     form: FormCheck.unknown,
+    isDarkOrOccluded: false,
   );
 
   @override
   String toString() => 'ScanAnalysis(blur=${blurScore.toStringAsFixed(1)} '
-      'isBlurry=$isBlurry, $form)';
+      'isBlurry=$isBlurry, dark=$isDarkOrOccluded, $form)';
 }
 
 /// Sharpness cutoff on the variance of the Laplacian, measured at 640px wide.
@@ -88,18 +93,28 @@ ScanAnalysis analyseScan(Uint8List jpegBytes) {
   // Downscale once, grayscale once. Both checks read luminance only.
   final gray = img.grayscale(img.copyResize(decoded, width: _workingWidth));
 
+  // Check average luminance for pitch dark / lens occlusion
+  var lumSum = 0.0;
+  final pixelCount = gray.width * gray.height;
+  for (final p in gray) {
+    lumSum += p.luminance;
+  }
+  final avgLum = pixelCount > 0 ? lumSum / pixelCount : 255.0;
+  final isDarkOrOccluded = avgLum < 30.0;
+
   // ORDER MATTERS. img.convolution() rewrites the image it is handed rather
   // than returning a fresh one, so _varianceOfLaplacian leaves `gray` holding
   // an edge map -- near black everywhere. Sampling the form grid after it
   // silently analysed that edge map instead of the photo, and every real scan
   // came back "unknown". Sample first, blur second.
-  final form = _checkForm(gray);
+  final form = isDarkOrOccluded ? FormCheck.noPage : _checkForm(gray);
   final blurScore = _varianceOfLaplacian(gray);
 
   return ScanAnalysis(
     isBlurry: blurScore < _blurCutoff,
     blurScore: blurScore,
     form: form,
+    isDarkOrOccluded: isDarkOrOccluded,
   );
 }
 

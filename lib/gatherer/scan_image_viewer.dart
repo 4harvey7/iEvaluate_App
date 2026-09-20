@@ -9,11 +9,13 @@ import 'models/scan_task.dart';
 class ScanImageViewer extends StatelessWidget {
   final ScanTask task;
   final VoidCallback? onDelete;
+  final String? rejectionReason;
 
   const ScanImageViewer({
     super.key,
     required this.task,
     this.onDelete,
+    this.rejectionReason,
   });
 
   @override
@@ -49,11 +51,15 @@ class ScanImageViewer extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              task.status.name.toUpperCase(),
+              rejectionReason != null
+                  ? 'NOT A SAST FORM - REJECTED'
+                  : task.status.name.toUpperCase(),
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: _statusColor(task.status),
+                color: rejectionReason != null
+                    ? AppColors.error
+                    : _statusColor(task.status),
               ),
             ),
           ],
@@ -117,6 +123,33 @@ class ScanImageViewer extends StatelessWidget {
           },
         ),
       ),
+      bottomNavigationBar: rejectionReason != null && rejectionReason!.isNotEmpty
+          ? Container(
+              color: const Color(0xFF1A1A1A),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline_rounded,
+                        color: AppColors.error, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        rejectionReason!,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : null,
     );
   }
 

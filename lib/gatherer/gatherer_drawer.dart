@@ -3,7 +3,6 @@
 // Has navigation links, badge counts for failed scans and import errors,
 // and the logout button at the bottom. Importente kaayo this drawer.
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
@@ -38,32 +37,9 @@ class GathererDrawer extends StatefulWidget {
   State<GathererDrawer> createState() => _GathererDrawerState();
 }
 
-// the state — loads badge counts for failed scans and import errors
+// the state — drawer navigation and user actions
 class _GathererDrawerState extends State<GathererDrawer> {
-  final _supabase = Supabase.instance.client;
   final _authService = AuthService(); // for logout functionality
-
-  // badge counts — shown as little orange numbers on menu items
-  int _importErrorCount = 0; // import errors pending review
-
-  // load badge counts when drawer first opens
-  @override
-  void initState() {
-    super.initState();
-    _loadImportErrorCount(); // how many import errors need attention
-  }
-
-  // get count of pending import errors from the import_errors table
-  // shown as badge on the Import Errors menu item
-  Future<void> _loadImportErrorCount() async {
-    try {
-      final response = await _supabase
-          .from('import_errors')
-          .select('id')
-          .eq('status', 'pending');
-      if (mounted) setState(() => _importErrorCount = (response as List).length);
-    } catch (_) {} // silently fail — if this fail, badge just shows 0. bahala na.
-  }
 
 
   // build a single drawer menu item — list tile with icon, title, selected highlight, optional badge
@@ -151,28 +127,15 @@ class _GathererDrawerState extends State<GathererDrawer> {
           // ── Navigation Items ─────────────────────────────────────────
           
           // Google Sheet / Form Import
-          _buildDrawerItem(context, Icons.note_add_rounded, 'Google Sheet / Form Import', widget.currentIndex == 6, onTap: () {
+          _buildDrawerItem(context, Icons.note_add_rounded, 'Google Sheet / Form Import', widget.currentIndex == 5, onTap: () {
             Navigator.pop(context);
             if (widget.onImportTap != null) widget.onImportTap!();
           }),
 
-          // Import Errors — index 4
-          _buildDrawerItem(
-            context,
-            Icons.error_outline,
-            'Import Errors',
-            widget.currentIndex == 4,
-            badge: _importErrorCount,
-            onTap: () {
-              Navigator.pop(context);
-              widget.onMenuTap(4);
-            },
-          ),
-          
-          // Settings — index 5
-          _buildDrawerItem(context, Icons.settings, 'Settings', widget.currentIndex == 5, onTap: () {
+          // Settings — index 4
+          _buildDrawerItem(context, Icons.settings, 'Settings', widget.currentIndex == 4, onTap: () {
             Navigator.pop(context);
-            widget.onMenuTap(5);
+            widget.onMenuTap(4);
           }),
 
           const Divider(), // visual separator before logout

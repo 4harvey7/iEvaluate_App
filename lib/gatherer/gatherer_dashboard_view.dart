@@ -4,6 +4,7 @@
 // Also shows n8n status — is the automation server alive or naa bay problema?
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text_styles.dart';
 import '../widgets/apple_ui.dart';
 
 // pure StatelessWidget — all data is passed in from parent, no own state
@@ -52,10 +53,37 @@ class GathererDashboardView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            ApplePageHeader(
-              eyebrow: userRole,
-              title: 'Welcome, $userName',
-              subtitle: currentTerm,
+            AppleSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      userRole.toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('Welcome, $userName', style: AppTextStyles.displayMedium),
+                  const SizedBox(height: 6),
+                  Text(
+                    currentTerm,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 22),
 
@@ -97,7 +125,7 @@ class GathererDashboardView extends StatelessWidget {
                         Text('System Status: ',
                             style: TextStyle(fontSize: 12, color: AppColors.textPrimary.withValues(alpha: 0.7))),
                         if (checkingN8n)
-                          // tiny spinner while checking — murag kasagaran sa life
+                          // tiny spinner while checking
                           const SizedBox(
                             width: 10, height: 10,
                             child: CircularProgressIndicator(strokeWidth: 1.5, color: AppColors.primary),
@@ -115,12 +143,13 @@ class GathererDashboardView extends StatelessWidget {
                           const SizedBox(width: 4),
                           // small dot indicator — green or red
                           CircleAvatar(
-                              radius: 5,
+                              radius: 4,
                               backgroundColor: n8nOnline ? AppColors.success : AppColors.error),
-                          const SizedBox(width: 8),
-                          // hint to user that they can tap to refresh status
-                          Text('(tap to refresh)',
-                              style: TextStyle(fontSize: 10, color: AppColors.textSecondary.withValues(alpha: 0.6))),
+                          const SizedBox(width: 6),
+                          Text(
+                            '| Supabase/N8N',
+                            style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.7)),
+                          ),
                         ],
                       ],
                     ),

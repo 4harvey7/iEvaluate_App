@@ -88,6 +88,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
   // ── Blur Detection state ─────────────────────────────────────────────────────
   bool _isBlurry = false; // true if last captured image failed blur check
   bool _isCheckingBlur = false; // true while the capture is being analysed
+  bool _isDarkOrOccluded = false; // true if image is too dark or lens is occluded
   // What the document check made of the captured photo. Starts unknown, which
   // shows no badge — we only speak up once we have something to say.
   FormCheck _formCheck = FormCheck.unknown;
@@ -455,17 +456,25 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   // ── Preview actions ───────────────────────────────────────────────────────────
   // discard the captured image and return to camera — user wants to retake
-  void _retake() {
+  Future<void> _retake() async {
     _captureSession++; // invalidate any in-flight scan checks
     if (_capturedImagePath != null) {
       final f = File(_capturedImagePath!);
       if (f.existsSync()) try { f.deleteSync(); } catch (_) {} // delete the bad image file
     }
-    setState(() {
-      _capturedImagePath = null; // clear path = go back to camera view
-      _isBlurry = false; // reset blur state
-      _formCheck = FormCheck.unknown; // and forget the last document verdict
-    });
+    // TC-S03 Step 2: restore autofocus mode to auto and reset transient states
+    try {
+      await _controller?.setFocusMode(FocusMode.auto);
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _capturedImagePath = null; // clear path = go back to camera view
+        _isBlurry = false; // reset blur state
+        _isDarkOrOccluded = false;
+        _formCheck = FormCheck.unknown; // and forget the last document verdict
+        _focusPoint = null;
+      });
+    }
   }
 
   // Check the captured photo: is it sharp, and is it actually an SS Form 2?
@@ -484,6 +493,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
         setState(() {
           _isBlurry = result.isBlurry;
           _formCheck = result.form;
+          _isDarkOrOccluded = result.isDarkOrOccluded;
         });
         debugPrint('Scan analysis: $result');
       }
@@ -494,6 +504,30 @@ class _GathererScannerViewState extends State<GathererScannerView>
     }
   }
 
+  // TC-S03 step 5: lens occlusion or pitch dark photo confirmation
+  Future<bool> _confirmDarkOrOccluded() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Image Too Dark or Occluded'),
+        content: const Text(
+          'The camera lens appears to be covered or the image is too dark for OCR processing.\n\n'
+          'Tap RETAKE to try again with clear lighting, or QUEUE ANYWAY to proceed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('RETAKE'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('QUEUE ANYWAY'),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false;
+  }
 
   // TC-S03 step 2: a blurry image must not be silently queued.
   // This is a question, not a wall — the gatherer can still override — but the
@@ -533,6 +567,13 @@ class _GathererScannerViewState extends State<GathererScannerView>
   // a stable home that survives restarts, logouts, and OS path changes.
   Future<void> _acceptImage() async {
     if (_capturedImagePath == null) return;
+
+    // TC-S03 step 5: occluded or pitch dark check
+    if (_isDarkOrOccluded) {
+      final proceed = await _confirmDarkOrOccluded();
+      if (!proceed || !mounted) return;
+      if (_capturedImagePath == null) return;
+    }
 
     // TC-S03 step 2: blurry images need an explicit confirmation before queuing.
     // Checked before the form-check so both can be visible, but blur is the
@@ -590,6 +631,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
       setState(() {
         _capturedImagePath = null;
         _isBlurry = false;
+        _isDarkOrOccluded = false;
         _formCheck = FormCheck.unknown;
       });
       return;
@@ -605,6 +647,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
       _formCheck = FormCheck.unknown; // next capture starts with no verdict
       // Reset all transient capture state so the view is clean on return
       _isBlurry = false;
+      _isDarkOrOccluded = false;
       _isCheckingBlur = false;
       _isTakingPicture = false;
       _isFocusing = false;
@@ -1016,6 +1059,13 @@ class _GathererScannerViewState extends State<GathererScannerView>
                         label: 'ANALYZING SHARPNESS...',
                         color: Colors.white.withValues(alpha: 0.8),
                         isSpinning: true,
+                      )
+                    else if (_isDarkOrOccluded)
+                      // lens covered / pitch dark — TC-S03 step 5
+                      _BlurStatusTag(
+                        icon: Icons.brightness_2_rounded,
+                        label: 'IMAGE TOO DARK OR OCCLUDED',
+                        color: Colors.redAccent,
                       )
                     else if (_isBlurry)
                       // blur detected — warn user image may be unclear for OCR.
