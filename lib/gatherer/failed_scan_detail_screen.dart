@@ -1,17 +1,15 @@
 // lib/gatherer/failed_scan_detail_screen.dart
-// When OCR fail to properly read a scan, the scan ends up here.
-// This screen let user manually type in all the data that the machine couldnt read.
-// It like being the backup plan for when robot fail at their job.
+// Manual correction screen for scans flagged during OCR/OMR processing.
+// UI aligned with ImportErrorDetailScreen for a clean, consistent experience.
 import 'dart:async';
-// needed for jsonEncode in _submit()
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../core/services/automation_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../theme/app_colors.dart';
+import '../core/services/automation_service.dart';
 import '../core/services/scan_image_service.dart';
+import '../theme/app_colors.dart';
 
-// this screen takes one failed scan record and shows its data for correction
 class FailedScanDetailScreen extends StatefulWidget {
   final Map<String, dynamic> scan; // the failed scan record from Supabase
   const FailedScanDetailScreen({super.key, required this.scan});
@@ -20,51 +18,47 @@ class FailedScanDetailScreen extends StatefulWidget {
   State<FailedScanDetailScreen> createState() => _FailedScanDetailScreenState();
 }
 
-// the state — lots of controllers and autocomplete logic here
 class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
-  final _supabase = Supabase.instance.client; // database connection
+  final _supabase = Supabase.instance.client;
 
-  // Scan image loaded from Supabase (base64-decoded bytes from n8n_ocr_image column)
+  // ── Scanned Image ─────────────────────────────────────────────────────────
   Uint8List? _imageBytes;
-  bool _isLoadingImage = false; // true while fetching from DB
+  bool _isLoadingImage = false;
 
-  // Text field controllers — one per editable field
+  // ── Form Controllers ──────────────────────────────────────────────────────
   late TextEditingController _instructorCtrl;
   late TextEditingController _subjectCtrl;
   late TextEditingController _remarksCtrl;
   late TextEditingController _studentIdCtrl;
-  // map of score controllers — keys like 'm1', 'p5', etc.
-  late Map<String, TextEditingController> _scoreCtrlMap;
 
-  // Autocomplete — Instructor
-  // debounce so we dont query database on every keystroke like crazy
+  // 20 score controllers: m1-m10 and p1-p10
+  final Map<String, TextEditingController> _scoreCtrlMap = {};
+
+  // ── Autocomplete: Instructor ──────────────────────────────────────────────
   final FocusNode _instructorFocus = FocusNode();
-  List<Map<String, dynamic>> _instructorSuggestions = []; // dropdown suggestions
-  String? _selectedInstructorId; // set when user pick from suggestions — the actual ID
-  Timer? _instructorDebounce; // timer to delay search while user still typing
+  List<Map<String, dynamic>> _instructorSuggestions = [];
+  String? _selectedInstructorId;
+  Timer? _instructorDebounce;
 
-  // Autocomplete — Subject
-  // same debounce pattern as instructor — search after user stop typing for 300ms
+  // ── Autocomplete: Subject ─────────────────────────────────────────────────
   final FocusNode _subjectFocus = FocusNode();
   List<Map<String, dynamic>> _subjectSuggestions = [];
-  String? _selectedSubjectId; // set when user pick from suggestions
+  String? _selectedSubjectId;
   Timer? _subjectDebounce;
 
-  // Submission
-  bool _isSubmitting = false; // true while we POSTing to n8n — disable the button
+  // ── Action States ─────────────────────────────────────────────────────────
+  bool _isSubmitting = false;
+  bool _isDiscarding = false;
 
-  // n8n correction now goes through AutomationService → Supabase proxy
+  Map<String, dynamic> get _partial => (widget.scan['partial_data'] is Map)
+      ? Map<String, dynamic>.from(widget.scan['partial_data'] as Map)
+      : <String, dynamic>{};
 
-  // initialize everything — pre-fill fields from partial_data if available
   @override
   void initState() {
     super.initState();
 
-    // get partial_data map — this is what OCR managed to read before failing
-    final partial =
-        (widget.scan['partial_data'] is Map ? Map<String, dynamic>.from(widget.scan['partial_data'] as Map) : {});
-
-    // pre-fill text fields with partial OCR data — even wrong data help user know what to fix
+    final partial = _partial;
     _instructorCtrl =
         TextEditingController(text: partial['instructor']?.toString() ?? '');
     _subjectCtrl =
@@ -74,84 +68,27 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _studentIdCtrl =
         TextEditingController(text: partial['student_id']?.toString() ?? '');
 
-    // build the score controllers from partial ratings data
-    // n8n stores scores in multiple formats depending on the path:
-    //   1. nested:  partial.ratings.management[i].score / .performance[i].score
-    //   2. flat:    partial.M1 .. M10, P1 .. P10  (uppercase keys)
-    //   3. python:  partial.python_raw_ratings.M1 .. M10, P1 .. P10
-    _scoreCtrlMap = {};
-    final ratings = (partial['ratings'] is Map
-        ? Map<String, dynamic>.from(partial['ratings'] as Map)
-        : {}) as Map<String, dynamic>;
-    final mgmt = (ratings['management'] is List ? ratings['management'] as List : []);
-    final perf = (ratings['performance'] is List ? ratings['performance'] as List : []);
+    _initScores();
+    _loadScanImage();
 
-    // fallback flat maps — check top-level and python_raw_ratings
-    final pyRaw = (partial['python_raw_ratings'] is Map
-        ? Map<String, dynamic>.from(partial['python_raw_ratings'] as Map)
-        : <String, dynamic>{});
-
-    for (int i = 0; i < 10; i++) {
-      // Try nested format, flat uppercase, python_raw_ratings, scan scores, gemini scores
-      String mScore = '';
-      if (i < mgmt.length && mgmt[i]['score'] != null) {
-        mScore = mgmt[i]['score']?.toString() ?? '';
-      }
-      if (mScore.isEmpty) {
-        final flatM = partial['M${i + 1}'] ??
-            partial['m${i + 1}'] ??
-            pyRaw['M${i + 1}'] ??
-            pyRaw['m${i + 1}'] ??
-            widget.scan['m${i + 1}'] ??
-            widget.scan['M${i + 1}'] ??
-            (widget.scan['raw_scores'] is Map ? widget.scan['raw_scores']['m${i + 1}'] : null) ??
-            (partial['scores'] is Map ? partial['scores']['m${i + 1}'] : null) ??
-            (partial['gemini_scores'] is Map ? partial['gemini_scores']['M${i + 1}'] : null);
-        if (flatM != null) mScore = flatM.toString();
-      }
-
-      String pScore = '';
-      if (i < perf.length && perf[i]['score'] != null) {
-        pScore = perf[i]['score']?.toString() ?? '';
-      }
-      if (pScore.isEmpty) {
-        final flatP = partial['P${i + 1}'] ??
-            partial['p${i + 1}'] ??
-            pyRaw['P${i + 1}'] ??
-            pyRaw['p${i + 1}'] ??
-            widget.scan['p${i + 1}'] ??
-            widget.scan['P${i + 1}'] ??
-            (widget.scan['raw_scores'] is Map ? widget.scan['raw_scores']['p${i + 1}'] : null) ??
-            (partial['scores'] is Map ? partial['scores']['p${i + 1}'] : null) ??
-            (partial['gemini_scores'] is Map ? partial['gemini_scores']['P${i + 1}'] : null);
-        if (flatP != null) pScore = flatP.toString();
-      }
-
-      _scoreCtrlMap['m${i + 1}'] = TextEditingController(text: mScore);
-      _scoreCtrlMap['p${i + 1}'] = TextEditingController(text: pScore);
-    }
-
-    // Hide suggestions when focus leaves the field
-    // we delay 150ms so tap on suggestion register before list disappears
+    // Hide suggestions when focus leaves the fields
     _instructorFocus.addListener(() {
       if (!_instructorFocus.hasFocus) {
         Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) setState(() => _instructorSuggestions = []); // clear dropdown
+          if (mounted) setState(() => _instructorSuggestions = []);
         });
       }
     });
+
     _subjectFocus.addListener(() {
       if (!_subjectFocus.hasFocus) {
         Future.delayed(const Duration(milliseconds: 150), () {
-          if (mounted) setState(() => _subjectSuggestions = []); // clear dropdown
+          if (mounted) setState(() => _subjectSuggestions = []);
         });
       }
     });
-
-    _loadScanImage(); // fetch scan image from DB (n8n_ocr_image column)
   }
 
-  // clean up all controllers and subscriptions — very importente, memory leak kung dili
   @override
   void dispose() {
     _instructorFocus.dispose();
@@ -160,67 +97,239 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _subjectCtrl.dispose();
     _remarksCtrl.dispose();
     _studentIdCtrl.dispose();
-    _instructorDebounce?.cancel(); // cancel pending debounce timers
+    _instructorDebounce?.cancel();
     _subjectDebounce?.cancel();
     for (final c in _scoreCtrlMap.values) {
-      c.dispose(); // dispose all score controllers
+      c.dispose();
     }
     super.dispose();
   }
 
-  // ── Load scan image from Supabase ──────────────────────────────────────────
+  // ── Robust Score Extraction ───────────────────────────────────────────────
+  void _initScores() {
+    final partial = _partial;
+    final pyRaw = (partial['python_raw_ratings'] is Map
+        ? Map<String, dynamic>.from(partial['python_raw_ratings'] as Map)
+        : <String, dynamic>{});
+    final omrComp = widget.scan['omr_comparison'];
 
-  // fetches the scan image bytes via the new scan_error_images table.
-  // reads scan_image_id from the passed scan map, then delegates to
-  // ScanImageService which queries scan_error_images.image_base64.
-  // if scan_image_id is null or the row is missing, _imageBytes stays null
-  // and the image preview area stays hidden — no crash.
-  Future<void> _loadScanImage() async {
-    final scanImageId = widget.scan['scan_image_id']?.toString();
-
-    if (scanImageId == null || scanImageId.isEmpty) return; // no image for this record
-
-    if (mounted) setState(() => _isLoadingImage = true);
-    try {
-      final bytes = await ScanImageService.fetchScanImageBytes(
-        _supabase,
-        scanImageId,
-      );
-      if (mounted && bytes != null) {
-        setState(() => _imageBytes = bytes);
-      }
-    } finally {
-      if (mounted) setState(() => _isLoadingImage = false);
+    for (int i = 1; i <= 10; i++) {
+      final mScore = _extractScore('m', i, partial, pyRaw, omrComp);
+      final pScore = _extractScore('p', i, partial, pyRaw, omrComp);
+      _scoreCtrlMap['m$i'] = TextEditingController(text: mScore);
+      _scoreCtrlMap['p$i'] = TextEditingController(text: pScore);
     }
   }
 
+  String _extractScore(
+    String prefix,
+    int index,
+    Map<String, dynamic> partial,
+    Map<String, dynamic> pyRaw,
+    dynamic omrComparison,
+  ) {
+    final lowerKey = '$prefix$index'; // e.g. m1
+    final upperKey = '${prefix.toUpperCase()}$index'; // e.g. M1
+    final i0 = index - 1;
 
-  // ── Autocomplete — Instructor ───────────────────────────────────────────────
+    // Helper to normalize score (handles letter ratings and digits)
+    String normalize(dynamic val) {
+      if (val == null) return '';
+      final s = val.toString().trim();
+      if (s.isEmpty || s.toLowerCase() == 'blank' || s.toLowerCase() == 'null') {
+        return '';
+      }
+      const letters = {
+        'O': '5',
+        'VS': '4',
+        'S': '3',
+        'F': '2',
+        'US': '1',
+      };
+      final mapped = letters[s.toUpperCase()];
+      if (mapped != null) return mapped;
+      final numVal = int.tryParse(s);
+      if (numVal != null && numVal >= 1 && numVal <= 5) return '$numVal';
+      return '';
+    }
 
-  // called whenever user type in instructor field
-  // clears confirmed selection and starts debounce timer for search
+    // 1. Check partial.ratings
+    final ratings = partial['ratings'];
+    if (ratings is Map) {
+      if (ratings[lowerKey] != null) {
+        final res = normalize(ratings[lowerKey]);
+        if (res.isNotEmpty) return res;
+      }
+      if (ratings[upperKey] != null) {
+        final res = normalize(ratings[upperKey]);
+        if (res.isNotEmpty) return res;
+      }
+
+      // Check nested management / performance
+      final sec = prefix == 'm'
+          ? (ratings['management'] ?? ratings['Management'])
+          : (ratings['performance'] ?? ratings['Performance']);
+      if (sec is Map) {
+        if (sec[lowerKey] != null) {
+          final res = normalize(sec[lowerKey]);
+          if (res.isNotEmpty) return res;
+        }
+        if (sec[upperKey] != null) {
+          final res = normalize(sec[upperKey]);
+          if (res.isNotEmpty) return res;
+        }
+        if (sec['$index'] != null) {
+          final res = normalize(sec['$index']);
+          if (res.isNotEmpty) return res;
+        }
+      } else if (sec is List && i0 < sec.length) {
+        final item = sec[i0];
+        if (item is Map) {
+          final res = normalize(item['score'] ?? item['rating_name'] ?? item['answer']);
+          if (res.isNotEmpty) return res;
+        } else {
+          final res = normalize(item);
+          if (res.isNotEmpty) return res;
+        }
+      }
+    }
+
+    // 2. Check omr_comparison
+    List comparisonsList = [];
+    if (omrComparison is Map && omrComparison['comparisons'] is List) {
+      comparisonsList = omrComparison['comparisons'] as List;
+    } else if (omrComparison is List) {
+      comparisonsList = omrComparison;
+    }
+    for (final comp in comparisonsList) {
+      if (comp is Map) {
+        final q = comp['question']?.toString().toLowerCase();
+        if (q == lowerKey) {
+          final res = normalize(comp['used'] ?? comp['python'] ?? comp['gemini']);
+          if (res.isNotEmpty) return res;
+        }
+      }
+    }
+
+    // 3. Check partial_data flat fields
+    if (partial[lowerKey] != null) {
+      final res = normalize(partial[lowerKey]);
+      if (res.isNotEmpty) return res;
+    }
+    if (partial[upperKey] != null) {
+      final res = normalize(partial[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+
+    // 4. Check partial_data.scores
+    if (partial['scores'] is Map) {
+      final s = partial['scores'] as Map;
+      final res = normalize(s[lowerKey] ?? s[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+
+    // 5. Check python_raw_ratings
+    if (pyRaw[lowerKey] != null) {
+      final res = normalize(pyRaw[lowerKey]);
+      if (res.isNotEmpty) return res;
+    }
+    if (pyRaw[upperKey] != null) {
+      final res = normalize(pyRaw[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+
+    // 6. Check gemini_scores
+    if (partial['gemini_scores'] is Map) {
+      final g = partial['gemini_scores'] as Map;
+      final res = normalize(g[lowerKey] ?? g[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+
+    // 7. Check top-level widget.scan
+    if (widget.scan[lowerKey] != null) {
+      final res = normalize(widget.scan[lowerKey]);
+      if (res.isNotEmpty) return res;
+    }
+    if (widget.scan[upperKey] != null) {
+      final res = normalize(widget.scan[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+    if (widget.scan['raw_scores'] is Map) {
+      final rs = widget.scan['raw_scores'] as Map;
+      final res = normalize(rs[lowerKey] ?? rs[upperKey]);
+      if (res.isNotEmpty) return res;
+    }
+
+    return '';
+  }
+
+  // ── Image Loading (Direct Base64 + scan_error_images) ─────────────────────
+  Future<void> _loadScanImage() async {
+    // 1. Direct base64 string from n8n_ocr_image or scan_image
+    final direct = widget.scan['n8n_ocr_image'] ??
+        widget.scan['scan_image'] ??
+        widget.scan['image_base64'];
+    if (direct is String && direct.trim().isNotEmpty) {
+      try {
+        final cleanB64 = direct.trim().replaceFirst(RegExp(r'^data:image\/[^;]+;base64,'), '');
+        final bytes = base64Decode(cleanB64);
+        if (mounted) setState(() => _imageBytes = bytes);
+        return;
+      } catch (e) {
+        debugPrint('[FailedScanDetail] Direct base64 error: $e');
+      }
+    }
+
+    // 2. Fetch via scan_image_id from scan_error_images
+    final scanImageId = widget.scan['scan_image_id']?.toString();
+    if (scanImageId != null && scanImageId.isNotEmpty) {
+      setState(() => _isLoadingImage = true);
+      try {
+        final bytes = await ScanImageService.fetchScanImageBytes(_supabase, scanImageId);
+        if (mounted && bytes != null) {
+          setState(() => _imageBytes = bytes);
+          return;
+        }
+      } finally {
+        if (mounted) setState(() => _isLoadingImage = false);
+      }
+    }
+
+    // 3. Fallback: check partial_data
+    final partial = _partial;
+    final partialImg = partial['scan_image'] ??
+        partial['image_base64'] ??
+        partial['n8n_ocr_image'];
+    if (partialImg is String && partialImg.trim().isNotEmpty) {
+      try {
+        final cleanB64 = partialImg.trim().replaceFirst(RegExp(r'^data:image\/[^;]+;base64,'), '');
+        final bytes = base64Decode(cleanB64);
+        if (mounted) setState(() => _imageBytes = bytes);
+        return;
+      } catch (_) {}
+    }
+  }
+
+  // ── Autocomplete: Instructor ──────────────────────────────────────────────
   void _onInstructorChanged(String query) {
-    _selectedInstructorId = null; // user is editing — clear confirmed selection
-    _instructorDebounce?.cancel(); // cancel previous debounce, start fresh
+    _selectedInstructorId = null;
+    _instructorDebounce?.cancel();
     if (query.trim().length < 2) {
-      setState(() => _instructorSuggestions = []); // less than 2 chars, dont search yet
+      setState(() => _instructorSuggestions = []);
       return;
     }
-    // wait 300ms after last keystroke before querying — saves database calls
     _instructorDebounce = Timer(const Duration(milliseconds: 300), () {
       _searchInstructors(query.trim());
     });
   }
 
-  // search supabase for instructors matching the query — up to 6 results
-  // matches on first_name OR last_name (case insensitive)
   Future<void> _searchInstructors(String query) async {
     try {
       final results = await _supabase
           .from('user_info')
           .select('id, first_name, last_name')
-          .or('first_name.ilike.%$query%,last_name.ilike.%$query%') // partial match both names
-          .limit(6); // dont return too many, 6 is enough
+          .or('first_name.ilike.%$query%,last_name.ilike.%$query%')
+          .limit(6);
       if (mounted) {
         setState(() {
           _instructorSuggestions =
@@ -228,27 +337,24 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Instructor search error: $e'); // search fail, just show nothing
+      debugPrint('[FailedScanDetail] Instructor search error: $e');
     }
   }
 
-  // user tapped on an instructor suggestion — fill the field and save the ID
   void _selectInstructor(Map<String, dynamic> item) {
     final name =
         '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim();
     setState(() {
-      _instructorCtrl.text = name; // show full name in the text field
-      _selectedInstructorId = item['id']?.toString(); // store ID for submission
-      _instructorSuggestions = []; // hide suggestions dropdown
+      _instructorCtrl.text = name;
+      _selectedInstructorId = item['id']?.toString();
+      _instructorSuggestions = [];
     });
-    _instructorFocus.unfocus(); // dismiss keyboard
+    _instructorFocus.unfocus();
   }
 
-  // ── Autocomplete — Subject ─────────────────────────────────────────────────
-
-  // called whenever user type in subject field — same debounce pattern as instructor
+  // ── Autocomplete: Subject ─────────────────────────────────────────────────
   void _onSubjectChanged(String query) {
-    _selectedSubjectId = null; // clear confirmed selection on edit
+    _selectedSubjectId = null;
     _subjectDebounce?.cancel();
     if (query.trim().length < 2) {
       setState(() => _subjectSuggestions = []);
@@ -259,7 +365,6 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     });
   }
 
-  // search supabase for subjects matching code or name — up to 6 results
   Future<void> _searchSubjects(String query) async {
     try {
       final results = await _supabase
@@ -274,89 +379,23 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Subject search error: $e');
+      debugPrint('[FailedScanDetail] Subject search error: $e');
     }
   }
 
-  // user tapped on a subject suggestion — fill field with "CODE — Name" format
   void _selectSubject(Map<String, dynamic> item) {
     final display =
         '${item['subject_code'] ?? ''} — ${item['subject_name'] ?? ''}'.trim();
     setState(() {
-      _subjectCtrl.text = display; // show formatted subject string
-      _selectedSubjectId = item['id']?.toString(); // store ID for submission
+      _subjectCtrl.text = display;
+      _selectedSubjectId = item['id']?.toString();
       _subjectSuggestions = [];
     });
     _subjectFocus.unfocus();
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
-
-  // collect all the corrected data and POST it to n8n for processing
-  // n8n will then re-run the evaluation pipeline with the manual corrections
-  Future<void> _submit() async {
-    setState(() => _isSubmitting = true); // disable button, show loading
-    try {
-      // collect all 20 score values — default to 0 if empty or not a number
-      final scores = <String, int>{};
-      for (int i = 1; i <= 10; i++) {
-        scores['m$i'] = int.tryParse(_scoreCtrlMap['m$i']?.text ?? '') ?? 0;
-        scores['p$i'] = int.tryParse(_scoreCtrlMap['p$i']?.text ?? '') ?? 0;
-      }
-
-      // build the complete payload — all the corrected data plus metadata
-      final payload = <String, dynamic>{
-        'failed_scan_id':   widget.scan['id'], // which failed scan we correcting
-        'task_id':          widget.scan['task_id'],
-        'user_id':          widget.scan['user_id'],
-        'term_id':          widget.scan['term_id'],
-        'instructor':       _instructorCtrl.text.trim(),
-        'instructor_id':    _selectedInstructorId, // null if user typed manually without picking suggestion
-        'subject':          _subjectCtrl.text.trim(),
-        'subject_id':       _selectedSubjectId, // null if user typed manually
-        'remarks':          _remarksCtrl.text.trim(),
-        'student_id':       _studentIdCtrl.text.trim(),
-        ...scores, // spread all 20 score key-values directly into payload
-        'manually_corrected':  true, // flag so n8n knows this came from human correction
-        'validation_status':   'corrected',
-        'correction_source':   'manual_text',
-        'timestamp': DateTime.now().toIso8601String(),
-      };
-
-      // Route through AutomationService → Supabase n8n-proxy
-      final result = await AutomationService.instance.submitManualCorrection(payload);
-
-      if (result.isSuccess) {
-        // n8n accepted the correction — go back to list
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Submitted! n8n is processing the correction.'),
-            backgroundColor: AppColors.success,
-          ));
-          Navigator.pop(context); // return to failed scans list
-        }
-      } else {
-        // n8n rejected it — show error with status and body for debugging
-        throw Exception('n8n returned ${result.statusCode}: ${result.errorMessage}');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Error submitting: $e'),
-          backgroundColor: AppColors.error,
-        ));
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false); // re-enable button
-    }
-  }
-
-  // ── Discard ────────────────────────────────────────────────────────────────
-
-  // ask user to confirm, then mark the failed scan as 'discarded' in supabase
-  // once discarded, it disappear from the failed scans list — permanent action
+  // ── Discard ───────────────────────────────────────────────────────────────
   Future<void> _discard() async {
-    // show confirm dialog — this permanent, so ask twice basically
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -369,49 +408,107 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             style: TextStyle(color: AppColors.textSecondary)),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context, false), // cancel, go back
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-            onPressed: () => Navigator.pop(context, true), // confirmed discard
+              backgroundColor: AppColors.error,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Discard', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
-    if (confirmed != true) return; // user cancel or dismiss — do nothing
+    if (confirmed != true) return;
+
+    setState(() => _isDiscarding = true);
     try {
-      // update the status to 'discarded' — we dont actually delete, just mark it
       await _supabase
           .from('failed_scan_queue')
           .update({'status': 'discarded'}).eq('id', widget.scan['id']);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Scan discarded.')));
-        Navigator.pop(context); // return to failed scans list
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Scan discarded.'), backgroundColor: AppColors.success),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDiscarding = false);
+    }
+  }
+
+  // ── Submit Correction ─────────────────────────────────────────────────────
+  Future<void> _submit() async {
+    setState(() => _isSubmitting = true);
+    try {
+      final scores = <String, int>{};
+      for (int i = 1; i <= 10; i++) {
+        scores['m$i'] = int.tryParse(_scoreCtrlMap['m$i']?.text ?? '') ?? 0;
+        scores['p$i'] = int.tryParse(_scoreCtrlMap['p$i']?.text ?? '') ?? 0;
+      }
+
+      final payload = <String, dynamic>{
+        'failed_scan_id': widget.scan['id'],
+        'task_id': widget.scan['task_id'],
+        'user_id': widget.scan['user_id'],
+        'term_id': widget.scan['term_id'],
+        'instructor': _instructorCtrl.text.trim(),
+        'instructor_id': _selectedInstructorId,
+        'subject': _subjectCtrl.text.trim(),
+        'subject_id': _selectedSubjectId,
+        'remarks': _remarksCtrl.text.trim(),
+        'student_id': _studentIdCtrl.text.trim(),
+        ...scores,
+        'manually_corrected': true,
+        'validation_status': 'corrected',
+        'correction_source': 'manual_text',
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+
+      final result = await AutomationService.instance.submitManualCorrection(payload);
+
+      if (result.isSuccess) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Submitted! Correction is being processed.'),
+            backgroundColor: AppColors.success,
+          ));
+          Navigator.pop(context);
+        }
+      } else {
+        throw Exception('Server returned ${result.statusCode}: ${result.errorMessage}');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error: $e'), backgroundColor: AppColors.error));
+          content: Text('Error submitting: $e'),
+          backgroundColor: AppColors.error,
+        ));
       }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
-
-  // build the entire screen — appbar, failure banner, image preview, form, submit bar
+  // ── Build Screen ──────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final taskId = widget.scan['task_id']?.toString() ?? 'Unknown'; // shown in AppBar subtitle
-    final tableFound = widget.scan['table_found'] == true; // was a table detected?
-    final gridSource = widget.scan['grid_source']?.toString() ?? 'fallback'; // how OCR made the grid
+    final taskId = widget.scan['task_id']?.toString() ?? 'Unknown';
+    final tableFound = widget.scan['table_found'] == true;
+    final gridSource = widget.scan['grid_source']?.toString() ?? 'fallback';
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      resizeToAvoidBottomInset: true, // resize when keyboard open so fields not hidden
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: AppColors.surface,
         elevation: 0,
@@ -419,33 +516,45 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Correct Failed Scan',
-                style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold)),
-            Text(taskId, // show which scan task this is
-                style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 11),
-                overflow: TextOverflow.ellipsis),
+            const Text(
+              'Correct Failed Scan',
+              style: TextStyle(
+                color: AppColors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              '📷 $taskId',
+              style: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 11),
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
         actions: [
-          // discard button in top-right — red because destructive action
           TextButton.icon(
-            icon: const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
-            label: const Text('Discard',
-                style: TextStyle(
-                    color: AppColors.error, fontWeight: FontWeight.bold)),
-            onPressed: _discard, // triggers confirmation dialog first
+            icon: _isDiscarding
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.error,
+                    ),
+                  )
+                : const Icon(Icons.delete_outline, color: AppColors.error, size: 18),
+            label: const Text(
+              'Discard',
+              style: TextStyle(
+                color: AppColors.error,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            onPressed: _isDiscarding ? null : _discard,
           ),
         ],
       ),
       body: Column(
         children: [
-          // ── Scrollable form (banner + image + fields all scroll together) ──
-          // Moving banner and image INSIDE the scroll so keyboard doesn't crush them.
-          // resizeToAvoidBottomInset: true on Scaffold already pushes the whole body
-          // up when the keyboard appears — no extra AnimatedPadding needed.
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.only(
@@ -455,230 +564,272 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── Failure banner ────────────────────────────────────
+                  // 1. Failure Message Banner right at the top
                   _buildFailureBanner(tableFound, gridSource),
 
-                  // ── Scan image preview ────────────────────────────────
-                  _buildImagesRow(),
+                  // 2. Scanned Form Image (Clean preview + zoom)
+                  _buildImageSection(),
 
-                  // ── Form fields ───────────────────────────────────────
+                  // 3. Content Form with cards matching Fix Import Error
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const SizedBox(height: 16),
+
+                        // Original Data Reference Card
+                        _buildOriginalDataCard(),
+                        const SizedBox(height: 20),
+
+                        // Correction Section Heading
                         const Text(
-                          'Fill in or correct the fields below. Tap a suggestion to auto-fill.',
-                          style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                          'Correct the Scan Data',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Search and select the correct instructor and subject, or adjust any scores detected below.',
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         ),
                         const SizedBox(height: 16),
 
-                        // Instructor with autocomplete — type 2+ chars to search
+                        // Autocomplete fields
                         _buildInstructorField(),
-
-                        // Subject with autocomplete — same pattern
                         _buildSubjectField(),
 
-                        // Other fields — remarks and student ID, no autocomplete
-                        _buildSimpleField('Remarks & Suggestions', _remarksCtrl,
-                            maxLines: 3),
+                        // Additional fields
+                        _buildSimpleField('Remarks & Suggestions', _remarksCtrl, maxLines: 3),
                         _buildSimpleField('Student ID', _studentIdCtrl,
                             keyboardType: TextInputType.number, digitsOnly: true),
 
-                        const SizedBox(height: 24),
+                        // OMR Disagreement / Comparison Details (if available)
+                        _buildOmrComparisonSection(),
 
-                        // Management scores — 10 small inputs in a grid
-                        _buildScoreSection('Management Scores (M1–M10)', 'm'),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
-                        // Performance scores — another 10
-                        _buildScoreSection('Performance Scores (P1–P10)', 'p'),
+                        // Editable Scores Card matching ImportErrorDetailScreen
+                        _buildScoresEditable(),
+
                         const SizedBox(height: 20),
                       ],
                     ),
                   ),
                 ],
               ),
-            ),   // SingleChildScrollView
-          ),     // Expanded
-          _buildSubmitBar(), // sticky submit button at the bottom
+            ),
+          ),
+
+          // Sticky bottom submit bar
+          _buildSubmitBar(),
         ],
       ),
     );
   }
 
-  // ── Failure banner ─────────────────────────────────────────────────────────
-
-  // show what kind of failure this scan had — helps user understand context
-  // orange = table found but grid detection failed (less severe)
-  // red = no table detected at all (more severe, data less reliable)
+  // ── 1. Top Failure Message Banner ─────────────────────────────────────────
   Widget _buildFailureBanner(bool tableFound, String gridSource) {
-    final color = tableFound ? AppColors.warning : AppColors.error;
-    final icon = tableFound ? Icons.grid_off_rounded : Icons.crop_free;
-
-    // parse partial_data to check for review_note — same pattern used in initState
-    final partial = (widget.scan['partial_data'] is Map
-        ? Map<String, dynamic>.from(widget.scan['partial_data'] as Map)
-        : <String, dynamic>{});
-    final reviewNote = partial['review_note']?.toString() ?? '';
-
-    // build primary message from review_reasons, or fall back to generic
     final rawReasons = widget.scan['review_reasons'];
-    final reasonsList = (rawReasons is List && rawReasons.isNotEmpty)
-        ? rawReasons
-        : null;
+    final reasonsList = (rawReasons is List && rawReasons.isNotEmpty) ? rawReasons : null;
+
+    final isOmrDispute = reasonsList?.any((r) => r.toString().toLowerCase().contains('omr')) ?? false;
+    final color = (!tableFound) ? AppColors.error : (isOmrDispute ? AppColors.indigo : AppColors.warning);
+    final icon = (!tableFound)
+        ? Icons.crop_free
+        : (isOmrDispute ? Icons.fact_check_outlined : Icons.grid_off_rounded);
+
+    final partial = _partial;
+    final reviewNote = partial['review_note']?.toString() ?? '';
 
     final String msg;
     if (reasonsList != null) {
-      msg = reasonsList
-          .map((r) {
-            final raw = r.toString();
-            final s = (raw.contains(':') ? raw.substring(0, raw.indexOf(':')).trim() : raw)
-                .replaceAll('_', ' ');
-            return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
-          })
-          .join(' • ');
+      msg = reasonsList.map((r) {
+        final raw = r.toString();
+        final s = (raw.contains(':') ? raw.substring(0, raw.indexOf(':')).trim() : raw)
+            .replaceAll('_', ' ');
+        return s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+      }).join(' • ');
     } else {
       msg = tableFound
-          ? 'Grid lines not detected — fallback grid was used. Scores may be wrong.'
-          : 'Table/corners NOT found — OCR used a proportional crop estimate. All data needs verification.';
+          ? 'Grid lines not detected — fallback grid was used. Scores need human review.'
+          : 'Table corners NOT found — proportional crop was used. All fields require verification.';
     }
 
-    final String displayText =
-        reviewNote.isNotEmpty ? '$msg\nDetails: $reviewNote' : msg;
+    final String displayText = reviewNote.isNotEmpty ? '$msg\nDetails: $reviewNote' : msg;
 
     return Container(
       width: double.infinity,
-      color: color.withValues(alpha: 0.12), // subtle colored background
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: color.withValues(alpha: 0.08),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 16),
-          const SizedBox(width: 8),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 10),
           Expanded(
-              child: Text(displayText,
-                  style: TextStyle(
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500))),
+            child: Text(
+              displayText,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.5,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  // ── Images row (zoom only, no crop) ───────────────────────────────────────
-
-  // show the original scan image so user can see what they correcting
-  // image comes from failed_scan_queue.n8n_ocr_image (base64, stored by n8n)
-  // user can tap to zoom in for better inspection — useful for small scores
-  Widget _buildImagesRow() {
-    // still loading from DB — show a compact spinner
-    if (_isLoadingImage) {
-      return Container(
-        color: AppColors.surface,
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: const Center(
-          child: SizedBox(
-            width: 22, height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
-      );
-    }
-
-    if (_imageBytes == null) return const SizedBox.shrink(); // no image available
-
+  // ── 2. Scanned Image Section ──────────────────────────────────────────────
+  Widget _buildImageSection() {
     return Container(
       color: AppColors.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: GestureDetector(
-        onTap: () => _showZoomedImage(
-          Image.memory(_imageBytes!, fit: BoxFit.contain),
-          'Original Scan',
-        ),
-        child: Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.memory(
-                _imageBytes!,
-                width: double.infinity,
-                height: 110, // compact preview height
-                fit: BoxFit.cover,
-              ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Scanned Form Image',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
-            // "tap to zoom" label overlay — so user know it tappable
+          ),
+          const SizedBox(height: 6),
+          if (_isLoadingImage)
             Container(
-              margin: const EdgeInsets.all(6),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              height: 130,
               decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderHairline),
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
+              child: const Center(
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+              ),
+            )
+          else if (_imageBytes != null)
+            GestureDetector(
+              onTap: () => _showZoomedImage(_imageBytes!),
+              child: Stack(
+                alignment: Alignment.bottomRight,
                 children: [
-                  Icon(Icons.zoom_in, color: Colors.white, size: 14),
-                  SizedBox(width: 4),
-                  Text('Tap to zoom',
-                      style: TextStyle(color: Colors.white, fontSize: 11)),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.memory(
+                      _imageBytes!,
+                      width: double.infinity,
+                      height: 130,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  Container(
+                    margin: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Tap to zoom',
+                          style: TextStyle(color: Colors.white, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
+            )
+          else
+            Container(
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderHairline),
+              ),
+              child: const Center(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.image_not_supported_outlined,
+                        color: AppColors.textTertiary, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      'Image preview not available',
+                      style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
-
-  // show image in a fullscreen zoomable dialog — InteractiveViewer allow pinch-zoom
-  void _showZoomedImage(Image image, String title) {
+  void _showZoomedImage(Uint8List bytes) {
     showDialog(
       context: context,
-      barrierColor: Colors.black87, // dark backdrop
+      barrierColor: Colors.black87,
       builder: (_) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: const EdgeInsets.all(12),
         child: Stack(
           children: [
             InteractiveViewer(
-              minScale: 0.5, // can zoom out a bit
-              maxScale: 8.0, // up to 8x zoom — enough to read small scores
+              minScale: 0.5,
+              maxScale: 8.0,
               child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12), child: image),
+                borderRadius: BorderRadius.circular(12),
+                child: Image.memory(bytes, fit: BoxFit.contain),
+              ),
             ),
-            // close button in top-right
             Positioned(
-              top: 0, right: 0,
+              top: 0,
+              right: 0,
               child: GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
                   decoration: const BoxDecoration(
-                      color: Colors.black54, shape: BoxShape.circle),
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
                   padding: const EdgeInsets.all(8),
                   child: const Icon(Icons.close, color: Colors.white, size: 20),
                 ),
               ),
             ),
-            // title + zoom hint at the bottom of the image
             Positioned(
-              bottom: 0, left: 0, right: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: const BoxDecoration(
                   color: Colors.black45,
                   borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12)),
+                    bottomLeft: Radius.circular(12),
+                    bottomRight: Radius.circular(12),
+                  ),
                 ),
-                child: Text('$title  •  Pinch to zoom',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                child: const Text(
+                  'Scanned Form  •  Pinch to zoom',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
               ),
             ),
           ],
@@ -687,10 +838,317 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
-  // ── Autocomplete fields ────────────────────────────────────────────────────
+  // ── 3. Original Data Reference Card ───────────────────────────────────────
+  Widget _buildOriginalDataCard() {
+    final partial = _partial;
+    final instructor = partial['instructor']?.toString() ?? '—';
+    final subject = partial['subject']?.toString() ?? '—';
+    final studentId = partial['student_id']?.toString() ?? '';
+    final remarks = partial['remarks']?.toString() ?? '';
+    final gridSource = widget.scan['grid_source']?.toString() ?? 'auto-detected';
+    final tableFound = widget.scan['table_found'] == true;
 
-  // build the instructor text field plus its suggestion dropdown
-  // the check icon suffix appear when user pick from suggestions (confirming ID selected)
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderHairline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.document_scanner_outlined,
+                color: AppColors.primary,
+                size: 16,
+              ),
+              SizedBox(width: 6),
+              Text(
+                'Original Data from Scan',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 16),
+          _dataRow('Instructor (detected)', instructor),
+          _dataRow('Subject (detected)', subject),
+          if (studentId.isNotEmpty) _dataRow('Student ID', studentId),
+          if (remarks.isNotEmpty) _dataRow('Remarks', remarks),
+          _dataRow(
+            'Table / Grid Detection',
+            tableFound ? 'Table found ($gridSource)' : 'Table not found ($gridSource)',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dataRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 145,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── 4. OMR Disagreement / Comparison Details ──────────────────────────────
+  Widget _buildOmrComparisonSection() {
+    final omrComp = widget.scan['omr_comparison'];
+    List comparisons = [];
+    if (omrComp is Map && omrComp['comparisons'] is List) {
+      comparisons = omrComp['comparisons'] as List;
+    } else if (omrComp is List) {
+      comparisons = omrComp;
+    }
+
+    // Filter to rows with disputes or weak confidence
+    final conflicts = comparisons.where((c) {
+      if (c is! Map) return false;
+      final p = c['python'];
+      final g = c['gemini'];
+      final weak = c['python_weak'] == true;
+      return (p != null && g != null && p != g) || weak;
+    }).toList();
+
+    if (conflicts.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.indigo.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.compare_arrows_rounded, size: 16, color: AppColors.indigo),
+              const SizedBox(width: 6),
+              const Text(
+                'OMR Engine Cross-Check Details',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.indigo.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${conflicts.length} disputed',
+                  style: const TextStyle(
+                    color: AppColors.indigo,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Python OMR and Gemini AI disagreed on the following bubble rows. Reconciled values were pre-filled below for your review:',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+          ),
+          const SizedBox(height: 10),
+          ...conflicts.map((c) {
+            final q = (c['question']?.toString() ?? '').toUpperCase();
+            final p = c['python']?.toString() ?? 'blank';
+            final g = c['gemini']?.toString() ?? 'blank';
+            final used = c['used']?.toString() ?? '—';
+            final isWeak = c['python_weak'] == true;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.borderHairline),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.indigo.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      q,
+                      style: const TextStyle(
+                        color: AppColors.indigo,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text('Python: $p', style: const TextStyle(fontSize: 11, color: AppColors.textPrimary)),
+                  const SizedBox(width: 8),
+                  Text('Gemini: $g', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                  const Spacer(),
+                  Text('Used: $used', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  if (isWeak) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warning),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ── 5. Editable Scores Card (Matching ImportErrorDetailScreen) ─────────────
+  Widget _buildScoresEditable() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.edit_note, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              const Text(
+                'Scores (editable — from Scan)',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  'Tap to edit',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _sectionLabel('Management (M1 – M10)'),
+          const SizedBox(height: 8),
+          _scoreGridEditable('m'),
+          const SizedBox(height: 14),
+          _sectionLabel('Performance (P1 – P10)'),
+          const SizedBox(height: 8),
+          _scoreGridEditable('p'),
+        ],
+      ),
+    );
+  }
+
+  Widget _scoreGridEditable(String prefix) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 5,
+        childAspectRatio: 1.1,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: 10,
+      itemBuilder: (_, i) {
+        final key = '$prefix${i + 1}';
+        return TextField(
+          controller: _scoreCtrlMap[key],
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[1-5]')),
+            LengthLimitingTextInputFormatter(1),
+          ],
+          decoration: InputDecoration(
+            labelText: key.toUpperCase(),
+            labelStyle: const TextStyle(fontSize: 10),
+            filled: true,
+            fillColor: AppColors.surface,
+            contentPadding: EdgeInsets.zero,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.borderSubtle),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            ),
+          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        );
+      },
+    );
+  }
+
+  Widget _sectionLabel(String text) => Text(
+        text,
+        style: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+
+  // ── Autocomplete Input Widgets ─────────────────────────────────────────────
   Widget _buildInstructorField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -698,62 +1156,39 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         TextField(
           controller: _instructorCtrl,
           focusNode: _instructorFocus,
-          onChanged: _onInstructorChanged, // trigger debounce search on each change
+          onChanged: _onInstructorChanged,
           textCapitalization: TextCapitalization.words,
           decoration: _inputDecoration(
-            label: 'Instructor Name',
-            prefix: Icons.person_outline,
-            // green check when instructor ID is confirmed via suggestion selection
+            label: 'Correct Instructor Name',
+            prefix: Icons.person_search_outlined,
             suffix: _selectedInstructorId != null
-                ? const Icon(Icons.check_circle,
-                    color: AppColors.success, size: 18)
+                ? const Icon(Icons.check_circle, color: AppColors.success, size: 20)
                 : null,
           ),
         ),
-        // show suggestion card only when there are suggestions
         if (_instructorSuggestions.isNotEmpty)
           _buildSuggestionCard(
             _instructorSuggestions,
             itemBuilder: (item) => Row(
               children: [
-                // avatar circle with initials
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      _initials(item['first_name'], item['last_name']), // e.g. "JD"
-                      style: const TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12),
-                    ),
-                  ),
-                ),
+                _avatar(_initials(item['first_name'], item['last_name'])),
                 const SizedBox(width: 12),
                 Flexible(
                   child: Text(
                     '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim(),
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 14),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            onTap: _selectInstructor, // user pick this instructor
+            onTap: _selectInstructor,
           ),
         const SizedBox(height: 14),
       ],
     );
   }
 
-  // build the subject text field plus its suggestion dropdown
-  // shows subject code prominently since that the key identifier
   Widget _buildSubjectField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,13 +1197,12 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           controller: _subjectCtrl,
           focusNode: _subjectFocus,
           onChanged: _onSubjectChanged,
-          textCapitalization: TextCapitalization.characters, // course codes usually uppercase
+          textCapitalization: TextCapitalization.characters,
           decoration: _inputDecoration(
-            label: 'Subject / Course Code',
+            label: 'Correct Subject / Course Code',
             prefix: Icons.book_outlined,
             suffix: _selectedSubjectId != null
-                ? const Icon(Icons.check_circle,
-                    color: AppColors.success, size: 18)
+                ? const Icon(Icons.check_circle, color: AppColors.success, size: 20)
                 : null,
           ),
         ),
@@ -777,10 +1211,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             _subjectSuggestions,
             itemBuilder: (item) => Row(
               children: [
-                // subject code chip — colored box
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -788,17 +1220,17 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                   child: Text(
                     item['subject_code']?.toString() ?? '',
                     style: const TextStyle(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12),
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     item['subject_name']?.toString() ?? '',
-                    style: const TextStyle(
-                        color: AppColors.textPrimary, fontSize: 13),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -811,8 +1243,6 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
-  // build the dropdown suggestion card container
-  // shown below a text field when there are autocomplete matches
   Widget _buildSuggestionCard(
     List<Map<String, dynamic>> items, {
     required Widget Function(Map<String, dynamic>) itemBuilder,
@@ -826,9 +1256,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 4)) // small shadow to lift it above content
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: ClipRRect(
@@ -837,18 +1268,17 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           children: items.asMap().entries.map((entry) {
             final isLast = entry.key == items.length - 1;
             return InkWell(
-              onTap: () => onTap(entry.value), // user tap this suggestion
+              onTap: () => onTap(entry.value),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
                   border: isLast
-                      ? null // no border on last item
-                      : Border(
-                          bottom: BorderSide(
-                              color: AppColors.borderSubtle, width: 0.8)), // divider between items
+                      ? null
+                      : const Border(
+                          bottom: BorderSide(color: AppColors.borderSubtle, width: 0.8),
+                        ),
                 ),
-                child: itemBuilder(entry.value), // render the item content
+                child: itemBuilder(entry.value),
               ),
             );
           }).toList(),
@@ -857,29 +1287,26 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     );
   }
 
-  // ── Simple fields ──────────────────────────────────────────────────────────
-
-  // helper to build a simple text field with optional multiline, keyboard type, digits-only filter
-  Widget _buildSimpleField(String label, TextEditingController ctrl,
-      {int maxLines = 1,
-      TextInputType keyboardType = TextInputType.text,
-      bool digitsOnly = false}) {
+  Widget _buildSimpleField(
+    String label,
+    TextEditingController ctrl, {
+    int maxLines = 1,
+    TextInputType keyboardType = TextInputType.text,
+    bool digitsOnly = false,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
         controller: ctrl,
         maxLines: maxLines,
         keyboardType: keyboardType,
-        inputFormatters:
-            digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null, // enforce numbers only if needed
+        inputFormatters: digitsOnly ? [FilteringTextInputFormatter.digitsOnly] : null,
         decoration: _inputDecoration(label: label),
       ),
     );
   }
 
-  // shared input decoration — consistent look across all fields in this screen
-  InputDecoration _inputDecoration(
-      {required String label, IconData? prefix, Widget? suffix}) {
+  InputDecoration _inputDecoration({required String label, IconData? prefix, Widget? suffix}) {
     return InputDecoration(
       labelText: label,
       prefixIcon: prefix != null ? Icon(prefix, size: 18) : null,
@@ -887,94 +1314,18 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       filled: true,
       fillColor: AppColors.surface,
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.borderSubtle),
+      ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 2), // blue border when focused
+        borderSide: const BorderSide(color: AppColors.primary, width: 2),
       ),
     );
   }
 
-  // ── Score grids ────────────────────────────────────────────────────────────
-
-  // build a section with title and 5x2 grid of score input fields
-  // prefix 'm' for management, 'p' for performance
-  Widget _buildScoreSection(String title, String prefix) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 14)),
-        const SizedBox(height: 10),
-        GridView.builder(
-          shrinkWrap: true, // dont take extra space
-          physics: const NeverScrollableScrollPhysics(), // parent scroll handles scrolling
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 5, // 5 columns
-            childAspectRatio: 0.82,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-          ),
-          itemCount: 10, // always 10 scores
-          itemBuilder: (context, index) {
-            final key = '$prefix${index + 1}'; // e.g. 'm3', 'p7'
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  key.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                SizedBox(
-                  height: 44,
-                  child: TextField(
-                    controller: _scoreCtrlMap[key],
-                    keyboardType: TextInputType.number,
-                    textAlign: TextAlign.center,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[1-5]')),
-                      LengthLimitingTextInputFormatter(1),
-                    ],
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: AppColors.surface,
-                      contentPadding: EdgeInsets.zero,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: AppColors.borderSubtle),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            const BorderSide(color: AppColors.primary, width: 2),
-                      ),
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // ── Submit bar ─────────────────────────────────────────────────────────────
-
-  // sticky bottom bar with the submit button
-  // disabled and shows spinner while submitting — ayaw mag-double submit
+  // ── 6. Sticky Submit Bar ──────────────────────────────────────────────────
   Widget _buildSubmitBar() {
     return Container(
       color: AppColors.surface,
@@ -986,35 +1337,48 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white)) // spinner while submitting
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
               : const Icon(Icons.cloud_upload_outlined, size: 20),
           label: Text(
             _isSubmitting ? 'Submitting…' : 'Submit & Validate',
-            style:
-                const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           style: ElevatedButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: AppColors.success, // green because it a positive action
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          onPressed: _isSubmitting ? null : _submit, // null disables the button
+          onPressed: _isSubmitting ? null : _submit,
         ),
       ),
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  Widget _avatar(String initials) => Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: Center(
+          child: Text(
+            initials,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
 
-  // get initials from first and last name — used for the avatar in instructor suggestions
-  // e.g. "John Doe" -> "JD"
   String _initials(dynamic firstName, dynamic lastName) {
     final f = firstName?.toString() ?? '';
     final l = lastName?.toString() ?? '';
-    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'
-        .toUpperCase();
+    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
   }
 }

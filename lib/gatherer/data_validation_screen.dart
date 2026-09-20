@@ -691,15 +691,51 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
     );
   }
 
+  Widget _buildSelectMultipleButton() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: _toggleSelectMode,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.checklist_rounded, size: 16, color: AppColors.primary),
+            SizedBox(width: 5),
+            Text(
+              'Select Multiple',
+              style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ── Sub-Filter Chips ───────────────────────────────────────────────────────
   Widget _buildSubFilterChips() {
+    final showSelect = !_isLoading && _visibleItems.isNotEmpty && !_isSelectMode;
+
     if (_sourceSection == 0) {
-      // Failed Scans: All, Instructor Error, Subject Error, OMR Result
+      // Failed Scans: Select Multiple (if available), All, Instructor Error, Subject Error, OMR Result
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(24, 0, 8, 12),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
         child: Row(
           children: [
+            if (showSelect) ...[
+              _buildSelectMultipleButton(),
+              const SizedBox(width: 8),
+            ],
             _buildSubChip(0, 'All', _failedScans.length, isFailedSection: true),
             const SizedBox(width: 8),
             _buildSubChip(1, 'Instructor Error', _failedInstructorItems.length,
@@ -714,12 +750,16 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
         ),
       );
     } else {
-      // Import Errors: All, Instructor Error, Subject Error
+      // Import Errors: Select Multiple (if available), All, Instructor Error, Subject Error
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(24, 0, 8, 12),
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
         child: Row(
           children: [
+            if (showSelect) ...[
+              _buildSelectMultipleButton(),
+              const SizedBox(width: 8),
+            ],
             _buildSubChip(0, 'All', _importErrors.length, isFailedSection: false),
             const SizedBox(width: 8),
             _buildSubChip(1, 'Instructor Error', _importInstructorItems.length,
@@ -830,46 +870,8 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
           // Primary Navigation Switch: [ Failed Scans (Queue/OMR) ] vs [ Import Errors ]
           _buildTopSourceSelector(),
 
-          // Sub-filter chips for active section + Select button
-          Row(
-            children: [
-              Expanded(child: _buildSubFilterChips()),
-              if (!_isLoading && visibleItems.isNotEmpty && !_isSelectMode)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 24, 12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: _toggleSelectMode,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: AppColors.primary.withValues(alpha: 0.25)),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.checklist_rounded,
-                              size: 16, color: AppColors.primary),
-                          SizedBox(width: 5),
-                          Text(
-                            'Select',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+          // Sub-filter chips for active section (with Select Multiple leading)
+          _buildSubFilterChips(),
 
           // Multi-Select Action Bar (shown when in select mode)
           if (_isSelectMode)
