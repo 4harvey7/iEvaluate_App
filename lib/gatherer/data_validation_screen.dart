@@ -547,7 +547,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
   // ── Top Navigation (Separates Failed Scan Queue vs Import Errors) ─────────
   Widget _buildTopSourceSelector() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(24, 14, 24, 10),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppColors.surface,
@@ -566,7 +566,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
               count: _failedScans.length,
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           // Section 1: Import Errors (From other table)
           Expanded(
             child: _buildSectionTabButton(
@@ -601,7 +601,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.primary : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
@@ -618,7 +618,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
                 color: isSelected
                     ? Colors.white.withValues(alpha: 0.2)
@@ -627,11 +627,11 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
               ),
               child: Icon(
                 icon,
-                size: 18,
+                size: 16,
                 color: isSelected ? Colors.white : AppColors.primary,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,7 +642,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                     style: TextStyle(
                       color: isSelected ? Colors.white : AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 11.5,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -652,7 +652,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                       color: isSelected
                           ? Colors.white.withValues(alpha: 0.8)
                           : AppColors.textSecondary,
-                      fontSize: 10,
+                      fontSize: 9.5,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -662,7 +662,7 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
             if (count > 0) ...[
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                 decoration: BoxDecoration(
                   color: isSelected
                       ? Colors.white
@@ -834,15 +834,13 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                   color: isSelected
                       ? Colors.white
                       : (isFailedSection ? AppColors.indigo : AppColors.primary)
-                          .withValues(alpha: 0.1),
+                          .withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   '$count',
                   style: TextStyle(
-                    color: isSelected
-                        ? Colors.white
-                        : (isFailedSection ? AppColors.indigo : AppColors.primary),
+                    color: isFailedSection ? AppColors.indigo : AppColors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 10,
                   ),
