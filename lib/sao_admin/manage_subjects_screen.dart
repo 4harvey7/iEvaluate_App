@@ -3,12 +3,10 @@
 // Two ways to add: bulk import from Google Sheets (via n8n), or one-by-one manually.
 // Both entry points are behind clean action buttons — no inline forms cluttering the main list.
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../core/services/automation_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
-import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import 'subject_duplicate_check.dart';
 import '../widgets/safe_button.dart';
@@ -47,8 +45,7 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
   late AnimationController _fabAnimController;
   late Animation<double> _fabScaleAnim;
 
-  // the n8n webhook URL for bulk import
-  static String get _n8nBulkImportUrl => Env.n8nSubjectBulkImportUrl;
+  // n8n bulk import now goes through AutomationService → Supabase proxy
 
   @override
   void initState() {
@@ -215,7 +212,6 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
       builder: (_) => _BulkImportModal(
         currentTermId: _currentTermId,
         supabase: _supabase,
-        n8nUrl: _n8nBulkImportUrl,
         onSuccess: () {
           _loadData();
           _showSnack('Subjects imported successfully!');
@@ -1864,14 +1860,12 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
 class _BulkImportModal extends StatefulWidget {
   final String? currentTermId;
   final SupabaseClient supabase;
-  final String n8nUrl;
   final VoidCallback onSuccess;
   final void Function(String) onError;
 
   const _BulkImportModal({
     required this.currentTermId,
     required this.supabase,
-    required this.n8nUrl,
     required this.onSuccess,
     required this.onError,
   });
@@ -1902,26 +1896,20 @@ class _BulkImportModalState extends State<_BulkImportModal> {
     }
     setState(() => _isImporting = true);
     try {
-      final res = await http
-          .post(
-            Uri.parse(widget.n8nUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'link': _linkController.text.trim(),
-              'term_id': widget.currentTermId ?? '',
-              'user_id': widget.supabase.auth.currentUser?.id ?? '',
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
+      final result = await AutomationService.instance.bulkImportSubjects({
+        'link': _linkController.text.trim(),
+        'term_id': widget.currentTermId ?? '',
+        'user_id': widget.supabase.auth.currentUser?.id ?? '',
+      });
 
-      if (res.statusCode >= 200 && res.statusCode < 300) {
+      if (result.isSuccess) {
         if (mounted) {
           Navigator.pop(context);
           widget.onSuccess();
         }
       } else {
         if (mounted) {
-          widget.onError('Import failed: ${res.body}');
+          widget.onError('Import failed: ${result.errorMessage}');
         }
       }
     } catch (e) {

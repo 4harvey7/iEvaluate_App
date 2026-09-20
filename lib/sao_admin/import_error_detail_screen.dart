@@ -4,13 +4,12 @@
 // and optionally edit scores if it was a scan (not a sheet).
 // After fixing, it sends to n8n for re-processing. Importente kaayo ni sya.
 import 'dart:async';
-import 'dart:convert'; // needed for jsonEncode in _submit()
+// needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import '../core/services/automation_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-import '../core/config/env.dart';
 import '../core/services/scan_image_service.dart';
 
 class ImportErrorDetailScreen extends StatefulWidget {
@@ -287,17 +286,10 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
         'timestamp': DateTime.now().toIso8601String(),    // when the fix was made
       };
 
-      // POST the correction payload to n8n for re-processing
-      // n8n will pick up from here and insert into the proper tables
-      final response = await http
-          .post(
-            Uri.parse(Env.n8nImportErrorCorrectionUrl), // the n8n webhook URL from env config
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 30)); // 30 second timeout — if slower than this, something wrong
+      // Route through AutomationService → Supabase n8n-proxy
+      final result = await AutomationService.instance.submitImportErrorCorrection(payload);
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (result.isSuccess) {
         // n8n accepted it — now mark the error as resolved directly in Supabase too
         await _supabase.from('import_errors').update({
           'status': 'resolved',           // no longer pending
@@ -311,7 +303,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
         }
       } else {
         // n8n returned an error status — throw so we land in catch
-        throw Exception('n8n error ${response.statusCode}: ${response.body}');
+        throw Exception('n8n error ${result.statusCode}: ${result.errorMessage}');
       }
     } catch (e) {
       if (mounted) _showSnack('Error: $e', AppColors.error); // show what went wrong

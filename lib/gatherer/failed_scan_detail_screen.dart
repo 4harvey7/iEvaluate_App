@@ -3,13 +3,12 @@
 // This screen let user manually type in all the data that the machine couldnt read.
 // It like being the backup plan for when robot fail at their job.
 import 'dart:async';
-import 'dart:convert'; // needed for jsonEncode in _submit()
+// needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import '../core/services/automation_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
-import '../core/config/env.dart';
 import '../core/services/scan_image_service.dart';
 
 // this screen takes one failed scan record and shows its data for correction
@@ -54,8 +53,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   // Submission
   bool _isSubmitting = false; // true while we POSTing to n8n — disable the button
 
-  // n8n endpoint for manual corrections — different from the regular scan upload
-  static String get _n8nCorrectionUrl => Env.n8nManualCorrectionUrl;
+  // n8n correction now goes through AutomationService → Supabase proxy
 
   // initialize everything — pre-fill fields from partial_data if available
   @override
@@ -307,16 +305,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         'timestamp': DateTime.now().toIso8601String(),
       };
 
-      // POST to n8n correction webhook — 30 second timeout
-      final response = await http
-          .post(
-            Uri.parse(_n8nCorrectionUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 30));
+      // Route through AutomationService → Supabase n8n-proxy
+      final result = await AutomationService.instance.submitManualCorrection(payload);
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (result.isSuccess) {
         // n8n accepted the correction — go back to list
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -327,7 +319,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         }
       } else {
         // n8n rejected it — show error with status and body for debugging
-        throw Exception('n8n returned ${response.statusCode}: ${response.body}');
+        throw Exception('n8n returned ${result.statusCode}: ${result.errorMessage}');
       }
     } catch (e) {
       if (mounted) {

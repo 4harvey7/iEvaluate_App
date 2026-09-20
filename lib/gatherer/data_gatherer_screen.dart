@@ -8,15 +8,14 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/role_nav_config.dart'; // Added this import for UserRole
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import '../core/services/push_notification_service.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/services/auth_service.dart';
+import '../core/services/automation_service.dart';
 import 'gatherer_dashboard_view.dart';
 import 'gatherer_scanner_view.dart';
 import 'gatherer_sync_view.dart';
@@ -45,27 +44,6 @@ class DataGathererScreen extends StatefulWidget {
   @override
   State<DataGathererScreen> createState() => _DataGathererScreenState();
 }
-
-/// How long to wait for n8n to finish a whole Google Sheet import.
-///
-/// This was 30 seconds, which was shorter than the job it was waiting for. A
-/// 666-row sheet measured 131 seconds end to end, so EVERY successful import
-/// tripped the timeout and the gatherer was told "Could not connect to n8n"
-/// while n8n was still working and went on to finish the import correctly. The
-/// import then appeared to have failed and the obvious response -- send it
-/// again -- was the worst one available.
-///
-/// Ten minutes is not a target, it is a ceiling: it needs to be longer than
-/// the biggest sheet anyone will paste, and nothing here gets faster by giving
-/// up early.
-const Duration _kSheetImportTimeout = Duration(minutes: 10);
-
-/// How long to wait for n8n to process a single scanned page.
-///
-/// One page is Python OCR/OMR (2-17s measured across 47 sample scans) plus a
-/// Gemini vision pass plus several Supabase writes. 30 seconds left no room for
-/// the slow end of that on a phone network; 2 minutes does.
-const Duration _kScanUploadTimeout = Duration(minutes: 2);
 
 // The state class where the real suffering happen
 class _DataGathererScreenState extends State<DataGathererScreen> {
@@ -115,8 +93,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
   // key for storing queue in SharedPreferences — like saving your progress
   String get _queueKey => 'gatherer_sync_queue_${widget.userId}';
-  // n8n health check URL, from env so we dont hardcode secrets. smart.
-  static String get _n8nHealthUrl => Env.n8nHealthUrl;
+  // n8n health check now goes through the Supabase n8n-proxy edge function
+  // — no direct n8n URL needed on the client side
 
   Future<void> _loadCachedDashboard() async {
     try {
@@ -271,14 +249,16 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     if (_checkingN8n) return; // already checking, dili ta mag-double check
     setState(() => _checkingN8n = true);
     try {
-      final response = await http
-          .get(Uri.parse(_n8nHealthUrl))
-          .timeout(const Duration(seconds: 5)); // 5 seconds max patience
+      // Route through the Supabase n8n-proxy edge function instead of
+      // pinging n8n directly — the n8n URL lives in Supabase Secrets,
+      // the client never needs to know it.
+      final response = await _supabase.functions.invoke(
+        'n8n-proxy',
+        body: {'action': 'health'},
+      );
       if (mounted) {
-        // status 200-299 = alive, anything else = problem
         setState(
-          () => _n8nOnline =
-              response.statusCode >= 200 && response.statusCode < 300,
+          () => _n8nOnline = response.status >= 200 && response.status < 300,
         );
       }
     } catch (_) {
@@ -514,34 +494,27 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       ),
     );
 
-    final n8nLinkWebhookUrl =
-        Env.n8nLinkUploadUrl; // the n8n webhook URL for link imports
+    final automation = AutomationService.instance;
     bool dialogPopped = false; // track if we already closed the dialog
 
     try {
-      // POST the link and metadata to n8n — it will fetch the sheet and process
-      final response = await http
-          .post(
-            Uri.parse(n8nLinkWebhookUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user_id': widget.userId,
-              'term_id': _currentTermId, // which term this import belongs to
-              'link': link,
-              'type': 'google_form_import',
-              'semester': _currentSemester,
-              'academic_year': _currentYear,
-              'timestamp': DateTime.now().toIso8601String(),
-            }),
-          )
-          .timeout(_kSheetImportTimeout);
+      // Route through the Supabase n8n-proxy edge function
+      final result = await automation.uploadLink({
+        'user_id': widget.userId,
+        'term_id': _currentTermId, // which term this import belongs to
+        'link': link,
+        'type': 'google_form_import',
+        'semester': _currentSemester,
+        'academic_year': _currentYear,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
 
       if (mounted) {
         Navigator.of(context).pop(); // close the loading dialog
         dialogPopped = true;
       }
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (result.isSuccess) {
         _linkController.clear(); // clear the input field, import done
         if (mounted) {
           _showStatusDialog(
@@ -555,7 +528,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         if (mounted) {
           _showStatusDialog(
             title: 'Import Failed',
-            message: 'Server returned an error (${response.statusCode}).',
+            message: 'Server returned an error (${result.statusCode}).',
             isSuccess: false,
           );
         }
@@ -712,39 +685,31 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         task.localPath,
       ); // read paper size from filename tag
 
-      final n8nWebhookUrl = Env.n8nScanUploadUrl; // the scan upload endpoint
+      final automation = AutomationService.instance;
 
-      // POST the scan data — n8n will OCR the image and process it
-      final response = await http
-          .post(
-            Uri.parse(n8nWebhookUrl),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'user_id': widget.userId,
-              'term_id': termId,
-              'image': base64Image, // the actual image encoded as base64
-              'task_id': task.id,
-              'filename': task.localPath
-                  .split(Platform.pathSeparator)
-                  .last, // just the filename, not full path
-              'paper_size':
-                  paperSize, // explicit paper size — no need for n8n to parse filename
-              // The scanner did not find the SS Form 2 ruled table in this
-              // image. Sent rather than withheld, but flagged: n8n should
-              // route it for review instead of folding it into the scores.
-              'form_suspect': task.formSuspect,
-              'timestamp': DateTime.now().toIso8601String(),
-            }),
-          )
-          .timeout(_kScanUploadTimeout);
+      // Route through the Supabase n8n-proxy edge function — the n8n URL
+      // lives in Supabase Secrets, never exposed in the APK.
+      final result = await automation.uploadScan({
+        'user_id': widget.userId,
+        'term_id': termId,
+        'image': base64Image, // the actual image encoded as base64
+        'task_id': task.id,
+        'filename': task.localPath
+            .split(Platform.pathSeparator)
+            .last, // just the filename, not full path
+        'paper_size':
+            paperSize, // explicit paper size — no need for n8n to parse filename
+        'form_suspect': task.formSuspect,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (result.isSuccess) {
         setState(
           () => task.status = SyncStatus.success,
         ); // n8n accept it, we done
       } else {
         throw Exception(
-          'Server error: ${response.statusCode}',
+          'Server error: ${result.statusCode}',
         ); // n8n reject it
       }
     } catch (e) {

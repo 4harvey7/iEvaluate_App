@@ -2,12 +2,10 @@
 // The big boss screen. This is where admin feel very important.
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
-import '../core/config/env.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
@@ -45,8 +43,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   bool _supabaseOnline = false; // the database, without this nothing work
   bool _checkingStatus = false; // true when we currently pinging the servers
 
-  // the URL we ping to check if n8n is breathing
-  static String get _n8nHealthUrl => Env.n8nHealthUrl;
+  // n8n health check now goes through the Supabase n8n-proxy edge function
 
   Future<void> _loadCachedDashboard() async {
     try {
@@ -180,11 +177,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     if (_checkingStatus) return; // don't run two checks at the same time
     setState(() => _checkingStatus = true);
     try {
-      // Check n8n — give it 5 seconds or we declare it dead
-      final n8nRes = await http
-          .get(Uri.parse(_n8nHealthUrl))
-          .timeout(const Duration(seconds: 5));
-      if (mounted) setState(() => _n8nOnline = n8nRes.statusCode >= 200 && n8nRes.statusCode < 300);
+      // Check n8n through Supabase proxy — no direct n8n URL needed
+      final n8nRes = await _supabase.functions.invoke(
+        'n8n-proxy',
+        body: {'action': 'health'},
+      );
+      if (mounted) setState(() => _n8nOnline = n8nRes.status >= 200 && n8nRes.status < 300);
     } catch (_) {
       if (mounted) setState(() => _n8nOnline = false); // no response = dead, simple
     }
