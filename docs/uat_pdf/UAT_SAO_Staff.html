@@ -1,0 +1,333 @@
+<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate UAT - SAO Staff (Data Gatherer) Module</title><style>
+@page { size: Letter; margin: 12mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9.2pt; color:#000; margin:0; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.head { display:flex; align-items:center; justify-content:center; gap:10px; }
+.seal { width:62px; height:62px; object-fit:contain; }
+.seal.spacer { visibility:hidden; }
+.htext { text-align:center; line-height:1.15; }
+.htext .l1 { font-size:8.5pt; }
+.htext .l2 { font-size:11pt; font-weight:bold; }
+.htext .l3 { font-size:7.5pt; }
+.htext .l4 { font-size:7.5pt; }
+.htext .l5 { font-size:6.8pt; }
+.college { text-align:center; font-weight:bold; font-size:11pt; margin-top:10px; }
+.dept { text-align:center; font-weight:bold; font-size:10.5pt; }
+.uat-title { text-align:center; font-weight:bold; font-size:19pt; margin:10px 0 8px; }
+table.uat { width:100%; border-collapse:collapse; table-layout:fixed; }
+table.uat th, table.uat td { border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+table.uat th { width:22%; text-align:right; font-weight:bold; }
+table.uat td.mlbl { width:34%; font-weight:bold; }
+td.ctr { text-align:center; }
+p { margin:0 0 4px; }
+p:last-child { margin-bottom:0; }
+.exp { margin-top:2px; padding-left:12px; }
+.exp span { font-weight:bold; font-style:italic; }
+p.hl { font-weight:bold; }
+.marker { font-weight:bold; font-style:italic; text-align:center; margin-bottom:3px; }
+.tall { height:52px; }
+.remarks { height:66px; }
+tr, td, th { page-break-inside:avoid; }
+h2.sect { text-align:center; font-size:12.5pt; margin:4px 0 8px; }
+pre.raw { font-family:"Consolas","Courier New",monospace; font-size:8pt; white-space:pre-wrap;
+          border:1px solid #000; padding:8px; margin:0; line-height:1.25; }
+</style></head><body><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">USER ACCEPTANCE TESTING - SAO STAFF (DATA GATHERER) MODULE</h2><pre class="raw">================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+USER ACCEPTANCE TESTING - SAO STAFF (DATA GATHERER) MODULE
+================================================================================
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+Role under test        : SAO_STAFF  (&quot;SAO Staff (Data Gatherer)&quot;)
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the SAO staff account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+WHAT THIS ROLE DOES
+  The SAO Staff member is the person who physically scans completed paper SAST
+  evaluation forms into the system. Their work is a pipeline:
+      scan a form  -&gt;  it queues locally  -&gt;  it uploads to n8n  -&gt;
+      anything n8n cannot read is flagged  -&gt;  staff corrects it  -&gt;  it syncs
+  This document tests that pipeline, because that is where the role&#x27;s real work
+  and its real risk of data loss sit. Everything else is secondary.
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in &quot;double quotes&quot; appears on screen exactly as written.
+* Names in [square brackets] are database tables, edge functions or n8n
+  webhooks to check when a step needs back-end verification.
+* Each step has its own expected result.
+* &quot;Actual Result&quot; is blank where the case has not been run.
+!! DATA-LOSS WARNING !!
+  A scanned form represents a real student&#x27;s evaluation that exists on paper
+  only once. Cases marked [LIVE DATA] upload or discard real records. The
+  single most important property in this whole module is that A SCAN IS NEVER
+  SILENTLY LOST. Several cases below exist only to prove that.
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                  REACHED BY                          CASE
+  ----------------------- ----------------------------------- ---------------
+  Dashboard               Tab &quot;Dashboard&quot;                     TC-S01
+  Scanner                 Tab &quot;Scanner&quot;                       TC-S02, TC-S03
+  Sync Queue              Tab &quot;Sync Queue&quot;                    TC-S04, TC-S05
+  Validation              Tab &quot;Validation&quot;                    TC-S06
+  Failed Scans            Validation -&gt; &quot;Failed Scans&quot;        TC-S07
+  Google Sheet Import     Dashboard &quot;IMPORT FROM GOOGLE       TC-S08
+                          SHEETS&quot;
+  Settings                Drawer / Settings tab               TC-S09</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S01</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SIGN IN AS SAO STAFF AND READ THE SHIFT DASHBOARD</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>App on the Login screen. Account is active with role SAO_STAFF.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only.</p></td></tr><tr><th rowspan="6">Steps</th><td colspan="2"><div class="stp">1. Sign in with the SAO staff credentials.</div><div class="exp"><span>Expected:</span> Routes to the gatherer screen titled &quot;Dashboard&quot;, with tabs &quot;Dashboard&quot;, &quot;Scanner&quot;, &quot;Validation&quot; and &quot;Sync Queue&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm the role boundary.</div><div class="exp"><span>Expected:</span> There is NO route to any SAO Admin screen - no Users, no Personnel, no System Settings, no Security Audit Logs. A staff account that can reach an admin screen is a FAIL.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read the term shown in the app bar.</div><div class="exp"><span>Expected:</span> It is the active term set by the SAO admin.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read the &quot;Shift Activity&quot; section.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Live database and local queue totals.&quot; with four counters: &quot;ENTRIES TODAY / submitted today&quot;, &quot;PENDING / not yet synced&quot;, &quot;SUCCESS / synced this session&quot;, and the overall survey count &quot;gathered this term&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Confirm each counter means what its label says.</div><div class="exp"><span>Expected:</span> ENTRIES TODAY counts today&#x27;s submissions; PENDING counts scans held locally and not yet uploaded; SUCCESS counts uploads in this session; the term counter matches the &quot;Files Scanned&quot; figure on the SAO admin dashboard for the same term.</div></td></tr><tr><td colspan="2"><div class="stp">6. Scan one form (see TC-S02), then return to the dashboard.</div><div class="exp"><span>Expected:</span> PENDING increases by one. After a successful sync, PENDING falls and SUCCESS rises.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The staff member lands on their own dashboard with no admin access, and the four shift counters track the real state of the local queue and the database.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1, 3 and 4 (observed 31/08/2026). Dashboard showed the term &quot;2nd Semester, 2027-2028&quot;, &quot;Shift Activity&quot; with &quot;Live database and local queue totals.&quot;, the counters &quot;0 ENTRIES TODAY / submitted today&quot;, &quot;0 PENDING / not yet synced&quot;, &quot;0 SUCCESS / synced this session&quot; and &quot;152 ... gathered this term&quot;, plus the &quot;IMPORT FROM GOOGLE SHEETS&quot; button and the four tabs. The term count of 152 MATCHES the &quot;152 Files Scanned&quot; on the SAO admin dashboard, so step 5&#x27;s cross-check passes for that counter. Steps 2 and 6 not executed.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S02</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SCAN A COMPLETED FORM - HAPPY PATH                         [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>On the &quot;Scanner&quot; tab. Camera permission granted. One completed paper SAST form. Good lighting and a plain background.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One real completed form. Note its Student ID and instructor before scanning, so the result can be checked.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Scanner&quot; tab for the first time.</div><div class="exp"><span>Expected:</span> The app requests camera permission. Granting it starts the preview; refusing it shows a clear explanation, not a black screen.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the on-screen guidance.</div><div class="exp"><span>Expected:</span> Shows &quot;FIT SHORT BOND PAPER INSIDE THE FRAME&quot; (or LONG, matching the selected size), &quot;Leave a gap between paper and frame edges&quot;, and &quot;Hold steady  -  Plain background  -  Good lighting&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">3. Select the paper size matching the form.</div><div class="exp"><span>Expected:</span> &quot;Short Bond&quot; and &quot;Long Bond&quot; are both selectable, and the frame guidance updates to the chosen size.</div></td></tr><tr><td colspan="2"><div class="stp">4. Hold the device in landscape.</div><div class="exp"><span>Expected:</span> The app asks for portrait, reading &quot;PLEASE HOLD PORTRAIT&quot; and &quot;The scanner works best in upright mode&quot;. It does not capture a sideways image.</div></td></tr><tr><td colspan="2"><div class="stp">5. Align the form in the frame and hold still.</div><div class="exp"><span>Expected:</span> Status progresses through &quot;FOCUSING…&quot; and &quot;HOLD STEADY…&quot; to &quot;TAP TO CAPTURE&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">6. Tap to capture.</div><div class="exp"><span>Expected:</span> The image is taken and analysed, showing &quot;ANALYZING SHARPNESS...&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">7. Accept the capture with &quot;USE PHOTO&quot;.</div><div class="exp"><span>Expected:</span> The scan is accepted and added to the local queue. The dashboard &quot;PENDING&quot; counter increases by one.</div></td></tr><tr><td colspan="2"><div class="stp">8. Confirm the scan is queued BEFORE any upload.</div><div class="exp"><span>Expected:</span> The scan exists locally even with no network. It is not lost if the app is closed before syncing.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A well-presented form can be captured with clear guidance throughout, and the accepted scan is stored locally before any upload is attempted.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 8 is the data-safety guarantee. If a captured scan can vanish because the network was down, that is the most serious defect this module can have.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S03</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SCANNER REJECTS POOR CAPTURES                        [NEGATIVE CASE]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>On the &quot;Scanner&quot; tab with a paper form.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One form, deliberately mis-presented.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. Deliberately move the device while capturing, or capture out of focus.</div><div class="exp"><span>Expected:</span> The app warns &quot;IMAGE APPEARS BLURRY&quot; rather than accepting an unreadable scan.</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm what happens after a blur warning.</div><div class="exp"><span>Expected:</span> The staff member can retake the photo. A blurry image is not silently queued for upload.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tilt the device noticeably while aiming.</div><div class="exp"><span>Expected:</span> The app shows the tilt angle and &quot;HOLD STRAIGHT&quot;, warning before capture.</div></td></tr><tr><td colspan="2"><div class="stp">4. Present the form far too small in the frame, or overlapping the frame edges.</div><div class="exp"><span>Expected:</span> The guidance about fitting the paper inside the frame with a gap remains visible, and a badly framed capture is discouraged.</div></td></tr><tr><td colspan="2"><div class="stp">5. Cover the camera completely and capture.</div><div class="exp"><span>Expected:</span> The app reports a problem rather than queueing a black image.</div></td></tr><tr><td colspan="2"><div class="stp">6. Revoke camera permission in Android settings, then reopen the Scanner tab.</div><div class="exp"><span>Expected:</span> A clear message explains the camera is unavailable and how to restore it. The app does not crash.</div></td></tr><tr><td colspan="2"><div class="stp">7. Trigger a camera fault, e.g. open another camera app simultaneously.</div><div class="exp"><span>Expected:</span> The failure is reported to the user, not swallowed silently.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Every unusable capture is refused or clearly warned about before it enters the queue, and camera faults are reported rather than hidden.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>The purpose of this case is that GARBAGE NEVER ENTERS THE PIPELINE. A blurry scan that uploads becomes a failed scan someone has to chase later.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S04</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SYNC QUEUE - UPLOAD PENDING SCANS                          [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>At least two scans are queued locally from TC-S02. Network available. The n8n workflow is running.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>The queued scans. n8n webhook URL from its env var.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Sync Queue&quot; tab.</div><div class="exp"><span>Expected:</span> Screen headed &quot;Sync Queue&quot; with &quot;Review and upload scanned forms.&quot; and an &quot;Upload Pipeline&quot; section. Each queued scan is listed.</div></td></tr><tr><td colspan="2"><div class="stp">2. With nothing queued, read the empty state.</div><div class="exp"><span>Expected:</span> Reads &quot;Everything is synced&quot; and &quot;New scans will appear here before upload.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">3. Confirm the queue count matches the dashboard.</div><div class="exp"><span>Expected:</span> The number of queued items equals the dashboard &quot;PENDING&quot; counter.</div></td></tr><tr><td colspan="2"><div class="stp">4. Tap &quot;Sync All Pending&quot;.</div><div class="exp"><span>Expected:</span> Status shows &quot;Syncing...&quot; and progresses. It does not hang indefinitely with no feedback.</div></td></tr><tr><td colspan="2"><div class="stp">5. Wait for the upload to finish.</div><div class="exp"><span>Expected:</span> Successfully uploaded scans leave the queue. The dashboard &quot;PENDING&quot; falls and &quot;SUCCESS&quot; rises by the number uploaded.</div></td></tr><tr><td colspan="2"><div class="stp">6. Verify the uploaded data landed in the database for the correct term and instructor.</div><div class="exp"><span>Expected:</span> Each scan&#x27;s scores are recorded against the right instructor, subject and term - the ones printed on the paper form.</div></td></tr><tr><td colspan="2"><div class="stp">7. Sync again immediately with an empty queue.</div><div class="exp"><span>Expected:</span> Handled gracefully. No duplicate records are created.</div></td></tr><tr><td colspan="2"><div class="stp">8. Scan the SAME physical form twice and sync both.</div><div class="exp"><span>Expected:</span> The duplicate is either rejected or flagged for review, NOT silently counted twice. Double-counting corrupts an instructor&#x27;s scores.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Queued scans upload with visible progress, leave the queue only on success, land against the correct instructor and term, and duplicates are not silently counted.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 8 matters most for score integrity. Confirm the intended behaviour with the team before judging it pass or fail.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S05</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SYNC QUEUE - FAILURES, PAUSE AND REMOVAL         [NEGATIVE, LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>At least two scans queued. Ability to disable the network and to stop the n8n workflow.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>The queued scans.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Disable all network, then tap &quot;Sync All Pending&quot;.</div><div class="exp"><span>Expected:</span> The upload fails with a clear message such as &quot;Upload failed&quot;. The scans REMAIN in the queue. Nothing is lost.</div></td></tr><tr><td colspan="2"><div class="stp">2. Re-enable the network and sync again.</div><div class="exp"><span>Expected:</span> The same scans upload successfully. No scan was dropped by the earlier failure.</div></td></tr><tr><td colspan="2"><div class="stp">3. Stop the n8n workflow, then sync.</div><div class="exp"><span>Expected:</span> The failure is reported. The scans stay queued rather than being marked as sent.</div></td></tr><tr><td colspan="2"><div class="stp">4. Restart n8n and sync.</div><div class="exp"><span>Expected:</span> The scans upload successfully.</div></td></tr><tr><td colspan="2"><div class="stp">5. Send a payload n8n rejects, e.g. an unreadable image.</div><div class="exp"><span>Expected:</span> The scan is not silently dropped. It either stays queued or moves to &quot;Failed Scans&quot; (TC-S07) where it can be recovered.</div></td></tr><tr><td colspan="2"><div class="stp">6. Find the pause control and pause syncing.</div><div class="exp"><span>Expected:</span> Status shows &quot;Sync Paused&quot; and no further uploads are attempted while paused.</div></td></tr><tr><td colspan="2"><div class="stp">7. Resume syncing.</div><div class="exp"><span>Expected:</span> Uploads continue from where they left off.</div></td></tr><tr><td colspan="2"><div class="stp">8. Tap &quot;Remove from queue&quot; on one scan.</div><div class="exp"><span>Expected:</span> A confirmation appears reading &quot;Remove from queue?&quot;. Nothing is removed until confirmed.</div></td></tr><tr><td colspan="2"><div class="stp">9. Cancel that confirmation.</div><div class="exp"><span>Expected:</span> The scan stays in the queue.</div></td></tr><tr><td colspan="2"><div class="stp">10. Confirm the removal.</div><div class="exp"><span>Expected:</span> The scan leaves the queue, and the &quot;PENDING&quot; counter falls by one.</div></td></tr><tr><td colspan="2"><div class="stp">11. Force-close the app with scans still queued, then reopen it.</div><div class="exp"><span>Expected:</span> The queued scans are STILL THERE. The queue survives an app restart.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Every upload failure leaves the scans safely queued, syncing can be paused and resumed, removal requires confirmation, and the queue survives an app restart.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Steps 1, 5 and 11 are the core of this case. A scan lost to a network failure or an app restart is unrecoverable, because the paper form has already been handled and set aside.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S06</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>VALIDATION - CORRECT FLAGGED RECORDS                       [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>At least one uploaded scan has been flagged, typically because the instructor name could not be matched.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One flagged record, with the paper form on hand to check against.</p></td></tr><tr><th rowspan="10">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Validation&quot; tab.</div><div class="exp"><span>Expected:</span> Screen shows &quot;Flagged Records&quot;. While loading it reads &quot;Loading flagged records…&quot;; with none it reads &quot;No pending verification&quot; and &quot;All records are linked to an instructor.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Read a flagged record.</div><div class="exp"><span>Expected:</span> Shows the &quot;Student ID&quot; and the date, plus &quot;Instructor Name (Raw)&quot; - the text as read off the form - and &quot;Unknown Instructor&quot; where no match was found. This is what the staff member needs to correct it.</div></td></tr><tr><td colspan="2"><div class="stp">3. Open &quot;Edit Record&quot;.</div><div class="exp"><span>Expected:</span> The editable sections appear: &quot;Management Scores (1-5)&quot;, &quot;Performance Scores (1-5)&quot; and &quot;Remarks &amp; Suggestions&quot; / the &quot;Instructor &amp; Remarks&quot; section.</div></td></tr><tr><td colspan="2"><div class="stp">4. Compare the on-screen scores against the paper form.</div><div class="exp"><span>Expected:</span> Every score matches what the student actually marked. This is the point of validation.</div></td></tr><tr><td colspan="2"><div class="stp">5. Enter a score outside 1-5.</div><div class="exp"><span>Expected:</span> Refused. The section is labelled &quot;(1-5)&quot; and must enforce it.</div></td></tr><tr><td colspan="2"><div class="stp">6. Correct the instructor and save.</div><div class="exp"><span>Expected:</span> The record saves. On failure the message reads &quot;Error saving:&quot; rather than appearing to succeed.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap &quot;Approve &amp; Sync&quot;.</div><div class="exp"><span>Expected:</span> Message reads &quot;Data updated and queued for processing.&quot; and the record leaves the flagged list.</div></td></tr><tr><td colspan="2"><div class="stp">8. Confirm the corrected record reached the right instructor.</div><div class="exp"><span>Expected:</span> The scores now appear against the instructor named on the paper form, for the correct term.</div></td></tr><tr><td colspan="2"><div class="stp">9. On another flagged record, tap &quot;Discard&quot;.</div><div class="exp"><span>Expected:</span> A confirmation is required. On confirming, the message reads &quot;Record discarded.&quot; and it leaves the list.</div></td></tr><tr><td colspan="2"><div class="stp">10. Confirm what discarding actually did.</div><div class="exp"><span>Expected:</span> The discarded record does NOT contribute to any instructor&#x27;s scores. Confirm with the team whether the raw scan is retained for audit - a discard that erases the only copy of a student&#x27;s evaluation needs to be a deliberate decision, not a surprise.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Flagged records show enough raw detail to be corrected against the paper form, scores are constrained to 1-5, approving routes the data to the correct instructor, and discarding is confirmed and understood.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 4 is the whole reason this screen exists. Step 10 should be settled with the team before the defense, because a panelist may well ask it.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S07</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>FAILED SCANS - RECOVERY QUEUE</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>At least one scan has failed detection, e.g. from TC-S05 step 5.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One failed scan.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. Open &quot;Failed Scans&quot; from the Validation tab.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Failed Scans&quot; with a &quot;Recovery Queue&quot;. While loading it reads &quot;Loading failed scans…&quot;; with none it reads &quot;No failed scans&quot; and &quot;Every scan has been processed successfully.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Read a failed scan row.</div><div class="exp"><span>Expected:</span> Shows the reason for failure - &quot;Grid detection failed&quot;, &quot;Table/corners not detected&quot; or &quot;Detection issue&quot; - plus &quot;Instructor:&quot; and &quot;Student ID:&quot; where known, and &quot;Unknown&quot; or &quot;Unknown date&quot; where not.</div></td></tr><tr><td colspan="2"><div class="stp">3. Confirm the reason is specific enough to act on.</div><div class="exp"><span>Expected:</span> The staff member can tell WHY it failed and therefore whether re-scanning would help. A bare &quot;failed&quot; with no reason is not enough.</div></td></tr><tr><td colspan="2"><div class="stp">4. Open a failed scan&#x27;s detail.</div><div class="exp"><span>Expected:</span> The detail view opens, showing the captured image or enough information to identify which paper form it was.</div></td></tr><tr><td colspan="2"><div class="stp">5. Establish whether the scan can be recovered.</div><div class="exp"><span>Expected:</span> There is a path to either correct and resubmit it, or to re-scan the original form. A failed scan must not be a dead end, because the paper form may already have been filed away.</div></td></tr><tr><td colspan="2"><div class="stp">6. Recover one failed scan and confirm the outcome.</div><div class="exp"><span>Expected:</span> It leaves the recovery queue and its data reaches the correct instructor.</div></td></tr><tr><td colspan="2"><div class="stp">7. Count the failed scans against the totals.</div><div class="exp"><span>Expected:</span> Scans that failed are NOT counted as successfully gathered on the dashboard or on the admin&#x27;s &quot;Files Scanned&quot; figure.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Every failed scan is listed with a specific, actionable reason and can be recovered, and failed scans are never counted as successful.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 7 protects the integrity of the reported totals. Step 5 determines whether a failure means real data loss.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S08</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>IMPORT FROM GOOGLE SHEETS                                  [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>A prepared Google Sheet of evaluation data. The n8n import workflow is running.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One prepared sheet, including one deliberately bad row.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. On the dashboard, tap &quot;IMPORT FROM GOOGLE SHEETS&quot;.</div><div class="exp"><span>Expected:</span> The import screen opens and states what it expects, rather than presenting an unexplained blank form.</div></td></tr><tr><td colspan="2"><div class="stp">2. Start an import with the prepared sheet.</div><div class="exp"><span>Expected:</span> Progress is shown, and the import ends with a clear success or failure message - never an indefinite spinner.</div></td></tr><tr><td colspan="2"><div class="stp">3. Cross-check the imported rows against the sheet.</div><div class="exp"><span>Expected:</span> Every row is either imported or reported as an error. Nothing is silently skipped.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the deliberately bad row was caught.</div><div class="exp"><span>Expected:</span> It is reported rather than imported, and appears under the staff&#x27;s own &quot;Import Errors&quot; tab.</div></td></tr><tr><td colspan="2"><div class="stp">5. Confirm the imported data landed against the correct term.</div><div class="exp"><span>Expected:</span> The records belong to the active term, not a previous one.</div></td></tr><tr><td colspan="2"><div class="stp">6. Import the SAME sheet a second time.</div><div class="exp"><span>Expected:</span> Duplicates are rejected or flagged, NOT counted twice.</div></td></tr><tr><td colspan="2"><div class="stp">7. Run the import with n8n stopped.</div><div class="exp"><span>Expected:</span> A clear failure. No partial import is left behind.</div></td></tr><tr><td colspan="2"><div class="stp">8. Check the dashboard counters after a successful import.</div><div class="exp"><span>Expected:</span> The term total increases by the number of rows actually imported, and by no more.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A sheet imports with visible progress and an explicit outcome, bad rows are reported rather than dropped, re-importing does not double-count, and the counters reflect exactly what was imported.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 6 is the one most likely to fail quietly and the most damaging if it does.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-S09</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>STAFF SETTINGS AND END OF SHIFT</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as SAO staff. Access to the account&#x27;s inbox for the email change.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>A new password of at least six characters, NOT recorded in this document.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open the gatherer Settings.</div><div class="exp"><span>Expected:</span> The screen loads (briefly &quot;Loading gatherer settings…&quot;) and identifies the role as &quot;Data Gatherer&quot;. The security section reads &quot;Email, password, and account controls.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Edit Personal Details&quot;, change the name and save.</div><div class="exp"><span>Expected:</span> The profile saves and the new name appears in the drawer.</div></td></tr><tr><td colspan="2"><div class="stp">3. Toggle &quot;Haptic Feedback&quot; off and on.</div><div class="exp"><span>Expected:</span> The setting changes and persists after leaving and reopening Settings.</div></td></tr><tr><td colspan="2"><div class="stp">4. Tap &quot;Edit Email&quot; and submit a valid new address.</div><div class="exp"><span>Expected:</span> Message reads &quot;Email updated! Check your inbox for confirmation.&quot; The old address keeps working until the link is clicked.</div></td></tr><tr><td colspan="2"><div class="stp">5. Tap &quot;Edit Password&quot; and submit mismatched passwords.</div><div class="exp"><span>Expected:</span> Refused with &quot;Passwords do not match.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">6. Submit a password shorter than six characters.</div><div class="exp"><span>Expected:</span> Refused with &quot;Password must be at least 6 characters.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">7. Submit a fully valid password change.</div><div class="exp"><span>Expected:</span> Message reads &quot;Password updated successfully. Please log in again.&quot; and the app signs out. On failure it reads &quot;Failed to update password.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">8. Sign in with the old password, then the new one.</div><div class="exp"><span>Expected:</span> The old password is rejected; the new one is accepted.</div></td></tr><tr><td colspan="2"><div class="stp">9. Queue at least one unsynced scan, then tap &quot;End Shift &amp; Log Out&quot;.</div><div class="exp"><span>Expected:</span> A confirmation is required. IMPORTANT: the staff member should be warned that scans are still pending, or the scans must survive the logout. Ending a shift must not silently discard queued work.</div></td></tr><tr><td colspan="2"><div class="stp">10. Complete the logout, sign back in, and check the Sync Queue.</div><div class="exp"><span>Expected:</span> The pending scans are still there and can be synced.</div></td></tr><tr><td colspan="2"><div class="stp">11. Open &quot;Deactivate My Account&quot;, then CANCEL.</div><div class="exp"><span>Expected:</span> A warning explains the account can only be restored by the SAO Admin, and cancelling leaves the account active.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The staff member can maintain their own account with every password rule enforced, and ending a shift never loses queued scans.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Steps 9 and 10 are the important ones. &quot;End Shift &amp; Log Out&quot; is exactly when a tired user is most likely to lose unsynced work.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SUMMARY</h2><pre class="raw">  Total cases     : 9
+  Executed        : 1 partial  (TC-S01 steps 1, 3, 4, observed 31/08/2026)
+  Not executed    : 8
+
+  Cases that change live data : TC-S02, S04, S05, S06, S08
+  Negative cases              : TC-S03, TC-S05
+
+  WHAT THIS DOCUMENT EXISTS TO PROVE
+    1. A captured scan is stored locally BEFORE any upload      (TC-S02/8)
+    2. A failed upload leaves scans queued, never dropped       (TC-S05/1)
+    3. The queue survives an app restart                        (TC-S05/11)
+    4. Ending a shift does not discard unsynced scans           (TC-S09/9,10)
+    5. Unreadable captures are refused before they queue        (TC-S03)
+    6. Failed scans carry an actionable reason and can recover  (TC-S07)
+    7. The same form is never counted twice                     (TC-S04/8, S08/6)
+    8. A staff account cannot reach any admin screen            (TC-S01/2)
+
+  Items 1 to 4 are about DATA LOSS. A paper form is handled once, so a scan
+  lost anywhere in this pipeline is gone for good. Treat any failure in those
+  four as the highest-severity defect in the project, ahead of anything
+  cosmetic.
+
+  CROSS-CHECK ALREADY CONFIRMED
+    The staff dashboard&#x27;s term total (152) matches the SAO admin dashboard&#x27;s
+    &quot;152 Files Scanned&quot; for the same term, so the two roles agree on how much
+    data has been gathered.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SIGN-OFF</h2><pre class="raw">  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST&#x27;S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">iEvaluate - SAO Staff (Data Gatherer) Module UAT - Team ERMM Cebu Technological University, Argao Campus</h2><pre class="raw"></pre></section></body></html>

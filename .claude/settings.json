@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push *)",
+      "Bash(rm -rf *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D *)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  }
+}

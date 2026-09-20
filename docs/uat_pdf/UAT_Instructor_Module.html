@@ -1,0 +1,616 @@
+<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate UAT - Instructor Module</title><style>
+@page { size: Letter; margin: 12mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9.2pt; color:#000; margin:0; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.head { display:flex; align-items:center; justify-content:center; gap:10px; }
+.seal { width:62px; height:62px; object-fit:contain; }
+.seal.spacer { visibility:hidden; }
+.htext { text-align:center; line-height:1.15; }
+.htext .l1 { font-size:8.5pt; }
+.htext .l2 { font-size:11pt; font-weight:bold; }
+.htext .l3 { font-size:7.5pt; }
+.htext .l4 { font-size:7.5pt; }
+.htext .l5 { font-size:6.8pt; }
+.college { text-align:center; font-weight:bold; font-size:11pt; margin-top:10px; }
+.dept { text-align:center; font-weight:bold; font-size:10.5pt; }
+.uat-title { text-align:center; font-weight:bold; font-size:19pt; margin:10px 0 8px; }
+table.uat { width:100%; border-collapse:collapse; table-layout:fixed; }
+table.uat th, table.uat td { border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+table.uat th { width:22%; text-align:right; font-weight:bold; }
+table.uat td.mlbl { width:34%; font-weight:bold; }
+td.ctr { text-align:center; }
+p { margin:0 0 4px; }
+p:last-child { margin-bottom:0; }
+.exp { margin-top:2px; padding-left:12px; }
+.exp span { font-weight:bold; font-style:italic; }
+p.hl { font-weight:bold; }
+.marker { font-weight:bold; font-style:italic; text-align:center; margin-bottom:3px; }
+.tall { height:52px; }
+.remarks { height:66px; }
+tr, td, th { page-break-inside:avoid; }
+h2.sect { text-align:center; font-size:12.5pt; margin:4px 0 8px; }
+pre.raw { font-family:"Consolas","Courier New",monospace; font-size:8pt; white-space:pre-wrap;
+          border:1px solid #000; padding:8px; margin:0; line-height:1.25; }
+</style></head><body><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">USER ACCEPTANCE TESTING - INSTRUCTOR MODULE</h2><pre class="raw">================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+USER ACCEPTANCE TESTING - INSTRUCTOR MODULE
+================================================================================
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+Execution date         : 31 August 2026
+Build                  : debug, Flutter 3.41.6
+Device                 : Infinix X6525, Android 13 (API 33)
+Package                : com.example.ievaluateapp_final
+Active term            : 2nd Semester, 2027-2028
+Test account role      : Instructor
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in &quot;double quotes&quot; is text that appears on screen exactly as written.
+  Match it character for character when testing.
+* Table names in [square brackets] are database tables or edge functions to
+  check when a step calls for back-end verification.
+* Every step carries its own expected result, so a failing case identifies
+  WHICH step failed instead of one verdict for the whole scenario.
+* &quot;Actual Result&quot; is left blank where the case has not been executed. It is
+  filled in only for cases actually run on 31 August 2026.
+* One case per screen or flow. Where a screen has both a read path and a write
+  path, both live in the same case, with the write steps marked so they can be
+  left for last.
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+Every screen an instructor can reach was opened and exercised on the device.
+  SCREEN                       REACHED BY                     CASE     RUN
+  ---------------------------- ------------------------------ -------- --------
+  Login                        App launch, no session         TC001    partly
+  My Dashboard                 Tab &quot;Dashboard&quot;                TC002    partly
+  My Subjects                  Tab &quot;My Subjects&quot;              TC003    yes
+  Subject Detail               Tap any subject card           TC003    yes
+  Student Feedback             Tab &quot;Feedback&quot;                 TC004    yes
+  Past Terms                   Tab &quot;Past Terms&quot;               TC005    yes
+  Official Evaluation Report   &quot;View Official SAST Report&quot;    TC006    yes
+                               or &quot;Full Term Report&quot;                   (PDF out)
+  Account Settings             Drawer &quot;Account Settings&quot;      TC007    partly
+  Sign-out / deactivation      Settings or drawer             TC008    no
+  Term Subjects                NO ENTRY POINT EXISTS          none     n/a
+                               (dead code, see DEF-07)
+WHAT WAS DELIBERATELY NOT EXECUTED
+  Every step that writes to or locks the live account was left for the tester:
+    - profile, email and password edits   (TC007 steps 4-11)
+    - deactivation with the emailed code  (TC008 steps 7-11)
+    - sign-out and session clearing       (TC008 steps 1-6)
+  The sign-in failure paths in TC001 steps 5-9 were also skipped, because
+  repeating a wrong password trips a real lockout on a working account.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC001</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">SIGN-IN: VALID CREDENTIALS AND FAILURE PATHS</p><p>Instructor authenticates and reaches the dashboard, and every invalid path is refused</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>App installed and launched. No session active, so the Login screen is shown. Account is ACTIVE and has the Instructor role.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>Institutional email of the instructor account. Password held by the tester, deliberately NOT recorded in this document. One deactivated instructor account for step 8.</p></td></tr><tr><th>Note</th><td colspan="2"><p>Step 7 trips a real rate limiter. Run steps 5-9 last, or on a throwaway account.</p></td></tr><tr><th rowspan="9">Steps</th><td colspan="2"><div class="stp">1. Launch the app and wait for the splash screen to resolve.</div><div class="exp"><span>Expected:</span> Login screen appears, headed &quot;iEvaluate Portal&quot; with subtitle &quot;Secure access to academic evaluation tools.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Enter the university ID or institutional email, then the password, and tap the eye icon at the right of the password field.</div><div class="exp"><span>Expected:</span> First field&#x27;s placeholder reads &quot;University ID or Institutional Email&quot;. Password is masked by default; the eye reveals it and tapping again re-masks it.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tick &quot;I agree to the NDA and DPA&quot;, then tap the information icon beside it.</div><div class="exp"><span>Expected:</span> Checkbox ticks. The icon opens a dialog titled &quot;NDA &amp; DPA Agreements&quot;, which can be dismissed.</div></td></tr><tr><td colspan="2"><div class="stp">4. Tap &quot;Sign In&quot;.</div><div class="exp"><span>Expected:</span> Authentication succeeds and the app routes to &quot;My Dashboard&quot;, with the bottom tabs Dashboard, My Subjects, Feedback and Past Terms. No other role&#x27;s dashboard is shown.</div></td></tr><tr><td colspan="2"><div class="marker">negative paths below; run last</div><div class="stp">5. Sign out. Leave both fields empty, tick the NDA box, tap &quot;Sign In&quot;.</div><div class="exp"><span>Expected:</span> Refused with &quot;Please enter your ID/email and password.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">6. Fill valid credentials but leave &quot;I agree to the NDA and DPA&quot; unticked.</div><div class="exp"><span>Expected:</span> Refused with &quot;Please agree to the NDA and DPA to log in.&quot; No session is created.</div></td></tr><tr><td colspan="2"><div class="stp">7. Enter a valid email with an incorrect password and sign in once, then repeat until the attempt limit trips.</div><div class="exp"><span>Expected:</span> The first attempt fails with an invalid-credentials message and the typed email is not cleared. The limit then blocks with &quot;Too many failed attempts. Please wait Xm Ys before trying again.&quot; carrying a live countdown.</div></td></tr><tr><td colspan="2"><div class="stp">8. Sign in with the credentials of a DEACTIVATED instructor account.</div><div class="exp"><span>Expected:</span> Denied with &quot;Your account has been deactivated by the administration.&quot; The dashboard is never reached.</div></td></tr><tr><td colspan="2"><div class="stp">9. Tap &quot;Forgot Password?&quot;, complete the reset, return and sign in with the new password.</div><div class="exp"><span>Expected:</span> Login screen shows &quot;Password updated successfully! Please log in with your new password.&quot; and the new password is accepted.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A valid instructor reaches My Dashboard; every invalid path is refused with its own specific message; and a deactivated account cannot reach any instructor screen.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1-4. Login screen rendered as specified; after sign-in the app landed on &quot;My Dashboard&quot; greeting &quot;Welcome back, Rodz!&quot; Steps 5-9 NOT EXECUTED - would lock out a working account.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC002</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">MY DASHBOARD: SCORES, SYNC, NOTICES AND TERM REACTIVITY</p><p>Dashboard shows the instructor&#x27;s own scores for the active term, and reacts to sync, notices and a term change</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as instructor with at least one subject assigned in the active term. For steps 8-9, a second device signed in as SAO admin, and one unresolved intervention notice raised by the department head.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Cross-check [overall_total_survey], [management_results], [performance_results], [intervention_reports], [system_settings.current_term_id].</p></td></tr><tr><th rowspan="9">Steps</th><td colspan="2"><div class="stp">1. Observe the hero card at the top of &quot;My Dashboard&quot;.</div><div class="exp"><span>Expected:</span> Shows &quot;Welcome back, {FirstName}!&quot;, &quot;Your Performance Overview&quot;, and &quot;Active Term:&quot; followed by the term set by the SAO admin.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the large score and the badge beside it.</div><div class="exp"><span>Expected:</span> The number is the overall weighted mean to two decimals, labelled &quot;Overall Weighted Mean&quot;. The badge matches the band: &gt;=4.20 Outstanding, &gt;=3.40 Very Satisfactory, &gt;=2.60 Satisfactory, &gt;=1.80 Fair, otherwise Unsatisfactory.</div></td></tr><tr><td colspan="2"><div class="stp">3. Compare &quot;Management&quot;, &quot;Performance&quot; and &quot;Evaluations&quot; against the database for this instructor and term.</div><div class="exp"><span>Expected:</span> Management and Performance match the stored section means; Evaluations matches the respondent count. The overall mean sits between the two section means.</div></td></tr><tr><td colspan="2"><div class="stp">4. Scroll to &quot;Current Classes&quot;, then tap any subject card.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Open a subject to review scores and student feedback.&quot; Every subject assigned for the active term is listed with code and name, and no subject from another term appears. Tapping a card opens Subject Detail for that subject.</div></td></tr><tr><td colspan="2"><div class="stp">5. Scroll to the bottom two columns.</div><div class="exp"><span>Expected:</span> &quot;Growth&quot; shows a bar per recent term; &quot;Recent Feedback&quot; lists up to five latest remarks, or &quot;No feedback yet&quot; when there are none.</div></td></tr><tr><td colspan="2"><div class="stp">6. Tap the sync icon in the app bar (tooltip &quot;Manual Sync&quot;), then pull down on the dashboard body to refresh.</div><div class="exp"><span>Expected:</span> The icon becomes a disabled spinner while running, then a snackbar reads &quot;Dashboard and local results synced successfully&quot;. The pull refresh runs the same sync with the same outcome.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap the bell icon while there are no active notices.</div><div class="exp"><span>Expected:</span> Snackbar reads &quot;No active intervention notices from your department head.&quot; and no badge is drawn on the bell.</div></td></tr><tr><td colspan="2"><div class="stp">8. Have the department head raise an intervention notice, then observe the dashboard WITHOUT restarting the app, and try to dismiss the notice.</div><div class="exp"><span>Expected:</span> A red count badge appears on the bell and a card headed &quot;Official Notice - Action Required&quot; appears at the top, showing &quot;From:&quot;, &quot;Action:&quot; and &quot;Notes:&quot;. No dismiss control exists - a lock icon carries the tooltip &quot;Only your department head can remove this notice&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">9. While the dashboard is open, have the SAO admin switch the active term.</div><div class="exp"><span>Expected:</span> The dashboard reloads on its own and &quot;Active Term:&quot; plus every figure updates, without a manual restart.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The dashboard presents this instructor&#x27;s own active-term scores, every figure reconciles with the evaluation tables, notices are read-only, and a term change propagates without a restart.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1-5. Observed 2.99 / &quot;Satisfactory&quot;, Management 3.00, Performance 2.99, Evaluations 50, active term &quot;2nd Semester, 2027-2028&quot;, with &quot;IAS 301&quot; under Current Classes. The band correctly matches the 2.60-3.39 rule. Steps 6-9 NOT EXECUTED - need a second SAO admin session and a department-head notice.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC003</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">MY SUBJECTS AND SUBJECT DETAIL</p><p>Assigned subjects for the term, and the criterion breakdown and comments for one subject</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as instructor with subjects assigned in the active term, at least one carrying recorded evaluations.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Cross-check [instructor_subjects], [management_results] m1-m10, [performance_results] p1-p10, [student_remarks].</p></td></tr><tr><th rowspan="10">Steps</th><td colspan="2"><div class="stp">1. Tap the &quot;My Subjects&quot; tab and read the summary header.</div><div class="exp"><span>Expected:</span> Screen opens titled &quot;My Subjects&quot;. The header shows the term label, &quot;Term Performance&quot;, the verbal-description pill, the value under &quot;Overall Weighted Mean&quot;, and a count under &quot;Assigned Subjects&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Compare the &quot;Assigned Subjects&quot; count with the number of subject cards and with [instructor_subjects].</div><div class="exp"><span>Expected:</span> All three agree. No subject belonging to another instructor or another term is listed.</div></td></tr><tr><td colspan="2"><div class="stp">3. Inspect one subject card, then compare its term total with the dashboard.</div><div class="exp"><span>Expected:</span> The card shows the subject code in capitals, the subject name, a score badge with the mean to two decimals and its code (O / VS / S / F / US, or &quot;N/A&quot; at zero), plus &quot;Management&quot; and &quot;Performance&quot; mini-metrics. The overall mean here matches the dashboard&#x27;s.</div></td></tr><tr><td colspan="2"><div class="stp">4. Pull down to refresh, then tap a subject card.</div><div class="exp"><span>Expected:</span> The list reloads without error, and the card opens Subject Detail titled with the subject code, with a back arrow, the subject name and &quot;N total respondents&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Read the three summary cards on Subject Detail.</div><div class="exp"><span>Expected:</span> &quot;Management&quot;, &quot;Performance&quot; and &quot;Overall Weighted Mean&quot; are shown, the third also carrying its verbal description.</div></td></tr><tr><td colspan="2"><div class="stp">6. Expand and collapse &quot;I. Management Breakdown&quot;.</div><div class="exp"><span>Expected:</span> Section starts expanded and toggles on tap with the arrow rotating. Table columns are &quot;No.&quot; / &quot;Criteria&quot; / &quot;Mean&quot; / &quot;VD&quot; across all ten SS Form 2 management criteria.</div></td></tr><tr><td colspan="2"><div class="stp">7. Expand &quot;II. Performance Breakdown&quot; and verify each mean against the database.</div><div class="exp"><span>Expected:</span> All ten performance criteria are listed and every mean matches p1-p10 for this subject and term.</div></td></tr><tr><td colspan="2"><div class="stp">8. Scroll the &quot;Per-Question Visualization&quot; chart sideways.</div><div class="exp"><span>Expected:</span> Twenty bars labelled &quot;M1&quot;-&quot;M10&quot; and &quot;P1&quot;-&quot;P10&quot;, each printing its score, each matching the tables above.</div></td></tr><tr><td colspan="2"><div class="stp">9. Under &quot;Student Feedback&quot;, apply each chip - &quot;All&quot;, &quot;Positive&quot;, &quot;Neutral&quot;, &quot;Critical&quot; - including one tone with no comments for this subject.</div><div class="exp"><span>Expected:</span> The counter reads &quot;{filtered} of {total}&quot; and updates per chip. Only remarks of the selected tone remain, and only for this subject. An empty tone reads &quot;No {tone} feedback for this subject.&quot; in lower case, e.g. &quot;No critical feedback for this subject.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">10. Cycle the sort dropdown through all four options.</div><div class="exp"><span>Expected:</span> &quot;Date (Newest)&quot;, &quot;Date (Oldest)&quot;, &quot;Sentiment (Positive First)&quot; and &quot;Sentiment (Critical First)&quot; each reorder correctly, and the sort survives changing the chip.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Every assigned subject is listed with correct scores that reconcile with the dashboard, and for one subject both criterion tables, the twenty-bar chart and the filtered comments agree with the stored results.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1, 3, 4, 5, 6, 8 and the filter half of step 9. MY SUBJECTS: header showed &quot;2ND SEMESTER 2027-2028&quot;, &quot;Term Performance&quot;, the &quot;Satisfactory&quot; pill, 2.99 overall and 4 assigned subjects, matching the dashboard exactly. Both spot-checked bands are correct: &quot;IAS 301&quot; at 3.55 VS (Mgmt 3.70 / Perf 3.40) and &quot;NETWORK 202&quot; at 3.03 S (3.00 / 3.06). SUBJECT DETAIL: opened &quot;CAPSTONE 401&quot; from a HISTORICAL term. Header read &quot;Capstone Project 1&quot; / &quot;26 total respondents&quot;; cards showed Management 3.04, Performance 3.02, Overall 3.03 &quot;Satisfactory&quot; - matching the Past Terms card exactly, so historical scoping is correct. Both breakdowns render with No./Criteria/Mean/VD and the correct SS Form 2 wording, and the collapse toggle works (Management collapsed on tap, arrow flipped). The per-question chart renders with M1-M9 visible and scrolls for the rest. Feedback showed &quot;3 of 3&quot; with chips &quot;All 3&quot; / &quot;Positive 0&quot;, sort defaulting to &quot;Date (Newest)&quot;, and tone-coloured cards. Step 2 needs the database cross-check; the empty-tone half of step 9 and step 10 not executed. MINOR: long subject names truncate on the card, e.g. &quot;Information Assurance and...&quot;; &quot;Overall Weighted M...&quot; truncates in the Subject Detail summary card.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC004</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">STUDENT FEEDBACK: TONE, AI INSIGHTS, WORD CLOUD AND QUOTES *** FAIL - DEF-02 (FIXED, AWAITING RE-TEST) ***</p><p>Sentiment split, AI-generated interpretation, word cloud legibility and all quote filters</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Feedback screen reachable, and the active term has processed student remarks across at least two subjects and more than one tone.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Verify against [student_remarks], [instructor_ai_suggestions] and [instructor_wordcloud] (top 25 by count), matched on instructor ID and term ID.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Tap the &quot;Feedback&quot; tab.</div><div class="exp"><span>Expected:</span> Two-line title, &quot;Student Feedback&quot; above the active term. Header reads &quot;Feedback Insights&quot; with subtitle &quot;Sentiment, recurring themes, and individual comments.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Inspect &quot;Emotional Tone Overview&quot;.</div><div class="exp"><span>Expected:</span> A segmented bar plus three percentages labelled &quot;Positive&quot;, &quot;Neutral&quot;, &quot;Critical&quot;. The three add up to 100%, and the bar segment widths match the percentages.</div></td></tr><tr><td colspan="2"><div class="stp">3. Count the tone values in [student_remarks] for this instructor and term, and compare.</div><div class="exp"><span>Expected:</span> Each on-screen percentage equals its share of the stored tone values. The comment total matches the Direct Quotes counter.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read &quot;What Your Students Are Saying&quot; under &quot;AI Instructor Insights&quot;.</div><div class="exp"><span>Expected:</span> Sub-label reads &quot;AI-generated interpretation&quot;. The paragraph matches [instructor_ai_suggestions.ai_suggestion] for this instructor and term, and is the SAME paragraph the official evaluation report prints under &quot;COMMENTS &amp; FEEDBACK SUMMARY:&quot;. The pill at the foot reads &quot;Based on N comments&quot; with N equal to the actual comment count.</div></td></tr><tr><td colspan="2"><div class="stp">5. Compare &quot;Key Positive Themes&quot; and &quot;Improvement Insights&quot; against the database.</div><div class="exp"><span>Expected:</span> Every green chip matches an entry in [instructor_ai_suggestions.positive_themes], and each improvement row an entry in improvement_insights, subtitled &quot;Areas flagged in student feedback worth reviewing&quot;. Nothing is invented, and either card is hidden when its column is empty.</div></td></tr><tr><td colspan="2"><div class="stp">6. Sign in as an instructor whose AI row has not been generated yet.</div><div class="exp"><span>Expected:</span> The screen still renders. The interpretation area shows its pending or empty-state text, not another instructor&#x27;s content, and does not crash.</div></td></tr><tr><td colspan="2"><div class="stp">7. Scroll to &quot;AI Word Cloud&quot;, read every word in the panel, then pull to refresh and read it again.</div><div class="exp"><span>Expected:</span> EVERY WORD IS FULLY VISIBLE AND LEGIBLE. No word is clipped at any edge of the panel, including rotated words, in ANY arrangement. Larger words correspond to higher counts in [instructor_wordcloud]. Positions reshuffle on refresh by design, but the same set of words is present and none becomes clipped.</div></td></tr><tr><td colspan="2"><div class="stp">8. Scroll to &quot;Direct Quotes&quot; and read the counter beside the heading.</div><div class="exp"><span>Expected:</span> Counter reads &quot;N Comments&quot;, is fully on screen and not cut off at the right edge, and equals the number of quote cards below.</div></td></tr><tr><td colspan="2"><div class="stp">9. Tap each tone chip in turn, then open the subject dropdown and pick each entry, then combine a tone chip with a subject selection.</div><div class="exp"><span>Expected:</span> Each chip carries a count badge, the list narrows to that tone, the counter updates, and the badge counts sum to the &quot;All&quot; count. The dropdown&#x27;s first entry is &quot;All Subjects&quot;, followed by every subject code found in the remarks, sorted A-Z. The two filters apply TOGETHER, not one replacing the other, and the counter reflects the combined result.</div></td></tr><tr><td colspan="2"><div class="stp">10. Cycle the sort dropdown through all four options, then choose a filter combination with no matching comments.</div><div class="exp"><span>Expected:</span> &quot;Date (Newest)&quot; is the default. &quot;Date (Oldest)&quot;, &quot;Sentiment (Positive First)&quot; and &quot;Sentiment (Critical First)&quot; each reorder correctly, and the sort holds while filters change. An empty combination replaces the list with &quot;No comments match this filter.&quot; and no stale quote cards remain.</div></td></tr><tr><td colspan="2"><div class="stp">11. Inspect one quote card.</div><div class="exp"><span>Expected:</span> Shows the subject-code pill, the date as YYYY-MM-DD, the remark in italics inside quotation marks, and a tone icon with its label. The card border colour matches the tone.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Tone percentages match the stored remarks, every AI-generated element traces back to this instructor&#x27;s own row, all word-cloud words are legible, and the tone, subject and sort controls filter correctly alone and combined.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>FAIL AT STEP 7. The rotated word &quot;Fair grading&quot; is clipped at the right edge of the word-cloud panel and cannot be read in full. Raised as DEF-02. PASS on steps 1, 2 and 4: observed 51% Positive, 14% Neutral, 35% Critical, summing to 100% and consistent with 25 positive of 49 comments. &quot;What Your Students Are Saying&quot; rendered a populated interpretation with the correct sub-label. Filters themselves rendered correctly: &quot;All 49&quot; / &quot;Positive 25&quot;, with &quot;All Subjects&quot; and &quot;Date (Newest)&quot; defaults present, and the chip counts internally consistent (25 positive of 49 matches the 51% tone figure). Step 8 raised as DEF-04. Steps 3, 5, 6 and 9-11 not fully executed.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>DEF-02 and DEF-04 were fixed on 31/08/2026 - see the defect log. This case needs re-testing against a rebuilt app; step 7 in particular must be re-read after several pull-to-refreshes, since the cloud reshuffles each time.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC005</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">PAST TERMS, TREND CHART AND HISTORICAL TERM SELECTION</p><p>Historical scores across previous academic terms</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>The instructor has evaluation data in at least two previous terms.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. [overall_total_survey] joined to [academic_terms].</p></td></tr><tr><th rowspan="6">Steps</th><td colspan="2"><div class="stp">1. Tap the &quot;Past Terms&quot; tab and wait for loading to finish.</div><div class="exp"><span>Expected:</span> Screen opens titled &quot;Past Terms&quot;, showing &quot;Historical Growth&quot; and &quot;Track evaluation scores across previous academic terms.&quot; The placeholder &quot;Loading past terms...&quot; is replaced by content.</div></td></tr><tr><td colspan="2"><div class="stp">2. Inspect the &quot;Performance Trend&quot; chart AND SCROLL IT SIDEWAYS TO ITS END.</div><div class="exp"><span>Expected:</span> One bar per term with data, oldest to newest, each printing its score to two decimals over a two-line term label. EVERY term that has data appears as a bar, INCLUDING the current active term. NOTE: the chart scrolls horizontally and the newest terms sit off-screen until scrolled. Scroll before judging.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tap a bar in the chart, then open the term dropdown and select a different term.</div><div class="exp"><span>Expected:</span> A tapped bar becomes solid white to show selection and the subject list below reloads for that term. The dropdown lists terms newest first, and changes the chart highlight and the subject list together - the two never disagree about which term is selected.</div></td></tr><tr><td colspan="2"><div class="stp">4. For the selected term, check the &quot;Subjects Taught&quot; list.</div><div class="exp"><span>Expected:</span> The counter reads &quot;N Subjects&quot; and matches the number of cards. Every subject belongs to the SELECTED term, not the active one.</div></td></tr><tr><td colspan="2"><div class="stp">5. Select a term with no subject records.</div><div class="exp"><span>Expected:</span> Message reads &quot;No subjects found for this term.&quot; and no cards from the previous term remain on screen.</div></td></tr><tr><td colspan="2"><div class="stp">6. Tap a subject card while a HISTORICAL term is selected.</div><div class="exp"><span>Expected:</span> Subject Detail opens showing that historical term&#x27;s figures, not the active term&#x27;s.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The trend chart, the dropdown and the subject list stay consistent with one another, and every historical term&#x27;s data is reachable and correctly scoped.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1-4 and 6. The chart holds 8 bars and scrolls to reveal all of them, ending at &quot;2nd 27-28&quot; at 2.99, drawn solid white as the selected term and agreeing with the dashboard. The dropdown lists all 8 terms newest first, matching the 8 bars. Selecting &quot;1st Semester 2025-2026&quot; reloaded the list to &quot;4 Subjects&quot;, with &quot;CAPSTONE 401&quot; showing 3.03 S, Management 3.04 and Performance 3.02, correctly banded. Tapping it opened Subject Detail with that historical term&#x27;s figures. Step 5 (a term with no subjects) not executed.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC006</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">OFFICIAL EVALUATION REPORT AND PDF EXPORT *** FAIL - DEF-01, DEF-03 (FIXED, AWAITING RE-TEST) ***</p><p>Official SAST report on screen and as a PDF</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>The instructor has evaluation data in the active term and in at least one past term. The device allows writing to Downloads.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View and export. [overall_question_means], [instructor_wordcloud], [instructor_ai_suggestions]</p><p>CORRECTION TO THE PREVIOUS VERSION OF THIS DOCUMENT The download control is NOT on Past Terms. &quot;Full Term Report&quot; only navigates. The download icon lives in the app bar of the report screen.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. From the dashboard hero card, tap &quot;View Official SAST Report&quot;.</div><div class="exp"><span>Expected:</span> Screen opens titled &quot;Official Evaluation Report&quot;, populated for the ACTIVE term.</div></td></tr><tr><td colspan="2"><div class="stp">2. Go back, open &quot;Past Terms&quot;, select a past term, then tap &quot;Full Term Report&quot;.</div><div class="exp"><span>Expected:</span> The same report screen opens, populated for the SELECTED PAST term. The academic year in the header is that term&#x27;s, not the active one&#x27;s.</div></td></tr><tr><td colspan="2"><div class="stp">3. Check the official header block.</div><div class="exp"><span>Expected:</span> Shows the CTU logo, &quot;Republic of the Philippines&quot;, &quot;CEBU TECHNOLOGICAL UNIVERSITY&quot;, &quot;ARGAO CAMPUS&quot;, then &quot;STUDENTS&#x27; ASSESSMENT SURVEY FOR TEACHERS (SAST)&quot;, with &quot;Instructor Name:&quot;, &quot;Instructor ID:&quot;, &quot;Academic Year:&quot; and &quot;Department:&quot; correctly filled AND FULLY READABLE for the signed-in instructor.</div></td></tr><tr><td colspan="2"><div class="stp">4. Verify the summary table and both criterion tables.</div><div class="exp"><span>Expected:</span> Columns &quot;N&quot; / &quot;MANAGEMENT&quot; / &quot;PERFORMANCE&quot; / &quot;OVERALL&quot;, each score paired with its VD code. Sections &quot;I. Management&quot; and &quot;II. Performance&quot; each list ten criteria and end with &quot;Section Mean:&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Check &quot;COMMENTS &amp; FEEDBACK SUMMARY:&quot; and the &quot;Top Feedback Terms&quot; box.</div><div class="exp"><span>Expected:</span> The AI paragraph is present, and the box lists the top five terms as &quot;word (count)&quot; matching [instructor_wordcloud].</div></td></tr><tr><td colspan="2"><div class="stp">6. Check the &quot;RANGE &amp; Verbal Description (VD):&quot; legend against the scores.</div><div class="exp"><span>Expected:</span> Legend lists the five bands from &quot;4.20 - 5.00 : Outstanding (O)&quot; down to &quot;1.00 - 1.79 : Unsatisfactory (US)&quot;, and every VD code printed in the tables obeys it.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap the download icon in the app bar.</div><div class="exp"><span>Expected:</span> A PDF named &quot;SAST_Report_{Instructor_Name}.pdf&quot; is written to the device&#x27;s Downloads or Documents folder, and the system share or print sheet opens.</div></td></tr><tr><td colspan="2"><div class="stp">8. Open the saved PDF and compare it with the screen, then repeat the export for a past term.</div><div class="exp"><span>Expected:</span> Scores, criteria and comments match the on-screen report. The PDF additionally carries &quot;INDIVIDUAL SUMMARY REPORT&quot;, &quot;SS Form No. 2&quot; and a signature block. THE ACADEMIC YEAR READS CORRECTLY, with the word &quot;Semester&quot; appearing exactly ONCE. The past-term export holds the SELECTED PAST term&#x27;s figures.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The report renders correctly for both the active and any past term, and downloads as a PDF whose contents match the term that was selected.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>FAIL AT STEPS 3 AND 8. Steps 2, 4 and 7 PASS: opening &quot;Full Term Report&quot; for &quot;1st Semester 2025-2026&quot; produced that term&#x27;s figures (N 100, Management 3.01, Performance 2.97, Overall 2.99, all banded S), the official header and criterion tables rendered, and the download wrote &quot;SAST_Report_Rodz_Harvey_Licayan.pdf&quot; (736 KB) whose scores match the screen exactly. STEP 3 FAILS: header fields are truncated on screen to &quot;Rodz...&quot;, &quot;1st Se...&quot; and &quot;College o...&quot; (DEF-03). STEP 8 FAILS: the PDF reads &quot;Academic Year: 1st Semester Semester 2025-2026&quot;, with the word Semester duplicated (DEF-01). Steps 1, 5, 6 and the past-term half of step 8 not executed.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>DEF-01 and DEF-03 were both fixed on 31/08/2026 - see the defect log. This case needs re-testing against a rebuilt app: step 3 for the header fields and step 8 for the academic year in the PDF.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC007</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">ACCOUNT SETTINGS: PROFILE, NOTIFICATIONS, EMAIL AND PASSWORD</p><p>Profile editing, notification preference, email confirmation flow and password rules</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as instructor, with access to the account&#x27;s inbox for steps 8-9.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>First and last name of the test instructor. A second existing account&#x27;s full name, for step 6. A reachable new email address. A new password of at least six characters, NOT recorded here.</p></td></tr><tr><th>Note</th><td colspan="2"><p>Steps 4-11 all write to the live account, and a successful password change signs the user out. Run the read-only steps 1-3 first.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open the hamburger menu and read the drawer.</div><div class="exp"><span>Expected:</span> Header shows the initials avatar, full name and the role &quot;Instructor&quot;. Items are &quot;Account Settings&quot; and &quot;Log Out&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Account Settings&quot; and confirm which fields can be edited.</div><div class="exp"><span>Expected:</span> Screen opens titled &quot;Account Settings&quot; with the subtitle &quot;Profile, notifications, sign-in, and account security.&quot; Name, email and password are editable; title, role and department are DISPLAY ONLY; there is no avatar upload.</div></td></tr><tr><td colspan="2"><div class="stp">3. Scroll to the bottom of Settings.</div><div class="exp"><span>Expected:</span> Footer reads &quot;iEvaluate Version 1.0.0 (Prototype)&quot;.</div></td></tr><tr><td colspan="2"><div class="marker">steps below write to the live account</div><div class="stp">4. Tap &quot;Edit Personal Details&quot;.</div><div class="exp"><span>Expected:</span> A sheet titled &quot;Edit Profile&quot; opens with &quot;First Name&quot; and &quot;Last Name&quot; fields and a warning that the name must match official school records because it is used for scanner validation.</div></td></tr><tr><td colspan="2"><div class="stp">5. Change the name and tap &quot;Save Changes&quot;.</div><div class="exp"><span>Expected:</span> Snackbar reads &quot;Profile updated successfully!&quot; The new name appears in the drawer header and the dashboard greeting.</div></td></tr><tr><td colspan="2"><div class="stp">6. Try to save a full name identical to another existing account.</div><div class="exp"><span>Expected:</span> The save is rejected rather than creating a duplicate identity.</div></td></tr><tr><td colspan="2"><div class="stp">7. Toggle &quot;Push Notifications&quot; off, then on.</div><div class="exp"><span>Expected:</span> Snackbars read &quot;Push notifications disabled.&quot; then &quot;Push notifications enabled.&quot; The setting survives closing and reopening the screen.</div></td></tr><tr><td colspan="2"><div class="stp">8. Tap &quot;Edit Email&quot;, then submit an address with no &quot;@&quot;, then an empty field.</div><div class="exp"><span>Expected:</span> Dialog titled &quot;Edit Email&quot; explains a confirmation link will be sent, with a &quot;New Email&quot; field and &quot;Cancel&quot; / &quot;Update&quot; buttons. Neither invalid value is accepted as a change.</div></td></tr><tr><td colspan="2"><div class="stp">9. Submit a valid new address. BEFORE clicking the emailed link, sign out and sign back in with the OLD address. Then click the link and sign in with the new address.</div><div class="exp"><span>Expected:</span> Snackbar reads &quot;Email updated! Check your inbox for confirmation.&quot; and the email arrives. The OLD address still works until the link is clicked. Afterwards the new address is accepted and the old one no longer authenticates.</div></td></tr><tr><td colspan="2"><div class="stp">10. Tap &quot;Edit Password&quot; and submit each invalid case in turn: blank fields; a confirmation that differs; a matching password shorter than six characters; a valid password with the wrong current password.</div><div class="exp"><span>Expected:</span> Each is refused with its own message - &quot;Please fill in all fields.&quot;, &quot;Passwords do not match.&quot;, &quot;Password must be at least 6 characters.&quot;, &quot;Current password is incorrect.&quot; - and the password is never changed.</div></td></tr><tr><td colspan="2"><div class="stp">11. Submit a fully valid password change, then sign in with the old password and with the new one.</div><div class="exp"><span>Expected:</span> Snackbar reads &quot;Password updated. Please log in again.&quot; and after a short pause the app signs out to the Login screen. The old password is then rejected and the new one accepted.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The instructor can change their own name and notification preference, duplicate names are refused, read-only fields cannot be edited, an email change takes effect only once confirmed, and every password rule has its own message.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1-3. The drawer showed the initials avatar, &quot;Rodz Harvey Licayan&quot;, role &quot;Instructor&quot;, and both &quot;Account Settings&quot; and &quot;Log Out&quot;. Settings opened with the correct heading and subtitle; Profile showed the name over &quot;FULL-TIME - College of Technology and Engineering&quot; with &quot;Edit Personal Details&quot;. Title and department are display only with no avatar upload, as required. Security lists &quot;Edit Email&quot;, &quot;Edit Password&quot; and &quot;Deactivate My Account&quot;, above &quot;Sign Out Securely&quot; and the footer &quot;iEvaluate Version 1.0.0 (Prototype)&quot;. Steps 4-11 DELIBERATELY NOT EXECUTED - they write to the live account. Defect found: avatar initials disagree between screens (DEF-05).</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2"><p>Rodz Harvey D. Licayan  31/08/2026</p></td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC008</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p class="hl">SIGN-OUT, SESSION TERMINATION AND SELF-DEACTIVATION</p><p>Session and cached data are cleared on sign-out, and deactivation is guarded by a 6-digit emailed code</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as an instructor with the dashboard already loaded once, so cached data exists. Access to the account&#x27;s inbox. A second instructor account for step 5.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>The 6-digit code emailed during the run. Edge functions [send-admin-code] and [delete-user]. WARNING                   : Steps 7-11 LOCK the account. Only an SAO admin can reactivate it, so use a disposable test account and arrange reactivation in advance. Run the sign-out steps 1-6 first.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open &quot;Account Settings&quot;, tap &quot;Sign Out Securely&quot;, then tap &quot;Cancel&quot;.</div><div class="exp"><span>Expected:</span> A confirmation dialog titled &quot;Log Out&quot; appears with &quot;Cancel&quot; and &quot;Log out&quot;. Cancel closes it and the session continues.</div></td></tr><tr><td colspan="2"><div class="stp">2. Reopen and tap &quot;Log out&quot;.</div><div class="exp"><span>Expected:</span> An overlay reads &quot;Signing you out...&quot; over &quot;Clearing your session data.&quot;, then the Login screen appears.</div></td></tr><tr><td colspan="2"><div class="stp">3. Press the Android back button from the Login screen.</div><div class="exp"><span>Expected:</span> The app does not return to the dashboard. No instructor screen is reachable without signing in again.</div></td></tr><tr><td colspan="2"><div class="stp">4. Force-close the app, reopen it, and observe the splash.</div><div class="exp"><span>Expected:</span> The app opens on the Login screen, not a restored session. Run this only after an explicit sign-out.</div></td></tr><tr><td colspan="2"><div class="stp">5. Sign in as a DIFFERENT instructor.</div><div class="exp"><span>Expected:</span> The dashboard shows only the new instructor&#x27;s data. No cached name, score, subject or comment from the previous account is visible at any point.</div></td></tr><tr><td colspan="2"><div class="stp">6. Repeat the sign-out using &quot;Log Out&quot; from the side drawer instead of Settings.</div><div class="exp"><span>Expected:</span> The drawer route behaves identically to the Settings route.</div></td></tr><tr><td colspan="2"><div class="marker">steps below LOCK the account</div><div class="stp">7. Tap &quot;Deactivate My Account&quot;, tap outside the dialog, then tap &quot;Cancel&quot;.</div><div class="exp"><span>Expected:</span> A dialog titled &quot;Deactivate Account?&quot; explains the account can only be restored by the SAO Admin, and notes a 6-digit code will be emailed. Buttons are &quot;Cancel&quot; and &quot;Send Code&quot;. Tapping outside does NOT dismiss it, so deactivation cannot be triggered accidentally, and Cancel leaves the account fully active.</div></td></tr><tr><td colspan="2"><div class="stp">8. Reopen the dialog and tap &quot;Send Code&quot;.</div><div class="exp"><span>Expected:</span> The dialog moves to a 6-digit numeric field hinted &quot;000000&quot;, and a code arrives by email.</div></td></tr><tr><td colspan="2"><div class="stp">9. Submit each invalid case: fewer than six digits; six INCORRECT digits; &quot;Resend code&quot; twice in quick succession; a stale code past its expiry.</div><div class="exp"><span>Expected:</span> Refused with &quot;Enter the 6-digit code from your email.&quot;; then the server&#x27;s wrong-code message in red; then a rate-limit message naming the seconds remaining; then refused as expired with a fresh code required. The account stays active throughout.</div></td></tr><tr><td colspan="2"><div class="stp">10. Enter the correct 6-digit code, typing the sixth digit last, and wait for the flow to finish.</div><div class="exp"><span>Expected:</span> The dialog submits AUTOMATICALLY on the sixth digit, without a second tap, and a blocking overlay reads &quot;Deactivating account...&quot; over &quot;Signing you out and locking the account.&quot; The session is then cleared and the app returns to the Login screen with no way to navigate back into the app.</div></td></tr><tr><td colspan="2"><div class="stp">11. Try to sign in with the deactivated account, then as SAO admin confirm the instructor&#x27;s evaluation records still exist.</div><div class="exp"><span>Expected:</span> Sign-in is refused with &quot;Your account has been deactivated by the administration.&quot; This is a DEACTIVATION, not a deletion - scores and remarks are retained and the account can be reactivated.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Signing out clears the session and cached data with no leak into the next session. Deactivation completes only after a correct emailed code, after which the account cannot sign in but its evaluation data is preserved.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>NOT EXECUTED - would lock the live account.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Related observation: force-closing the app and relaunching WITHOUT signing out correctly restored the session and the previously selected term. Step 4 must be run only after an explicit sign-out.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">DEFECT LOG - 31 AUGUST 2026</h2><pre class="raw">Ordered most severe first.
+
+--------------------------------------------------------------------------------
+DEF-01  The word &quot;Semester&quot; is printed twice on the official report
+        SEVERITY: HIGH        STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The exported PDF read &quot;Academic Year: 1st Semester Semester 2025-2026&quot;. The
+  report screen had the same fault, hidden only because the field is truncated
+  there (DEF-03).
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The codebase documents its own contract in
+  lib/core/services/system_settings_service.dart lines 11-12: &quot;semester&quot; is a
+  label that ALREADY includes the word, e.g. &quot;1st Semester&quot;, and
+  &quot;academicYear&quot; is just &quot;2025-2026&quot;. Two things broke that contract:
+
+    1. Both places that compose the field inserted the word a second time:
+         lib/instructor/detailed_report_screen.dart:358
+         lib/core/services/pdf/pdf_service.dart:288
+       Each read &#x27;$term Semester $academicYear&#x27;.
+    2. lib/instructor/past_semesters_screen.dart:421-422 split the combined
+       label &quot;1st Semester 2025-2026&quot; on the FIRST space, producing
+       term=&quot;1st&quot; and academicYear=&quot;Semester 2025-2026&quot;.
+
+  All three entry points into the report were affected, because the dashboard
+  passes term=&quot;2nd Semester&quot; and the department-head page does the same.
+
+  FIX APPLIED
+    - Both composition sites now read &#x27;$term $academicYear&#x27;, since the term
+      already carries the word.
+    - Past Terms now splits on the LAST token via two new helpers,
+      _semesterOf() and _academicYearOf(), giving term=&quot;1st Semester&quot; and
+      academicYear=&quot;2025-2026&quot; as the contract requires.
+    - &quot;flutter analyze&quot; reports no issues on all three files.
+
+  STILL TO DO: rebuild the app and re-run TC006 steps 3 and 8 to confirm the
+  header now reads &quot;1st Semester 2025-2026&quot; both on screen and in the PDF.
+
+--------------------------------------------------------------------------------
+DEF-02  Word cloud clips words at the panel edge
+        SEVERITY: MEDIUM      STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  In &quot;AI Word Cloud&quot; the rotated term &quot;Fair grading&quot; ran past the right edge of
+  the dark panel and was cut off mid-word, so it could not be read.
+
+  Because the cloud reshuffles on every load, WHICH word was clipped changed
+  between refreshes, making this intermittent rather than tied to one term.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  Nothing bounded a word to the panel. The words sit in a Wrap inside a
+  fixed-padding Container, and each word was a bare Text with no width
+  constraint, so a word wider than the panel simply overflowed it. Rotated
+  words are the ones most at risk: RotatedBox swaps the constraints it passes
+  down, so a rotated word&#x27;s own text width becomes its vertical extent, and
+  neither extent was capped.
+
+  FIX APPLIED
+    - The word area is now wrapped in a LayoutBuilder, so the panel&#x27;s real
+      inner width is known at layout time.
+    - Every word is bounded by ConstrainedBox(maxWidth: that width) and drawn
+      through FittedBox(fit: BoxFit.scaleDown), so a word too wide to fit is
+      rendered slightly smaller instead of running off the edge. scaleDown only
+      ever reduces, so no word grows beyond the size its count earned it.
+    - The same bound sits inside RotatedBox, where the swapped constraints make
+      it cap the rotated word&#x27;s height. Both extents are now bounded, so
+      clipping is impossible by construction rather than by luck of the shuffle.
+    - &quot;flutter analyze&quot; reports no issues on the file.
+
+  STILL TO DO: rebuild the app and re-run TC004 step 7, refreshing several
+  times so more than one shuffle is checked.
+  File: lib/instructor/student_feedback_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-03  Report header fields are truncated on screen
+        SEVERITY: MEDIUM      STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  On &quot;Official Evaluation Report&quot; the identity fields were cut off:
+    &quot;Instructor Name: Rodz...&quot;
+    &quot;Academic Year: 1st Se...&quot;
+    &quot;Department: College o...&quot;
+  The instructor could not confirm from the screen that the report was about
+  them or which term it covered.
+
+  The exported PDF was NOT affected: it renders &quot;Rodz Harvey Licayan&quot; and
+  &quot;College of Technology and Engineering&quot; in full. So this was a layout
+  constraint in the on-screen header, not bad data.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  _headerField rendered the value with overflow: TextOverflow.ellipsis on a
+  single line, and the header places TWO of these side by side in one Row - so
+  each field had only half the screen width to work with. On a phone that is
+  not enough for a full name plus its label, so every long value was cut.
+
+  FIX APPLIED
+    - The value now wraps (softWrap: true, no ellipsis) instead of being cut,
+      and the Row is top-aligned so a wrapped value sits correctly beside its
+      label.
+    - The field grows downward by a line or two on a narrow screen. That is the
+      right trade: this block exists so the instructor can confirm the report is
+      theirs, so being complete matters more than being one line tall.
+    - &quot;flutter analyze&quot; reports no issues on the file.
+
+  STILL TO DO: rebuild the app and re-run TC006 step 3, confirming all four
+  fields read in full.
+  File: lib/instructor/detailed_report_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-04  Direct Quotes counter sits flush against the screen edge
+        SEVERITY: LOW         STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The &quot;N Comments&quot; counter beside the &quot;Direct Quotes&quot; heading reached the right
+  edge of the display with no padding. At the tested count it stayed readable,
+  but a wider value or a larger system font size would have clipped it.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The heading and the counter sat in a spaceBetween Row as two unconstrained
+  Text widgets. Neither could yield, so once the pair exceeded the row width the
+  counter was pushed off the end rather than the heading giving way.
+
+  FIX APPLIED
+    - Both sides are now Flexible with a 12px gap between them, and the counter
+      is end-aligned, so the heading yields first and the number is never cut.
+    - &quot;flutter analyze&quot; reports no issues on the file.
+
+  STILL TO DO: re-run TC004 step 8, ideally once at the largest system font
+  size the device offers.
+  File: lib/instructor/student_feedback_screen.dart
+
+--------------------------------------------------------------------------------
+DEF-05  Avatar initials differ between the drawer and Settings
+        SEVERITY: LOW         STATUS: FIXED 31/08/2026, PENDING RE-TEST
+--------------------------------------------------------------------------------
+  The same signed-in instructor was shown as &quot;RH&quot; in the side drawer but &quot;RL&quot;
+  on the Settings profile card, so the account appeared to belong to two
+  different people depending on the screen.
+
+  ROOT CAUSE, CONFIRMED IN CODE
+  The two screens composed the initials from different things. The drawer took
+  the first TWO WORDS of the full display name, so &quot;Rodz Harvey Licayan&quot; gave
+  &quot;RH&quot; - the middle name. Settings used first_name + last_name and gave &quot;RL&quot;.
+
+  FIX APPLIED
+    - The drawer now uses a new _initialsOf() helper that takes the FIRST and
+      LAST word of the name, skipping any middle name, so it produces &quot;RL&quot; and
+      agrees with Settings. A single-word name yields one letter, and an empty
+      name still yields &quot;?&quot;.
+    - Settings was already correct and is unchanged.
+    - &quot;flutter analyze&quot; reports no issues on the file.
+
+  STILL TO DO: re-run TC007 step 1 and confirm the drawer and the Settings
+  profile card show the same two letters.
+  File: lib/core/navigation/main_scaffold.dart
+
+--------------------------------------------------------------------------------
+DEF-06  Older PDF exports carry malformed filenames
+        SEVERITY: LOW         STATUS: NEEDS CONFIRMATION
+--------------------------------------------------------------------------------
+  The device&#x27;s Downloads folder holds earlier exports named:
+    SAST_Report_....pdf                   (truncated name leaked into filename)
+    SAST_Report_Instructor.pdf            (fell back to the literal word)
+    SAST_Report_Rodz_Harvey__Licayan.pdf  (doubled underscore)
+
+  NOT REPRODUCED ON THIS BUILD. The 31 August export was named correctly, so
+  this may already be fixed, or may depend on how quickly the export is
+  triggered after the profile loads. Export twice more, once immediately after
+  opening the report, before closing this off.
+
+  Affects TC006 step 7.
+
+--------------------------------------------------------------------------------
+DEF-07  Unreachable screen in the instructor module
+        SEVERITY: LOW (code hygiene)    STATUS: OPEN
+--------------------------------------------------------------------------------
+  lib/instructor/term_subjects_screen.dart is never instantiated anywhere in
+  the codebase. Past Terms renders its own subject list inline instead. It is
+  dead code, so no acceptance test can cover it. Either wire up an entry point
+  or remove the file.
+
+
+--------------------------------------------------------------------------------
+ONE SUSPECTED DEFECT WAS INVESTIGATED AND WITHDRAWN
+--------------------------------------------------------------------------------
+  The Performance Trend chart first appeared to be missing the active term,
+  because its newest VISIBLE bar was &quot;1st 26-27&quot; while the dropdown read
+  &quot;2nd Semester 2027-2028&quot;. Scrolling the chart to its right end showed the
+  term is present and correctly selected, so the chart works as intended.
+
+  Recorded here because the same misreading is easy to repeat: THE CHART
+  SCROLLS HORIZONTALLY, AND THE NEWEST TERMS SIT OFF-SCREEN UNTIL SCROLLED.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">WHAT CHANGED FROM THE PREVIOUS VERSIONS OF THIS DOCUMENT</h2><pre class="raw">AGAINST THE 4-CASE VERSION OF 26 AUGUST 2026
+
+1. EXPECTED RESULTS WERE WRONG ON THREE OF FOUR CASES. The old TC001-TC003 all
+   ended with &quot;The account is created successfully and the user is redirected
+   to the login page&quot; - a registration outcome carried into three view-only
+   screens. Each case now states the outcome its own steps produce.
+
+2. A LIVE PASSWORD WAS PRINTED IN THE TEST DATA. The old TC004 listed a working
+   credential in a document circulated to panelists. Credentials are now
+   referred to but never written down.
+
+3. THE DOWNLOAD STEP POINTED AT THE WRONG SCREEN. The old TC002 step 4 checked
+   for a download control on Past Terms, where none exists. It now runs in
+   TC006 against the report screen&#x27;s app bar.
+
+4. EVERY STEP CARRIES ITS OWN EXPECTED RESULT, so a failure identifies the step
+   rather than giving one verdict for the whole scenario.
+
+5. FAILURE PATHS ARE TESTED, NOT JUST HAPPY PATHS - rate limiting,
+   deactivated-account sign-in, password rules, and wrong or expired codes.
+   The old version recorded Pass on every case with no negative testing.
+
+6. RESULTS ARE NO LONGER PRE-FILLED. Only cases actually executed carry a
+   verdict; the rest say NOT EXECUTED and why.
+
+AGAINST THE 14-CASE VERSION OF 31 AUGUST 2026
+
+7. THE SAME COVERAGE IS NOW EIGHT CASES INSTEAD OF FOURTEEN.
+   Nothing was dropped. Cases that tested one screen from two angles, or the
+   read and write halves of one screen, were folded together, so the document
+   reads as one case per screen or flow. Where a merged case mixes a passing
+   read path with an unexecuted write path, the split is stated in the Actual
+   Result and marked in the steps.
+
+   OLD CASE                              NOW
+   ------------------------------------- --------------------------------------
+   TC001 valid sign-in                   TC001 steps 1-4
+   TC002 sign-in failure paths           TC001 steps 5-9
+   TC003 dashboard overview              TC002 steps 1-5
+   TC004 dashboard sync / notices / term TC002 steps 6-9
+   TC005 my subjects                     TC003 steps 1-4
+   TC006 subject detail                  TC003 steps 5-10
+   TC007 feedback tone and AI insights   TC004 steps 1-6
+   TC008 word cloud and quote filters    TC004 steps 7-11
+   TC009 past terms                      TC005
+   TC010 official report and PDF         TC006
+   TC011 settings profile / notification TC007 steps 1-7
+   TC012 email and password              TC007 steps 8-11
+   TC013 self-deactivation               TC008 steps 7-11
+   TC014 sign out                        TC008 steps 1-6
+
+   Defect cross-references were renumbered with the cases. Every DEF- number is
+   unchanged, so anything already citing a defect still matches.
+
+8. SIGN-OUT IS NOW TESTED BEFORE DEACTIVATION.
+   They share a case, and deactivation locks the account. Running sign-out
+   first means the destructive step is genuinely last.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SUMMARY</h2><pre class="raw">  Total cases                : 8
+  Passed                     : 2   (TC003, TC005)
+  Failed                     : 2   (TC004, TC006)
+  Partly executed            : 3   (TC001, TC002, TC007)
+  Not executed               : 1   (TC008)
+
+  Defects raised             : 7
+    Fixed, pending re-test   : 5   (DEF-01, DEF-02, DEF-03, DEF-04, DEF-05)
+    Open                     : 1   (DEF-07, dead code, no test can cover it)
+    Needs confirmation       : 1   (DEF-06, not reproduced on this build)
+  Suspected defects withdrawn: 1   (Performance Trend chart)
+
+  Every one of the eight reachable instructor screens was opened and exercised
+  on the device. What remains outstanding is, in every case, either a database
+  cross-check or a step that writes to the live account.
+
+  BOTH FAILING CASES HAVE HAD THEIR DEFECTS FIXED IN CODE, and both are
+  awaiting re-test on a rebuilt app. The verdicts above stay as recorded on
+  31 August 2026: a fix in code is not a passed test, and TC004 and TC006 turn
+  green only once the tester re-runs them and signs for it.
+
+
+--------------------------------------------------------------------------------
+RE-TEST CHECKLIST - WHAT TURNS THE TWO FAILURES GREEN
+--------------------------------------------------------------------------------
+  Rebuild the app first. The fixes are in source and are NOT in the build that
+  was tested on 31 August.
+
+  TC004 step 7  AI Word Cloud - every word fully readable, checked over
+                several pull-to-refreshes, since the cloud reshuffles. [DEF-02]
+  TC004 step 8  &quot;N Comments&quot; counter fully on screen, not against the
+                edge. Worth one pass at the largest system font size.  [DEF-04]
+  TC006 step 3  Report header - &quot;Instructor Name:&quot;, &quot;Instructor ID:&quot;,
+                &quot;Academic Year:&quot; and &quot;Department:&quot; all read in full.   [DEF-03]
+  TC006 step 8  Exported PDF reads &quot;Academic Year: 1st Semester
+                2025-2026&quot;, with &quot;Semester&quot; appearing exactly once.    [DEF-01]
+  TC007 step 1  Drawer initials match the Settings profile card.       [DEF-05]
+
+  If each behaves as written, update that case&#x27;s Actual Result and verdict, and
+  move the defect from PENDING RE-TEST to CLOSED with the re-test date.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SIGN-OFF</h2><pre class="raw">  Tester            : Rodz Harvey D. Licayan    ____________________  Date: ______
+
+  QA Engineer       : Mark Lawrence Medillo     ____________________  Date: ______
+
+  Project Leader    : Rodz Harvey Licayan       ____________________  Date: ______
+
+
+  PANELIST&#x27;S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">iEvaluate - Instructor Module UAT - Team ERMM Cebu Technological University, Argao Campus</h2><pre class="raw"></pre></section></body></html>

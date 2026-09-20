@@ -1,0 +1,362 @@
+<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate UAT - Department Head Module</title><style>
+@page { size: Letter; margin: 12mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9.2pt; color:#000; margin:0; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.head { display:flex; align-items:center; justify-content:center; gap:10px; }
+.seal { width:62px; height:62px; object-fit:contain; }
+.seal.spacer { visibility:hidden; }
+.htext { text-align:center; line-height:1.15; }
+.htext .l1 { font-size:8.5pt; }
+.htext .l2 { font-size:11pt; font-weight:bold; }
+.htext .l3 { font-size:7.5pt; }
+.htext .l4 { font-size:7.5pt; }
+.htext .l5 { font-size:6.8pt; }
+.college { text-align:center; font-weight:bold; font-size:11pt; margin-top:10px; }
+.dept { text-align:center; font-weight:bold; font-size:10.5pt; }
+.uat-title { text-align:center; font-weight:bold; font-size:19pt; margin:10px 0 8px; }
+table.uat { width:100%; border-collapse:collapse; table-layout:fixed; }
+table.uat th, table.uat td { border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+table.uat th { width:22%; text-align:right; font-weight:bold; }
+table.uat td.mlbl { width:34%; font-weight:bold; }
+td.ctr { text-align:center; }
+p { margin:0 0 4px; }
+p:last-child { margin-bottom:0; }
+.exp { margin-top:2px; padding-left:12px; }
+.exp span { font-weight:bold; font-style:italic; }
+p.hl { font-weight:bold; }
+.marker { font-weight:bold; font-style:italic; text-align:center; margin-bottom:3px; }
+.tall { height:52px; }
+.remarks { height:66px; }
+tr, td, th { page-break-inside:avoid; }
+h2.sect { text-align:center; font-size:12.5pt; margin:4px 0 8px; }
+pre.raw { font-family:"Consolas","Courier New",monospace; font-size:8pt; white-space:pre-wrap;
+          border:1px solid #000; padding:8px; margin:0; line-height:1.25; }
+</style></head><body><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">USER ACCEPTANCE TESTING - DEPARTMENT HEAD MODULE</h2><pre class="raw">================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+USER ACCEPTANCE TESTING - DEPARTMENT HEAD MODULE
+================================================================================
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+Role under test        : DEPARTMENT_HEAD / DEAN  (&quot;Department Head&quot;)
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the department head account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+WHAT THIS ROLE DOES
+  The Department Head reviews the faculty in their OWN department, spots who is
+  struggling, and takes formal action through an intervention report. Two
+  properties matter more than anything cosmetic:
+    1. SCOPE  - a head sees only their own department, never the whole college.
+    2. EFFECT - an intervention they raise reaches the instructor, and an
+                instructor cannot dismiss it.
+  This role can also deactivate an instructor&#x27;s account, so that path is tested
+  explicitly.
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in &quot;double quotes&quot; appears on screen exactly as written.
+* Names in [square brackets] are database tables or services to check when a
+  step needs back-end verification.
+* Each step has its own expected result, so a failed case identifies WHICH
+  step failed.
+* &quot;Actual Result&quot; is blank where the case has not been run.
+!! WARNING !!
+  Cases marked [LIVE DATA] create real intervention records against real
+  instructors, or deactivate a real account. Run them on staging, or on a
+  throwaway instructor account, and never during a live evaluation period.
+  TC-D08 (deactivating an instructor) is the highest-impact action in this
+  module.
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                   REACHED BY                          CASE
+  ------------------------ ----------------------------------- --------------
+  Overview                 Tab &quot;Overview&quot;                      TC-D01
+  Faculty Roster           Tab &quot;Faculty&quot;                       TC-D02
+  Instructor Detail        Tap a faculty row                   TC-D03, D08, D09
+  Subject Analytics        Tab &quot;Subjects&quot;                      TC-D07
+  Intervention Reports     Tab &quot;Reports&quot;                       TC-D04, D06
+  Executive Settings       Drawer &quot;Account Settings&quot;           TC-D10
+  (cross-role)             Instructor&#x27;s dashboard              TC-D05</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D01</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SIGN IN AS DEPARTMENT HEAD AND READ THE EXECUTIVE OVERVIEW</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>App on the Login screen. Account is active with role DEPARTMENT_HEAD or DEAN, and IS assigned to a department.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Tables [department_table], [user_info].</p></td></tr><tr><th rowspan="12">Steps</th><td colspan="2"><div class="stp">1. Sign in with the department head credentials.</div><div class="exp"><span>Expected:</span> Routes to the department head landing screen, NOT the instructor or admin dashboard. Bottom tabs read &quot;Overview&quot;, &quot;Faculty&quot;, &quot;Subjects&quot;, &quot;Reports&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm the role boundary.</div><div class="exp"><span>Expected:</span> There is NO route to any SAO Admin screen - no Users, no Personnel, no System Settings. A head who can reach an admin screen is a FAIL.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read the header and leadership area.</div><div class="exp"><span>Expected:</span> Shows &quot;Executive Overview&quot; / &quot;Department Overview&quot; and identifies the department this head leads, under &quot;Department Leadership&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read the summary figures.</div><div class="exp"><span>Expected:</span> Shows &quot;Department Average&quot;, &quot;Active Faculty&quot; and &quot;Total Forms Processed&quot;. The average is qualified by &quot;Based on N of M faculty&quot;, so a partly-evaluated department is not mistaken for a complete one.</div></td></tr><tr><td colspan="2"><div class="stp">5. Confirm the department average only covers THIS department.</div><div class="exp"><span>Expected:</span> The figure reconciles with this department&#x27;s instructors only. No instructor from another department contributes.</div></td></tr><tr><td colspan="2"><div class="stp">6. Read &quot;Department Growth&quot;.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Weighted mean across recent academic terms.&quot; with a value per term. With no history it reads &quot;No historical data available yet&quot;. 6b. Read the &quot;Forms Collected&quot; panel and cross-check it against [sast_all_raw_data_survey] for this department and term. The count equals the number of forms actually SCANNED, not the number already folded into the scores. Where some are still queued it adds &quot;n not yet reflected in the average&quot;. The old card read &quot;Total Forms Processed&quot; and printed the aggregated figure, which understated a real department by 51 forms and gave the head no way to tell a quiet week from a stalled n8n pipeline.</div></td></tr><tr><td colspan="2"><div class="stp">7. Read &quot;Department Voice (AI Analysis)&quot;.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Aggregated themes from all student comments across the college.&quot; With no data it reads &quot;No feedback data yet for this term.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">8. Read the &quot;Action Required&quot; section.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Faculty and curriculum signals that need review.&quot; With nothing flagged it reads &quot;No critical issues detected.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">9. Note every instructor listed under &quot;Action Required&quot;, then open the &quot;Reports&quot; tab and compare against &quot;Pending Action Required&quot;.</div><div class="exp"><span>Expected:</span> The two lists MATCH. The dashboard must never show a flagged instructor that Reports counts as handled.</div></td></tr><tr><td colspan="2"><div class="stp">10. File an intervention report for one flagged instructor, then return to the dashboard and pull to refresh.</div><div class="exp"><span>Expected:</span> That instructor&#x27;s alert is gone and the bell count drops by one. An alert the head has already acted on this term must not keep demanding action.</div></td></tr><tr><td colspan="2"><div class="stp">11. Confirm the alert is suppressed for THIS term only.</div><div class="exp"><span>Expected:</span> The suppression is scoped to the active term. If the instructor is still below the line in a later term, the alert is expected to return - that is the 3-strike rule working, not a regression.</div></td></tr><tr><td colspan="2"><div class="stp">12. Sign in as a department head with NO department assigned.</div><div class="exp"><span>Expected:</span> The screen explains the account has no department rather than showing an empty or misleading dashboard, and does not crash.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The head lands on their own overview with no admin access, and every figure is scoped to their department alone.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 5 is the substance of this case. A head seeing another department&#x27;s figures is a confidentiality failure, not a cosmetic bug. Step 7&#x27;s subtitle says &quot;across the college&quot; while the rest of the screen is department-scoped. Confirm with the team which is intended - if the AI analysis really is college-wide on a department screen, the wording or the scope is wrong.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D02</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>FACULTY ROSTER - SEARCH, SORT AND FLAGGED FACULTY</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as department head with several instructors in the department, at least one scoring below the intervention threshold.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Table [user_info] filtered by department.</p></td></tr><tr><th rowspan="10">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Faculty&quot; tab.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Faculty Roster&quot;. While loading it reads &quot;Loading faculty roster…&quot;; with none it reads &quot;No instructors yet&quot; and &quot;Faculty assigned to this department will appear here.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm who is listed.</div><div class="exp"><span>Expected:</span> ONLY instructors assigned to this head&#x27;s department. Cross-check against [user_info] for that department ID.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read one faculty row.</div><div class="exp"><span>Expected:</span> Shows the instructor&#x27;s name, &quot;Overall Score&quot;, &quot;Total Evals&quot; and a sentiment split across &quot;Positive&quot;, &quot;Neutral&quot; and &quot;Negative&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">4. Find an instructor scoring below the threshold.</div><div class="exp"><span>Expected:</span> They carry an &quot;Intervention Required&quot; marker, so a head can spot who needs attention without reading every score.</div></td></tr><tr><td colspan="2"><div class="stp">5. Type a partial name into &quot;Search instructor name...&quot;.</div><div class="exp"><span>Expected:</span> The list narrows to matching instructors. Searching by university ID also works.</div></td></tr><tr><td colspan="2"><div class="stp">6. Search for a name that does not exist.</div><div class="exp"><span>Expected:</span> Reads &quot;No matching instructors&quot; and &quot;Try a different name or university ID.&quot; - not a blank screen.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap &quot;Clear Search&quot;.</div><div class="exp"><span>Expected:</span> The full roster returns.</div></td></tr><tr><td colspan="2"><div class="stp">8. Search for an instructor who belongs to ANOTHER department.</div><div class="exp"><span>Expected:</span> They are NOT found. Search must not reach outside the department.</div></td></tr><tr><td colspan="2"><div class="stp">9. Apply each sort option: &quot;Name (A-Z)&quot;, &quot;Score (Highest to Lowest)&quot;, &quot;Score (Lowest to Highest)&quot;.</div><div class="exp"><span>Expected:</span> Each reorders the list correctly, and the sort survives a search being applied and cleared.</div></td></tr><tr><td colspan="2"><div class="stp">10. Tap a faculty row.</div><div class="exp"><span>Expected:</span> The instructor detail page opens for that person.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The roster lists only this department&#x27;s faculty, flags who needs intervention, and search and sort work without ever exposing another department&#x27;s staff.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 8 is the confidentiality check.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D03</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>INSTRUCTOR DETAIL - PERFORMANCE AND SENTIMENT</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>An instructor with evaluation data is open from the roster.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Tables [overall_total_survey], [management_results], [student_remarks], [instructor_subjects].</p></td></tr><tr><th rowspan="9">Steps</th><td colspan="2"><div class="stp">1. Open an instructor from the roster.</div><div class="exp"><span>Expected:</span> The profile loads (briefly &quot;Loading instructor profile…&quot;) and names the instructor.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the score summary.</div><div class="exp"><span>Expected:</span> Shows &quot;Management&quot;, &quot;Performance&quot; and &quot;Evaluations&quot; for the active term.</div></td></tr><tr><td colspan="2"><div class="stp">3. Cross-check those figures against what the INSTRUCTOR sees on their own dashboard.</div><div class="exp"><span>Expected:</span> Both roles report the SAME numbers for the same instructor and term. A discrepancy here undermines every conversation the head will have with that instructor.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read &quot;Performance Trend&quot;.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Historical score across all evaluation terms&quot; with a value per term. With none it reads &quot;No historical data available.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">5. Read the &quot;Sentiment Analysis&quot; area.</div><div class="exp"><span>Expected:</span> Shows &quot;Comment Polarity Distribution&quot; across &quot;Positive&quot;, &quot;Neutral&quot;, &quot;Negative&quot; / &quot;Critical&quot;, plus &quot;Key Sentiment Tags&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">6. Cross-check the sentiment split against [student_remarks] for that instructor and term.</div><div class="exp"><span>Expected:</span> The percentages reflect the stored tone values.</div></td></tr><tr><td colspan="2"><div class="stp">7. Read the subject list.</div><div class="exp"><span>Expected:</span> The instructor&#x27;s subjects for this term are listed. With none it reads &quot;No subjects this term&quot; and &quot;Assigned subjects will appear here when available.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">8. Confirm every verbal description matches its band.</div><div class="exp"><span>Expected:</span> &quot;Outstanding&quot; &gt;=4.20, &quot;Satisfactory&quot; &gt;=2.60, and so on, matching the same bands used elsewhere in the app.</div></td></tr><tr><td colspan="2"><div class="stp">9. Open an instructor with no evaluations yet.</div><div class="exp"><span>Expected:</span> Reads &quot;No Data Yet&quot; / &quot;No data&quot; rather than showing zeros as if they were real scores.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The head sees a complete and accurate picture of one instructor, and every figure agrees with what that instructor sees themselves.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 3 is the important one. Two roles disagreeing about the same instructor&#x27;s score is a serious data defect.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D04</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>DRAFT AN INTERVENTION REPORT                               [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as department head. One flagged instructor, ideally a throwaway account. Table [intervention_reports], written via [evaluation_service].</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One intervention against a throwaway instructor.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Reports&quot; tab.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Intervention Reports&quot; with &quot;Manage formal actions and track support for flagged faculty.&quot; While loading it reads &quot;Loading interventions…&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the pending and history areas.</div><div class="exp"><span>Expected:</span> Pending items appear under a &quot;Pending Action Required&quot; heading; resolved ones under &quot;Intervention Log&quot;. With nothing pending it reads &quot;All caught up&quot; and &quot;No pending interventions require action.&quot;; with no history, &quot;No intervention history&quot; and &quot;Completed and resolved interventions will appear here.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">3. Read a flagged alert.</div><div class="exp"><span>Expected:</span> Shows &quot;Instructor:&quot; and &quot;Flagged for:&quot; with the reason, plus the date it was flagged, so the head knows why the system raised it.</div></td></tr><tr><td colspan="2"><div class="stp">4. Tap &quot;Draft Intervention Report&quot; (also reachable from the Faculty Roster).</div><div class="exp"><span>Expected:</span> A form opens to record a formal action against that instructor.</div></td></tr><tr><td colspan="2"><div class="stp">5. Open the action-type selector.</div><div class="exp"><span>Expected:</span> The available actions include &quot;Peer Mentoring Program&quot;, &quot;Pedagogy &amp; Teaching Workshop&quot;, &quot;Curriculum Review Meeting&quot;, &quot;Faculty Support&quot;, &quot;Mandated Action&quot; and &quot;Formal Administrative Warning&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">6. Submit the form with no action type chosen.</div><div class="exp"><span>Expected:</span> Refused. A formal record must state what action was mandated.</div></td></tr><tr><td colspan="2"><div class="stp">7. Complete the form with an action and notes, then submit.</div><div class="exp"><span>Expected:</span> Message reads &quot;Intervention recorded successfully.&quot; and it appears in the pending list marked &quot;PENDING&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">8. Submit an intervention with the notes left empty.</div><div class="exp"><span>Expected:</span> Either it is refused, or the record clearly reads &quot;No notes provided.&quot; rather than showing an empty gap.</div></td></tr><tr><td colspan="2"><div class="stp">9. Confirm the record in [intervention_reports].</div><div class="exp"><span>Expected:</span> One row exists, naming the correct instructor, the acting head as author, the action type, and the creation date.</div></td></tr><tr><td colspan="2"><div class="stp">10. Open &quot;Intervention Report Details&quot; on the new record.</div><div class="exp"><span>Expected:</span> Shows &quot;Action:&quot;, the notes, &quot;Created:&quot; with the date, and the instructor&#x27;s name.</div></td></tr><tr><td colspan="2"><div class="stp">11. Draft a second intervention for the SAME instructor.</div><div class="exp"><span>Expected:</span> Handled sensibly - either allowed as a separate record or refused with a reason. It must not create a corrupt or duplicate row.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A formal intervention can be raised against a flagged instructor with a mandated action type recorded, and it is stored and listed as pending.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D05</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>THE INSTRUCTOR RECEIVES THE INTERVENTION       [CROSS-ROLE, LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>The intervention from TC-D04 exists. A SECOND device signed in as that instructor, with their dashboard open.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>The intervention raised in TC-D04.</p><p>WHY THIS CASE EXISTS An intervention that the instructor never sees is useless, and one the instructor can delete is not a formal record. This case tests both halves of that, across two roles at once.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. With the instructor&#x27;s dashboard already open and NOT restarted, raise the intervention from the head&#x27;s device.</div><div class="exp"><span>Expected:</span> The instructor&#x27;s dashboard updates by itself. The app subscribes to live changes on [intervention_reports], so no manual refresh or restart should be needed.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read what appears on the instructor&#x27;s dashboard.</div><div class="exp"><span>Expected:</span> A card headed &quot;Official Notice — Action Required&quot; appears at the top, showing &quot;From:&quot;, &quot;Action:&quot; and &quot;Notes:&quot;, plus the date.</div></td></tr><tr><td colspan="2"><div class="stp">3. Confirm the content matches what the head submitted.</div><div class="exp"><span>Expected:</span> The action type and notes are exactly what was recorded in TC-D04, attributed to the correct department head.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read the instructor&#x27;s notification bell.</div><div class="exp"><span>Expected:</span> A count badge appears, and the bell reports the active notice rather than staying silent.</div></td></tr><tr><td colspan="2"><div class="stp">5. As the INSTRUCTOR, attempt to dismiss, delete or hide the notice.</div><div class="exp"><span>Expected:</span> There is NO such control. A lock icon carries the tooltip &quot;Only your department head can remove this notice&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">6. Restart the instructor&#x27;s app.</div><div class="exp"><span>Expected:</span> The notice is still there. It is not a transient message.</div></td></tr><tr><td colspan="2"><div class="stp">7. Confirm a DIFFERENT instructor does not see this notice.</div><div class="exp"><span>Expected:</span> The notice appears only for the instructor it was raised against.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>An intervention raised by the head reaches the correct instructor live, states what was mandated and by whom, persists across restarts, and cannot be removed by the instructor.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>This is the single most important case in the module, because it is the only one that proves the intervention feature actually does its job end to end. Steps 5 and 7 are the integrity checks.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D06</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>RESOLVE AN INTERVENTION                                    [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>The pending intervention from TC-D04 exists. The instructor&#x27;s device is available to observe the effect.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>That intervention.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. On the &quot;Reports&quot; tab, open the pending intervention.</div><div class="exp"><span>Expected:</span> It is marked &quot;PENDING&quot; and offers &quot;Mark as Resolved&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Mark as Resolved&quot;.</div><div class="exp"><span>Expected:</span> A confirmation is required before a formal record changes state.</div></td></tr><tr><td colspan="2"><div class="stp">3. Confirm the action.</div><div class="exp"><span>Expected:</span> Message reads &quot;Intervention marked as resolved.&quot; and it moves from the pending list into the &quot;Intervention Log&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the pending area updates.</div><div class="exp"><span>Expected:</span> With nothing else outstanding it reads &quot;All caught up&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. On the INSTRUCTOR&#x27;s device, observe their dashboard.</div><div class="exp"><span>Expected:</span> The &quot;Official Notice — Action Required&quot; card is removed, or is clearly shown as resolved. A resolved intervention must not keep demanding action from the instructor.</div></td></tr><tr><td colspan="2"><div class="stp">6. Confirm the record still exists in history.</div><div class="exp"><span>Expected:</span> The resolved intervention remains in the &quot;Intervention Log&quot; as a historical record. Resolving is not deleting.</div></td></tr><tr><td colspan="2"><div class="stp">7. Confirm the instructor still cannot alter it.</div><div class="exp"><span>Expected:</span> The instructor has no control over the resolved record either.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A pending intervention can be resolved behind a confirmation, the instructor&#x27;s notice clears, and the record is retained in history rather than deleted.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 6 matters for auditability. A resolved intervention that disappears entirely destroys the department&#x27;s record of action taken.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D07</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SUBJECT ANALYTICS - CURRICULUM HEALTH</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as department head with evaluated subjects in the active term.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only. Table [instructor_subjects] and the results tables.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Subjects&quot; tab.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Subject Analytics&quot;. While loading it reads &quot;Loading curriculum analytics…&quot;; with none it reads &quot;No subject data&quot; and &quot;Analytics will appear after this term receives evaluations.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the &quot;Subject Health&quot; section.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Performance patterns that may require review or teaching support.&quot; with a row per subject.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read one subject row.</div><div class="exp"><span>Expected:</span> Shows &quot;Avg Score&quot; and a comparison under &quot;Score vs. Department Average&quot;, including &quot;Dept Avg:&quot; so the head can see whether a subject is above or below the department.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the subjects listed belong to this department.</div><div class="exp"><span>Expected:</span> No subject from another department appears.</div></td></tr><tr><td colspan="2"><div class="stp">5. Read the flag categories on a problem subject.</div><div class="exp"><span>Expected:</span> Flags distinguish the KIND of problem - &quot;Curriculum&quot;, &quot;Difficulty&quot;, &quot;Sentiment&quot;, &quot;System Anomaly&quot;, &quot;Critical&quot; - rather than a single undifferentiated warning.</div></td></tr><tr><td colspan="2"><div class="stp">6. Confirm a &quot;System Anomaly&quot; flag means what it says.</div><div class="exp"><span>Expected:</span> It indicates a data problem, e.g. an implausible or incomplete result, not a teaching problem. A data fault must not be presented to a head as poor teaching.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap a subject row (&quot;Tap to view instructor breakdown&quot;).</div><div class="exp"><span>Expected:</span> An &quot;Instructor Performance Breakdown&quot; opens showing who teaches that subject and how each performs.</div></td></tr><tr><td colspan="2"><div class="stp">8. Cross-check one subject&#x27;s average against its instructors&#x27; scores for that subject.</div><div class="exp"><span>Expected:</span> The figures reconcile.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Subject-level analytics are scoped to the department, distinguish curriculum problems from data anomalies, and reconcile with the per-instructor figures.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 6 is worth settling with the team. A head acting on a &quot;System Anomaly&quot; as if it were a performance problem could lead to an unfair intervention.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D08</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>DEACTIVATE AN INSTRUCTOR ACCOUNT                           [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>A THROWAWAY instructor account in this department that can currently sign in. Arrange reactivation with an SAO admin beforehand.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>That account&#x27;s credentials, held by the tester.</p><p>!! HIGHEST-IMPACT ACTION IN THIS MODULE !! A department head can lock an instructor out of the system. Only an SAO admin can reverse it. Never run this against a real instructor.</p></td></tr><tr><th rowspan="10">Steps</th><td colspan="2"><div class="stp">1. Open a throwaway instructor from the roster and find &quot;Deactivate Account&quot;.</div><div class="exp"><span>Expected:</span> The control is present but not something that fires on a single stray tap.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap it.</div><div class="exp"><span>Expected:</span> A dialog titled &quot;Deactivate Account?&quot; appears, asking &quot;Are you sure you want to deactivate {instructor name}&quot;, naming the actual instructor so the wrong person cannot be deactivated by accident.</div></td></tr><tr><td colspan="2"><div class="stp">3. Cancel the dialog.</div><div class="exp"><span>Expected:</span> Nothing changes and the account still signs in.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm with &quot;Deactivate&quot;.</div><div class="exp"><span>Expected:</span> Message reads &quot;Account deactivated successfully.&quot; and the instructor is shown as deactivated.</div></td></tr><tr><td colspan="2"><div class="stp">5. Attempt to sign in as that instructor.</div><div class="exp"><span>Expected:</span> Refused with &quot;Your account has been deactivated by the administration.&quot; They reach no screen inside the app.</div></td></tr><tr><td colspan="2"><div class="stp">6. Confirm the instructor&#x27;s evaluation data survives.</div><div class="exp"><span>Expected:</span> Scores and remarks are retained. This is a deactivation, not a deletion.</div></td></tr><tr><td colspan="2"><div class="stp">7. Confirm the action was recorded.</div><div class="exp"><span>Expected:</span> The deactivation appears in the SAO admin&#x27;s &quot;Security Audit Logs&quot;, attributed to this department head. A head deactivating an account with NO audit trail is a serious accountability gap.</div></td></tr><tr><td colspan="2"><div class="stp">8. Attempt to deactivate an instructor from ANOTHER department.</div><div class="exp"><span>Expected:</span> Not possible. A head&#x27;s authority stops at their own department.</div></td></tr><tr><td colspan="2"><div class="stp">9. Force a failure, e.g. deactivate with no network.</div><div class="exp"><span>Expected:</span> Message reads &quot;Failed to deactivate:&quot; and the account is NOT left half-deactivated.</div></td></tr><tr><td colspan="2"><div class="stp">10. Have an SAO admin reactivate the account.</div><div class="exp"><span>Expected:</span> Succeeds, and the instructor can sign in again.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A head can deactivate an instructor in their own department behind a named confirmation, the account is then locked out, its data survives, the action is audited, and it can be reversed by an admin.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>OPEN QUESTION FOR THE TEAM: this flow appears to have NO emailed verification code, whereas the SAO admin needs one to create a privileged account. Deactivating a colleague&#x27;s account is comparably consequential. Confirm whether the absence of a code here is a deliberate design decision. If it is not, raise it as a defect. Step 10 is mandatory - leave the account as you found it.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D09</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>VIEW AN INSTRUCTOR&#x27;S OFFICIAL EVALUATION REPORT</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>An instructor with evaluation data is open from the roster.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View and export.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. From the instructor detail page, open their official evaluation report.</div><div class="exp"><span>Expected:</span> The screen titled &quot;Official Evaluation Report&quot; opens for THAT instructor.</div></td></tr><tr><td colspan="2"><div class="stp">2. Check the header identity fields.</div><div class="exp"><span>Expected:</span> &quot;Instructor Name:&quot;, &quot;Instructor ID:&quot;, &quot;Academic Year:&quot; and &quot;Department:&quot; are filled for the instructor being viewed - not for the department head who is viewing it.</div></td></tr><tr><td colspan="2"><div class="stp">3. Check the &quot;Academic Year:&quot; field specifically.</div><div class="exp"><span>Expected:</span> It reads the term ONCE, e.g. &quot;2nd Semester 2027-2028&quot;. The word &quot;Semester&quot; must NOT appear twice.</div></td></tr><tr><td colspan="2"><div class="stp">4. Verify the summary table and both criterion tables.</div><div class="exp"><span>Expected:</span> &quot;N&quot; / &quot;MANAGEMENT&quot; / &quot;PERFORMANCE&quot; / &quot;OVERALL&quot; with VD codes, and sections &quot;I. Management&quot; and &quot;II. Performance&quot; each listing ten criteria.</div></td></tr><tr><td colspan="2"><div class="stp">5. Cross-check the figures against the instructor detail page.</div><div class="exp"><span>Expected:</span> The report and the detail page agree.</div></td></tr><tr><td colspan="2"><div class="stp">6. Download the PDF.</div><div class="exp"><span>Expected:</span> A PDF is written and the share sheet opens. Its contents match the screen, and its &quot;Academic Year&quot; also reads correctly.</div></td></tr><tr><td colspan="2"><div class="stp">7. Confirm the report is for the correct term.</div><div class="exp"><span>Expected:</span> The academic year matches the term the head is reviewing, not a different one.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The head can open and export the correct instructor&#x27;s official report, with identity and term fields rendered correctly in both the screen and the PDF.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 3 exists because of DEF-01, found on 31/08/2026 in the instructor module: the report printed &quot;1st Semester Semester 2025-2026&quot;. The report screen and PDF builder are SHARED with this role, so the department head path had the same fault. A fix was applied on 31/08/2026 (detailed_report_screen.dart, pdf_service.dart, past_semesters_screen.dart) but has NOT yet been verified on a rebuilt app. Step 3 is the re-test.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-D10</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>EXECUTIVE SETTINGS - PROFILE, ALERTS AND SECURITY</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as department head, Settings opened from the drawer. Access to the account&#x27;s inbox.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>A new password of at least six characters, NOT recorded in this document.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open &quot;Account Settings&quot; from the drawer.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Executive Settings&quot; (briefly &quot;Loading executive settings…&quot;), showing &quot;Executive Profile&quot; and identifying the role as &quot;Dept Head&quot; with the department and &quot;College&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Edit Personal Details&quot; / &quot;Edit Executive Profile&quot;, change the name and save.</div><div class="exp"><span>Expected:</span> The profile saves and the new name appears in the drawer header.</div></td></tr><tr><td colspan="2"><div class="stp">3. Find the &quot;Executive Intelligence&quot; section.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Choose which department signals should notify you.&quot; with two toggles: &quot;Alert when instructor rating drops below 3.0.&quot; and &quot;Alert on detected negative student feedback.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">4. Toggle each alert off, leave Settings, and return.</div><div class="exp"><span>Expected:</span> Both settings persist. On failure the message reads &quot;Failed to update&quot; naming the setting, rather than silently reverting.</div></td></tr><tr><td colspan="2"><div class="stp">5. With the rating alert ON, arrange for an instructor to fall below 3.0.</div><div class="exp"><span>Expected:</span> The head is alerted, and the instructor appears flagged on the roster and under &quot;Action Required&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">6. With the rating alert OFF, repeat.</div><div class="exp"><span>Expected:</span> No alert is raised, confirming the toggle actually controls behaviour rather than only appearing to.</div></td></tr><tr><td colspan="2"><div class="stp">7. Tap &quot;Edit Email&quot; and submit a valid new address.</div><div class="exp"><span>Expected:</span> Reads &quot;Enter your new email address. You will receive a confirmation link.&quot;, then &quot;Email updated! Check your inbox for confirmation.&quot; The old address works until the link is clicked.</div></td></tr><tr><td colspan="2"><div class="stp">8. Tap &quot;Edit Password&quot; and submit mismatched passwords.</div><div class="exp"><span>Expected:</span> Refused with a mismatch message.</div></td></tr><tr><td colspan="2"><div class="stp">9. Submit a valid new password with the WRONG current password.</div><div class="exp"><span>Expected:</span> Refused. The password does not change.</div></td></tr><tr><td colspan="2"><div class="stp">10. Submit a fully valid password change.</div><div class="exp"><span>Expected:</span> Succeeds and the session ends, requiring a fresh sign-in. On failure it reads &quot;Failed to update password.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">11. Open &quot;Deactivate My Account&quot;, then CANCEL.</div><div class="exp"><span>Expected:</span> A warning explains the account can only be restored by the SAO Admin, and cancelling leaves the account active.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The head can maintain their own profile, the two alert toggles genuinely control whether they are notified, and every password rule is enforced.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Steps 5 and 6 are the real test. A settings toggle that saves but changes nothing is a common and easily missed defect.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SUMMARY</h2><pre class="raw">  Total cases     : 10
+  Executed        : 0
+  Not executed    : 10
+
+  Cases that change live data : TC-D04, D05, D06, D08
+  Highest-risk case           : TC-D08 (deactivating an instructor)
+  Cross-role case             : TC-D05 (needs a second device)
+
+  WHAT THIS DOCUMENT EXISTS TO PROVE
+    1. A head sees ONLY their own department          (TC-D01/5, D02/2, D02/8)
+    2. A head cannot reach any SAO Admin screen       (TC-D01/2)
+    3. Head and instructor agree on the same scores   (TC-D03/3)
+    4. An intervention reaches the instructor live    (TC-D05/1,2)
+    5. An instructor cannot remove an intervention    (TC-D05/5)
+    6. A resolved intervention is kept, not deleted   (TC-D06/6)
+    7. Deactivating an instructor is confirmed,
+       audited, scoped, and reversible                (TC-D08)
+    8. Alert toggles actually change behaviour        (TC-D10/5,6)
+
+  Items 1 and 2 are confidentiality. Items 4 to 6 decide whether the
+  intervention feature works at all. Item 7 is accountability. Treat failures
+  in those ahead of anything cosmetic.
+
+  TWO OPEN QUESTIONS FOR THE TEAM, both raised in the cases above:
+    a) TC-D08 - a department head can deactivate an instructor with no emailed
+       verification code, while an SAO admin needs one to create a privileged
+       account. Is that asymmetry intended?
+    b) TC-D01 - &quot;Department Voice (AI Analysis)&quot; is subtitled &quot;across the
+       college&quot; on an otherwise department-scoped screen. Is the scope or the
+       wording wrong?
+
+  CARRIED OVER FROM THE INSTRUCTOR UAT
+    DEF-01 (the word &quot;Semester&quot; printed twice on the official report) affected
+    this role too, because the report screen and PDF builder are shared. A fix
+    was applied on 31/08/2026 but is NOT yet verified on a rebuilt app.
+    TC-D09 step 3 is the re-test for this role.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SIGN-OFF</h2><pre class="raw">  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST&#x27;S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">iEvaluate - Department Head Module UAT - Team ERMM Cebu Technological University, Argao Campus</h2><pre class="raw"></pre></section></body></html>

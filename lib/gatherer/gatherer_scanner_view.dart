@@ -1,0 +1,1527 @@
+// The beast of the gatherer module. This file is BIG.
+// It handles: camera init, tilt detection, blur detection,
+// paper size selection, scan overlay painting, and the preview screen.
+// If something wrong with scanning, this is the file to blame first.
+import 'dart:io';
+import 'dart:async';
+import 'dart:math';
+import 'package:camera/camera.dart';
+import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import '../theme/app_colors.dart';
+import '../widgets/apple_ui.dart';
+import 'services/form_signature.dart';
+import 'services/scan_analysis.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Paper size definitions (portrait width ÷ height ratio)
+//  These ratios determine the shape of the guide frame on screen.
+//  The fileTag also get embedded in the filename so Python backend know what size it is.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum PaperSize {
+  shortBond('Short Bond', '8.5 × 11"', 8.5 / 11.0),   // 0.773 — letter/short
+  a4('A4',         '210 × 297 mm', 210.0 / 297.0),     // 0.707 — standard A4
+  longBond('Long Bond', '8.5 × 13"', 8.5 / 13.0);     // 0.654 — legal/long
+
+  const PaperSize(this.label, this.dimensions, this.ratio);
+  final String label;
+  final String dimensions; // shown as subtitle in the toggle
+  final double ratio;      // portrait: width ÷ height
+
+  /// Short tag embedded in the filename so Python can detect paper size.
+  /// e.g. "SCAN-1234_A4.jpg" or "SCAN-5678_LONG.jpg"
+  String get fileTag {
+    switch (this) {
+      case PaperSize.shortBond: return 'SHORT';
+      case PaperSize.a4:        return 'A4';
+      case PaperSize.longBond:  return 'LONG';
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  GathererScannerView
+//  The full camera screen. This is where all the action happen.
+//  Tap to focus, tilt guard, blur check, paper guide frame — all here.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class GathererScannerView extends StatefulWidget {
+  /// Called with the image path and what the document check made of it, once
+  /// the gatherer accepts the photo. The verdict rides along so the upload
+  /// queue can flag a suspect scan instead of silently feeding it to n8n.
+  final void Function(String path, FormCheck formCheck) onScan;
+  final VoidCallback onOpenSync; // jump to sync queue tab
+  final int queueCount; // number shown on sync badge button
+  final VoidCallback onOpenImportData; // open google sheet import screen
+  final VoidCallback? onMenuPressed; // open the drawer
+
+  const GathererScannerView({
+    super.key,
+    required this.onScan,
+    required this.onOpenSync,
+    required this.queueCount,
+    required this.onOpenImportData,
+    this.onMenuPressed,
+  });
+
+  @override
+  State<GathererScannerView> createState() => _GathererScannerViewState();
+}
+
+// the big state class — holds camera, sensors, animations, and all the logic
+class _GathererScannerViewState extends State<GathererScannerView>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  // ── Camera state ─────────────────────────────────────────────────────────────
+  CameraController? _controller; // the main camera controller — null until initialized
+  bool _isInitialized = false; // false while camera booting up
+  bool _isTakingPicture = false; // true during capture — prevent double-tap
+  bool _isFocusing = false; // true during AF lock — short delay before capture
+  String? _capturedImagePath; // path to captured image — triggers preview screen
+  FlashMode _flashMode = FlashMode.off; // flash starts off, user can toggle
+  Offset? _focusPoint; // screen position of the tap-to-focus ring
+  bool _showOrientationWarning = false; // true when phone is in landscape — bad for scanning
+
+  // ── Blur Detection state ─────────────────────────────────────────────────────
+  bool _isBlurry = false; // true if last captured image failed blur check
+  bool _isCheckingBlur = false; // true while the capture is being analysed
+  // What the document check made of the captured photo. Starts unknown, which
+  // shows no badge — we only speak up once we have something to say.
+  FormCheck _formCheck = FormCheck.unknown;
+
+  /// Monotonically increasing capture session ID. When `_retake()` aborts a
+  /// capture, `_captureSession` is incremented so the background scan-check
+  /// for the discarded image knows it should not write results.
+  int _captureSession = 0;
+
+
+  // ── Sensor state (Tilt Guard) ────────────────────────────────────────────────
+  // we read accelerometer to detect if phone is too tilted for a good scan
+  double _tiltAngle = 0; // current tilt in degrees — > 30 = warning shown
+  StreamSubscription? _accelSub; // subscription to accelerometer stream
+
+  // ── Paper size selection ──────────────────────────────────────────────────────
+  // Short bond, not A4. This default is not cosmetic: whatever is selected here
+  // becomes the filename tag, which becomes the paper_size posted to n8n, which
+  // picks the OMR grid Python reads the bubbles with. A wrong paper_size
+  // measured 25 points of accuracy on the labelled corpus (87.5% -> 62.9%), so
+  // the default wants to be whatever the gatherer is most likely holding.
+  //
+  // It was A4, commented "thats most common". Counted across the 44 labelled
+  // SS Form 2 photographs: 28 short bond, 14 long bond, and NOT ONE A4 — so the
+  // old default was the only one of the three that never actually occurs.
+  PaperSize _selectedPaper = PaperSize.shortBond;
+
+  // ── Frame-ready animation: primary colour → greenAccent ──────────────────────
+  // the guide frame flashes green when AF locks — visual feedback before capture
+  late AnimationController _frameAnimCtrl;
+  late Animation<Color?> _frameColorAnim;
+
+  bool _isInitializing = false; // guard flag to prevent concurrent camera init calls
+
+  /// Why there is no preview, when there is no preview. Null while the camera
+  /// is fine or still starting. A failed init used to leave nothing but
+  /// _isInitialized = false, which the build renders as a spinner — so a denied
+  /// permission or a camera held by another app looked exactly like "loading",
+  /// forever, on the one screen the gatherer's whole job runs through.
+  String? _initError;
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Lifecycle
+  //  Setup camera, sensors, and animation on init. Dispose everything cleanly.
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // called once when widget first built — start everything
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this); // watch app lifecycle (pause/resume)
+
+    // Hold the scanner in portrait while it is open.
+    //
+    // Rotating the phone here produced a genuinely broken screen: the controls
+    // column overflowed the shorter landscape viewport — Flutter's yellow-and-
+    // black "BOTTOM OVERFLOWED BY 119 PIXELS" bar, in front of the gatherer —
+    // and the "PLEASE HOLD PORTRAIT" overlay was painted UNDER those controls,
+    // so the tilt banner sat on top of it and neither could be read.
+    //
+    // Asking for portrait rather than repairing that layout is the honest fix:
+    // this screen already says "the scanner works best in upright mode", the
+    // guide frame is built around a portrait sheet, and there is no landscape
+    // design to fall back to. Released again in dispose().
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    // animation controller for the frame color flash — 700ms, primary -> greenAccent
+    _frameAnimCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _frameColorAnim = ColorTween(
+      begin: AppColors.primary,
+      end: Colors.greenAccent,
+    ).animate(CurvedAnimation(parent: _frameAnimCtrl, curve: Curves.easeOut));
+
+    // subscribe to accelerometer for tilt detection
+    _accelSub = accelerometerEventStream().listen((e) {
+      // Improved Tilt Logic:
+      // We check if the phone is mostly upright (wall scan) or flat (table scan).
+      final double x = e.x;
+      final double y = e.y;
+      final double z = e.z;
+      // Calculate total magnitude to normalize — gravity is ~9.8 m/s²
+      final double g = sqrt(x * x + y * y + z * z);
+
+      if (g < 1.0) return; // Ignore if in freefall or invalid — murag gilabay ang phone
+
+      double tilt;
+      if (z.abs() > 7.0) {
+        // CASE: Phone is mostly FLAT (Table scanning)
+        // We use a higher dampening for flat mode to avoid jumpy warnings
+        tilt = acos((z.abs() / g).clamp(-1.0, 1.0)) * 180 / pi;
+        // Substantial buffer: if it's less than 8 degrees, call it zero — small wobble ok
+        if (tilt < 8) tilt = 0;
+      } else {
+        // CASE: Phone is mostly UPRIGHT (Wall scanning)
+        tilt = asin((x.abs() / g).clamp(-1.0, 1.0)) * 180 / pi;
+      }
+
+      if (mounted) setState(() => _tiltAngle = tilt); // update tilt for UI warning
+    });
+
+    _initializeCamera(); // start camera setup
+  }
+
+  // called when app go to background or come back — handle camera lifecycle
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      // app going to background — dispose camera to release hardware
+      setState(() => _isInitialized = false);
+      
+      final CameraController? c = _controller;
+      _controller = null; // clear reference first so listener can detect replacement
+      c?.dispose(); // then dispose the old controller
+    } else if (state == AppLifecycleState.resumed) {
+      // app came back — re-initialize camera
+      if (_controller == null || !_isInitialized) {
+        _initializeCamera(); // restart camera on resume
+      }
+    }
+  }
+
+  // clean up everything — cancel sensors, dispose camera and animation
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // stop watching lifecycle
+    // Give rotation back to the rest of the app — the lock belongs to this
+    // screen, not to the session.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    _accelSub?.cancel(); // stop reading accelerometer
+    _frameAnimCtrl.dispose(); // dispose animation controller
+    _isInitialized = false;
+    final c = _controller;
+    _controller = null;
+    c?.dispose(); // dispose camera controller last
+    super.dispose();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Camera helpers
+  //  All the messy camera initialization logic lives here.
+  //  Also: tap-to-focus, flash toggle, capture, blur detection, and preview.
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // initialize the camera — get available cameras, pick the first one (back camera)
+  // dispose any existing controller safely before creating new one
+  Future<void> _initializeCamera() async {
+    if (_isInitializing || !mounted) return; // already initializing, dili mag-duplicate
+    _isInitializing = true;
+
+    try {
+      if (mounted) {
+        setState(() {
+          _isInitialized = false; // show loading while reinitializing
+          _initError = null; // a fresh attempt starts with no verdict
+        });
+      }
+
+      final cameras = await availableCameras(); // get list of device cameras
+      if (cameras.isEmpty) {
+        _isInitializing = false;
+        if (mounted) {
+          setState(() => _initError = 'No camera found on this device.');
+        }
+        return;
+      }
+      if (!mounted) {
+        _isInitializing = false;
+        return; // widget gone while we were asking
+      }
+
+      // Dispose existing controller safely — avoid leak from previous instance
+      if (_controller != null) {
+        final oldController = _controller;
+        _controller = null; // null first so listeners know it replaced
+        await oldController?.dispose();
+      }
+
+      if (!mounted) {
+        _isInitializing = false;
+        return; // widget unmounted during dispose, abort
+      }
+
+      // create new camera controller — max resolution for best scan quality
+      final newController = CameraController(
+        cameras.first, // use back camera (first in list on most devices)
+        ResolutionPreset.max, // highest resolution — importente for OCR accuracy
+        enableAudio: false, // no need for audio in a scanner
+        imageFormatGroup: ImageFormatGroup.jpeg, // JPEG for smaller file sizes
+      );
+
+      _controller = newController;
+
+      // listen for orientation changes to show warning if landscape
+      newController.addListener(() {
+        if (!mounted || _controller != newController) return;
+        final isLandscape =
+            newController.value.deviceOrientation ==
+                DeviceOrientation.landscapeLeft ||
+                newController.value.deviceOrientation ==
+                    DeviceOrientation.landscapeRight;
+        if (isLandscape != _showOrientationWarning) {
+          setState(() => _showOrientationWarning = isLandscape); // show/hide warning
+        }
+      });
+
+      await newController.initialize(); // this is where actual camera access happens
+      
+      // Check again if we were disposed or replaced during initialization
+      // race condition possible if user navigate away quickly
+      if (!mounted || _controller != newController) {
+        await newController.dispose(); // we replaced, clean up
+        return;
+      }
+
+      await newController.setFlashMode(_flashMode); // restore flash setting
+      await newController.setFocusMode(FocusMode.auto); // start with auto-focus
+
+      if (mounted) {
+        setState(() {
+          _isInitialized = true; // camera ready, show preview
+          _initError = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('Camera init error: $e'); // failed to open camera — check permissions
+      if (mounted) {
+        setState(() => _initError =
+            'Camera unavailable. Check that camera permission is granted '
+            '(Settings → Apps → iEvaluate → Permissions → Camera) '
+            'and that no other app is using it, then tap Try again.');
+      }
+    } finally {
+      _isInitializing = false; // always clear flag
+    }
+  }
+
+  // ── Tap-to-focus ──────────────────────────────────────────────────────────────
+  // user tap on preview to manually set focus point
+  // converts screen coordinates to 0-1 range for camera API
+  Future<void> _handleFocus(TapUpDetails details) async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    final size = MediaQuery.of(context).size;
+    final pt = details.localPosition; // where user tapped on screen
+    setState(() => _focusPoint = pt); // show focus ring at tap position
+    try {
+      // normalize screen coordinates to 0-1 range for camera API
+      await _controller!
+          .setFocusPoint(Offset(pt.dx / size.width, pt.dy / size.height));
+      await _controller!.setFocusMode(FocusMode.auto); // trigger AF at that point
+    } catch (e) {
+      debugPrint('Focus error: $e');
+    }
+    // hide focus ring after 2 seconds — temporary UI indicator
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
+  }
+
+  // ── Flash toggle ──────────────────────────────────────────────────────────────
+  // toggle between torch (on) and off — simple two-state toggle
+  Future<void> _toggleFlash() async {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    final next =
+    _flashMode == FlashMode.off ? FlashMode.torch : FlashMode.off; // flip the state
+    try {
+      await _controller!.setFlashMode(next);
+      setState(() => _flashMode = next); // update UI icon
+    } catch (e) {
+      debugPrint('Flash error: $e'); // some devices dont support torch mode
+    }
+  }
+
+  // ── Capture: focus-lock → animate green → shoot ───────────────────────────────
+  // the full capture sequence:
+  // 1. Lock AF to center (so it dont hunt during capture)
+  // 2. Animate frame to green (visual feedback while AF settles)
+  // 3. Take picture
+  // 4. Run blur detection on the result
+  Future<void> _takePicture() async {
+    if (_controller == null ||
+        !_controller!.value.isInitialized ||
+        _isTakingPicture || // already capturing — dili mag-double shoot
+        _isFocusing || // still focusing — wait
+        _showOrientationWarning || // landscape — bad position, block capture
+        _tiltAngle > 30) {
+      return; // too tilted — block capture
+    }
+
+    // Step 1 — lock AF to centre point before shooting
+    setState(() => _isFocusing = true);
+    try {
+      await _controller!.setFocusPoint(const Offset(0.5, 0.5)); // center of frame
+      await _controller!.setFocusMode(FocusMode.locked); // lock focus here
+    } catch (_) {} // if focus lock fail, proceed anyway — bahala na
+
+    // Backing out of the scanner during the focus lock disposes the animation
+    // controller and this State; touching either afterwards throws.
+    if (!mounted) return;
+
+    // Step 2 — animate frame green while AF settles (700ms)
+    _frameAnimCtrl.forward(from: 0); // start green flash animation
+    await Future.delayed(const Duration(milliseconds: 700)); // wait for AF
+
+    if (!mounted) return; // 700ms is a long time to still be on this screen
+
+    // Step 3 — shoot!
+    final thisSession = ++_captureSession;
+    setState(() {
+      _isFocusing = false;
+      _isTakingPicture = true; // show "HOLD STEADY" text
+    });
+    try {
+      final XFile photo = await _controller!.takePicture(); // capture the image
+      try {
+        await _controller!.setFocusMode(FocusMode.auto); // unlock focus after capture
+      } catch (_) {}
+
+      // Analyse before showing the result — sharpness and document type.
+      if (mounted) {
+        setState(() {
+          _isCheckingBlur = true; // show "CHECKING SCAN" tag
+          _capturedImagePath = photo.path; // switch to preview screen
+        });
+      }
+
+      await _runScanChecks(photo.path); // runs off the UI thread
+
+      if (mounted && thisSession == _captureSession) {
+        setState(() {
+          _isCheckingBlur = false; // checks done, show the verdict
+        });
+      }
+    } catch (e) {
+      // TC-S03 step 7: camera faults must be reported, not swallowed silently.
+      debugPrint('Capture error: $e');
+      try {
+        await _controller!.setFocusMode(FocusMode.auto); // restore auto-focus even on error
+      } catch (_) {}
+      // Tell the user something went wrong — a silent failure looks like a freeze.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Capture failed. Try again, or check that no other app is using the camera.',
+            ),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        _frameAnimCtrl.reset(); // reset the green frame animation
+        setState(() => _isTakingPicture = false); // hide "HOLD STEADY"
+      }
+    }
+  }
+
+  // ── Preview actions ───────────────────────────────────────────────────────────
+  // discard the captured image and return to camera — user wants to retake
+  void _retake() {
+    _captureSession++; // invalidate any in-flight scan checks
+    if (_capturedImagePath != null) {
+      final f = File(_capturedImagePath!);
+      if (f.existsSync()) try { f.deleteSync(); } catch (_) {} // delete the bad image file
+    }
+    setState(() {
+      _capturedImagePath = null; // clear path = go back to camera view
+      _isBlurry = false; // reset blur state
+      _formCheck = FormCheck.unknown; // and forget the last document verdict
+    });
+  }
+
+  // Check the captured photo: is it sharp, and is it actually an SS Form 2?
+  //
+  // Both answers come out of one decode on a background isolate. The decode is
+  // the expensive part and it had to happen anyway for the blur check, so the
+  // document check rides along for roughly a millisecond. Running it through
+  // compute() also gets the decode off the UI thread, where it used to freeze
+  // the preview for as long as it took.
+  Future<void> _runScanChecks(String path) async {
+    try {
+      final bytes = await File(path).readAsBytes();
+      final result = await compute(analyseScan, bytes);
+
+      if (mounted) {
+        setState(() {
+          _isBlurry = result.isBlurry;
+          _formCheck = result.form;
+        });
+        debugPrint('Scan analysis: $result');
+      }
+    } catch (e) {
+      // Fail open. A crashed check must never cost the gatherer a scan — the
+      // paper form is handled once, and a form refused here is data lost.
+      debugPrint('Scan analysis error: $e');
+    }
+  }
+
+
+  // TC-S03 step 2: a blurry image must not be silently queued.
+  // This is a question, not a wall — the gatherer can still override — but the
+  // decision must be deliberate, not accidental. Same pattern as _confirmSuspectForm.
+  Future<bool> _confirmBlurry() async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Image appears blurry'),
+        content: const Text(
+          'This photo may be too blurry for OCR to read accurately.\n\n'
+          'Tap RETAKE to try again with a steadier hold, or QUEUE ANYWAY '
+          'to send it as-is.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('RETAKE'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('QUEUE ANYWAY'),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false;
+  }
+
+  // user accepts the captured image — rename with paper tag, copy into the
+  // persistent documents directory, and hand the stable path off to the parent.
+  //
+  // Why copy? The camera plugin stores the raw capture in a temp/cache dir
+  // that Android is allowed to wipe between sessions. After a logout + reopen
+  // the file is often gone, so the upload fails with "File not found" and the
+  // thumbnail shows a broken-image icon. Copying into Documents gives the scan
+  // a stable home that survives restarts, logouts, and OS path changes.
+  Future<void> _acceptImage() async {
+    if (_capturedImagePath == null) return;
+
+    // TC-S03 step 2: blurry images need an explicit confirmation before queuing.
+    // Checked before the form-check so both can be visible, but blur is the
+    // more critical reason to retake — a blurry SAST form is unreadable regardless
+    // of what document it is.
+    if (_isBlurry) {
+      final proceed = await _confirmBlurry();
+      if (!proceed || !mounted) return;
+      if (_capturedImagePath == null) return; // retaken while the sheet was up
+    }
+
+    // Build the final filename: <base>_<PAPER_TAG>.jpg
+    // e.g.  SCAN-1234567890_A4.jpg  /  _LONG.jpg  /  _SHORT.jpg
+    final orig = File(_capturedImagePath!);
+    final base = orig.path
+        .split(Platform.pathSeparator)
+        .last
+        .replaceFirst(RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false), '');
+    final finalName = '${base}_${_selectedPaper.fileTag}.jpg';
+
+    // Copy into the persistent documents directory so the file is not wiped
+    // by Android when the camera temp dir is cleared between sessions.
+    String finalPath;
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      final dest = File('${docDir.path}${Platform.pathSeparator}$finalName');
+      await orig.copy(dest.path); // copy — not rename — so orig is left intact
+      try { orig.deleteSync(); } catch (_) {} // clean up the temp file after copy
+      finalPath = dest.path;
+    } catch (_) {
+      // Copy failed (e.g. out of storage). Fall back to rename in place.
+      // The scan may be lost after a restart, but that is better than losing
+      // it right now.
+      try {
+        final renamed = orig.renameSync(
+          '${orig.parent.path}${Platform.pathSeparator}$finalName',
+        );
+        finalPath = renamed.path;
+      } catch (_) {
+        finalPath = _capturedImagePath!; // last resort: keep original path
+      }
+    }
+
+    // Guard against the OS purging the temp file between capture and acceptance
+    if (!File(finalPath).existsSync()) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Image file was lost. Please retake the scan.'),
+            backgroundColor: Colors.red.shade800,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      setState(() {
+        _capturedImagePath = null;
+        _isBlurry = false;
+        _formCheck = FormCheck.unknown;
+      });
+      return;
+    }
+    widget.onScan(finalPath, _formCheck); // hand stable path to parent for upload
+
+    // Restore auto-focus so the camera isn't stuck on a locked point
+    try {
+      await _controller?.setFocusMode(FocusMode.auto);
+    } catch (_) {}
+    setState(() {
+      _capturedImagePath = null;      // clear path = go back to camera
+      _formCheck = FormCheck.unknown; // next capture starts with no verdict
+      // Reset all transient capture state so the view is clean on return
+      _isBlurry = false;
+      _isCheckingBlur = false;
+      _isTakingPicture = false;
+      _isFocusing = false;
+      _focusPoint = null;             // dismiss any lingering focus ring
+    });
+  }
+
+
+
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Guide-frame geometry — respects paper ratio, clamps to screen
+  //  This calculate the exact Rect for the paper guide overlay.
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  /// Returns the Rect for the paper guide frame in screen coordinates.
+  /// Frame is pinned near the top (below the toolbar) rather than centred,
+  /// so there is generous space below for the guidance text + capture button.
+  Rect _frameRect(Size screen, {double hPad = 30.0}) {
+    // How far from screen top the frame starts (approx: safeArea + toolbar height)
+    const topOffset  = 110.0;
+    // Reserve at the bottom for guidance text + capture button — dont overlap controls
+    const botReserve = 205.0;
+
+    final maxW = screen.width - hPad * 2; // max frame width with horizontal padding
+    final maxH = screen.height - topOffset - botReserve; // max usable height for frame
+
+    var fw = maxW;
+    var fh = fw / _selectedPaper.ratio; // calculate height from ratio
+
+    // If too tall, constrain by height — maintain ratio but shrink width
+    if (fh > maxH) {
+      fh = maxH;
+      fw = fh * _selectedPaper.ratio; // recalculate width from constrained height
+    }
+
+    return Rect.fromLTWH(
+      (screen.width - fw) / 2, // horizontally centered
+      topOffset,   // ← pinned near top instead of vertically centred
+      fw,
+      fh,
+    );
+  }
+
+  // true when camera is busy — either focusing or taking picture
+  // used to dim the capture button and block re-entry
+  bool get _busy => _isFocusing || _isTakingPicture;
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Build
+  //  Returns camera view or preview screen based on _capturedImagePath
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  @override
+  Widget build(BuildContext context) {
+    final CameraController? controller = _controller;
+
+    // camera not ready yet — loading, or stopped with a reason
+    if (!_isInitialized || controller == null || !controller.value.isInitialized) {
+      final initError = _initError;
+      return Container(
+        color: const Color(0xFF0F0F0F), // near-black while loading
+        child: Center(
+          child: initError == null
+              ? const CircularProgressIndicator(color: AppColors.primary)
+              : Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.no_photography_outlined,
+                          color: Colors.white70, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        initError,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            color: Colors.white70, fontSize: 15, height: 1.4),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        onPressed: _isInitializing ? null : _initializeCamera,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Try again'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
+      );
+    }
+
+    // if we captured an image, show the preview screen instead of camera
+    if (_capturedImagePath != null) return _buildPreviewScreen();
+
+    final screen = MediaQuery.of(context).size;
+    final frame = _frameRect(screen); // calculate guide frame rect
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // 1. Camera preview with tap-to-focus
+          // fills entire screen, user can tap anywhere to focus
+          Positioned.fill(
+            child: GestureDetector(
+              onTapUp: _handleFocus, // tap to set focus point
+              child: Center(
+                child: CameraPreview(
+                  controller,
+                  key: ValueKey(controller), // key ensures rebuild when controller changes
+                ),
+              ),
+            ),
+          ),
+
+          // 2. Dim overlay + aspect-correct guide frame (CustomPainter)
+          // dims everything outside the guide frame — helps user align paper
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _frameColorAnim,
+              builder: (_, _) => CustomPaint(
+                painter: _ScanOverlayPainter(
+                  frameRect: frame,
+                  dimColor: Colors.black.withValues(alpha: 0.55), // semi-transparent dim
+                  frameColor: _showOrientationWarning
+                      ? Colors.white24 // dim frame when in landscape (scanning disabled)
+                      : (_frameColorAnim.value ?? AppColors.primary), // animate to green on capture
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Paper-size label (inside top-left of frame)
+          // shows which paper size is selected — "A4", "Short Bond", etc.
+          Positioned(
+            left: frame.left + 12,
+            top: frame.top + 12,
+            child: _PaperLabel(label: _selectedPaper.label),
+          ),
+
+          // 4. Tap-to-focus ring — circular border at the tap point
+          if (_focusPoint != null)
+            Positioned(
+              left: _focusPoint!.dx - 30,
+              top: _focusPoint!.dy - 30,
+              child: Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.primary, width: 2), // colored ring
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+
+          // 5. Orientation warning — overlays everything when phone is landscape
+          if (_showOrientationWarning)
+            Container(
+              color: Colors.black87,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.screen_lock_portrait_rounded,
+                        size: 80, color: Colors.white),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'PLEASE HOLD PORTRAIT',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'The scanner works best in upright mode',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // 6. UI controls (top bar + bottom guidance + capture button)
+          //
+          // Withheld while the landscape warning is up. These are laid out as a
+          // tall Column with a fixed-size capture button, so on a landscape
+          // viewport they overflow — and being painted after the warning in
+          // this Stack, they also covered it, leaving the tilt banner and
+          // "PLEASE HOLD PORTRAIT" overlapping and both unreadable. initState
+          // locks to portrait so this should not arise; this stays as the guard
+          // for devices that ignore the lock.
+          if (!_showOrientationWarning)
+            SafeArea(
+              child: Column(
+              children: [
+                // Top bar — [Flash] [Paper ▼]  |  Spacer  |  [Link] [Sync]
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      // Flash toggle — switches between torch and off
+                      _ActionButton(
+                        icon: _flashMode == FlashMode.torch
+                            ? Icons.flash_on_rounded
+                            : Icons.flash_off_rounded,
+                        onTap: _toggleFlash,
+                        activeColor: _flashMode == FlashMode.torch
+                            ? Colors.yellow // yellow when torch is on — obvious
+                            : Colors.white,
+                      ),
+                      const SizedBox(width: 8),
+
+                      // ── Compact paper-size dropdown ─────
+                      // tap to select Short Bond / A4 / Long Bond
+                      _PaperDropdown(
+                        selected: _selectedPaper,
+                        onChanged: (p) =>
+                            setState(() => _selectedPaper = p), // update and redraw frame
+                      ),
+
+                      const Spacer(), // push right buttons to the right edge
+                      // Form link button — open google sheet import screen
+                      _ActionButton(
+                        icon: Icons.link_rounded,
+                        onTap: widget.onOpenImportData,
+                        activeColor: AppColors.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      // Sync queue button — with badge showing queue count
+                      _ActionButton(
+                        icon: Icons.sync_rounded,
+                        onTap: widget.onOpenSync,
+                        badge: widget.queueCount, // red badge if items in queue
+                      ),
+                    ],
+                  ),
+                ),
+
+                const Spacer(), // push capture button and guidance to the bottom
+
+                // Bottom guidance text — changes based on current state
+                _buildBottomGuidance(),
+                const SizedBox(height: 24),
+
+                // Capture button — big white circle at the bottom
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 40),
+                  child: Column(
+                    children: [
+                      ApplePressable(
+                        onTap: _busy ? null : _takePicture,
+                        pressedScale: 0.92,
+                        semanticLabel: 'Capture scan',
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: _busy ? Colors.white38 : Colors.white, // dim when busy
+                              width: 4,
+                            ),
+                          ),
+                          child: Container(
+                            margin: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _busy ? Colors.white38 : Colors.white, // inner circle dimmed when busy
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        'TAP TO CAPTURE',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                            fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // build the guidance text shown above the capture button
+  // changes based on: tilt angle, focusing state, taking picture state
+  Widget _buildBottomGuidance() {
+    if (_tiltAngle > 30) {
+      // phone too tilted — show tilt angle and warning to hold straight
+      return Column(children: [
+        const Icon(Icons.screen_rotation, color: Colors.redAccent, size: 36),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+          ),
+          child: Text(
+            'TILT: ${_tiltAngle.toStringAsFixed(0)}° — HOLD STRAIGHT', // show exact angle so user know how much to adjust
+            style: const TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ]);
+    }
+    if (_isFocusing) {
+      // AF is locking — tell user camera is working
+      return const Column(children: [
+        CircularProgressIndicator(color: Colors.greenAccent, strokeWidth: 2.5),
+        SizedBox(height: 10),
+        Text('FOCUSING…',
+            style: TextStyle(
+                color: Colors.greenAccent,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                fontSize: 13)),
+      ]);
+    }
+    if (_isTakingPicture) {
+      // actively capturing — tell user to not move
+      return const Column(children: [
+        CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
+        SizedBox(height: 10),
+        Text('HOLD STEADY…',
+            style: TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+                fontSize: 13)),
+      ]);
+    }
+    // default state — normal scanning instructions
+    return Column(children: [
+      Text(
+        'FIT ${_selectedPaper.label.toUpperCase()} PAPER INSIDE THE FRAME', // remind user what paper they selected
+        style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.bold),
+      ),
+      const SizedBox(height: 6),
+      const Text(
+        'Leave a gap between paper and frame edges',
+        style: TextStyle(color: Colors.white70, fontSize: 11),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Hold steady  •  Plain background  •  Good lighting', // the holy trinity of good scans
+        style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.55), fontSize: 11),
+      ),
+    ]);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  Preview screen
+  //  Shown after capture — user sees the photo and decides retake or use
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  // the preview screen — full-screen image with retake/use buttons and blur warning
+  Widget _buildPreviewScreen() {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // show the captured image filling the screen
+          Positioned.fill(
+            child:
+            Image.file(File(_capturedImagePath!), fit: BoxFit.contain),
+          ),
+
+          // Quality hint & Blur Warning — shown at top center of preview
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isCheckingBlur)
+                      // still analyzing — spinning sync icon while checks run
+                      _BlurStatusTag(
+                        icon: Icons.sync,
+                        label: 'ANALYZING SHARPNESS...',
+                        color: Colors.white.withValues(alpha: 0.8),
+                        isSpinning: true,
+                      )
+                    else if (_isBlurry)
+                      // blur detected — warn user image may be unclear for OCR.
+                      // Shown BEFORE the form-check tag: a blurry image needs a
+                      // retake regardless of what document it is, so this is the
+                      // more actionable warning and must never be hidden.
+                      _BlurStatusTag(
+                        icon: Icons.warning_amber_rounded,
+                        label: 'IMAGE APPEARS BLURRY',
+                        color: Colors.orangeAccent,
+                      )
+
+                    else
+                      // image looks sharp — show paper label and check corners reminder
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.65),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: AppColors.primary.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          '${_selectedPaper.label}  •  Check all 4 corners are visible & image is sharp',
+                          style:
+                          const TextStyle(color: Colors.white70, fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Retake / Use buttons — at the bottom with gradient background
+          SafeArea(
+            child: Column(
+              children: [
+                const Spacer(), // push buttons to bottom
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 24, vertical: 50),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.95), // dark at bottom
+                        Colors.transparent // transparent at top — fade to image
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      // RETAKE — discard and go back to camera
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: _retake,
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                                color: Colors.white, width: 2),
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15)),
+                          ),
+                          child: const Text('RETAKE',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2)),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      // USE PHOTO — accept image and add to upload queue
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: _acceptImage, // rename + hand to parent
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.black,
+                            padding:
+                            const EdgeInsets.symmetric(vertical: 18),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15)),
+                            elevation: 0,
+                          ),
+                          child: const Text('USE PHOTO',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CustomPainter — dims outside guide frame, draws corner brackets + outline
+//  This is the cool scanner overlay effect. Paint on canvas directly.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _ScanOverlayPainter extends CustomPainter {
+  final Rect frameRect; // the paper guide area — inside is clear, outside is dimmed
+  final Color dimColor; // semi-transparent black for the dim overlay
+  final Color frameColor; // color of the corner brackets — animates to green on capture
+
+  const _ScanOverlayPainter({
+    required this.frameRect,
+    required this.dimColor,
+    required this.frameColor,
+  });
+
+  static const _radius     = Radius.circular(12); // rounded corners for the guide frame
+  static const _bracketLen = 34.0; // length of the corner bracket lines
+  static const _bracketW   = 3.5; // thickness of the corner bracket lines
+  static const _borderW    = 1.5; // thickness of the faint full outline
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rrect = RRect.fromRectAndRadius(frameRect, _radius);
+
+    // Dim overlay with transparent hole where the guide frame is
+    // using evenOdd fill rule: outer rect minus inner rounded rect = dim ring
+    canvas.drawPath(
+      Path()
+        ..addRect(Rect.fromLTWH(0, 0, size.width, size.height)) // full screen
+        ..addRRect(rrect) // punch hole for guide frame
+        ..fillType = PathFillType.evenOdd, // this makes the hole transparent
+      Paint()..color = dimColor,
+    );
+
+    // Faint full outline — subtle border around the entire guide frame
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..color = frameColor.withValues(alpha: 0.4) // semi-transparent outline
+        ..strokeWidth = _borderW
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Bright corner brackets — the four L-shapes at each corner
+    // more visible than the full outline — helps user align paper corners
+    final bp = Paint()
+      ..color = frameColor // bright bracket color (animates to green)
+      ..strokeWidth = _bracketW
+      ..strokeCap = StrokeCap.round // rounded ends look cleaner
+      ..style = PaintingStyle.stroke;
+
+    // draw a bracket at each corner — dx/dy direction determines which corner
+    _bracket(canvas, bp, frameRect.topLeft,      1,  1); // top-left: right + down
+    _bracket(canvas, bp, frameRect.topRight,    -1,  1); // top-right: left + down
+    _bracket(canvas, bp, frameRect.bottomLeft,   1, -1); // bottom-left: right + up
+    _bracket(canvas, bp, frameRect.bottomRight, -1, -1); // bottom-right: left + up
+  }
+
+  // draw an L-shaped bracket at a corner — two lines extending in dx/dy direction
+  void _bracket(Canvas c, Paint p, Offset corner, double dx, double dy) {
+    c.drawLine(corner, corner + Offset(dx * _bracketLen, 0), p); // horizontal line
+    c.drawLine(corner, corner + Offset(0, dy * _bracketLen), p); // vertical line
+  }
+
+  // only repaint if frame geometry or colors actually changed — performance optimization
+  @override
+  bool shouldRepaint(_ScanOverlayPainter old) =>
+      old.frameColor != frameColor ||
+          old.frameRect != frameRect ||
+          old.dimColor != dimColor;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Compact paper-size dropdown (sits next to the flash button in the top bar)
+//  Shows Short Bond / Long Bond as popup menu items.
+//  A4 is intentionally excluded — not used in practice (0 of 44 labelled forms).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+class _PaperDropdown extends StatelessWidget {
+  final PaperSize selected; // currently selected paper size
+  final ValueChanged<PaperSize> onChanged; // called when user picks a different size
+  const _PaperDropdown({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    // A4 removed from choices — only Short Bond and Long Bond are offered.
+    const choices = [PaperSize.shortBond, PaperSize.longBond];
+    return PopupMenuButton<PaperSize>(
+      onSelected: onChanged, // user picked a paper size
+      color: const Color(0xFF1E1E1E), // dark background for the popup — fits the dark camera UI
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      offset: const Offset(0, 54),   // drops directly below the button
+      itemBuilder: (_) => choices.map((p) {
+        final active = p == selected; // is this the currently selected size?
+        return PopupMenuItem<PaperSize>(
+          value: p,
+          padding: EdgeInsets.zero,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: active
+                ? BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15), // highlight active item
+              borderRadius: BorderRadius.circular(10),
+            )
+                : null,
+            child: Row(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      p.label, // e.g. "A4", "Short Bond"
+                      style: TextStyle(
+                        color: active ? AppColors.primary : Colors.white,
+                        fontSize: 14,
+                        fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                      ),
+                    ),
+                    Text(
+                      p.dimensions, // e.g. "210 × 297 mm"
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                // checkmark for the active item — visual confirmation
+                if (active)
+                  const Icon(Icons.check_rounded,
+                      color: AppColors.primary, size: 18),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+      // The button itself — shows selected paper label with a dropdown arrow
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.10), // subtle white tint
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              selected.label, // e.g. "A4"
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(width: 2),
+            const Icon(Icons.expand_more_rounded,
+                color: Colors.white70, size: 16), // dropdown arrow
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Paper size toggle — full-width 3-option segmented selector (kept for reference)
+//  This was the old toggle before the compact dropdown replaced it.
+//  Kept here in case we need to switch back — wala choice kung mag-revert
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ignore: unused_element  — intentionally retained, see note above
+class _PaperSizeToggle extends StatelessWidget {
+  final PaperSize selected;
+  final ValueChanged<PaperSize> onChanged;
+  const _PaperSizeToggle({required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(
+        children: PaperSize.values.map((p) {
+          final active = p == selected;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onChanged(p), // select this paper size
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  color: active ? AppColors.primary : Colors.transparent, // fill active
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      p.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: active ? Colors.black : Colors.white,
+                        fontSize: 13,
+                        fontWeight: active
+                            ? FontWeight.bold
+                            : FontWeight.w500,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      p.dimensions, // dimension text below label
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: active ? Colors.black54 : Colors.white38,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+// ── Small label shown inside the guide frame ──────────────────────────────────
+// shows the currently selected paper size name inside the scan overlay
+// e.g. "A4" or "Short Bond" — subtle reminder of what size is selected
+
+class _PaperLabel extends StatelessWidget {
+  final String label;
+  const _PaperLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.50), // semi-transparent dark pill
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+            color: Colors.white60, fontSize: 11, letterSpacing: 1),
+      ),
+    );
+  }
+}
+
+// animated tag widget for blur detection status — shown in preview screen
+// can spin if isSpinning is true (for the "analyzing" state)
+class _BlurStatusTag extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool isSpinning; // true when blur check still running
+
+  const _BlurStatusTag({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.isSpinning = false,
+  });
+
+  @override
+  State<_BlurStatusTag> createState() => _BlurStatusTagState();
+}
+
+// the state handles the spinning animation for the "analyzing" state
+class _BlurStatusTagState extends State<_BlurStatusTag>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl; // controls rotation animation
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2)); // 1 full rotation per 2s
+    if (widget.isSpinning) _ctrl.repeat(); // spin continuously while analyzing
+  }
+
+  // always dispose animation controllers — memory leak if you forget
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.85), // dark semi-opaque background
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: widget.color.withValues(alpha: 0.5), width: 1.5), // colored border
+        boxShadow: [
+          BoxShadow(
+              color: widget.color.withValues(alpha: 0.2),
+              blurRadius: 12,
+              spreadRadius: 2) // subtle glow matching the tag color
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.isSpinning)
+            // spinning icon while analyzing — visual feedback
+            RotationTransition(
+              turns: _ctrl,
+              child: Icon(widget.icon, color: widget.color, size: 20),
+            )
+          else
+            Icon(widget.icon, color: widget.color, size: 20), // static icon for result
+          const SizedBox(width: 10),
+          Text(
+            widget.label,
+            style: TextStyle(
+              color: widget.color,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Existing helper widgets (unchanged public API)
+//  These small widgets used in the camera top bar and form link modal.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// circular action button used in the camera top bar
+// supports optional colored icon and a red badge count
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final Color? activeColor; // if null, defaults to white
+  final int badge; // if > 0, show a red circle with this number
+
+  const _ActionButton({
+    required this.icon,
+    required this.onTap,
+    this.activeColor,
+    this.badge = 0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none, // allow badge to overflow outside button bounds
+        children: [
+          // the circular button itself
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.10), // subtle white fill
+              shape: BoxShape.circle,
+              border: Border.all(
+                  color:
+                  activeColor?.withValues(alpha: 0.4) ?? Colors.white24), // colored border when active
+            ),
+            child: Icon(icon, color: activeColor ?? Colors.white, size: 22),
+          ),
+          // red badge positioned at top-right of button
+          if (badge > 0)
+            Positioned(
+              right: -2,
+              top: -2,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                    color: AppColors.error, shape: BoxShape.circle), // red circle
+                child: Text('$badge',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+

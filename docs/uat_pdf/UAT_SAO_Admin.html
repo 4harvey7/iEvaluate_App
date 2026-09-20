@@ -1,0 +1,369 @@
+<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate UAT - SAO Administrator Module</title><style>
+@page { size: Letter; margin: 12mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 9.2pt; color:#000; margin:0; }
+.page { page-break-after: always; }
+.page:last-child { page-break-after: auto; }
+.head { display:flex; align-items:center; justify-content:center; gap:10px; }
+.seal { width:62px; height:62px; object-fit:contain; }
+.seal.spacer { visibility:hidden; }
+.htext { text-align:center; line-height:1.15; }
+.htext .l1 { font-size:8.5pt; }
+.htext .l2 { font-size:11pt; font-weight:bold; }
+.htext .l3 { font-size:7.5pt; }
+.htext .l4 { font-size:7.5pt; }
+.htext .l5 { font-size:6.8pt; }
+.college { text-align:center; font-weight:bold; font-size:11pt; margin-top:10px; }
+.dept { text-align:center; font-weight:bold; font-size:10.5pt; }
+.uat-title { text-align:center; font-weight:bold; font-size:19pt; margin:10px 0 8px; }
+table.uat { width:100%; border-collapse:collapse; table-layout:fixed; }
+table.uat th, table.uat td { border:1px solid #000; padding:3px 5px; vertical-align:middle; }
+table.uat th { width:22%; text-align:right; font-weight:bold; }
+table.uat td.mlbl { width:34%; font-weight:bold; }
+td.ctr { text-align:center; }
+p { margin:0 0 4px; }
+p:last-child { margin-bottom:0; }
+.exp { margin-top:2px; padding-left:12px; }
+.exp span { font-weight:bold; font-style:italic; }
+p.hl { font-weight:bold; }
+.marker { font-weight:bold; font-style:italic; text-align:center; margin-bottom:3px; }
+.tall { height:52px; }
+.remarks { height:66px; }
+tr, td, th { page-break-inside:avoid; }
+h2.sect { text-align:center; font-size:12.5pt; margin:4px 0 8px; }
+pre.raw { font-family:"Consolas","Courier New",monospace; font-size:8pt; white-space:pre-wrap;
+          border:1px solid #000; padding:8px; margin:0; line-height:1.25; }
+</style></head><body><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">USER ACCEPTANCE TESTING - SAO ADMINISTRATOR MODULE</h2><pre class="raw">================================================================================
+CEBU TECHNOLOGICAL UNIVERSITY - ARGAO CAMPUS
+COLLEGE OF TECHNOLOGY AND ENGINEERING
+Information Technology Department
+USER ACCEPTANCE TESTING - SAO ADMINISTRATOR MODULE
+================================================================================
+Capstone Project Title : iEvaluate: An AI-Driven Mobile Instructor Evaluation
+                         and Performance Analysis System Using N8n Workflow
+                         Automation
+Team                   : ERMM
+Project Leader         : Rodz Harvey Licayan
+Front-End Programmer   : Michael Thomas Gonzaga
+QA Engineer            : Mark Lawrence Medillo
+Technical Writer       : Evangeline Caruana
+Role under test        : SAO_ADMIN  (&quot;SAO Administrator&quot;)
+Device                 : Infinix X6525, Android 13
+Active term            : 2nd Semester, 2027-2028
+Test account           : the SAO admin account held by the tester.
+                         Credentials are deliberately NOT recorded here.
+--------------------------------------------------------------------------------
+HOW TO READ THIS DOCUMENT
+--------------------------------------------------------------------------------
+* Text in &quot;double quotes&quot; appears on screen exactly as written. Match it
+  character for character.
+* Names in [square brackets] are database tables or edge functions to check
+  when a step needs back-end verification.
+* Each step has its own expected result, so a failed case identifies WHICH
+  step failed.
+* &quot;Actual Result&quot; is blank where the case has not been run.
+!! DESTRUCTIVE-ACTION WARNING !!
+  This role can create accounts, change roles, disable users, switch the
+  active term for the whole system, and rotate credentials. Cases marked
+  [LIVE DATA] change real records. Run them on staging, or on throwaway
+  accounts you are willing to lose, and never during a live evaluation period.
+--------------------------------------------------------------------------------
+SCREEN COVERAGE
+--------------------------------------------------------------------------------
+  SCREEN                     REACHED BY                        CASE
+  -------------------------- --------------------------------- ------------
+  Dashboard                  Tab &quot;Dashboard&quot;                   TC-A01
+  Pending Approvals          Dashboard &quot;View All&quot;              TC-A02
+  Users                      Tab &quot;Users&quot;                       TC-A03, A04
+  Personnel                  Tab &quot;Personnel&quot;                   TC-A05
+  Analytics                  Tab &quot;Analytics&quot;                   TC-A06
+  Subject Management         Drawer &quot;Subject Management&quot;       TC-A07
+  Manage Departments         Drawer &quot;Manage Departments&quot;       TC-A08
+  Security Audit Logs        Drawer &quot;Security Audit Logs&quot;      TC-A09
+  Live System Metrics        Drawer &quot;Live System Metrics&quot;      TC-A10
+  System Settings            Drawer &quot;System Settings&quot;          TC-A11, A12</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A01</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SIGN IN AS SAO ADMINISTRATOR AND READ THE SYSTEM OVERVIEW</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>App on the Login screen. Account is active with role SAO_ADMIN.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only.</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. Sign in with the SAO administrator credentials.</div><div class="exp"><span>Expected:</span> Routes to the admin landing screen titled &quot;Dashboard&quot;, NOT any other role&#x27;s dashboard. Bottom tabs read &quot;Dashboard&quot;, &quot;Users&quot;, &quot;Personnel&quot;, &quot;Analytics&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read the header card.</div><div class="exp"><span>Expected:</span> Shows &quot;SAO ADMINISTRATION&quot;, &quot;System Overview&quot; and the subtitle &quot;Operations, evaluation progress, and account activity.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">3. Read the health strip.</div><div class="exp"><span>Expected:</span> Shows &quot;Automation&quot; and &quot;Database&quot;, each with a status indicator, plus a refresh control. Both read healthy when n8n and Supabase are reachable.</div></td></tr><tr><td colspan="2"><div class="stp">4. Read the two counters.</div><div class="exp"><span>Expected:</span> A count labelled &quot;Total Users&quot; and a count labelled &quot;Files Scanned&quot; for the current term. Both are numbers, not blank or &quot;null&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Cross-check &quot;Total Users&quot; against [user_info] / [Sao_users].</div><div class="exp"><span>Expected:</span> The figure equals the number of registered accounts.</div></td></tr><tr><td colspan="2"><div class="stp">6. Cross-check &quot;Files Scanned&quot; against the scan/survey records for the active term.</div><div class="exp"><span>Expected:</span> The figure equals the count gathered this term, and changes only when the term changes or new scans arrive.</div></td></tr><tr><td colspan="2"><div class="stp">7. Turn off Wi-Fi and mobile data, then tap the health-strip refresh.</div><div class="exp"><span>Expected:</span> The affected indicator reports a problem rather than silently staying green. The app does not crash.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The admin lands on the System Overview, and both the health indicators and the two counters reflect the real state of the system.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2"><p>PASS on steps 1-4 (observed 31/08/2026). Dashboard rendered with &quot;SAO ADMINISTRATION&quot; / &quot;System Overview&quot; / &quot;Operations, evaluation progress, and account activity.&quot;, the health strip showing &quot;Automation&quot; and &quot;Database&quot; both healthy, &quot;17 Total Users&quot; and &quot;152 Files Scanned this term&quot;, and the four tabs Dashboard / Users / Personnel / Analytics. Steps 5-7 not executed.</p></td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A02</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>APPROVE A PENDING ACCOUNT REGISTRATION                     [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>At least one account has registered and is awaiting approval.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One throwaway registration. Edge function [admin-accept-user]. Tables [user_info], [Sao_users].</p></td></tr><tr><th rowspan="7">Steps</th><td colspan="2"><div class="stp">1. On the dashboard, find the &quot;Pending Approvals&quot; section.</div><div class="exp"><span>Expected:</span> Subtitle reads &quot;Review new accounts before granting access.&quot; with a &quot;View All&quot; link. Pending registrations are listed.</div></td></tr><tr><td colspan="2"><div class="stp">2. When there are no pending registrations, read the empty state.</div><div class="exp"><span>Expected:</span> Reads &quot;All caught up&quot; rather than an empty gap or a spinner that never resolves.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tap a pending account.</div><div class="exp"><span>Expected:</span> Full details open, showing &quot;Email Address&quot;, &quot;Employment Status&quot;, &quot;Academic Dept&quot;, &quot;Address&quot; and &quot;Registered On&quot;. Fields with no value read &quot;Not provided&quot;, not blank or &quot;null&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the requested role is shown and is the role the person actually registered for.</div><div class="exp"><span>Expected:</span> The role label matches the registration, e.g. &quot;SAO Staff (Data Gatherer)&quot;, &quot;SAO Administrator&quot;, &quot;Department Head&quot;, &quot;Instructor&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Tap &quot;Approve&quot;.</div><div class="exp"><span>Expected:</span> The account is approved via [admin-accept-user], the row leaves the pending list, and the user count on the dashboard increases by one.</div></td></tr><tr><td colspan="2"><div class="stp">6. Have the approved person sign in.</div><div class="exp"><span>Expected:</span> They can now sign in and land on the dashboard for the role they were approved as, and no other.</div></td></tr><tr><td colspan="2"><div class="stp">7. Force a failure (approve with no network) and observe.</div><div class="exp"><span>Expected:</span> Message reads &quot;Action failed. Please try again.&quot; and the account is NOT left half-approved: it either stays pending or is fully approved, never both.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>A pending registration can be reviewed in full and approved, after which the person can sign in with exactly the role they were approved for, and a failed approval leaves no partial state.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A03</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>CREATE AN ACADEMIC USER, INCLUDING THE DEPARTMENT HEAD AUTHORIZATION CODE                                         [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as SAO admin on the &quot;Users&quot; tab. Access to the admin&#x27;s email inbox for the verification code.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>A throwaway name and email. Edge functions [send-admin-code], [admin-create-user].</p></td></tr><tr><th rowspan="9">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Users&quot; tab.</div><div class="exp"><span>Expected:</span> Screen lists academic users. While loading it reads &quot;Loading academic users…&quot;; with none it reads &quot;No academic users found.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Add Academic Personnel&quot; (or &quot;Create User&quot;).</div><div class="exp"><span>Expected:</span> A form opens with &quot;First Name&quot;, &quot;Last Name&quot;, an email field, a role selector and a department selector.</div></td></tr><tr><td colspan="2"><div class="stp">3. Submit the form with required fields left empty.</div><div class="exp"><span>Expected:</span> Refused with a validation message. No account is created.</div></td></tr><tr><td colspan="2"><div class="stp">4. Create a plain INSTRUCTOR account with valid details.</div><div class="exp"><span>Expected:</span> The account is created without asking for a code, and appears in the list.</div></td></tr><tr><td colspan="2"><div class="stp">5. Now create an account with the role DEPARTMENT HEAD.</div><div class="exp"><span>Expected:</span> BEFORE creating anything the app states &quot;Creating a Department Head requires authorization.&quot; and asks &quot;Enter the 6-digit code sent to your email:&quot;. A code arrives by email.</div></td></tr><tr><td colspan="2"><div class="stp">6. Enter an INCORRECT 6-digit code.</div><div class="exp"><span>Expected:</span> Refused. NO Department Head account is created.</div></td></tr><tr><td colspan="2"><div class="stp">7. Enter the CORRECT code.</div><div class="exp"><span>Expected:</span> The Department Head account is created and appears in the list.</div></td></tr><tr><td colspan="2"><div class="stp">8. Repeat step 5 but cancel at the code prompt.</div><div class="exp"><span>Expected:</span> No account is created and no partial record is left behind.</div></td></tr><tr><td colspan="2"><div class="stp">9. Force a server failure during creation.</div><div class="exp"><span>Expected:</span> Message reads &quot;Could not create the user. Please try again.&quot; and no partially-created account is left.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Ordinary instructor accounts can be created directly, while creating a Department Head is gated behind a correct emailed 6-digit code, and every refusal leaves no partial account.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>This is the most security-relevant case in the module. The privilege escalation guard is the thing being tested, not the form.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A04</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>DISABLE AND RE-ENABLE AN ACADEMIC ACCOUNT                  [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>A throwaway academic account exists and can currently sign in.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>That account&#x27;s credentials, held by the tester.</p></td></tr><tr><th rowspan="6">Steps</th><td colspan="2"><div class="stp">1. On the &quot;Users&quot; tab, open the throwaway account and tap &quot;Disable&quot;.</div><div class="exp"><span>Expected:</span> A confirmation is required before anything changes.</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm the action.</div><div class="exp"><span>Expected:</span> Message reads &quot;Account disabled successfully&quot; (or the equivalent wording for the new status) and the row shows the account as disabled.</div></td></tr><tr><td colspan="2"><div class="stp">3. Attempt to sign in as that disabled account.</div><div class="exp"><span>Expected:</span> Sign-in is refused with &quot;Your account has been deactivated by the administration.&quot; The user reaches no screen inside the app.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the account&#x27;s evaluation data still exists.</div><div class="exp"><span>Expected:</span> Disabling is NOT a deletion. Scores and remarks are retained.</div></td></tr><tr><td colspan="2"><div class="stp">5. Re-enable the same account from the &quot;Users&quot; tab.</div><div class="exp"><span>Expected:</span> Status returns to active with a success message.</div></td></tr><tr><td colspan="2"><div class="stp">6. Sign in as that account again.</div><div class="exp"><span>Expected:</span> Sign-in now succeeds and lands on the correct role&#x27;s dashboard.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>An account can be disabled and re-enabled by the admin, a disabled account cannot sign in, and no evaluation data is lost either way.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A05</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>CREATE SAO PERSONNEL, INCLUDING THE ADMIN AUTHORIZATION CODE                                                       [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as SAO admin on the &quot;Personnel&quot; tab. Access to the admin&#x27;s inbox.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>A throwaway name and email. Edge functions [send-admin-code], [admin-create-user].</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Personnel&quot; tab.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Personnel Management&quot;. While loading it reads &quot;Loading SAO personnel…&quot;; with none it reads &quot;No SAO personnel&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Read one personnel row.</div><div class="exp"><span>Expected:</span> Shows the person&#x27;s role and activity, including &quot;Last Upload&quot;, or &quot;No uploads yet&quot; when they have never uploaded.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tap &quot;Add SAO Personnel&quot;, then submit with fields empty.</div><div class="exp"><span>Expected:</span> Refused with &quot;Please fill in all required fields&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">4. Fill the details but choose no role, then submit.</div><div class="exp"><span>Expected:</span> Refused with &quot;Please select a role first&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">5. Create an account with role SAO_STAFF.</div><div class="exp"><span>Expected:</span> Created without a code, with &quot;Personnel created!&quot;, and the row appears in the list.</div></td></tr><tr><td colspan="2"><div class="stp">6. Now create an account with role SAO_ADMIN.</div><div class="exp"><span>Expected:</span> The app states &quot;Creating an Admin requires authorization.&quot; and asks &quot;Enter the 6-digit code sent to your email:&quot;. A code arrives by email.</div></td></tr><tr><td colspan="2"><div class="stp">7. Enter an INCORRECT code.</div><div class="exp"><span>Expected:</span> Refused. NO admin account is created.</div></td></tr><tr><td colspan="2"><div class="stp">8. Enter the CORRECT code.</div><div class="exp"><span>Expected:</span> The admin account is created and appears in the list.</div></td></tr><tr><td colspan="2"><div class="stp">9. Have the new SAO_STAFF account sign in.</div><div class="exp"><span>Expected:</span> They land on the Data Gatherer screen with tabs &quot;Dashboard&quot;, &quot;Scanner&quot;, &quot;Validation&quot;, &quot;Sync Queue&quot; - and have NO access to admin screens such as Users, Personnel or System Settings.</div></td></tr><tr><td colspan="2"><div class="stp">10. Edit an existing person via &quot;Edit Personnel Profile&quot; and save.</div><div class="exp"><span>Expected:</span> Message reads &quot;Personnel updated successfully!&quot; and the change is visible in the list.</div></td></tr><tr><td colspan="2"><div class="stp">11. Force a server failure during creation.</div><div class="exp"><span>Expected:</span> Message reads &quot;Could not create the personnel. Please try again.&quot; and no partial account is left.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>SAO staff accounts can be created directly, creating another SAO Administrator is gated behind a correct emailed 6-digit code, and a new staff account is confined to the gatherer screens.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 9 is the privilege-boundary check. A staff account that can reach any admin screen is a FAIL for the whole case.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A06</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>ANALYTICS - UNIVERSITY-WIDE PERFORMANCE</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as SAO admin with evaluation data in the active term.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only.</p></td></tr><tr><th rowspan="4">Steps</th><td colspan="2"><div class="stp">1. Open the &quot;Analytics&quot; tab.</div><div class="exp"><span>Expected:</span> The screen loads without error and shows performance figures for the active term.</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm the term the figures belong to.</div><div class="exp"><span>Expected:</span> The screen displays a term selector showing which term it is reporting on, and it is the active term set in System Settings.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read the university average score and instructor leaderboard.</div><div class="exp"><span>Expected:</span> Shows the overall average score for all instructors and lists the top instructors by score with department assignment for each.</div></td></tr><tr><td colspan="2"><div class="stp">4. Switch the active term in System Settings, return, and re-read.</div><div class="exp"><span>Expected:</span> The figures and leaderboard update to reflect the newly active term without requiring a manual refresh.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Analytics displays the active term, shows the university average score and instructor performance rankings, and updates automatically when the active term changes.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A07</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SUBJECT MANAGEMENT - BULK IMPORT AND MANUAL ADD            [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Drawer item &quot;Subject Management&quot; is reachable. The n8n bulk import workflow is running. A Google Sheet of subject assignments is prepared for the active term.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One prepared sheet, plus one manual subject. Webhook URL comes from the env var for subject bulk import.</p></td></tr><tr><th rowspan="13">Steps</th><td colspan="2"><div class="stp">1. Open the drawer and tap &quot;Subject Management&quot;.</div><div class="exp"><span>Expected:</span> The screen lists subject assignments for the active term and states which term that is.</div></td></tr><tr><td colspan="2"><div class="stp">2. Use the search box and the assigned/unassigned filter.</div><div class="exp"><span>Expected:</span> Search narrows the list, and the filter separates subjects that have an instructor from those that do not.</div></td></tr><tr><td colspan="2"><div class="stp">3. Add ONE subject manually with valid details.</div><div class="exp"><span>Expected:</span> It is created and appears in the list against the active term.</div></td></tr><tr><td colspan="2"><div class="stp">4. Add a NEW subject reusing the code from step 3, with a DIFFERENT name.</div><div class="exp"><span>Expected:</span> Refused. A dialog headed &quot;Subject Code Already Used&quot; names the subject holding that code and its department. Reopen the original subject afterwards and confirm its name was NOT rewritten - silently overwriting it is the defect this step exists to catch.</div></td></tr><tr><td colspan="2"><div class="stp">5. Add a NEW subject with a different code but the SAME name as step 3.</div><div class="exp"><span>Expected:</span> A dialog headed &quot;Possible Duplicate&quot; names the existing code. &quot;Cancel&quot; creates nothing. Repeat and choose &quot;Create anyway&quot; and it is created - one name under two codes is allowed, but only deliberately.</div></td></tr><tr><td colspan="2"><div class="stp">6. Open a subject, tap Remove beside an instructor whose assignment has NO evaluation records.</div><div class="exp"><span>Expected:</span> A progress indicator appears while it checks, then a confirm dialog, then the instructor is removed and the list refreshes.</div></td></tr><tr><td colspan="2"><div class="stp">7. Repeat step 6 on an assignment that HAS evaluation records - management results, performance results or student remarks, any ONE of the three is enough.</div><div class="exp"><span>Expected:</span> A dialog headed &quot;Cannot Remove&quot; states how many records exist. The delete is never attempted and the instructor is still listed afterwards. A case with only performance results or only remarks matters most here: those used to read as zero, so the app promised the removal was safe and the database then refused it.</div></td></tr><tr><td colspan="2"><div class="stp">8. Open the edit sheet for an existing assignment, clear the instructor field and save.</div><div class="exp"><span>Expected:</span> Refused, with a message pointing at the Remove button. The sheet must NOT close reporting success while leaving the instructor still assigned.</div></td></tr><tr><td colspan="2"><div class="stp">9. Run &quot;Import from Google Sheets&quot; with the prepared sheet.</div><div class="exp"><span>Expected:</span> The import runs via the n8n webhook, reports progress, and ends with a clear success or failure message - never an indefinite spinner.</div></td></tr><tr><td colspan="2"><div class="stp">10. Cross-check the imported rows against the sheet.</div><div class="exp"><span>Expected:</span> Every row in the sheet is either imported or reported as an error. Nothing is silently dropped.</div></td></tr><tr><td colspan="2"><div class="stp">11. Deliberately include a bad row (unknown instructor, unknown subject) and re-import.</div><div class="exp"><span>Expected:</span> The bad row does NOT import silently. It is recorded as an import error and triaged in the SAO Staff module (UAT_SAO_Staff TC-S08), not here.</div></td></tr><tr><td colspan="2"><div class="stp">12. Run the import with n8n stopped.</div><div class="exp"><span>Expected:</span> A clear failure message. No partial import is left behind.</div></td></tr><tr><td colspan="2"><div class="stp">13. Attempt to delete a subject that already has evaluation results.</div><div class="exp"><span>Expected:</span> Deletion is BLOCKED. Results already recorded against a subject cannot be orphaned.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Subjects can be added manually and in bulk, a subject code can never be given to a second subject, bad rows are reported rather than silently dropped, an instructor can be unassigned only while no evaluation records exist, and a subject carrying results cannot be deleted.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Steps 4-5 need 20240130000018_one_subject_per_code applied; without it the app still refuses, but only in Dart, so the n8n import can create the duplicate anyway. Steps 7 and 13 need 20240130000015_protect_assignments_with_results. Confirm both are applied before judging any of them.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A08</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>DEPARTMENT MANAGEMENT - ADD AND EDIT                       [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Drawer item &quot;Manage Departments&quot; is reachable.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>One throwaway department code and name.</p></td></tr><tr><th rowspan="11">Steps</th><td colspan="2"><div class="stp">1. Open &quot;Manage Departments&quot;.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Department Management&quot; with &quot;Add or edit departments&quot;. While loading it reads &quot;Loading departments…&quot;; with none it reads &quot;No departments yet&quot;. A counter reads &quot;All Departments (n)&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Add Department&quot; and submit with fields empty.</div><div class="exp"><span>Expected:</span> Refused. &quot;Department Code *&quot; and &quot;Department Name *&quot; are marked required, with the rule &quot;At least 3 characters&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">3. Enter a valid code and name, then submit.</div><div class="exp"><span>Expected:</span> A confirmation appears reading &quot;Are you sure you want to add&quot; with the department named, and a &quot;Confirm Add&quot; button. Nothing is created until it is confirmed.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the addition.</div><div class="exp"><span>Expected:</span> Message reads &quot;Department added successfully&quot; and the new department appears, with the counter increasing by one.</div></td></tr><tr><td colspan="2"><div class="stp">5. Add a department reusing an existing department NAME, with a new code.</div><div class="exp"><span>Expected:</span> Refused BEFORE the confirmation dialog appears. An alert headed &quot;Department Already Exists&quot; names the department holding it and says the NAME is what clashed. No row is created.</div></td></tr><tr><td colspan="2"><div class="stp">6. Add a department reusing an existing department CODE, with a new name.</div><div class="exp"><span>Expected:</span> Refused the same way, and the alert says the CODE is what clashed. This is the case the old build let straight through - only the name was ever checked, so any existing code was accepted.</div></td></tr><tr><td colspan="2"><div class="stp">7. Add a department whose name differs from an existing one only by LETTER CASE or by extra spaces, e.g. &quot;college of  technology&quot;.</div><div class="exp"><span>Expected:</span> Still refused. Two rows for one department split its faculty and its department average between them, which is the reason for the rule.</div></td></tr><tr><td colspan="2"><div class="stp">8. Edit an existing department, change nothing, and save.</div><div class="exp"><span>Expected:</span> Message reads &quot;Department updated successfully&quot;. A department must never block itself.</div></td></tr><tr><td colspan="2"><div class="stp">9. Edit a department and set its name to ANOTHER department&#x27;s exact name.</div><div class="exp"><span>Expected:</span> Refused with the same alert. The edit path had no duplicate check at all, so this used to succeed silently.</div></td></tr><tr><td colspan="2"><div class="stp">10. Open a department to view its detail.</div><div class="exp"><span>Expected:</span> Shows &quot;Department Overview&quot;, its &quot;Department Head&quot; (or &quot;No department head assigned&quot;), &quot;Instructors (n)&quot; and &quot;Dept. Average&quot;.</div></td></tr><tr><td colspan="2"><div class="stp">11. Look for a way to DELETE a department.</div><div class="exp"><span>Expected:</span> There is NO delete control. Departments are add/edit only, so an existing department cannot be removed out from under the instructors and results attached to it.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Departments can be added behind an explicit confirmation and edited freely, no name or code can ever be reused on either path, and no delete path exists.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Steps 5-9 are enforced in the app and, once 20240130000019_one_department_per_name_and_code is applied, in the database too. Without that migration the refusals still appear, but only in Dart, so the REST API and two admins saving at once can still create the duplicate. Step 11 asserts intended behaviour, not a missing feature. If a delete control HAS appeared, that is a regression against the no-delete decision.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A09</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SECURITY AUDIT LOGS</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Some administrative actions have been performed, e.g. the account creation and disabling from TC-A03 and TC-A04.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only.</p></td></tr><tr><th rowspan="6">Steps</th><td colspan="2"><div class="stp">1. Open the drawer and tap &quot;Security Audit Logs&quot;.</div><div class="exp"><span>Expected:</span> Screen titled &quot;Security Audit Logs&quot;. While loading it reads &quot;Loading security history…&quot;; with no entries it reads &quot;No security events&quot; and &quot;Audit activity will appear here as administrative actions occur.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Confirm the actions from earlier cases are recorded.</div><div class="exp"><span>Expected:</span> The account creation (TC-A03) and the disable (TC-A04) both appear as entries. An administrative action that leaves NO audit entry is a FAIL.</div></td></tr><tr><td colspan="2"><div class="stp">3. Read one entry.</div><div class="exp"><span>Expected:</span> Shows what happened, who did it (&quot;By {name}&quot;) and when, plus the acting admin&#x27;s email.</div></td></tr><tr><td colspan="2"><div class="stp">4. Expand an entry&#x27;s metadata.</div><div class="exp"><span>Expected:</span> A &quot;METADATA (JSON):&quot; block shows the detail of the action.</div></td></tr><tr><td colspan="2"><div class="stp">5. Toggle the sort control.</div><div class="exp"><span>Expected:</span> Switches between &quot;Showing Newest First&quot; and &quot;Showing Oldest First&quot;, and the list order actually changes to match.</div></td></tr><tr><td colspan="2"><div class="stp">6. Confirm no entry can be edited or deleted from the app.</div><div class="exp"><span>Expected:</span> The log is append-only from the admin&#x27;s point of view. An audit trail the admin can rewrite is worthless.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>Every administrative action is recorded with actor, action and timestamp, the log can be re-sorted, and it cannot be altered from within the app.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 2 and step 6 are the substance of this case. The rest is presentation.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A10</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>LIVE SYSTEM METRICS</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Drawer item &quot;Live System Metrics&quot; is reachable.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>View only.</p></td></tr><tr><th rowspan="4">Steps</th><td colspan="2"><div class="stp">1. Open the drawer and tap &quot;Live System Metrics&quot;.</div><div class="exp"><span>Expected:</span> The screen loads and shows current system figures without error.</div></td></tr><tr><td colspan="2"><div class="stp">2. Compare the figures with the dashboard counters.</div><div class="exp"><span>Expected:</span> Where the two screens report the same thing, they agree.</div></td></tr><tr><td colspan="2"><div class="stp">3. Perform an action that should move a metric, e.g. approve an account, then return.</div><div class="exp"><span>Expected:</span> The metric reflects the change after a refresh.</div></td></tr><tr><td colspan="2"><div class="stp">4. Disable the network, then open the screen.</div><div class="exp"><span>Expected:</span> It reports that data is unavailable rather than showing stale figures as if they were live, and does not crash.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The metrics screen reports current figures that agree with the dashboard, and degrades honestly when offline.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall">&nbsp;</td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A11</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>SYSTEM SETTINGS - SWITCH THE ACTIVE ACADEMIC TERM          [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Drawer item &quot;System Settings&quot; is reachable. A second device or account signed in as an instructor, to observe the effect.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>Edge function [update-system-settings]. Table [system_settings].</p><p>!! HIGHEST-IMPACT ACTION IN THE SYSTEM !! Switching the term changes what every dashboard, report and evaluation in the application points at, for every user. Do not run this during a live evaluation period.</p></td></tr><tr><th rowspan="8">Steps</th><td colspan="2"><div class="stp">1. Open &quot;System Settings&quot; and find the &quot;Academic Term&quot; section.</div><div class="exp"><span>Expected:</span> Shows the current &quot;Active Semester&quot; and &quot;Academic Year&quot;, and states that &quot;Changes apply to every dashboard, report, and evaluation.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">2. Select a different term and submit.</div><div class="exp"><span>Expected:</span> A confirmation step titled &quot;Confirm Term Change&quot; appears. The term does NOT change until it is confirmed.</div></td></tr><tr><td colspan="2"><div class="stp">3. Cancel at the confirmation.</div><div class="exp"><span>Expected:</span> The active term is unchanged everywhere.</div></td></tr><tr><td colspan="2"><div class="stp">4. Confirm the change.</div><div class="exp"><span>Expected:</span> The new term is saved via [update-system-settings] and the screen shows the new active term.</div></td></tr><tr><td colspan="2"><div class="stp">5. Return to the admin Dashboard and Analytics.</div><div class="exp"><span>Expected:</span> Both now report the newly active term, with figures for that term.</div></td></tr><tr><td colspan="2"><div class="stp">6. On the instructor device, WITHOUT restarting the app, observe the instructor&#x27;s screens.</div><div class="exp"><span>Expected:</span> Feedback, Past Terms, My Subjects and Subject Detail all reload themselves onto the new term.</div></td></tr><tr><td colspan="2"><div class="stp">7. Attempt the change with the edge function unavailable.</div><div class="exp"><span>Expected:</span> A clear failure is reported, e.g. &quot;Edge Function not found or offline:&quot;, and the active term is NOT left half-changed.</div></td></tr><tr><td colspan="2"><div class="stp">8. Switch the term back to the original.</div><div class="exp"><span>Expected:</span> Succeeds, and every screen returns to reporting the original term.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The active term changes only after an explicit confirmation, propagates to every role without a restart, and a failure leaves the previous term intact.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 8 is mandatory. Leave the system on the term it started on.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<table class="uat"><tr><th>Test Case ID</th><td colspan="2">TC-A12</td></tr><tr><th>Capstone Project Title:</th><td colspan="2" class="ctr">iEvaluate: An AI-Driven Mobile Instructor Evaluation and Performance Analysis System Using N8n Workflow Automation</td></tr><tr><th>Team</th><td colspan="2" class="ctr">ERMM</td></tr><tr><th></th><td class="mlbl">Project Leader:</td><td class="ctr">Rodz Harvey Licayan</td></tr><tr><th></th><td class="mlbl">Front-End Programmer:</td><td class="ctr">Michael Thomas Gonzaga</td></tr><tr><th></th><td class="mlbl">QA Engineer:</td><td class="ctr">Mark Lawrence Medillo</td></tr><tr><th></th><td class="mlbl">Technical Writer:</td><td class="ctr">Evangeline Caruana</td></tr><tr><th>Title / Business Scenario</th><td colspan="2"><p>ADMIN&#x27;S OWN ACCOUNT SECURITY, INCLUDING ROLE CHANGE VERIFICATION                                               [LIVE DATA]</p></td></tr><tr><th>Preconditions</th><td colspan="2"><p>Signed in as SAO admin on &quot;System Settings&quot;, with access to the admin&#x27;s inbox.</p></td></tr><tr><th>Test Data</th><td colspan="2"><p>A new password of at least six characters, NOT recorded in this document. Edge functions [send-admin-code], [admin-update-role].</p><p>!! WARNING !! Steps 6-9 change this admin&#x27;s own role. Getting it wrong can lock you out of the admin module. Have a second SAO_ADMIN account available first.</p></td></tr><tr><th rowspan="10">Steps</th><td colspan="2"><div class="stp">1. Find the &quot;Administrator Profile&quot; section and tap &quot;Edit Personal Details&quot;.</div><div class="exp"><span>Expected:</span> An &quot;Edit Admin Profile&quot; form opens with the name fields, and saves successfully.</div></td></tr><tr><td colspan="2"><div class="stp">2. Tap &quot;Edit Email&quot;, submit a valid new address.</div><div class="exp"><span>Expected:</span> Message reads &quot;Email updated! Check your inbox for confirmation.&quot; The old address keeps working until the link is clicked.</div></td></tr><tr><td colspan="2"><div class="stp">3. Tap &quot;Edit Password&quot; and submit mismatched passwords.</div><div class="exp"><span>Expected:</span> Refused with &quot;Passwords do not match.&quot;</div></td></tr><tr><td colspan="2"><div class="stp">4. Submit a valid new password with the WRONG current password.</div><div class="exp"><span>Expected:</span> Refused with &quot;Current password is incorrect.&quot; The password does not change.</div></td></tr><tr><td colspan="2"><div class="stp">5. Submit a fully valid password change.</div><div class="exp"><span>Expected:</span> Succeeds and the session is ended, requiring a fresh sign-in with the new password.</div></td></tr><tr><td colspan="2"><div class="stp">6. Attempt to change your own administrative role.</div><div class="exp"><span>Expected:</span> The app states &quot;Changing your administrative role requires identity verification.&quot; and asks &quot;Enter the 6-digit code sent to your email:&quot;. Only &quot;SAO_ADMIN&quot; and &quot;SAO_STAFF&quot; are offered.</div></td></tr><tr><td colspan="2"><div class="stp">7. Enter an INCORRECT code.</div><div class="exp"><span>Expected:</span> Refused. The role does NOT change.</div></td></tr><tr><td colspan="2"><div class="stp">8. Enter the CORRECT code and change the role to SAO_STAFF.</div><div class="exp"><span>Expected:</span> The role changes via [admin-update-role], and on next sign-in the account lands on the Data Gatherer screens with no access to admin screens.</div></td></tr><tr><td colspan="2"><div class="stp">9. Using the SECOND admin account, change the first account back to SAO_ADMIN.</div><div class="exp"><span>Expected:</span> Succeeds, and the first account regains admin access.</div></td></tr><tr><td colspan="2"><div class="stp">10. Find &quot;Deactivate My Account&quot; and open it, then CANCEL.</div><div class="exp"><span>Expected:</span> A warning appears explaining the account can only be restored by an SAO Admin, and cancelling leaves the account fully active.</div></td></tr><tr><th>Expected Result</th><td colspan="2"><p>The admin can maintain their own profile, every password rule is enforced, and changing an administrative role is gated behind a correct emailed 6-digit code.</p></td></tr><tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">&nbsp;</td></tr><tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th><td colspan="2" class="tall"><p>Step 6 is the important one. A role change that succeeds WITHOUT the code is a critical security failure and should be raised immediately.</p></td></tr><tr><th>Tester Name / Date</th><td colspan="2">&nbsp;</td></tr><tr><th>Panelist's Remarks</th><td colspan="2" class="remarks">&nbsp;</td></tr></table></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SUMMARY</h2><pre class="raw">  Total cases     : 12
+  Executed        : 1 partial  (TC-A01 steps 1-4, observed 31/08/2026)
+  Not executed    : 11
+
+  Cases that change live data : TC-A02, A03, A04, A05, A07, A08, A11, A12
+  Highest-risk cases          : TC-A11 (system-wide term switch)
+                                TC-A12 (own role change)
+
+  SECURITY GUARDS THIS DOCUMENT EXISTS TO VERIFY
+    1. Creating a Department Head requires an emailed 6-digit code  (TC-A03)
+    2. Creating an SAO Administrator requires an emailed code       (TC-A05)
+    3. Changing an administrative role requires an emailed code     (TC-A12)
+    4. A new SAO_STAFF account cannot reach any admin screen        (TC-A05/9)
+    5. Every administrative action lands in the audit log           (TC-A09/2)
+    6. Departments cannot be deleted                               (TC-A08/8)
+    7. Subjects with results cannot be deleted                     (TC-A07/9)
+  If any one of these fails, record it as a defect before anything cosmetic.</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">SIGN-OFF</h2><pre class="raw">  Tester            : ____________________________  Date: ______________
+
+  QA Engineer       : Mark Lawrence Medillo _______  Date: ______________
+
+  Project Leader    : Rodz Harvey Licayan _________  Date: ______________
+
+
+  PANELIST&#x27;S REMARKS
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________
+
+  ______________________________________________________________________________</pre></section><section class="page">
+<div class="head">
+  <img class="seal" src="ctu_logo.png" alt="">
+  <div class="htext">
+    <div class="l1">Republic of the Philippines</div>
+    <div class="l2">CEBU TECHNOLOGICAL UNIVERSITY</div>
+    <div class="l3">ARGAO CAMPUS</div>
+    <div class="l4">Ed Kintanar Street, Lamacan, Argao, Cebu</div>
+    <div class="l5">Website: http://www.argao.ctu.edu.ph&nbsp;&nbsp;E-mail: cdargao@ctu.edu.ph</div>
+    <div class="l5">Phone No.: (032) 401-0737 local 1700</div>
+  </div>
+  <div class="seal spacer"></div>
+</div>
+<div class="college">COLLEGE OF TECHNOLOGY AND ENGINEERING</div>
+<div class="dept">Information Technology Department</div>
+<div class="uat-title">USER ACCEPTANCE TESTING</div>
+<h2 class="sect">iEvaluate - SAO Administrator Module UAT - Team ERMM Cebu Technological University, Argao Campus</h2><pre class="raw"></pre></section></body></html>
