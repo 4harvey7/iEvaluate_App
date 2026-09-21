@@ -27,6 +27,9 @@
     native <methods>;
 }
 
+# Play Core (Flutter deferred components)
+-dontwarn com.google.android.play.core.**
+
 # Preserve line numbers and source attributes for symbolication
 -renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable

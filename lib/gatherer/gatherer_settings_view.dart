@@ -110,25 +110,26 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
     final TextEditingController firstController = TextEditingController(text: _firstName);
     final TextEditingController lastController = TextEditingController(text: _lastName);
     bool isSaving = false;
+    bool isSheetOpen = true;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
+              return Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -136,7 +137,15 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                            onPressed: isSaving ? null : () {
+                              if (isSheetOpen && sheetContext.mounted) {
+                                isSheetOpen = false;
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -175,30 +184,49 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: isSaving ? null : () async {
-                            final navigator = Navigator.of(context);
-                            final messenger = ScaffoldMessenger.of(context);
-                            setSheetState(() => isSaving = true);
+                            final newFirst = firstController.text.trim();
+                            final newLast = lastController.text.trim();
+                            final messenger = ScaffoldMessenger.of(this.context);
+
+                            if (newFirst.isEmpty || newLast.isEmpty) {
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('Please fill in both first and last name.'), backgroundColor: AppColors.error),
+                              );
+                              return;
+                            }
+
+                            FocusScope.of(context).unfocus();
+                            if (isSheetOpen && sheetContext.mounted) {
+                              setSheetState(() => isSaving = true);
+                            }
+
                             try {
                               final result = await _authService.updateProfile(
-                                firstName: firstController.text.trim(),
-                                lastName: lastController.text.trim(),
+                                firstName: newFirst,
+                                lastName: newLast,
                               );
                               
-                              if (result.success && mounted) {
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                navigator.pop();
+                              if (result.success) {
+                                if (mounted) {
+                                  setState(() {
+                                    _firstName = newFirst;
+                                    _lastName = newLast;
+                                  });
+                                }
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  isSheetOpen = false;
+                                  Navigator.of(sheetContext).pop();
+                                }
                                 messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               } else {
-                                throw Exception(result.error);
+                                throw Exception(result.error ?? 'Failed to update profile.');
                               }
                             } catch (e) {
-                              setSheetState(() => isSaving = false);
-                              if (mounted) {
-                                messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              if (isSheetOpen && sheetContext.mounted) {
+                                setSheetState(() => isSaving = false);
                               }
+                              final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                              messenger.showSnackBar(SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                             }
                           },
                           child: isSaving 
@@ -209,64 +237,120 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     ],
                   ),
                 ),
-              );
+              ),
+            );
             }
         );
       },
-    );
+    ).whenComplete(() {
+      isSheetOpen = false;
+      firstController.dispose();
+      lastController.dispose();
+    });
   }
 
   void _showEditEmailDialog() {
     final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
     bool isSaving = false;
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'New Email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  onPressed: isSaving ? null : () {
+                    if (isDialogOpen && dialogContext.mounted) {
+                      isDialogOpen = false;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
-                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+                    final messenger = ScaffoldMessenger.of(this.context);
 
-                    setDialogState(() => isSaving = true);
-                    // Captured before the await — the dialog context is gone after pop.
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    final result = await _authService.updateEmail(newEmail);
-                    
-                    if (mounted) {
-                      navigator.pop();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    final currentEmail = _supabase.auth.currentUser?.email ?? '';
+                    if (newEmail.toLowerCase() == currentEmail.toLowerCase()) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('This is already your current email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    FocusScope.of(context).unfocus();
+                    if (isDialogOpen && dialogContext.mounted) {
+                      setDialogState(() => isSaving = true);
+                    }
+
+                    try {
+                      final result = await _authService.updateEmail(newEmail);
+                      
+                      if (result.success) {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          isDialogOpen = false;
+                          Navigator.of(dialogContext).pop();
+                        }
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Email updated! Check your inbox for confirmation.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      } else {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(result.error ?? 'Failed to update email.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (isDialogOpen && dialogContext.mounted) {
+                        setDialogState(() => isSaving = false);
+                      }
+                      final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
-                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                          content: Text('Error: $cleanError'),
+                          backgroundColor: AppColors.error,
                         ),
                       );
                     }
@@ -280,7 +364,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      isDialogOpen = false;
+      emailController.dispose();
+    });
   }
 
   // Deactivation lives in showDeactivateAccountDialog: warning, emailed code,
@@ -307,10 +394,12 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
     final TextEditingController newPasswordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
     bool isUpdating = false;
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -330,7 +419,12 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: isUpdating ? null : () => Navigator.pop(context),
+                        onPressed: isUpdating ? null : () {
+                          if (isDialogOpen && dialogContext.mounted) {
+                            isDialogOpen = false;
+                            Navigator.of(dialogContext).pop();
+                          }
+                        },
                         child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                       ),
                     ),
@@ -345,13 +439,13 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                         onPressed: isUpdating ? null : () async {
-                          final messenger = ScaffoldMessenger.of(context);
-                          final navigator = Navigator.of(context);
+                          final messenger = ScaffoldMessenger.of(this.context);
                           final rootNavigator = Navigator.of(this.context);
+                          final currentPw = currentPasswordController.text.trim();
                           final newPw = newPasswordController.text.trim();
                           final confirmPw = confirmPasswordController.text.trim();
 
-                          if (newPw.isEmpty || confirmPw.isEmpty || currentPasswordController.text.trim().isEmpty) {
+                          if (newPw.isEmpty || confirmPw.isEmpty || currentPw.isEmpty) {
                             messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                             return;
                           }
@@ -366,38 +460,45 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             return;
                           }
 
-                          setDialogState(() => isUpdating = true);
+                          FocusScope.of(context).unfocus();
+                          if (isDialogOpen && dialogContext.mounted) {
+                            setDialogState(() => isUpdating = true);
+                          }
                           
                           try {
                             final result = await _authService.updatePassword(newPw);
                             
-                            if (mounted) {
-                              if (result.success) {
-                                navigator.pop();
-                                messenger.showSnackBar(const SnackBar(
-                                  content: Text('Password updated successfully. Please log in again.'), 
-                                  backgroundColor: AppColors.success
-                                ));
-                                
-                                // Auto sign out for security
-                                await Future.delayed(const Duration(seconds: 2));
-                                await _authService.signOut();
-                                if (mounted) {
-                                  rootNavigator.pushAndRemoveUntil(
-                                    MaterialPageRoute(builder: (context) => const LoginScreen()), 
-                                    (route) => false
-                                  );
-                                }
-                              } else {
-                                setDialogState(() => isUpdating = false);
-                                messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
+                            if (result.success) {
+                              if (isDialogOpen && dialogContext.mounted) {
+                                isDialogOpen = false;
+                                Navigator.of(dialogContext).pop();
                               }
+                              messenger.showSnackBar(const SnackBar(
+                                content: Text('Password updated successfully. Please log in again.'), 
+                                backgroundColor: AppColors.success
+                              ));
+                              
+                              // Auto sign out for security
+                              await Future.delayed(const Duration(seconds: 2));
+                              await _authService.signOut();
+                              if (mounted) {
+                                rootNavigator.pushAndRemoveUntil(
+                                  MaterialPageRoute(builder: (context) => const LoginScreen()), 
+                                  (route) => false
+                                );
+                              }
+                            } else {
+                              if (isDialogOpen && dialogContext.mounted) {
+                                setDialogState(() => isUpdating = false);
+                              }
+                              messenger.showSnackBar(SnackBar(content: Text(result.error ?? 'Failed to update password.'), backgroundColor: AppColors.error));
                             }
                           } catch (e) {
-                            setDialogState(() => isUpdating = false);
-                            if (mounted) {
-                              messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                            if (isDialogOpen && dialogContext.mounted) {
+                              setDialogState(() => isUpdating = false);
                             }
+                            final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                            messenger.showSnackBar(SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                           }
                         },
                         child: isUpdating 
@@ -412,7 +513,12 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
           }
         );
       },
-    );
+    ).whenComplete(() {
+      isDialogOpen = false;
+      currentPasswordController.dispose();
+      newPasswordController.dispose();
+      confirmPasswordController.dispose();
+    });
   }
 
   Widget _buildInput({required String label, IconData? icon, TextEditingController? controller, bool isPassword = false}) {

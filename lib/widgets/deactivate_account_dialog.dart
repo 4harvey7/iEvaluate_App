@@ -190,19 +190,21 @@ class _DeactivateAccountDialogState extends State<_DeactivateAccountDialog> {
           ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_step == _Step.warning) ..._warningBody() else ..._codeBody(),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _error!,
-              style: const TextStyle(color: AppColors.error, fontSize: 13),
-            ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_step == _Step.warning) ..._warningBody() else ..._codeBody(),
+            if (_error != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _error!,
+                style: const TextStyle(color: AppColors.error, fontSize: 13),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
       actions: _actions(),
     );

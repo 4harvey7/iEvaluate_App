@@ -133,114 +133,150 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     final TextEditingController firstController = TextEditingController(text: _firstName);
     final TextEditingController lastController = TextEditingController(text: _lastName);
     bool isSaving = false; // prevent double-tap spam while saving
+    bool isSheetOpen = true; // prevent double-pop and race conditions
 
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true, // allows sheet to resize when keyboard appears
+      isDismissible: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                // Push sheet up when keyboard is open so the fields are visible
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          // Close button — for when the user change their mind
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              return Padding(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                              ),
+                            const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                            // Close button
+                            IconButton(
+                              icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                              onPressed: isSaving ? null : () {
+                                if (isSheetOpen) {
+                                  isSheetOpen = false;
+                                  Navigator.of(sheetContext).pop();
+                                }
+                              },
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
-                      const SizedBox(height: 16),
-                      _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.warning.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
                           ),
-                          // Disable button while saving to avoid double-click disaster
-                          onPressed: isSaving ? null : () async {
-                            final navigator = Navigator.of(context);
-                            final messenger = ScaffoldMessenger.of(context);
-                            setSheetState(() => isSaving = true);
-                            try {
-                              // Call auth service to update name in the database
-                              final result = await _authService.updateProfile(
-                                firstName: firstController.text.trim(),
-                                lastName: lastController.text.trim(),
-                              );
-                              
-                              if (result.success) {
-                                // Update local state immediately so UI reflects the change
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                if (mounted) navigator.pop();
-                                messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
-                              } else {
-                                throw Exception(result.error);
-                              }
-                            } catch (e) {
-                              setSheetState(() => isSaving = false);
-                              messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-                            }
-                          },
-                          // Show spinner while saving, text when idle
-                          child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
+                                  style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 16),
+                        _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
+                        const SizedBox(height: 16),
+                        _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.textPrimary,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            // Disable button while saving to avoid double-click disaster
+                            onPressed: isSaving ? null : () async {
+                              final newFirst = firstController.text.trim();
+                              final newLast = lastController.text.trim();
+                              final messenger = ScaffoldMessenger.of(this.context);
+
+                              if (newFirst.isEmpty || newLast.isEmpty) {
+                                messenger.showSnackBar(
+                                  const SnackBar(content: Text('Please fill in both first and last name.'), backgroundColor: AppColors.error),
+                                );
+                                return;
+                              }
+
+                              FocusScope.of(context).unfocus();
+                              setSheetState(() => isSaving = true);
+
+                              try {
+                                // Call auth service to update name in the database
+                                final result = await _authService.updateProfile(
+                                  firstName: newFirst,
+                                  lastName: newLast,
+                                );
+                                
+                                if (result.success) {
+                                  // Update local state immediately so UI reflects the change
+                                  if (mounted) {
+                                    setState(() {
+                                      _firstName = newFirst;
+                                      _lastName = newLast;
+                                    });
+                                  }
+                                  if (isSheetOpen && sheetContext.mounted) {
+                                    isSheetOpen = false;
+                                    Navigator.of(sheetContext).pop();
+                                  }
+                                  messenger.showSnackBar(
+                                    const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success),
+                                  );
+                                } else {
+                                  throw Exception(result.error ?? 'Failed to update profile.');
+                                }
+                              } catch (e) {
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  setSheetState(() => isSaving = false);
+                                }
+                                final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                                messenger.showSnackBar(
+                                  SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error),
+                                );
+                              }
+                            },
+                            // Show spinner while saving, text when idle
+                            child: isSaving 
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
             }
         );
       },
-    ).whenComplete(() { firstController.dispose(); lastController.dispose(); });
+    ).whenComplete(() {
+      isSheetOpen = false;
+      firstController.dispose();
+      lastController.dispose();
+    });
   }
 
 
@@ -252,54 +288,105 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
   void _showEditEmailDialog() {
     final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
     bool isSaving = false;
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'New Email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  onPressed: isSaving ? null : () {
+                    if (isDialogOpen && dialogContext.mounted) {
+                      isDialogOpen = false;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
-                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+                    final messenger = ScaffoldMessenger.of(this.context);
 
-                    setDialogState(() => isSaving = true);
-                    // Captured before the await — the dialog context is gone after pop.
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    final result = await _authService.updateEmail(newEmail);
-                    
-                    if (mounted) {
-                      navigator.pop();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    final currentEmail = _supabase.auth.currentUser?.email ?? '';
+                    if (newEmail.toLowerCase() == currentEmail.toLowerCase()) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('This is already your current email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    FocusScope.of(context).unfocus();
+                    if (isDialogOpen && dialogContext.mounted) {
+                      setDialogState(() => isSaving = true);
+                    }
+
+                    try {
+                      final result = await _authService.updateEmail(newEmail);
+                      
+                      if (result.success) {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          isDialogOpen = false;
+                          Navigator.of(dialogContext).pop();
+                        }
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Email updated! Check your inbox for confirmation.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      } else {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(result.error ?? 'Failed to update email.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (isDialogOpen && dialogContext.mounted) {
+                        setDialogState(() => isSaving = false);
+                      }
+                      final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
-                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                          content: Text('Error: $cleanError'),
+                          backgroundColor: AppColors.error,
                         ),
                       );
                     }
@@ -313,8 +400,14 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           },
         );
       },
-    ).whenComplete(() { emailController.dispose(); });
+    ).whenComplete(() {
+      isDialogOpen = false;
+      emailController.dispose();
+    });
   }
+
+
+
 
   // ==========================================
   // INTERACTIVE: DELETE ACCOUNT
@@ -347,29 +440,38 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
     final TextEditingController newPasswordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
     bool isUpdating = false; // prevent double submit
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isUpdating ? null : () => Navigator.pop(context),
+                  onPressed: isUpdating ? null : () {
+                    if (isDialogOpen && dialogContext.mounted) {
+                      isDialogOpen = false;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
@@ -378,80 +480,90 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: isUpdating ? null : () async {
-                  final navigator = Navigator.of(context);
-                  final messenger = ScaffoldMessenger.of(context);
-                  final rootNavigator = Navigator.of(this.context);
-                  final currentPw = currentPasswordController.text.trim();
-                  final newPw = newPasswordController.text.trim();
-                  final confirmPw = confirmPasswordController.text.trim();
+                    final messenger = ScaffoldMessenger.of(this.context);
+                    final rootNavigator = Navigator.of(this.context);
+                    final currentPw = currentPasswordController.text.trim();
+                    final newPw = newPasswordController.text.trim();
+                    final confirmPw = confirmPasswordController.text.trim();
 
-                  // Validation 1: Cannot leave fields empty, ayaw!
-                  if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
-                    messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
-                    return;
-                  }
-
-                  // Validation 2: New and confirm passwords must match exactly
-                  if (newPw != confirmPw) {
-                    messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
-                    return;
-                  }
-
-                  // Validation 3: Password must be at least 6 characters long
-                  if (newPw.length < 6) {
-                    messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
-                    return;
-                  }
-
-                  setDialogState(() => isUpdating = true); // show spinner
-                  
-                  try {
-                    // Step 1: Verify current password by re-signing in — must confirm identity first
-                    final email = _supabase.auth.currentUser?.email ?? '';
-                    final verifyResp = await _supabase.auth.signInWithPassword(
-                        email: email, password: currentPw);
-                    if (verifyResp.user == null) {
-                      // Wrong current password — balik ka
-                      setDialogState(() => isUpdating = false);
-                      messenger.showSnackBar(const SnackBar(
-                          content: Text('Current password is incorrect.'),
-                          backgroundColor: AppColors.error));
+                    // Validation 1: Cannot leave fields empty, ayaw!
+                    if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
+                      messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                       return;
                     }
 
-                    // Step 2: Update to new password using auth service
-                    final result = await _authService.updatePassword(newPw);
-                    if (!mounted) return;
-                    if (result.success) {
-                      navigator.pop(); // close dialog first
-                      messenger.showSnackBar(const SnackBar(
-                        content: Text('Password updated. Please log in again.'),
-                        backgroundColor: AppColors.success,
-                      ));
-                      // Small delay so the user can see the success message before logout
-                      await Future.delayed(const Duration(seconds: 2));
-                      await _authService.signOut(); // force re-login for security
-                      if (mounted) {
-                        rootNavigator.pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (_) => const LoginScreen()),
-                          (route) => false, // clear all routes — fresh start
-                        );
+                    // Validation 2: New and confirm passwords must match exactly
+                    if (newPw != confirmPw) {
+                      messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                      return;
+                    }
+
+                    // Validation 3: Password must be at least 6 characters long
+                    if (newPw.length < 6) {
+                      messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                      return;
+                    }
+
+                    FocusScope.of(context).unfocus();
+                    if (isDialogOpen && dialogContext.mounted) {
+                      setDialogState(() => isUpdating = true); // show spinner
+                    }
+                    
+                    try {
+                      // Step 1: Verify current password by re-signing in — must confirm identity first
+                      final email = _supabase.auth.currentUser?.email ?? '';
+                      final verifyResp = await _supabase.auth.signInWithPassword(
+                          email: email, password: currentPw);
+
+                      if (verifyResp.user == null) {
+                        // Wrong current password — balik ka
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isUpdating = false);
+                        }
+                        messenger.showSnackBar(const SnackBar(
+                            content: Text('Current password is incorrect.'),
+                            backgroundColor: AppColors.error));
+                        return;
                       }
-                    } else {
-                      setDialogState(() => isUpdating = false);
-                      messenger.showSnackBar(SnackBar(
-                        content: Text(result.error ?? 'Failed to update password.'),
-                        backgroundColor: AppColors.error,
-                      ));
-                    }
-                  } catch (e) {
-                    setDialogState(() => isUpdating = false);
-                    if (mounted) {
+
+                      // Step 2: Update to new password using auth service
+                      final result = await _authService.updatePassword(newPw);
+                      if (result.success) {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          isDialogOpen = false;
+                          Navigator.of(dialogContext).pop(); // close dialog first
+                        }
+                        messenger.showSnackBar(const SnackBar(
+                          content: Text('Password updated. Please log in again.'),
+                          backgroundColor: AppColors.success,
+                        ));
+                        // Small delay so the user can see the success message before logout
+                        await Future.delayed(const Duration(seconds: 2));
+                        await _authService.signOut(); // force re-login for security
+                        if (mounted) {
+                          rootNavigator.pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            (route) => false, // clear all routes — fresh start
+                          );
+                        }
+                      } else {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isUpdating = false);
+                        }
+                        messenger.showSnackBar(SnackBar(
+                          content: Text(result.error ?? 'Failed to update password.'),
+                          backgroundColor: AppColors.error,
+                        ));
+                      }
+                    } catch (e) {
+                      if (isDialogOpen && dialogContext.mounted) {
+                        setDialogState(() => isUpdating = false);
+                      }
+                      final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
                       messenger.showSnackBar(
-                        SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                        SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                     }
-                  }
-                },
+                  },
                   // Spinner when updating, text when idle — basin ma confuse user
                   child: isUpdating 
                     ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textPrimary))
@@ -462,7 +574,12 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
           }
         );
       },
-    );
+    ).whenComplete(() {
+      isDialogOpen = false;
+      currentPasswordController.dispose();
+      newPasswordController.dispose();
+      confirmPasswordController.dispose();
+    });
   }
 
   // Reusable text field widget for forms — handles labels, icons, and password masking

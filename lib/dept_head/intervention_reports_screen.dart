@@ -122,6 +122,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
     String selectedAction = _actionTypes.first; // Default to first option
     final TextEditingController notesController = TextEditingController();
     bool isSubmitting = false; // Prevent double submit — importente
+    bool isSheetOpen = true;
 
     showModalBottomSheet(
       context: context,
@@ -130,154 +131,174 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
+              return Padding(
                 // Shift content up when keyboard opens — dili ta hide the form fields
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Draft Intervention', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          // X to close without saving — ayaw submit if not ready
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Show who this intervention is for — no confusion
-                      Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                      // Show why they were flagged — gives context to the action
-                      Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                      const SizedBox(height: 24),
-
-                      // Dropdown for Action Type — pick what mandated action to apply
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedAction,
-                        isExpanded: true,
-                        decoration: InputDecoration(
-                          labelText: 'Mandated Action',
-                          prefixIcon: const Icon(
-                            Icons.gavel, // The hammer icon — very official
-                            color: AppColors.primary,
-                          ),
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(
-                              color: AppColors.primary,
-                              width: 2,
+                padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Draft Intervention', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                            // X to close without saving — ayaw submit if not ready
+                            IconButton(
+                              icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                              onPressed: isSubmitting ? null : () {
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  isSheetOpen = false;
+                                  Navigator.of(sheetContext).pop();
+                                }
+                              },
                             ),
+                          ],
+                        ),
+                    const SizedBox(height: 8),
+                    // Show who this intervention is for — no confusion
+                    Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                    // Show why they were flagged — gives context to the action
+                    Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 24),
+
+                    // Dropdown for Action Type — pick what mandated action to apply
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedAction,
+                      isExpanded: true,
+                      decoration: InputDecoration(
+                        labelText: 'Mandated Action',
+                        prefixIcon: const Icon(
+                          Icons.gavel, // The hammer icon — very official
+                          color: AppColors.primary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: AppColors.primary,
+                            width: 2,
                           ),
                         ),
+                      ),
 
-                        // Map action types to dropdown items
-                        items: _actionTypes.map((String action) {
-                          return DropdownMenuItem<String>(
-                            value: action,
-                            child: Text(
-                              action,
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 14,
-                              ),
+                      // Map action types to dropdown items
+                      items: _actionTypes.map((String action) {
+                        return DropdownMenuItem<String>(
+                          value: action,
+                          child: Text(
+                            action,
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
                             ),
-                          );
-                        }).toList(),
+                          ),
+                        );
+                      }).toList(),
 
-                        // Update selectedAction when user picks a different option
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setSheetState(() {
-                              selectedAction = newValue;
-                            });
+                      // Update selectedAction when user picks a different option
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setSheetState(() {
+                            selectedAction = newValue;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Notes input — dean can write remarks, context, or additional info
+                    // Multi-line so dean can write properly, dili just one line
+                    TextField(
+                      controller: notesController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: "Dean's Remarks / Notes",
+                        alignLabelWithHint: true,
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Submit Button — the actual "file the report" action
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.textPrimary,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        // Disabled while submitting to prevent duplicate inserts
+                        onPressed: isSubmitting ? null : () async {
+                          final scaffoldMessenger = ScaffoldMessenger.of(this.context);
+                          final deanId = _supabase.auth.currentUser?.id;
+                          // Must have deanId and instructorId — otherwise something is very wrong
+                          if (deanId == null || alert.instructorId == null) return;
+
+                          final notesText = notesController.text.trim();
+
+                          FocusScope.of(context).unfocus();
+                          if (isSheetOpen && sheetContext.mounted) {
+                            setSheetState(() => isSubmitting = true); // Lock button while submitting
+                          }
+                          try {
+                            // Create the intervention record in the database
+                            await _evaluationService.createIntervention(
+                              instructorId: alert.instructorId!,
+                              deanId: deanId,
+                              actionType: selectedAction, // The mandated action dean picked
+                              notes: notesText, // Dean's remarks
+                            );
+
+                            if (isSheetOpen && sheetContext.mounted) {
+                              isSheetOpen = false;
+                              Navigator.of(sheetContext).pop(); // Close the sheet
+                            }
+                            if (mounted) {
+                              _loadData(); // Reload so the new report appears in the log
+                            }
+                            scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
+                          } catch (e) {
+                            if (isSheetOpen && sheetContext.mounted) {
+                              setSheetState(() => isSubmitting = false); // Re-enable on error
+                            }
+                            scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                           }
                         },
+                        // Spinner while submitting, text when idle
+                        child: isSubmitting
+                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                            : const Text('Submit Official Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
                       ),
-                      const SizedBox(height: 16),
-                      // Notes input — dean can write remarks, context, or additional info
-                      // Multi-line so dean can write properly, dili just one line
-                      TextField(
-                        controller: notesController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          labelText: "Dean's Remarks / Notes",
-                          alignLabelWithHint: true,
-                          filled: true,
-                          fillColor: AppColors.surface,
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Submit Button — the actual "file the report" action
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          // Disabled while submitting to prevent duplicate inserts
-                          onPressed: isSubmitting ? null : () async {
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
-                            final navigator = Navigator.of(context);
-                            final deanId = _supabase.auth.currentUser?.id;
-                            // Must have deanId and instructorId — otherwise something is very wrong
-                            if (deanId == null || alert.instructorId == null) return;
-
-                            setSheetState(() => isSubmitting = true); // Lock button while submitting
-                            try {
-                              // Create the intervention record in the database
-                              await _evaluationService.createIntervention(
-                                instructorId: alert.instructorId!,
-                                deanId: deanId,
-                                actionType: selectedAction, // The mandated action dean picked
-                                notes: notesController.text, // Dean's remarks
-                              );
-
-                              if (!mounted) return;
-                              navigator.pop(); // Close the sheet
-                              _loadData(); // Reload so the new report appears in the log
-                              scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
-                            } catch (e) {
-                              if (!mounted) return;
-                              setSheetState(() => isSubmitting = false); // Re-enable on error
-                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-                            }
-                          },
-                          // Spinner while submitting, text when idle
-                          child: isSubmitting
-                              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text('Submit Official Report', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              );
-            }
-        );
-      },
-    );
+              ),
+            ),
+          );
+        },
+      );
+    },
+    ).whenComplete(() {
+      isSheetOpen = false;
+      notesController.dispose();
+    });
   }
 
   // The main build — shows pending alerts on top, completed log below

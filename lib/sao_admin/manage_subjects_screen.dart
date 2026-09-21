@@ -1550,9 +1550,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
+      child: Padding(
         padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + bottomPadding),
         child: Form(
           key: _formKey,
@@ -1930,9 +1928,7 @@ class _BulkImportModalState extends State<_BulkImportModal> {
         color: AppColors.surface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: AnimatedPadding(
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
+      child: Padding(
         padding: EdgeInsets.fromLTRB(24, 0, 24, 24 + bottomPadding),
         child: Form(
           key: _formKey,
@@ -2069,7 +2065,7 @@ class _BulkImportModalState extends State<_BulkImportModal> {
           ),
         ),       // SingleChildScrollView
         ),       // Form
-      ),         // AnimatedPadding
+      ),         // Padding
     );           // Container
   }
 }

@@ -146,26 +146,27 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     String tempSelectedRole = validRoles.contains(_userTitle) ? _userTitle : 'SAO_ADMIN';
     bool needsOTP = false; // flip this to true when role changed and needs verification
     bool isSaving = false; // prevent double-tapping the save button
+    bool isSheetOpen = true;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true, // allows sheet to grow when keyboard shows
+      isDismissible: true,
       backgroundColor: Colors.transparent, // let the container handle bg color
       builder: (sheetContext) {
         return StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
+              return Padding(
                 // pushes the sheet up when keyboard appears — importente kaayo ni
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
+                padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+                child: SingleChildScrollView(
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: const BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    ),
+                    child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -174,7 +175,15 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         children: [
                           // title changes depending on if we're in OTP step or not
                           Text(needsOTP ? 'Verify Role Change' : 'Edit Admin Profile', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                            onPressed: isSaving ? null : () {
+                              if (isSheetOpen && sheetContext.mounted) {
+                                isSheetOpen = false;
+                                Navigator.of(sheetContext).pop();
+                              }
+                            },
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -246,71 +255,116 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           onPressed: isSaving ? null : () async {
-                            final navigator = Navigator.of(context);
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            final newFirst = firstController.text.trim();
+                            final newLast = lastController.text.trim();
+                            final otpCode = codeController.text.trim();
+                            final messenger = ScaffoldMessenger.of(this.context);
+                            final sheetNavigator = Navigator.of(sheetContext);
+                            final rootNavigator = Navigator.of(this.context);
                             final bool roleChanged = tempSelectedRole != originalRole; // did the role actually change
+
+                            if (newFirst.isEmpty || newLast.isEmpty) {
+                              messenger.showSnackBar(
+                                const SnackBar(content: Text('Please fill in both first and last name.'), backgroundColor: AppColors.error),
+                              );
+                              return;
+                            }
+
+                            FocusScope.of(context).unfocus();
 
                             if (roleChanged && !needsOTP) {
                               // role changed but no OTP yet — send the code first
-                              setSheetState(() => isSaving = true);
+                              if (isSheetOpen && sheetContext.mounted) {
+                                setSheetState(() => isSaving = true);
+                              }
                               try {
                                 // fire the edge function to email the code
                                 await _supabase.functions.invoke('send-admin-code', body: {'email': _supabase.auth.currentUser?.email});
-                                setSheetState(() {
-                                  needsOTP = true; // switch to OTP input mode
-                                  isSaving = false;
-                                });
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  setSheetState(() {
+                                    needsOTP = true; // switch to OTP input mode
+                                    isSaving = false;
+                                  });
+                                }
                                 return;
                               } catch (e) {
                                 // edge function failed, dili ta makapadayon
-                                setSheetState(() => isSaving = false);
-                                scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  setSheetState(() => isSaving = false);
+                                }
+                                final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                                messenger.showSnackBar(SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                                 return;
                               }
                             }
 
-                            setSheetState(() => isSaving = true);
+                            if (isSheetOpen && sheetContext.mounted) {
+                              setSheetState(() => isSaving = true);
+                            }
                             try {
                               if (roleChanged) {
+                                if (otpCode.isEmpty) {
+                                  if (isSheetOpen && sheetContext.mounted) {
+                                    setSheetState(() => isSaving = false);
+                                  }
+                                  messenger.showSnackBar(const SnackBar(content: Text('Please enter the verification code.'), backgroundColor: AppColors.error));
+                                  return;
+                                }
+
                                 // Fetch role ID for the new role — need the id, not just the name
                                 final roleData = await _supabase.from('roles').select('id').eq('Roles', tempSelectedRole).single();
 
                                 // call the edge function to actually change the role in DB
                                 await _supabase.functions.invoke('admin-update-role', body: {
                                   'targetUserId': _supabase.auth.currentUser?.id,
-                                  'firstName': firstController.text.trim(),
-                                  'lastName': lastController.text.trim(),
+                                  'firstName': newFirst,
+                                  'lastName': newLast,
                                   'roleId': roleData['id'],
                                   'roleName': tempSelectedRole,
-                                  'verificationCode': codeController.text.trim(), // the OTP code
+                                  'verificationCode': otpCode, // the OTP code
                                   'isAcademic': false
                                 });
 
                                 // Role changed successfully — must log out for new permissions to take effect
+                                if (isSheetOpen && sheetContext.mounted) {
+                                  isSheetOpen = false;
+                                  sheetNavigator.pop();
+                                }
+                                await _authService.signOut(); // bye bye session
                                 if (mounted) {
-                                  navigator.pop();
-                                  await _authService.signOut(); // bye bye session
-                                  navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                                  scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Role updated. Please log in again.'), backgroundColor: AppColors.success));
+                                  rootNavigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
+                                  messenger.showSnackBar(const SnackBar(content: Text('Role updated. Please log in again.'), backgroundColor: AppColors.success));
                                 }
                               } else {
                                 // Simple profile update — just name, no drama
-                                await _authService.updateProfile(
-                                  firstName: firstController.text.trim(),
-                                  lastName: lastController.text.trim(),
+                                final result = await _authService.updateProfile(
+                                  firstName: newFirst,
+                                  lastName: newLast,
                                 );
-                                // update local state so UI reflects new name immediately
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                if (mounted) navigator.pop();
-                                scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
+                                if (result.success) {
+                                  // update local state so UI reflects new name immediately
+                                  if (mounted) {
+                                    setState(() {
+                                      _firstName = newFirst;
+                                      _lastName = newLast;
+                                    });
+                                  }
+                                  if (isSheetOpen && sheetContext.mounted) {
+                                    isSheetOpen = false;
+                                    sheetNavigator.pop();
+                                  }
+                                  messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
+                                } else {
+                                  throw Exception(result.error ?? 'Failed to update profile.');
+                                }
                               }
                             } catch (e) {
                               // something went wrong during save, stop the spinner and tell user
-                              setSheetState(() => isSaving = false);
-                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                              if (isSheetOpen && sheetContext.mounted) {
+                                setSheetState(() => isSaving = false);
+                              }
+                              final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                              messenger.showSnackBar(SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                             }
                           },
                           // show spinner while saving, otherwise show appropriate label
@@ -322,11 +376,17 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     ],
                   ),
                 ),
-              );
+              ),
+            );
             }
         );
       },
-    );
+    ).whenComplete(() {
+      isSheetOpen = false;
+      firstController.dispose();
+      lastController.dispose();
+      codeController.dispose();
+    });
   }
 
   // ==========================================
@@ -335,54 +395,105 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
   void _showEditEmailDialog() {
     final TextEditingController emailController = TextEditingController(text: _supabase.auth.currentUser?.email ?? '');
     bool isSaving = false;
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Edit Email', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: 'New Email',
-                      prefixIcon: const Icon(Icons.email_outlined),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Enter your new email address. You will receive a confirmation link.', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText: 'New Email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isSaving ? null : () => Navigator.pop(context),
+                  onPressed: isSaving ? null : () {
+                    if (isDialogOpen && dialogContext.mounted) {
+                      isDialogOpen = false;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                   onPressed: isSaving ? null : () async {
                     final newEmail = emailController.text.trim();
-                    if (newEmail.isEmpty || !newEmail.contains('@')) return;
+                    final messenger = ScaffoldMessenger.of(this.context);
 
-                    setDialogState(() => isSaving = true);
-                    // Captured before the await — the dialog context is gone after pop.
-                    final navigator = Navigator.of(context);
-                    final messenger = ScaffoldMessenger.of(context);
-                    final result = await _authService.updateEmail(newEmail);
-                    
-                    if (mounted) {
-                      navigator.pop();
+                    if (newEmail.isEmpty || !newEmail.contains('@')) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Please enter a valid email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    final currentEmail = _supabase.auth.currentUser?.email ?? '';
+                    if (newEmail.toLowerCase() == currentEmail.toLowerCase()) {
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('This is already your current email address.'), backgroundColor: AppColors.error),
+                      );
+                      return;
+                    }
+
+                    FocusScope.of(context).unfocus();
+                    if (isDialogOpen && dialogContext.mounted) {
+                      setDialogState(() => isSaving = true);
+                    }
+
+                    try {
+                      final result = await _authService.updateEmail(newEmail);
+                      
+                      if (result.success) {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          isDialogOpen = false;
+                          Navigator.of(dialogContext).pop();
+                        }
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Email updated! Check your inbox for confirmation.'),
+                            backgroundColor: AppColors.success,
+                          ),
+                        );
+                      } else {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isSaving = false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(result.error ?? 'Failed to update email.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (isDialogOpen && dialogContext.mounted) {
+                        setDialogState(() => isSaving = false);
+                      }
+                      final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
                       messenger.showSnackBar(
                         SnackBar(
-                          content: Text(result.success ? 'Email updated! Check your inbox for confirmation.' : result.error!),
-                          backgroundColor: result.success ? AppColors.success : AppColors.error,
+                          content: Text('Error: $cleanError'),
+                          backgroundColor: AppColors.error,
                         ),
                       );
                     }
@@ -396,7 +507,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           },
         );
       },
-    );
+    ).whenComplete(() {
+      isDialogOpen = false;
+      emailController.dispose();
+    });
   }
 
   // ==========================================
@@ -409,30 +523,39 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     final TextEditingController newPasswordController = TextEditingController();
     final TextEditingController confirmPasswordController = TextEditingController();
     bool isUpdating = false; // prevent pressing update twice
+    bool isDialogOpen = true;
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: false,
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: const Text('Change Password', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // current password — we verify this before proceeding, dili ta basta basta
-                  _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
-                  const SizedBox(height: 12),
-                  _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
-                ],
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // current password — we verify this before proceeding, dili ta basta basta
+                    _buildInput(label: 'Current Password', controller: currentPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'New Password', controller: newPasswordController, isPassword: true),
+                    const SizedBox(height: 12),
+                    _buildInput(label: 'Confirm Password', controller: confirmPasswordController, isPassword: true),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
-                  onPressed: isUpdating ? null : () => Navigator.pop(context), // cancel while not loading
+                  onPressed: isUpdating ? null : () {
+                    if (isDialogOpen && dialogContext.mounted) {
+                      isDialogOpen = false;
+                      Navigator.of(dialogContext).pop();
+                    }
+                  }, // cancel while not loading
                   child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
                 ),
                 ElevatedButton(
@@ -441,31 +564,34 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
                   onPressed: isUpdating ? null : () async {
-                    final navigator = Navigator.of(context);
-                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    final messenger = ScaffoldMessenger.of(this.context);
+                    final rootNavigator = Navigator.of(this.context);
                     final currentPw = currentPasswordController.text.trim();
                     final newPw = newPasswordController.text.trim();
                     final confirmPw = confirmPasswordController.text.trim();
 
                     // basic validation — all fields must have something, no laziness allowed
                     if (currentPw.isEmpty || newPw.isEmpty || confirmPw.isEmpty) {
-                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Please fill in all fields.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // passwords must match — typos are the enemy
                     if (newPw != confirmPw) {
-                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Passwords do not match.'), backgroundColor: AppColors.error));
                       return;
                     }
 
                     // minimum length check — basin mag-use ug "123" ang admin
                     if (newPw.length < 6) {
-                      scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
+                      messenger.showSnackBar(const SnackBar(content: Text('Password must be at least 6 characters.'), backgroundColor: AppColors.error));
                       return;
                     }
 
-                    setDialogState(() => isUpdating = true); // start the spinner
+                    FocusScope.of(context).unfocus();
+                    if (isDialogOpen && dialogContext.mounted) {
+                      setDialogState(() => isUpdating = true); // start the spinner
+                    }
 
                     try {
                       // Step 1: Verify current password by re-signing in
@@ -475,51 +601,62 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                         email: email, password: currentPw);
                       if (verifyResp.user == null) {
                         // wrong current password — dili ta makaproceed
-                        setDialogState(() => isUpdating = false);
-                        scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Current password is incorrect.'), backgroundColor: AppColors.error));
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isUpdating = false);
+                        }
+                        messenger.showSnackBar(const SnackBar(content: Text('Current password is incorrect.'), backgroundColor: AppColors.error));
                         return;
                       }
 
                       // Step 2: Update to new password — current one was correct so go ahead
                       final result = await _authService.updatePassword(newPw);
 
-                      if (mounted) {
-                        if (result.success) {
-                          navigator.pop(); // Close dialog — mission accomplished
+                      if (result.success) {
+                        if (isDialogOpen && dialogContext.mounted) {
+                          isDialogOpen = false;
+                          Navigator.of(dialogContext).pop(); // Close dialog — mission accomplished
+                        }
 
-                          // Force sign-out and re-authentication for security
-                          // new password means new session, pray lang they remember it
-                          await _authService.signOut();
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Password updated. Please log in with your new password.'),
+                            backgroundColor: AppColors.success,
+                            duration: Duration(seconds: 5), // show it longer — importente ni
+                          ),
+                        );
 
-                          if (mounted) {
-                            navigator.pushAndRemoveUntil(
-                              MaterialPageRoute(builder: (context) => const LoginScreen()),
-                              (route) => false, // nuke the entire navigation stack
-                            );
+                        // Small delay so user sees message
+                        await Future.delayed(const Duration(seconds: 2));
 
-                            scaffoldMessenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Password updated. Please log in with your new password.'),
-                                backgroundColor: AppColors.success,
-                                duration: Duration(seconds: 5), // show it longer — importente ni
-                              ),
-                            );
-                          }
-                        } else {
-                          // authService returned failure — show the error message
-                          setDialogState(() => isUpdating = false);
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text(result.error ?? 'Failed to update password.'),
-                              backgroundColor: AppColors.error,
-                            ),
+                        // Force sign-out and re-authentication for security
+                        // new password means new session, pray lang they remember it
+                        await _authService.signOut();
+
+                        if (mounted) {
+                          rootNavigator.pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            (route) => false, // nuke the entire navigation stack
                           );
                         }
+                      } else {
+                        // authService returned failure — show the error message
+                        if (isDialogOpen && dialogContext.mounted) {
+                          setDialogState(() => isUpdating = false);
+                        }
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(result.error ?? 'Failed to update password.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
                       }
                     } catch (e) {
                       // unexpected crash — stop spinner and show what happened
-                      setDialogState(() => isUpdating = false);
-                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
+                      if (isDialogOpen && dialogContext.mounted) {
+                        setDialogState(() => isUpdating = false);
+                      }
+                      final cleanError = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
+                      messenger.showSnackBar(SnackBar(content: Text('Error: $cleanError'), backgroundColor: AppColors.error));
                     }
                   },
                   // show tiny spinner inside button while updating
@@ -532,7 +669,12 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
           }
         );
       },
-    );
+    ).whenComplete(() {
+      isDialogOpen = false;
+      currentPasswordController.dispose();
+      newPasswordController.dispose();
+      confirmPasswordController.dispose();
+    });
   }
 
   // ==========================================

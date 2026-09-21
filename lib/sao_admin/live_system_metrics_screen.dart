@@ -77,27 +77,56 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
 
   // ── AI Processing Accuracy ─────────────────────────────────────
   // counts how many scan records fall into each validation bucket
-  // auto = AI handled it, manual = needed review, corrected = was fixed after the fact
+  // auto = AI handled it, manual = needed review (in review queue), corrected = was fixed after the fact
   Future<void> _loadAiAccuracy() async {
     try {
-      var query = _supabase.from('sast_all_raw_data_survey').select('id, validation_status');
-      if (_currentTermId != null) query = query.eq('term_id', _currentTermId!); // filter by current term
+      // 1. Processed surveys from sast_all_raw_data_survey
+      var query = _supabase
+          .from('sast_all_raw_data_survey')
+          .select('id, validation_status, manually_corrected, term_id');
+      if (_currentTermId != null) {
+        // Include records matching current term or unassigned term (null)
+        query = query.or('term_id.eq.$_currentTermId,term_id.is.null');
+      }
       final rows = await query;
 
-      // tally up each status type — simple loop, nothing fancy
-      int auto = 0, manual = 0, corrected = 0;
+      // tally up auto vs corrected
+      int auto = 0, corrected = 0;
       for (final r in (rows as List)) {
-        final status = r['validation_status'] ?? 'auto'; // default to 'auto' if null
-        if (status == 'corrected') {
+        final status = (r['validation_status']?.toString() ?? '').toLowerCase().trim();
+        final isManuallyCorrected = r['manually_corrected'] == true;
+
+        if (status == 'corrected' || isManuallyCorrected) {
           corrected++;
-        } else if (status == 'manual_review') {
-          manual++;
         } else {
-          auto++; // anything else counts as auto-processed
+          auto++; // clean auto-processed
         }
       }
+
+      // 2. Pending scans awaiting manual review in failed_scan_queue
+      int manual = 0;
+      try {
+        var pendingQuery = _supabase
+            .from('failed_scan_queue')
+            .select('id')
+            .eq('status', 'pending');
+        if (_currentTermId != null) {
+          pendingQuery = pendingQuery.or('term_id.eq.$_currentTermId,term_id.is.null');
+        }
+        final pendingRows = await pendingQuery;
+        manual = (pendingRows as List).length;
+      } catch (e) {
+        debugPrint('loadAiAccuracy pending review query error: $e');
+      }
+
       // update state with the tallied counts — only if widget is still alive
-      if (mounted) setState(() { _autoCount = auto; _manualCount = manual; _correctedCount = corrected; });
+      if (mounted) {
+        setState(() {
+          _autoCount = auto;
+          _manualCount = manual;
+          _correctedCount = corrected;
+        });
+      }
     } catch (e) {
       debugPrint('loadAiAccuracy error: $e'); // log and continue — dili ta mag-crash for one metric
     }

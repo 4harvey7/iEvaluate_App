@@ -797,6 +797,14 @@ class AuthService {
       }
       final String cleanNewEmail = IdentityValidator.cleanEmail(newEmail);
 
+      final currentEmail = _supabase.auth.currentUser?.email;
+      if (currentEmail != null && cleanNewEmail == IdentityValidator.cleanEmail(currentEmail)) {
+        return const AuthResult(
+          success: false,
+          error: 'This is already your current email address.',
+        );
+      }
+
       // Check if new email is already used by someone else.
       //
       // The previous check used .eq(), so it only caught an exact byte match --
@@ -831,9 +839,19 @@ class AuthService {
       // The copy is reconciled by _syncEmailCopyFromAuth on the next sign-in,
       // once Auth actually reports the new address.
       return const AuthResult(success: true);
+    } on AuthException catch (e) {
+      debugPrint('[AUTH] Update Email AuthException: ${e.message}');
+      return AuthResult(success: false, error: e.message);
     } catch (e) {
       debugPrint('[AUTH] Update Email Error: $e');
-      return const AuthResult(success: false, error: 'Email update failed. Ensure the email is not already in use.');
+      final duplicate = IdentityValidator.mapDatabaseError(e);
+      if (duplicate != null) {
+        return AuthResult(success: false, error: duplicate);
+      }
+      return AuthResult(
+        success: false,
+        error: e.toString().replaceFirst(RegExp(r'^Exception:\s*'), ''),
+      );
     }
   }
 
