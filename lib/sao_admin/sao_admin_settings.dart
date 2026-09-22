@@ -248,6 +248,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                           onPressed: isSaving ? null : () async {
                             final navigator = Navigator.of(context);
                             final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            // navigator.pop() closes whatever is on top. If the sheet was swiped
+                            // away while a save was in flight, that is the Settings screen itself.
+                            final sheetRoute = ModalRoute.of(context);
+                            bool sheetIsOnTop() => sheetRoute != null && sheetRoute.isCurrent;
                             final bool roleChanged = tempSelectedRole != originalRole; // did the role actually change
 
                             if (roleChanged && !needsOTP) {
@@ -256,6 +260,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                               try {
                                 // fire the edge function to email the code
                                 await _supabase.functions.invoke('send-admin-code', body: {'email': _supabase.auth.currentUser?.email});
+                                if (!context.mounted) return;
                                 setSheetState(() {
                                   needsOTP = true; // switch to OTP input mode
                                   isSaving = false;
@@ -263,7 +268,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                 return;
                               } catch (e) {
                                 // edge function failed, dili ta makapadayon
-                                setSheetState(() => isSaving = false);
+                                if (context.mounted) setSheetState(() => isSaving = false);
                                 scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                                 return;
                               }
@@ -288,28 +293,33 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
                                 // Role changed successfully — must log out for new permissions to take effect
                                 if (mounted) {
-                                  navigator.pop();
+                                  if (sheetIsOnTop()) navigator.pop();
                                   await _authService.signOut(); // bye bye session
                                   navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
                                   scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Role updated. Please log in again.'), backgroundColor: AppColors.success));
                                 }
                               } else {
                                 // Simple profile update — just name, no drama
-                                await _authService.updateProfile(
+                                final result = await _authService.updateProfile(
                                   firstName: firstController.text.trim(),
                                   lastName: lastController.text.trim(),
                                 );
+                                // updateProfile reports failure in the result, it does not throw --
+                                // unchecked, a rejected rename still showed "updated successfully".
+                                if (!result.success) throw result.error ?? 'Profile update failed. Please try again.';
                                 // update local state so UI reflects new name immediately
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                if (mounted) navigator.pop();
+                                if (mounted) {
+                                  setState(() {
+                                    _firstName = firstController.text.trim();
+                                    _lastName = lastController.text.trim();
+                                  });
+                                }
+                                if (sheetIsOnTop()) navigator.pop();
                                 scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
                               }
                             } catch (e) {
                               // something went wrong during save, stop the spinner and tell user
-                              setSheetState(() => isSaving = false);
+                              if (context.mounted) setSheetState(() => isSaving = false);
                               scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
                             }
                           },

@@ -10,6 +10,7 @@ import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/deactivate_account_dialog.dart';
+import '../widgets/edit_name_sheet.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -107,111 +108,20 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
   }
 
   void _showEditProfileSheet() {
-    final TextEditingController firstController = TextEditingController(text: _firstName);
-    final TextEditingController lastController = TextEditingController(text: _lastName);
-    bool isSaving = false;
-
-    showModalBottomSheet(
+    showEditNameSheet(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-            builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Edit Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
-                      const SizedBox(height: 16),
-                      _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          onPressed: isSaving ? null : () async {
-                            final navigator = Navigator.of(context);
-                            final messenger = ScaffoldMessenger.of(context);
-                            setSheetState(() => isSaving = true);
-                            try {
-                              final result = await _authService.updateProfile(
-                                firstName: firstController.text.trim(),
-                                lastName: lastController.text.trim(),
-                              );
-                              
-                              if (result.success && mounted) {
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                navigator.pop();
-                                messenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
-                              } else {
-                                throw Exception(result.error);
-                              }
-                            } catch (e) {
-                              setSheetState(() => isSaving = false);
-                              if (mounted) {
-                                messenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-                              }
-                            }
-                          },
-                          child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-        );
+      firstName: _firstName,
+      lastName: _lastName,
+      onSave: (firstName, lastName) =>
+          _authService.updateProfile(firstName: firstName, lastName: lastName),
+      onSaved: (firstName, lastName) {
+        // Update local state immediately so UI reflects the change. The sheet
+        // can finish saving after this screen is gone, hence the check.
+        if (!mounted) return;
+        setState(() {
+          _firstName = firstName;
+          _lastName = lastName;
+        });
       },
     );
   }

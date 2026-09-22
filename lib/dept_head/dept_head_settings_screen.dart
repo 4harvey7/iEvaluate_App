@@ -11,6 +11,7 @@ import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/deactivate_account_dialog.dart';
+import '../widgets/edit_name_sheet.dart';
 
 
 // The settings widget — stateful because we load and change user info here
@@ -109,120 +110,21 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
   // Only first and last name — no changing role or dept here.
   // ==========================================
   void _showEditProfileSheet() {
-    // Pre-fill inputs with current name — dili ta make user type from scratch
-    final TextEditingController firstController = TextEditingController(text: _firstName);
-    final TextEditingController lastController = TextEditingController(text: _lastName);
-    bool isSaving = false; // Prevent double submit
-
-    showModalBottomSheet(
+    showEditNameSheet(
       context: context,
-      isScrollControlled: true, // Allow sheet to grow when keyboard appears
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-            builder: (BuildContext context, StateSetter setSheetState) {
-              return AnimatedPadding(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-                // Shift content above keyboard — wala choice or the fields get covered
-                padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: const BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Edit Executive Profile', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          // X button to dismiss without saving — ayaw forget this
-                          IconButton(icon: const Icon(Icons.close, color: AppColors.textSecondary), onPressed: () => Navigator.pop(context)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.warning.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.warning.withValues(alpha: 0.5)),
-                        ),
-                        child: const Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(Icons.info_outline, color: AppColors.warning, size: 20),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Please ensure your name exactly matches your official school records. This name is used for scanner validation and official workflow reports. Change it wisely.',
-                                style: TextStyle(fontSize: 12, color: AppColors.textPrimary),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // First name input field
-                      _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
-                      const SizedBox(height: 16),
-                      // Last name input field
-                      _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.textPrimary,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          // Disabled while save is in progress — dili ta allow double tap
-                          onPressed: isSaving ? null : () async {
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
-                            final navigator = Navigator.of(context);
-                            setSheetState(() => isSaving = true); // Show loading state
-                            try {
-                              // Call auth service to update name in Supabase
-                              final result = await _authService.updateProfile(
-                                firstName: firstController.text.trim(),
-                                lastName: lastController.text.trim(),
-                              );
-                              
-                              if (!mounted) return;
-                              if (result.success) {
-                                // Update local state so UI reflects the new name immediately
-                                setState(() {
-                                  _firstName = firstController.text.trim();
-                                  _lastName = lastController.text.trim();
-                                });
-                                navigator.pop(); // Close the sheet
-                                scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.success));
-                              } else {
-                                throw Exception(result.error); // Something went wrong
-                              }
-                            } catch (e) {
-                              if (!mounted) return;
-                              setSheetState(() => isSaving = false); // Re-enable button
-                              scaffoldMessenger.showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error));
-                            }
-                          },
-                          // Show spinner while saving, text when idle
-                          child: isSaving 
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('Save Changes', style: TextStyle(color: AppColors.surface, fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-        );
+      title: 'Edit Executive Profile',
+      firstName: _firstName,
+      lastName: _lastName,
+      onSave: (firstName, lastName) =>
+          _authService.updateProfile(firstName: firstName, lastName: lastName),
+      onSaved: (firstName, lastName) {
+        // Update local state immediately so UI reflects the change. The sheet
+        // can finish saving after this screen is gone, hence the check.
+        if (!mounted) return;
+        setState(() {
+          _firstName = firstName;
+          _lastName = lastName;
+        });
       },
     );
   }
