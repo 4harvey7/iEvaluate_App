@@ -10,6 +10,7 @@ import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/deactivate_account_dialog.dart';
+import '../widgets/controller_disposer.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -118,7 +119,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       isDismissible: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [firstController, lastController], child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
               return Padding(
                 padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
@@ -240,12 +242,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               ),
             );
             }
-        );
+        ));
       },
     ).whenComplete(() {
       isSheetOpen = false;
-      firstController.dispose();
-      lastController.dispose();
     });
   }
 
@@ -258,7 +258,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [emailController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -362,11 +363,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               ],
             );
           },
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      emailController.dispose();
     });
   }
 
@@ -400,7 +400,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [currentPasswordController, newPasswordController, confirmPasswordController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
@@ -511,13 +512,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
               ),
             );
           }
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      currentPasswordController.dispose();
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
     });
   }
 

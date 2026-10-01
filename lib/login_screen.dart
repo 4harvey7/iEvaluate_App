@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
 import 'core/config/agreements.dart';
+import 'core/navigation/role_nav_config.dart' show roleFromString;
 import 'core/services/auth_service.dart';
 import 'main.dart' show screenForRole;
 import 'signup_screen.dart';
@@ -49,6 +50,11 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    // A keyboard submit can land in the same frame as a button tap, before the
+    // disabled state rebuilds. Two sign-ins in flight would push the dashboard
+    // twice.
+    if (_isLoading) return;
+
     // grab what the user typed, trim the spaces so they dont fail because of accident whitespace
     final input = _idController.text.trim();
     final password = _passwordController.text;
@@ -109,6 +115,19 @@ class _LoginScreenState extends State<LoginScreen> {
       // login success, reset the failed counter and send user to their dashboard
       _failedLoginAttempts = 0;
       _lastFailedAttempt = null;
+      // A role the app has no screen for used to route to a fresh LoginScreen
+      // with the session still open and no message. Say why instead.
+      if (roleFromString(result.role) == null ||
+          result.userId == null ||
+          result.userId!.isEmpty) {
+        await _authService.signOut();
+        if (!mounted) return;
+        setState(
+          () => _errorMessage =
+              'Your account role is not recognised. Please contact the SAO office.',
+        );
+        return;
+      }
       if (!mounted) return;
       Navigator.pushReplacement(
         context,

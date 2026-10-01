@@ -48,6 +48,11 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   Map<String, dynamic> _sentimentSummary = {'positive': 0, 'neutral': 0, 'negative': 0, 'total': 0};
   List<String> _sentimentTags = [];
 
+  // Re-entry guard for Deactivate. The button stays tappable while the edge
+  // function runs, and a second confirm that also succeeded would pop twice --
+  // taking the roster route down with this page.
+  bool _isDeactivating = false;
+
   // Kick off data fetch on page load
   @override
   void initState() {
@@ -488,7 +493,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   Widget _buildScoreRow(Map<String, dynamic> instructor) {
     final mgmt = (instructor['mgmt_score'] as num?)?.toDouble() ?? 0.0;
     final perf = (instructor['perf_score'] as num?)?.toDouble() ?? 0.0;
-    final evals = instructor['evals'] as int? ?? 0;
+    final evals = (instructor['evals'] as num?)?.toInt() ?? 0;
     return Row(
       children: [
         _scoreChip('Management', mgmt), // How well they manage the class
@@ -564,7 +569,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                 managementScore: (instructor['mgmt_score'] as num?)?.toDouble() ?? 0.0,
                 performanceScore: (instructor['perf_score'] as num?)?.toDouble() ?? 0.0,
                 overallScore: (instructor['score'] as num?)?.toDouble() ?? 0.0,
-                totalEvaluations: instructor['evals'] as int? ?? 0,
+                totalEvaluations: (instructor['evals'] as num?)?.toInt() ?? 0,
               ),
             ),
           );
@@ -642,7 +647,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          onPressed: () async {
+          onPressed: _isDeactivating ? null : () async {
             // Confirm first
             final confirm = await showDialog<bool>(
               context: context,
@@ -660,7 +665,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
               ),
             );
 
-            if (confirm == true) {
+            if (confirm == true && mounted && !_isDeactivating) {
+              setState(() => _isDeactivating = true);
               try {
                 // Deactivation goes through the edge function, NOT straight to
                 // user_info (BUG-2026-TC-D08).
@@ -694,6 +700,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                   Navigator.pop(context, true); // Go back to roster
                 }
               } catch (e) {
+                if (mounted) setState(() => _isDeactivating = false);
                 // A department head is not the person to show a
                 // PostgrestException to. describeEdgeFunctionError digs out the
                 // sentence the server actually wrote -- "that account is not in

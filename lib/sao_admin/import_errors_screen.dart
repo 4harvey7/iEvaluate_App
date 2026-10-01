@@ -221,7 +221,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         ],
       ),
     );
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isDeleting = true);
     try {
@@ -570,7 +570,7 @@ class _ImportErrorsScreenState extends State<ImportErrorsScreen>
         context,
         MaterialPageRoute(
             builder: (_) => ImportErrorDetailScreen(error: error)));
-    _fetch(); // Refresh after returning — maybe someone fixed it, check again
+    if (mounted) _fetch(); // Refresh after returning — maybe someone fixed it, check again
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

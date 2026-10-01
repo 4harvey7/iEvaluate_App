@@ -549,7 +549,9 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            onPressed: _isDiscarding ? null : _discard,
+            // Not while a submit is in flight: both pop this screen on success,
+            // and the second pop would take the route underneath.
+            onPressed: (_isDiscarding || _isSubmitting) ? null : _discard,
           ),
         ],
       ),
@@ -1350,7 +1352,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: (_isSubmitting || _isDiscarding) ? null : _submit,
         ),
       ),
     );

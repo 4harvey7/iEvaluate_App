@@ -123,6 +123,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   bool _isInitializing = false; // guard flag to prevent concurrent camera init calls
 
+  /// Set when the app resumes while an init is still in flight. A pause (the
+  /// first-launch camera permission prompt is one) disposes the controller that
+  /// init is working on, and the resume used to be dropped by the guard above,
+  /// leaving a spinner that never ends. The init retries once it unwinds.
+  bool _reinitOnResume = false;
+
+  /// Re-entry guard for USE PHOTO: a double tap queued the same capture twice.
+  bool _isAccepting = false;
+
   /// Why there is no preview, when there is no preview. Null while the camera
   /// is fine or still starting. A failed init used to leave nothing but
   /// _isInitialized = false, which the build renders as a spinner — so a denied
@@ -190,6 +199,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
       }
 
       if (mounted) setState(() => _tiltAngle = tilt); // update tilt for UI warning
+    }, onError: (Object e) {
+      // Devices without an accelerometer emit an error here; unhandled, it
+      // surfaces as an uncaught async exception. No sensor = no tilt guard.
+      debugPrint('Accelerometer unavailable: $e');
     });
 
     _initializeCamera(); // start camera setup
@@ -211,7 +224,11 @@ class _GathererScannerViewState extends State<GathererScannerView>
     } else if (state == AppLifecycleState.resumed) {
       // app came back — re-initialize camera
       if (_controller == null || !_isInitialized) {
-        _initializeCamera(); // restart camera on resume
+        if (_isInitializing) {
+          _reinitOnResume = true; // in-flight init was cut off by the pause
+        } else {
+          _initializeCamera(); // restart camera on resume
+        }
       }
     }
   }
@@ -328,6 +345,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
       }
     } finally {
       _isInitializing = false; // always clear flag
+      if (_reinitOnResume) {
+        _reinitOnResume = false;
+        if (mounted &&
+            !_isInitialized &&
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) {
+          _initializeCamera();
+        }
+      }
     }
   }
 
@@ -361,7 +387,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
     _flashMode == FlashMode.off ? FlashMode.torch : FlashMode.off; // flip the state
     try {
       await _controller!.setFlashMode(next);
-      setState(() => _flashMode = next); // update UI icon
+      if (mounted) setState(() => _flashMode = next); // update UI icon
     } catch (e) {
       debugPrint('Flash error: $e'); // some devices dont support torch mode
     }
@@ -566,6 +592,16 @@ class _GathererScannerViewState extends State<GathererScannerView>
   // thumbnail shows a broken-image icon. Copying into Documents gives the scan
   // a stable home that survives restarts, logouts, and OS path changes.
   Future<void> _acceptImage() async {
+    if (_isAccepting) return; // second tap while the first is still copying
+    _isAccepting = true;
+    try {
+      await _acceptImageOnce();
+    } finally {
+      _isAccepting = false;
+    }
+  }
+
+  Future<void> _acceptImageOnce() async {
     if (_capturedImagePath == null) return;
 
     // TC-S03 step 5: occluded or pitch dark check
@@ -628,6 +664,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
           ),
         );
       }
+      if (!mounted) return;
       setState(() {
         _capturedImagePath = null;
         _isBlurry = false;
@@ -642,6 +679,9 @@ class _GathererScannerViewState extends State<GathererScannerView>
     try {
       await _controller?.setFocusMode(FocusMode.auto);
     } catch (_) {}
+    // The scan is already handed off; if the tab was switched meanwhile there
+    // is no view left to reset.
+    if (!mounted) return;
     setState(() {
       _capturedImagePath = null;      // clear path = go back to camera
       _formCheck = FormCheck.unknown; // next capture starts with no verdict

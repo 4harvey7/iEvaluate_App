@@ -115,7 +115,8 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                     itemBuilder: (context, index) {
                       final log = _logs[index];
                       final action = (log['action'] ?? 'UNKNOWN').toString().toUpperCase(); // action type, uppercased
-                      final createdAt = DateTime.parse(log['created_at']).toLocal(); // convert UTC to local time
+                      // created_at is nullable in the schema; parse() on null threw in build.
+                      final createdAt = DateTime.tryParse(log['created_at']?.toString() ?? '')?.toLocal(); // convert UTC to local time
                       final userInfo = log['user_info']; // joined user data (may be null if system action)
                       // show name if user found, otherwise say "System" — bahala na kung wala
                       final userName = userInfo != null
@@ -139,7 +140,7 @@ class _SystemAuditScreenState extends State<SystemAuditScreen> {
                           ),
                           // subtitle shows who did it and when — the important stuff
                           subtitle: Text(
-                            'By $userName • ${DateFormat('MMM d, h:mm a').format(createdAt)}',
+                            'By $userName • ${createdAt != null ? DateFormat('MMM d, h:mm a').format(createdAt) : '—'}',
                             style: const TextStyle(fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),

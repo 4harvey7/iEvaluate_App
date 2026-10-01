@@ -173,6 +173,17 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 
+  /// Closes the drawer for a drawer-row tap. Returns false when the drawer is
+  /// already closing -- it stays tappable for its ~250ms slide-out, so a quick
+  /// double tap used to run Navigator.pop twice and the second pop took the
+  /// whole scaffold route with it (black screen, or a jump out of the
+  /// switched-role view), and pushed the destination twice.
+  bool _closeDrawerOnce(BuildContext ctx) {
+    if (_myDrawerKey.currentState?.isDrawerOpen != true) return false;
+    Navigator.pop(ctx);
+    return true;
+  }
+
   // ── Drawer item builder ───────────────────────────────────────────────────
   Widget _buildDrawerNavItem(
     BuildContext ctx,
@@ -188,7 +199,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         overflow: TextOverflow.ellipsis,
       ),
       onTap: () {
-        Navigator.pop(ctx); // close the drawer first
+        if (!_closeDrawerOnce(ctx)) return; // close the drawer first
         if (!isLogout) {
           // Mark that a drawer screen is now active → unhighlight bottom nav.
           setState(() => _drawerRouteActive = true);
@@ -308,7 +319,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 ),
               ),
               onTap: () {
-                Navigator.pop(ctx); // Close drawer
+                if (!_closeDrawerOnce(ctx)) return; // Close drawer
                 Navigator.push(
                   ctx,
                   PageRouteBuilder(
@@ -354,7 +365,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 ),
               ),
               onTap: () {
-                Navigator.pop(ctx); // Close drawer
+                if (!_closeDrawerOnce(ctx)) return; // Close drawer
                 // Push the transition screen first
                 Navigator.push(
                   ctx,
@@ -403,7 +414,7 @@ class _MainScaffoldState extends State<MainScaffold> {
                 ),
               ),
               onTap: () {
-                Navigator.pop(ctx); // Close drawer
+                if (!_closeDrawerOnce(ctx)) return; // Close drawer
                 // Push the transition screen over the current UI
                 Navigator.push(
                   ctx,

@@ -178,11 +178,12 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
               'text': r['remark'],
               'sentiment':
                   r['tone'] ?? 'Neutral', // default to Neutral if tone is null
-              'date': r['created_at'] != null
-                  ? DateTime.parse(
-                      r['created_at'],
-                    ).toLocal().toString().split(' ')[0]
-                  : 'Unknown',
+              'date':
+                  DateTime.tryParse(r['created_at']?.toString() ?? '')
+                      ?.toLocal()
+                      .toString()
+                      .split(' ')[0] ??
+                  'Unknown',
             };
           }).toList();
 

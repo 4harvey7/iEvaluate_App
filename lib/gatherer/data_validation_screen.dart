@@ -63,6 +63,8 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
 
   // ── Source Fetching ────────────────────────────────────────────────────────
   Future<void> _fetchData() async {
+    // Also called after a pushed detail screen returns; this tab may be gone.
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       List<Map<String, dynamic>> failed = [];

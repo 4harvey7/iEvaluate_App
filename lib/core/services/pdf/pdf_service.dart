@@ -32,13 +32,26 @@ class PdfService {
         dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
       }
     } catch (_) {
-      dir = await getApplicationDocumentsDirectory();
+      try {
+        dir = await getApplicationDocumentsDirectory();
+      } catch (_) {
+        dir = null; // no local copy; the share below still runs
+      }
     }
 
-    final filePath = '${dir!.path}/$fileName';
-    final file = File(filePath);
-    await file.writeAsBytes(bytes);
-    debugPrint('PDF saved to: $filePath');
+    // Best effort only. getExternalStorageDirectory() can return null, and on
+    // Android 10+ writing straight into /storage/emulated/0/Download without
+    // storage permission throws -- either one used to abort the export before
+    // the share sheet below, which is the part the user actually needs.
+    if (dir != null) {
+      try {
+        final filePath = '${dir.path}/$fileName';
+        await File(filePath).writeAsBytes(bytes);
+        debugPrint('PDF saved to: $filePath');
+      } catch (e) {
+        debugPrint('PDF local save skipped: $e');
+      }
+    }
 
     // Share the saved file so the user can open/view it
     await Printing.sharePdf(bytes: bytes, filename: fileName);
@@ -125,8 +138,8 @@ class PdfService {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                 children: [
-                  _buildPremiumStatItem('University Average', overviewStats['overall'] ?? 'N/A', primaryColor),
-                  _buildPremiumStatItem('Total Evaluations', overviewStats['totalEvals'] ?? 'N/A', darkTextColor),
+                  _buildPremiumStatItem('University Average', (overviewStats['overall'] ?? 'N/A').toString(), primaryColor),
+                  _buildPremiumStatItem('Total Evaluations', (overviewStats['totalEvals'] ?? 'N/A').toString(), darkTextColor),
                 ],
               ),
             ),

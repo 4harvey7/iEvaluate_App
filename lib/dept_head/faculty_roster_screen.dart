@@ -54,21 +54,23 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
   // Fetches: current term, previous term, dept info, all instructors + their scores.
   // If any step fail, we stop and show empty state. dili ta crash.
   Future<void> _fetchFacultyData() async {
-    String activeTermId = _termIdCache['current'] ?? '';
-    if (activeTermId.isEmpty) {
-      final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
-      activeTermId = settings?['current_term_id'] ?? '';
-      _termIdCache['current'] = activeTermId;
-    }
-    _currentTermId = activeTermId;
-
-    // NOTE: Cache key is built after we know deptId (see below).
-    // We do NOT check cache here because we need deptId first.
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-
-    
+    // The term lookup sits inside the try: it used to run before it, so a
+    // network failure here escaped as an uncaught async error and left the
+    // screen on its spinner with nothing to clear it.
     try {
+      String activeTermId = _termIdCache['current'] ?? '';
+      if (activeTermId.isEmpty) {
+        final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
+        activeTermId = settings?['current_term_id']?.toString() ?? '';
+        if (activeTermId.isNotEmpty) _termIdCache['current'] = activeTermId;
+      }
+      _currentTermId = activeTermId;
+
+      // NOTE: Cache key is built after we know deptId (see below).
+      // We do NOT check cache here because we need deptId first.
+      if (!mounted) return;
+      setState(() => _isLoading = true);
+
       if (_currentTermId.isEmpty) {
         if (mounted) setState(() => _isLoading = false);
         return;
@@ -122,7 +124,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       // If dean has no department assigned — something is wrong in the database
       if (deptId == null) {
         debugPrint('Warning: Current user has no department assigned in department_table');
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
         return;
       }
 

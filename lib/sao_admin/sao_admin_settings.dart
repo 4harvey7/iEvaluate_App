@@ -13,6 +13,7 @@ import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/blocking_progress_overlay.dart';
 import '../core/services/term_watcher.dart';
 import '../widgets/deactivate_account_dialog.dart';
+import '../widgets/controller_disposer.dart';
 
 
 class SaoAdminSettings extends StatefulWidget {
@@ -50,6 +51,12 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
     _refreshData();
   }
 
+  @override
+  void dispose() {
+    _yearSearchController.dispose();
+    super.dispose();
+  }
+
   // loads everything at once — profile AND settings, para efficient
   Future<void> _refreshData() async {
     setState(() => _isLoading = true);
@@ -84,7 +91,12 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
         final term = data['academic_terms']; // the nested join result
         setState(() {
           // if term is null, fall back to defaults — dili pwede mag-crash
-          _selectedSemester = term != null ? term['semester'] : '1st Semester';
+          // The semester dropdown only has these three items; any other stored
+          // value (or null) would trip the Dropdown "value not in items" assert.
+          final semester = term != null ? term['semester']?.toString() : null;
+          _selectedSemester = const ['1st Semester', '2nd Semester', 'Summer'].contains(semester)
+              ? semester!
+              : '1st Semester';
           _selectedYear = term != null ? term['academic_year'] : '2025-2026';
         });
       }
@@ -154,7 +166,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       isDismissible: true,
       backgroundColor: Colors.transparent, // let the container handle bg color
       builder: (sheetContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [firstController, lastController, codeController], child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
               return Padding(
                 // pushes the sheet up when keyboard appears — importente kaayo ni
@@ -379,13 +392,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               ),
             );
             }
-        );
+        ));
       },
     ).whenComplete(() {
       isSheetOpen = false;
-      firstController.dispose();
-      lastController.dispose();
-      codeController.dispose();
     });
   }
 
@@ -401,7 +411,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [emailController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -505,11 +516,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               ],
             );
           },
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      emailController.dispose();
     });
   }
 
@@ -529,7 +539,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [currentPasswordController, newPasswordController, confirmPasswordController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
@@ -667,13 +678,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               ],
             );
           }
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      currentPasswordController.dispose();
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
     });
   }
 
@@ -1116,7 +1124,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                                 ],
                               ),
                             );
-                            if (confirmed == true) {
+                            if (confirmed == true && mounted) {
                               // user confirmed — now actually update the settings
                               _updateSystemSettings(_selectedSemester, _selectedYear);
                             }

@@ -12,6 +12,7 @@ import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/controller_disposer.dart';
 
 /// The head currently sitting for one department.
 ///
@@ -319,7 +320,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   // wala middle ground, either approved or disabled
   Future<void> _toggleUserStatus(Map<String, dynamic> user) async {
     final ui = user['user_info'];
-    final String currentStatus = ui['account_status'];
+    // account_status is nullable in user_info; a String cast on null threw.
+    final String currentStatus = (ui['account_status'] ?? '').toString();
     // flip the status: if approved then disable, if disabled then approve
     final String newStatus = currentStatus == 'approved' ? 'disabled' : 'approved';
     
@@ -432,7 +434,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
             child: Row(children: [
               CircleAvatar(radius: 26, backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                  child: Text((ui['first_name'] as String)[0], style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
+                  // first_name is nullable and may be empty; the cast and [0] threw.
+                  child: Text((ui['first_name'] ?? '').toString().isNotEmpty ? ui['first_name'].toString()[0] : '?', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
@@ -544,7 +547,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     showDialog(
       context: context,
       barrierDismissible: false, // cannot dismiss by tapping outside, dili ta escape
-      builder: (context) => StatefulBuilder(
+      // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+      builder: (context) => ControllerDisposer(
+        controllers: [firstController, lastController, emailController, idController, codeController],
+        child: StatefulBuilder(
         builder: (context, setDialogState) {
           // Recomputed on every rebuild, so picking a head role or another
           // department updates the disabled items and the warning at once.
@@ -557,7 +563,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           final _SittingHead? blockingHead =
               creatingHead ? _headBlocking(selectedDeptId) : null;
 
-          return AlertDialog(
+          return PopScope(
+          // System back must not close the dialog mid-save.
+          canPop: !isSaving,
+          child: AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           // title changes depending on which step we're on
@@ -618,7 +627,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            // Disabled while saving: closing mid-save would let the later
+            // navigator.pop() close this screen instead of the dialog.
+            TextButton(onPressed: isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -660,8 +671,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   client: _supabase,
                   firstName: fn, lastName: ln, email: em, universityId: id,
                 );
+                // The dialog may have been cancelled during the check.
+                if (!context.mounted) return;
                 if (!availability.isAvailable) {
-                  if (!context.mounted) return;
                   await showDuplicateWarningDialog(
                     context,
                     message: availability.error!,
@@ -700,6 +712,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                        },
                      );
                      // switch dialog to code entry step
+                     if (!context.mounted) return;
                      setDialogState(() { needsCode = true; isSaving = false; });
                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
@@ -732,7 +745,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
                   if (response.status == 200) {
                     _fetchData(); // refresh list to show the new user
-                    if (mounted) navigator.pop();
+                    // The dialog's own context, not this State's: popping after
+                    // the dialog is gone would pop the route underneath it.
+                    if (context.mounted) navigator.pop();
                     scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
                     throw response.data['error'] ?? 'Server error'; // throw the server's error message
@@ -774,22 +789,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 : Text(needsCode ? 'Verify & Create' : 'Create User'),
             ),
           ],
+          ),
           );
         },
+      ),
       ),
     );
   }
 
-  // show dialog to edit an existing user's name, role, or department
+  // show dialog to edit an existing user's name, login email, role, or department
   // if changing to dept head, OTP verification kicks in again — dili ta skip security
   void _showEditUserDialog(Map<String, dynamic> user) {
     final ui = user['user_info'];
     // pre-fill the fields with existing data
-    TextEditingController firstController = TextEditingController(text: ui['first_name']);
-    TextEditingController lastController = TextEditingController(text: ui['last_name']);
-    TextEditingController codeController = TextEditingController(); // for OTP if upgrading to dept head
-    int selectedRoleId = user['roles'];
-    int selectedDeptId = user['Department_name_ID'];
+    final firstController = TextEditingController(text: ui['first_name']);
+    final lastController = TextEditingController(text: ui['last_name']);
+    final emailController = TextEditingController(text: (ui['email'] ?? '').toString());
+    final codeController = TextEditingController(); // for OTP if upgrading to dept head
+    // department_table.roles and Department_name_ID are both nullable;
+    // assigning null to an int threw before the dialog opened.
+    int? selectedRoleId = user['roles'] as int?;
+    int? selectedDeptId = user['Department_name_ID'] as int?;
     bool needsCode = false; // becomes true if promoting to dept head
     bool isSaving = false;
 
@@ -797,8 +817,16 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     // to this means there is nothing to save.
     final String originalFirst = (ui['first_name'] ?? '').toString().trim();
     final String originalLast = (ui['last_name'] ?? '').toString().trim();
-    final int originalRoleId = selectedRoleId;
-    final int originalDeptId = selectedDeptId;
+    final String originalEmail = IdentityValidator.cleanEmail(ui['email']?.toString());
+    final int? originalRoleId = selectedRoleId;
+    final int? originalDeptId = selectedDeptId;
+
+    // The signed-in admin's own login email is changed from Settings, which
+    // sends a confirmation link. admin-update-role refuses it here as well.
+    final bool isSelf = user['user_id']?.toString() == _supabase.auth.currentUser?.id;
+
+    bool emailChanged() =>
+        IdentityValidator.cleanEmail(emailController.text) != originalEmail;
 
     // Reads the live values, so the button label follows what is typed.
     // Nothing changed -> the button says Back and simply closes: no duplicate
@@ -807,6 +835,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     bool hasChanges() =>
         firstController.text.trim() != originalFirst ||
         lastController.text.trim() != originalLast ||
+        emailChanged() ||
         selectedRoleId != originalRoleId ||
         selectedDeptId != originalDeptId;
 
@@ -817,7 +846,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
+      // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+      builder: (context) => ControllerDisposer(
+        controllers: [firstController, lastController, emailController, codeController],
+        child: StatefulBuilder(
         builder: (context, setDialogState) {
           // Recomputed on every rebuild, so the warning and the disabled
           // departments follow whatever is currently chosen in the dialog.
@@ -831,7 +863,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
               ? _headBlocking(selectedDeptId, excludeUserId: editedUserId)
               : null;
 
-          return AlertDialog(
+          return PopScope(
+          // System back must not close the dialog mid-save.
+          canPop: !isSaving,
+          child: AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(needsCode ? 'Verify Authorization' : 'Edit Academic Profile'), // title changes on step 2
@@ -854,13 +889,30 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     decoration: const InputDecoration(labelText: 'Last Name'),
                     onChanged: (_) => setDialogState(() {}),
                   ),
+                  const SizedBox(height: 12),
+                  // login email — also what login-by-University-ID resolves to
+                  TextField(
+                    controller: emailController,
+                    enabled: !isSelf && !isSaving,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      helperText: isSelf
+                          ? 'Change your own email from Settings.'
+                          : (emailChanged() ? 'This becomes their login email.' : null),
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<int>(
-                    initialValue: selectedRoleId,
+                    // _roles excludes SAO roles; a value missing from items
+                    // trips the Dropdown assertion.
+                    initialValue: _roles.any((r) => r['id'] == selectedRoleId) ? selectedRoleId : null,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: _roles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(r['Roles']))).toList(),
-                    onChanged: (val) => setDialogState(() => selectedRoleId = val!),
+                    onChanged: (val) => setDialogState(() => selectedRoleId = val),
                   ),
                   const SizedBox(height: 12),
                   // Departments that already have a head are disabled while a
@@ -873,7 +925,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                       forHeadRole: assigningHead,
                       excludeUserId: editedUserId,
                     ),
-                    onChanged: (val) => setDialogState(() => selectedDeptId = val!),
+                    onChanged: (val) => setDialogState(() => selectedDeptId = val),
                   ),
                   if (blockingHead != null)
                     _buildHeadTakenBanner(
@@ -896,9 +948,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            // Disabled while saving: closing mid-save would let the later
+            // navigator.pop() close this screen instead of the dialog.
+            TextButton(onPressed: isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
+                // Reads the flag itself, not just the rebuilt button, so a
+                // second tap landing before the next frame is still ignored.
+                if (isSaving) return;
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
                 // Nothing edited: behave as a plain Back button.
@@ -921,23 +978,33 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 // index is the actual guarantee.
                 final newFirst = firstController.text.trim();
                 final newLast = lastController.text.trim();
+                // The email goes through the same format and duplicate checks,
+                // but only when it actually changed.
+                final bool changingEmail = emailChanged();
+                final String newEmail = IdentityValidator.cleanEmail(emailController.text);
                 final formatError = IdentityValidator.validateFormat(
                   firstName: newFirst, lastName: newLast,
+                  email: changingEmail ? newEmail : null,
                 );
                 if (formatError != null) {
                   scaffoldMessenger.showSnackBar(SnackBar(content: Text(formatError), backgroundColor: AppColors.error));
                   return;
                 }
+                // Spinner on from the first await, so the button cannot be
+                // tapped again while the checks below are in flight.
+                setDialogState(() => isSaving = true);
                 // excludeUserId is this account, so saving without touching the
                 // name does not report the person as their own duplicate.
                 final availability = await IdentityValidator.checkAvailability(
                   client: _supabase,
                   firstName: newFirst,
                   lastName: newLast,
+                  email: changingEmail ? newEmail : null,
                   excludeUserId: user['user_id']?.toString(),
                 );
+                if (!context.mounted) return;
+                setDialogState(() => isSaving = false);
                 if (!availability.isAvailable) {
-                  if (!context.mounted) return;
                   await showDuplicateWarningDialog(
                     context,
                     message: availability.error!,
@@ -971,6 +1038,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                    try {
                      // request the OTP code from the server
                      await _supabase.functions.invoke('send-admin-code', body: {'email': currentUser?.email});
+                     if (!context.mounted) return;
                      setDialogState(() { needsCode = true; isSaving = false; });
                      return;
                    } catch (e) {
@@ -982,10 +1050,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 // actually update the user — call edge function with new data
                 setDialogState(() => isSaving = true);
                 try {
-                  await _supabase.functions.invoke('admin-update-role', body: {
+                  final response = await _supabase.functions.invoke('admin-update-role', body: {
                     'targetUserId': user['user_id'],
                     'firstName': newFirst,
                     'lastName': newLast,
+                    // Sent only when it changed; absent means "leave it".
+                    if (changingEmail) 'email': newEmail,
                     'roleId': selectedRoleId,
                     'roleName': roleName,
                     // Was never sent, which is why the Department dropdown in
@@ -998,7 +1068,19 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     'isPromotion': isUpgradingToHead, // true only when actually promoting to Dept Head
                   });
                   _fetchData(); // reload users after update
-                  if (mounted) navigator.pop();
+                  if (context.mounted) navigator.pop();
+                  // A deployment of admin-update-role that predates email
+                  // editing ignores the field and still answers 200.
+                  final emailSkipped = changingEmail &&
+                      !(response.data is Map && response.data['emailUpdated'] == true);
+                  scaffoldMessenger.showSnackBar(emailSkipped
+                      ? const SnackBar(
+                          content: Text('User updated, but the email was NOT changed. '
+                              'The server function needs to be updated -- contact the system administrator.'),
+                          backgroundColor: AppColors.error,
+                          duration: Duration(seconds: 8),
+                        )
+                      : const SnackBar(content: Text('User updated successfully!'), backgroundColor: AppColors.success));
                 } catch (e) {
                   if (context.mounted) setDialogState(() => isSaving = false);
                   // describeEdgeFunctionError digs the server's own wording out
@@ -1032,8 +1114,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   : Text(hasChanges() ? 'Save Changes' : 'Back'),
             ),
           ],
+          ),
           );
         },
+      ),
       ),
     );
   }
@@ -1181,7 +1265,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   leading: CircleAvatar(
                                     // gray background if disabled, colored if active
                                     backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                    child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                                    // first_name is nullable and may be empty; [0] threw in build.
+                                    child: Text((ui['first_name'] ?? '').toString().isNotEmpty ? ui['first_name'].toString()[0] : '?', style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
                                   ),
                                   // strikethrough name if user is disabled — visual cue
                                   title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),

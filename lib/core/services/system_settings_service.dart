@@ -74,33 +74,66 @@ class SystemSettingsService {
   // We stream the base table and fetch term details to ensure Realtime works perfectly
   // because joining directly in stream() is tricky with supabase, so we do it manually
   Stream<SystemSettings> streamSettings() {
+    // Last value emitted on this stream, so a failed term lookup can fall back
+    // to labels we already know instead of erroring the stream.
+    SystemSettings? lastKnown;
+
     return _supabase
         .from('system_settings')
         .stream(primaryKey: ['id']) // listen to changes on this table
         .limit(1)                   // only care about the one settings row
-        .asyncMap((data) async {
-          if (data.isEmpty) return SystemSettings.defaultSettings(); // no data, use defaults
-          
+        .asyncMap<SystemSettings?>((data) async {
+          if (data.isEmpty) return lastKnown = SystemSettings.defaultSettings(); // no data, use defaults
+
           final settings = data.first; // grab the single settings row
-          final termId = settings['current_term_id']; // get the current active term ID
-          
-          if (termId == null) return SystemSettings.defaultSettings(); // no active term set, return defaults
+          final String? termId = settings['current_term_id']?.toString(); // get the current active term ID
+          final bool autoSync = settings['auto_sync'] is bool ? settings['auto_sync'] as bool : true;   // use value from settings row
+
+          if (termId == null) return lastKnown = SystemSettings.defaultSettings(); // no active term set, return defaults
 
           // Fetch the term details for the ID
           // we do this separately because stream() cant join async in supabase
           // wala choice, separate fetch is the way to go here
-          final termData = await _supabase
-              .from('academic_terms')
-              .select('semester, academic_year')
-              .eq('id', termId)
-              .maybeSingle(); // maybeSingle in case the termId points to deleted term
+          //
+          // Fail soft: a dropped connection here used to become a stream error,
+          // and any listener without onError would throw it uncaught.
+          Map<String, dynamic>? termData;
+          try {
+            termData = await _supabase
+                .from('academic_terms')
+                .select('semester, academic_year')
+                .eq('id', termId)
+                .maybeSingle(); // maybeSingle in case the termId points to deleted term
+          } catch (e) {
+            debugPrint('Error fetching term labels for stream: $e');
+            final previous = lastKnown;
+            if (previous == null) {
+              // First event and no labels to reuse. Skip it rather than emit
+              // placeholder labels that listeners would read as a term change;
+              // getSettings() already seeded the current term.
+              return null;
+            }
+            if (previous.termId == termId) {
+              // Same term: keep its known labels.
+              return lastKnown = SystemSettings(
+                termId: termId,
+                semester: previous.semester,
+                academicYear: previous.academicYear,
+                autoSync: autoSync,
+              );
+            }
+            // The term really changed: publish the new id, which is what the data
+            // is partitioned on, with placeholder labels until the next event.
+          }
 
-          return SystemSettings(
+          return lastKnown = SystemSettings(
             termId: termId,
-            semester: termData?['semester'] ?? '1st Semester',         // fallback if term row missing
-            academicYear: termData?['academic_year'] ?? '2025-2026',   // fallback for safety
-            autoSync: settings['auto_sync'] ?? true,                   // use value from settings row
+            semester: termData?['semester']?.toString() ?? '1st Semester',         // fallback if term row missing
+            academicYear: termData?['academic_year']?.toString() ?? '2025-2026',   // fallback for safety
+            autoSync: autoSync,
           );
-        });
+        })
+        .where((s) => s != null)
+        .cast<SystemSettings>();
   }
 }

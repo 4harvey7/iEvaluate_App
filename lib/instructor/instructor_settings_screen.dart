@@ -13,6 +13,7 @@ import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/deactivate_account_dialog.dart';
+import '../widgets/controller_disposer.dart';
 
 
 // Simple StatefulWidget — needs state because profile data loads after build
@@ -141,7 +142,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       isDismissible: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [firstController, lastController], child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
               return Padding(
                 padding: EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
@@ -270,12 +272,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 ),
               );
             }
-        );
+        ));
       },
     ).whenComplete(() {
       isSheetOpen = false;
-      firstController.dispose();
-      lastController.dispose();
     });
   }
 
@@ -294,7 +294,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [emailController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -398,11 +399,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ],
             );
           },
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      emailController.dispose();
     });
   }
 
@@ -446,7 +446,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [currentPasswordController, newPasswordController, confirmPasswordController], child: StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
               backgroundColor: AppColors.surface,
@@ -572,13 +573,10 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ],
             );
           }
-        );
+        ));
       },
     ).whenComplete(() {
       isDialogOpen = false;
-      currentPasswordController.dispose();
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
     });
   }
 

@@ -176,6 +176,10 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
         });
         if (termChanged) _loadInitialData(); // New term detected — fetch fresh data
       }
+    }, onError: (Object e) {
+      // Realtime drops and the per-event term lookup both surface here; without
+      // a handler they escape as uncaught async errors.
+      debugPrint('[DEPT HEAD] Settings stream error: $e');
     });
   }
 
@@ -216,8 +220,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
           
           // Default to 'Department' if no dept data found — better than showing null
           String deptName = 'Department';
-          if (deptData != null && deptData['department_name'] != null) {
-            deptName = deptData['department_name']['d_name'];
+          // A null d_name (or a non-map embed) used to throw inside this
+          // setState and blank the whole dashboard, not just the name.
+          final deptEmbed = deptData?['department_name'];
+          if (deptEmbed is Map && deptEmbed['d_name'] != null) {
+            deptName = deptEmbed['d_name'].toString();
           }
 
           // Fill the deptInfo map with all the numbers — this feeds the UI cards
@@ -540,7 +547,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                               children: _deptHistory.map<Widget>((data) {
                                 final score = (data['score'] as num?)?.toDouble() ?? 0.0;
                                 // Scale height, max height ~100px out of 5.0
-                                double barHeight = (score / 5.0) * 100;
+                                // Clamped: a negative height throws in layout,
+                                // and one over 100 overflows the 200px card.
+                                double barHeight = (score / 5.0).clamp(0.0, 1.0) * 100;
                                 
                                 // Colour by school year — every semester of the
                                 // same year shares one colour.

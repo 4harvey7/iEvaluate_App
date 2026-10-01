@@ -380,10 +380,10 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                                   Navigator.of(context).push(MaterialPageRoute(
                                     builder: (_) => ScanImageViewer(
                                       task: task,
-                                      onDelete: () {
-                                        widget.onDelete(task);
-                                        Navigator.of(context).pop();
-                                      },
+                                      // The viewer pops itself after this runs.
+                                      // Popping here too took a second route:
+                                      // the gatherer screen, the root route.
+                                      onDelete: () => widget.onDelete(task),
                                     ),
                                   ));
                                 }

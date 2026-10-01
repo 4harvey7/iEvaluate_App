@@ -19,7 +19,6 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   final _supabase = Supabase.instance.client;
   final _nameController = TextEditingController();
   final _codeController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
 
   List<Map<String, dynamic>> _departments = [];
   bool _isLoading = true;
@@ -42,6 +41,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   // ── Data ──────────────────────────────────────────────────────
 
   Future<void> _loadDepartments() async {
+    // Also awaited from the add/edit dialog after its save, when this screen
+    // may already be gone.
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final data = await _supabase
@@ -201,6 +203,11 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       _codeController.clear();
     }
 
+    // One key per dialog. A shared State-level key was mounted twice when a
+    // dialog was reopened during the previous one's exit animation, which
+    // throws "Multiple widgets used the same GlobalKey".
+    final formKey = GlobalKey<FormState>();
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -222,7 +229,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
             ]),
             content: SingleChildScrollView(
               child: Form(
-                key: _formKey,
+                key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -303,7 +310,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                 onPressed: isSaving
                     ? null
                     : () async {
-                        if (!(_formKey.currentState?.validate() ?? false)) {
+                        if (!(formKey.currentState?.validate() ?? false)) {
                           return;
                         }
                         final name = _nameController.text.trim();
@@ -335,13 +342,18 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           );
                         } catch (e) {
                           debugPrint('Dept conflict check failed: $e');
-                          setState(() => isSaving = false);
+                          // The dialog can be closed with system back while
+                          // the check runs; its StatefulBuilder is then gone.
+                          if (dialogContext.mounted) {
+                            setState(() => isSaving = false);
+                          }
                           _showSnack(
                               'Could not check for existing departments. '
                               'Please try again.',
                               isError: true);
                           return;
                         }
+                        if (!dialogContext.mounted) return;
                         setState(() => isSaving = false);
 
                         if (conflict != null) {
@@ -413,7 +425,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                               ],
                             ),
                           );
-                          if (confirmed != true) return;
+                          if (confirmed != true || !dialogContext.mounted) {
+                            return;
+                          }
                         }
 
                         setState(() => isSaving = true);
@@ -430,7 +444,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                 .insert({'d_name': name, 'd_code': code});
                             _showSnack('Department added successfully');
                           }
-                          navigator.pop();
+                          // Popping when the dialog is already gone would
+                          // pop the route underneath it instead.
+                          if (dialogContext.mounted) navigator.pop();
                           _clearForm();
                           await _loadDepartments();
                         } catch (e) {
@@ -450,7 +466,9 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                                     'again.',
                             isError: true,
                           );
-                          setState(() => isSaving = false);
+                          if (dialogContext.mounted) {
+                            setState(() => isSaving = false);
+                          }
                         }
                       },
                 style: ElevatedButton.styleFrom(

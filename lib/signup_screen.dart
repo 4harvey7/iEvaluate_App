@@ -184,6 +184,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   _Availability _idStatus = _Availability.idle;
   _Availability _emailStatus = _Availability.idle;
   bool _isCheckingStep = false; // Continue pressed, confirming with the server
+  bool _advancing = false; // a Continue press is still being handled
 
   /// Set when the chosen department already has a head and the chosen role is
   /// one. A department gets exactly one, so this is not something the applicant
@@ -220,8 +221,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final locations = await _addressService.fetchLocations();
     if (mounted) {
       setState(() {
-        _departments = depts;        // store departments
-        _statusrole = selectableRoles(roles); // most-registered first, no SAO Admin
+        // De-duplicated: DropdownButton asserts its value matches exactly one
+        // item, so a repeated name in the table would throw once picked.
+        _departments = depts.toSet().toList();        // store departments
+        _statusrole = selectableRoles(roles.toSet().toList()); // most-registered first, no SAO Admin
         _locations = locations;      // barangay suggestions
         _isFetchingMetadata = false; // done loading, dropdowns can show now
         // If both essential lists came back empty, the server or the network is
@@ -513,6 +516,20 @@ class _SignUpScreenState extends State<SignUpScreen> {
   // called when user press Continue button. validate first, then move to next page.
   // on the last step, submit the form instead of going forward
   Future<void> _onContinue() async {
+    // Continue stays enabled during the department-head check and during the
+    // 300ms slide (_currentPage only updates halfway through it), so a double
+    // tap ran this twice and called nextPage twice -- skipping the password
+    // step and registering with an empty password.
+    if (_advancing) return;
+    _advancing = true;
+    try {
+      await _advance();
+    } finally {
+      _advancing = false;
+    }
+  }
+
+  Future<void> _advance() async {
     if (_currentPage < _totalSteps - 1) {
       final error = _validateCurrentStep(); // check if current step is filled properly
       if (error != null) {
@@ -546,9 +563,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         return;
       }
 
-      _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // slide to next page
+      await _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut); // slide to next page
     } else {
-      _submitRegistration(); // last step, time to actually register the user
+      await _submitRegistration(); // last step, time to actually register the user
     }
   }
 

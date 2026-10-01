@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/controller_disposer.dart';
 import '../core/services/evaluation_service.dart';
 
 // The main widget — needs userId to find the right dept
@@ -129,7 +130,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
       isScrollControlled: true, // Allow sheet to grow when keyboard appears
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
-        return StatefulBuilder(
+        // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+        return ControllerDisposer(controllers: [notesController], child: StatefulBuilder(
             builder: (BuildContext context, StateSetter setSheetState) {
               return Padding(
                 // Shift content up when keyboard opens — dili ta hide the form fields
@@ -293,11 +295,10 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
             ),
           );
         },
-      );
+      ));
     },
     ).whenComplete(() {
       isSheetOpen = false;
-      notesController.dispose();
     });
   }
 
@@ -605,7 +606,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Intervention Report Details'),
-        content: Column(
+        // Scrollable: notes are free text, and a long one overflowed the
+        // dialog's bounded height.
+        content: SingleChildScrollView(child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -622,7 +625,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
             // Status — green if resolved, orange if still pending
             Text('Status: ${report.status}', style: TextStyle(color: report.status == 'Resolved' ? AppColors.success : AppColors.warning), overflow: TextOverflow.ellipsis),
           ],
-        ),
+        )),
         actions: [
           // Just a close button — this dialog is read-only
           TextButton(onPressed: () => Navigator.pop(context), child: Text('Close')),

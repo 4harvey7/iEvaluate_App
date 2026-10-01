@@ -156,7 +156,15 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
       if (mounted) {
         setState(() {
           _historicalData = processedData;
-          
+
+          // A refresh can drop the previously selected term. DropdownButton
+          // asserts when its value matches no item, so fall back to a default.
+          if (_selectedTermId != null &&
+              !processedData.any((t) => t['termId'] == _selectedTermId)) {
+            _selectedTermId = null;
+            _selectedTermSubjects = [];
+          }
+
           if (_selectedTermId == null) {
             // Try to default to current term if it's in history, else last historical term
             if (processedData.any((t) => t['termId'] == currentTermId)) {
@@ -508,7 +516,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                 });
                 return SubjectCard(
                   subject: subjectObj,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubjectDetailScreen(subject: subjectObj, userId: widget.userId, termId: _selectedTermId!))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubjectDetailScreen(subject: subjectObj, userId: widget.userId, termId: _selectedTermId))),
                 );
               }),
           ],

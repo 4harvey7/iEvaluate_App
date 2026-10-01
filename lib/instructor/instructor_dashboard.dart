@@ -120,6 +120,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           _refreshDashboardData(isInitial: true);
         }
       }
+    }, onError: (Object e) {
+      // Realtime drops and the term lookup inside streamSettings surface here;
+      // without a handler they escape as uncaught async errors.
+      debugPrint('[INSTRUCTOR] Settings stream error: $e');
     });
   }
 
@@ -127,6 +131,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   // isInitial = true means quiet mode (no snackbar on load, dili spam).
   Future<void> _refreshDashboardData({bool isInitial = false}) async {
     if (_isSyncing) return; // already syncing, ayaw double trigger
+    // Runs from a post-frame callback too; the screen may already be gone.
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final subjectsProvider = context.read<SubjectsProvider>(); // capture before any await
     setState(() => _isSyncing = true);
@@ -400,7 +406,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
                       '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
                     : ay;
-                label = '${term['semester'].toString().substring(0, 3)}\n$yearShort';
+                final sem = term['semester'].toString();
+                // semester is free text; substring(0, 3) throws on "1" or "".
+                label = '${sem.length > 3 ? sem.substring(0, 3) : sem}\n$yearShort';
               }
               _myHistory.add({
                 'sem': label,

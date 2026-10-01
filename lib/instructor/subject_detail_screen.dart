@@ -831,7 +831,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen>
                 ),
                 const Spacer(),
                 Text(
-                  remark['created_at'] != null ? DateTime.parse(remark['created_at']).toLocal().toString().split(' ')[0] : 'Unknown',
+                  DateTime.tryParse(remark['created_at']?.toString() ?? '')?.toLocal().toString().split(' ')[0] ?? 'Unknown',
                   style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
               ],

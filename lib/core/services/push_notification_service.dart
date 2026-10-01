@@ -89,6 +89,17 @@ class PushNotificationService {
   }
 
   Future<void> init() async {
+    // Callers fire this without awaiting it, so their try/catch cannot see an
+    // async failure -- e.g. Firebase.initializeApp having failed in main(), or
+    // the permission channel erroring. Swallow it here: push is optional.
+    try {
+      await _init();
+    } catch (e) {
+      debugPrint('Push notification init failed: $e');
+    }
+  }
+
+  Future<void> _init() async {
     // Cheap and idempotent; covers the gatherer path if it ever starts up
     // without main()'s call having run.
     await setupLocalNotifications();

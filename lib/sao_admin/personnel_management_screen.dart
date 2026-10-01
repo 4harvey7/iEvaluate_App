@@ -11,6 +11,7 @@ import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/controller_disposer.dart';
 
 // the outer shell widget — just a box, nothing special yet
 class PersonnelManagementScreen extends StatefulWidget {
@@ -153,7 +154,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   // basically the on/off switch for SAO staff accounts
   Future<void> _toggleStatus(Map<String, dynamic> person) async {
     final ui = person['user_info'];
-    final String currentStatus = ui['account_status'];
+    // account_status is nullable in user_info; a String cast on null threw.
+    final String currentStatus = (ui['account_status'] ?? '').toString();
     // flip it: approved becomes disabled, disabled becomes approved
     final String newStatus = currentStatus == 'approved' ? 'disabled' : 'approved';
     
@@ -390,15 +392,17 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   }
 
 
-  // dialog to edit an existing SAO personnel — name and role changes
+  // dialog to edit an existing SAO personnel — name, login email and role changes
   // if promoting to SAO_ADMIN, needs OTP verification — dili basta basta mag-promote
   void _showEditPersonnelDialog(Map<String, dynamic> person) {
     final ui = person['user_info'];
     // pre-fill with current values
-    TextEditingController firstController = TextEditingController(text: ui['first_name']);
-    TextEditingController lastController = TextEditingController(text: ui['last_name']);
-    TextEditingController codeController = TextEditingController(); // OTP input for admin promotion
-    int selectedRoleId = person['role_id'];
+    final firstController = TextEditingController(text: ui['first_name']);
+    final lastController = TextEditingController(text: ui['last_name']);
+    final emailController = TextEditingController(text: (ui['email'] ?? '').toString());
+    final codeController = TextEditingController(); // OTP input for admin promotion
+    // Sao_users.role_id is nullable; assigning null to an int threw on open.
+    int? selectedRoleId = person['role_id'] as int?;
     bool needsCode = false; // becomes true if promoting to SAO_ADMIN
     bool isSaving = false;
 
@@ -406,7 +410,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     // means there is nothing to save.
     final String originalFirst = (ui['first_name'] ?? '').toString().trim();
     final String originalLast = (ui['last_name'] ?? '').toString().trim();
-    final int originalRoleId = selectedRoleId;
+    final String originalEmail = IdentityValidator.cleanEmail(ui['email']?.toString());
+    final int? originalRoleId = selectedRoleId;
+
+    // The signed-in admin's own login email is changed from Settings, which
+    // sends a confirmation link. admin-update-role refuses it here as well.
+    final bool isSelf = person['user_id']?.toString() == _supabase.auth.currentUser?.id;
+
+    bool emailChanged() =>
+        IdentityValidator.cleanEmail(emailController.text) != originalEmail;
 
     // Reads the live values so the button label follows what is typed. Nothing
     // changed -> the button says Back and just closes: no duplicate check, no
@@ -415,13 +427,20 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     bool hasChanges() =>
         firstController.text.trim() != originalFirst ||
         lastController.text.trim() != originalLast ||
+        emailChanged() ||
         selectedRoleId != originalRoleId;
 
     showDialog(
       context: context,
       barrierDismissible: false, // cannot dismiss by tapping outside
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+      builder: (context) => ControllerDisposer(
+        controllers: [firstController, lastController, emailController, codeController],
+        child: StatefulBuilder(
+        builder: (context, setDialogState) => PopScope(
+          // System back must not close the dialog mid-save.
+          canPop: !isSaving,
+          child: AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(needsCode ? 'Verify Authorization' : 'Edit Personnel Profile', 
@@ -445,14 +464,30 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     decoration: const InputDecoration(labelText: 'Last Name'),
                     onChanged: (_) => setDialogState(() {}),
                   ),
+                  const SizedBox(height: 12),
+                  // login email — also what login-by-Staff-ID resolves to
+                  TextField(
+                    controller: emailController,
+                    enabled: !isSelf && !isSaving,
+                    keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      helperText: isSelf
+                          ? 'Change your own email from Settings.'
+                          : (emailChanged() ? 'This becomes their login email.' : null),
+                    ),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
                   const SizedBox(height: 16),
                   // role dropdown — only SAO roles shown here
                   DropdownButtonFormField<int>(
-                    initialValue: selectedRoleId,
+                    // A value missing from items trips the Dropdown assertion.
+                    initialValue: _saoRoles.any((r) => r['id'] == selectedRoleId) ? selectedRoleId : null,
                     isExpanded: true,
                     decoration: const InputDecoration(labelText: 'Role'),
                     items: _saoRoles.map((r) => DropdownMenuItem<int>(value: r['id'], child: Text(r['Roles']))).toList(),
-                    onChanged: (val) => setDialogState(() => selectedRoleId = val!),
+                    onChanged: (val) => setDialogState(() => selectedRoleId = val),
                   ),
                 ] else ...[
                   // step 2: enter OTP — required when upgrading to SAO_ADMIN
@@ -472,9 +507,11 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            // Disabled while saving: closing mid-save would let the later
+            // navigator.pop() close this screen instead of the dialog.
+            TextButton(onPressed: isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             SafeElevatedButton(
-              onPressed: () async {
+              onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
                 // Nothing edited: behave as a plain Back button.
@@ -482,7 +519,48 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   navigator.pop();
                   return;
                 }
-                final selectedRole = _saoRoles.firstWhere((r) => r['id'] == selectedRoleId);
+                // orElse: the account's current role may not be an SAO role,
+                // and firstWhere without it threw a StateError here.
+                final selectedRole = _saoRoles.firstWhere(
+                  (r) => r['id'] == selectedRoleId,
+                  orElse: () => <String, dynamic>{},
+                );
+                if (selectedRole.isEmpty) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(content: Text('Please select a valid role'), backgroundColor: AppColors.error),
+                  );
+                  return;
+                }
+
+                // Email is checked before any OTP is requested, so a typo does
+                // not cost the admin a verification code.
+                final bool changingEmail = emailChanged();
+                final String newEmail = IdentityValidator.cleanEmail(emailController.text);
+                if (changingEmail && !needsCode) {
+                  final emailError = IdentityValidator.validateEmail(newEmail);
+                  if (emailError != null) {
+                    scaffoldMessenger.showSnackBar(
+                      SnackBar(content: Text(emailError), backgroundColor: AppColors.error),
+                    );
+                    return;
+                  }
+                  setDialogState(() => isSaving = true);
+                  final emailCheck = await IdentityValidator.checkAvailability(
+                    client: _supabase,
+                    email: newEmail,
+                    excludeUserId: person['user_id']?.toString(),
+                  );
+                  if (!context.mounted) return;
+                  setDialogState(() => isSaving = false);
+                  if (!emailCheck.isAvailable) {
+                    await showDuplicateWarningDialog(
+                      context,
+                      message: emailCheck.error!,
+                      field: emailCheck.field,
+                    );
+                    return;
+                  }
+                }
                 // check if this is a promotion from non-admin to admin
                 final bool isUpgradingToAdmin = selectedRole['Roles'] == 'SAO_ADMIN' && 
                     person['role_data']?['Roles'] != 'SAO_ADMIN';
@@ -505,7 +583,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                          'apikey': Env.supabaseAnonKey,
                        },
                      );
-                     
+                     if (!context.mounted) return;
+
                      // switch dialog to OTP input step
                      setDialogState(() {
                        needsCode = true;
@@ -517,7 +596,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                      );
                      return; // stop here and wait for user to enter the code
                    } catch (e) {
-                     setDialogState(() => isSaving = false);
+                     if (context.mounted) setDialogState(() => isSaving = false);
                      scaffoldMessenger.showSnackBar(
                        SnackBar(content: Text('Failed to send verification: $e'), backgroundColor: Colors.red)
                      );
@@ -557,9 +636,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     lastName: newLast,
                     excludeUserId: targetUserId?.toString(),
                   );
+                  if (!context.mounted) return;
                   if (!availability.isAvailable) {
                     setDialogState(() => isSaving = false);
-                    if (!context.mounted) return;
                     await showDuplicateWarningDialog(
                       context,
                       message: availability.error!,
@@ -575,6 +654,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       'targetUserId': targetUserId,
                       'firstName': newFirst,
                       'lastName': newLast,
+                      // Sent only when it changed; absent means "leave it".
+                      if (changingEmail) 'email': newEmail,
                       'roleId': selectedRoleId,
                       'roleName': roleName,
                       'isAcademic': false,
@@ -589,16 +670,26 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
                   if (response.status == 200) {
                     _fetchData(); // reload the list to show changes
-                    if (mounted) navigator.pop();
-                    scaffoldMessenger.showSnackBar(
-                      const SnackBar(content: Text('Personnel updated successfully!'), backgroundColor: AppColors.success)
-                    );
+                    if (context.mounted) navigator.pop();
+                    // A deployment of admin-update-role that predates email
+                    // editing ignores the field and still answers 200.
+                    final emailSkipped = changingEmail &&
+                        !(response.data is Map && response.data['emailUpdated'] == true);
+                    scaffoldMessenger.showSnackBar(emailSkipped
+                        ? const SnackBar(
+                            content: Text('Personnel updated, but the email was NOT changed. '
+                                'The server function needs to be updated -- contact the system administrator.'),
+                            backgroundColor: AppColors.error,
+                            duration: Duration(seconds: 8),
+                          )
+                        : const SnackBar(content: Text('Personnel updated successfully!'), backgroundColor: AppColors.success));
                   } else {
                     // server returned an error, extract and throw the message
                     final errorMsg = response.data is Map ? (response.data['error'] ?? 'Server error') : 'Server error';
                     throw errorMsg;
                   }
                 } catch (e) {
+                  if (!context.mounted) return;
                   setDialogState(() => isSaving = false);
                   // describeEdgeFunctionError digs the server's own wording out
                   // of the exception. Without it a duplicate shows up as
@@ -628,6 +719,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             ),
           ],
         ),
+        ),
+      ),
       ),
     );
   }
@@ -647,11 +740,17 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+      // Controllers are disposed after the exit animation, not on pop (see ControllerDisposer).
+      builder: (context) => ControllerDisposer(
+        controllers: [firstController, lastController, emailController, idController, codeController],
+        child: StatefulBuilder(
+        builder: (context, setDialogState) => PopScope(
+          // System back must not close the dialog mid-save.
+          canPop: !isSaving,
+          child: AlertDialog(
           backgroundColor: AppColors.surface,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(needsCode ? 'Verify Authorization' : 'Add SAO Personnel', 
+          title: Text(needsCode ? 'Verify Authorization' : 'Add SAO Personnel',
               style: const TextStyle(fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
@@ -693,7 +792,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            // Disabled while saving: closing mid-save would let the later
+            // navigator.pop() close this screen instead of the dialog.
+            TextButton(onPressed: isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: isSaving ? null : () async {
                 final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -733,8 +834,9 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   firstName: fn, lastName: ln, email: em, universityId: id,
                   idLabel: IdentityValidator.staffIdLabel,
                 );
+                // The dialog may have been cancelled during the check.
+                if (!context.mounted) return;
                 if (!availability.isAvailable) {
-                  if (!context.mounted) return;
                   await showDuplicateWarningDialog(
                     context,
                     message: availability.error!,
@@ -757,11 +859,12 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                          'apikey': Env.supabaseAnonKey,
                        },
                      );
+                     if (!context.mounted) return;
                      setDialogState(() { needsCode = true; isSaving = false; }); // switch to OTP step
                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Verification code sent to ${currentUser?.email}')));
                      return;
                    } catch (e) {
-                     setDialogState(() => isSaving = false);
+                     if (context.mounted) setDialogState(() => isSaving = false);
                      scaffoldMessenger.showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red));
                      return;
                    }
@@ -789,13 +892,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
 
                   if (response.status == 200 || response.status == 201) {
                     _fetchData(); // refresh list
-                    if (mounted) navigator.pop();
+                    // The dialog's own context, not this State's: popping after
+                    // the dialog is gone would pop the route underneath it.
+                    if (context.mounted) navigator.pop();
                     scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Personnel created!'), backgroundColor: AppColors.success));
                   } else {
                     throw response.data['error'] ?? 'Server error'; // server said no
                   }
                 } catch (e) {
-                  setDialogState(() => isSaving = false);
+                  if (context.mounted) setDialogState(() => isSaving = false);
                   // The server's duplicate message has to survive to the admin,
                   // so unwrap the exception rather than printing it.
                   final msg = IdentityValidator.describeEdgeFunctionError(
@@ -822,6 +927,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
             ),
           ],
         ),
+        ),
+      ),
       ),
     );
   }
@@ -955,7 +1062,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 leading: CircleAvatar(
                                   // gray if disabled, colored if active
                                   backgroundColor: isActive ? AppColors.primary.withValues(alpha: 0.1) : AppColors.borderHairline,
-                                  child: Text(ui['first_name'][0], style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
+                                  // first_name is nullable and may be empty; [0] threw in build.
+                                  child: Text((ui['first_name'] ?? '').toString().isNotEmpty ? ui['first_name'].toString()[0] : '?', style: TextStyle(color: isActive ? AppColors.primary : AppColors.textSecondary)),
                                 ),
                                 // strikethrough if disabled — visual cue that account is off
                                 title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),

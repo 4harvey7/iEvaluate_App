@@ -39,7 +39,12 @@ class Subject {
     id: json['id'] as String?,
     code: json['subject_code'] as String,
     name: json['subject_name'] as String,
-    addedAt: DateTime.parse((json['created_at'] ?? json['addedAt']) as String),
+    // tryParse: a null/blank created_at must not throw inside a build method.
+    addedAt:
+        DateTime.tryParse(
+          (json['created_at'] ?? json['addedAt'] ?? '').toString(),
+        ) ??
+        DateTime.now(),
     managementMean: (json['management_mean'] as num?)?.toDouble(),
     performanceMean: (json['performance_mean'] as num?)?.toDouble(),
     allRelatedIds: json['all_ids'] is Set<String>

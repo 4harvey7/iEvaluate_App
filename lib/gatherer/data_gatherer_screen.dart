@@ -230,6 +230,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           if (settings.termId != null && !_isPaused) _syncData();
         }
       }
+    }, onError: (Object e) {
+      // Realtime drops (offline, channel error) arrive here. Without a handler
+      // each one is an uncaught async exception; the last known term stays.
+      debugPrint('[GATHERER] settings stream error: $e');
     });
   }
 
@@ -492,14 +496,18 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   }
 
   // resume uploads after pause — also auto-retry all pending tasks
-  void _resumeSync() {
+  void _resumeSync() async {
     setState(() => _isPaused = false); // unpause
     // Auto-retry any pending after resuming — dont make user tap retry manually
     final pending = _localQueue
         .where((t) => t.status == SyncStatus.pending)
         .toList();
+    // One at a time, like _syncData. Firing them all at once read every image
+    // and its base64 copy into memory together — after a long paused shift
+    // that is enough to OOM a low-end phone and jank the UI thread.
     for (final t in pending) {
-      _uploadToN8N(t); // kick off upload for each pending task
+      if (_isPaused || !mounted) break;
+      await _uploadToN8N(t);
     }
   }
 
@@ -528,24 +536,29 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     showDialog(
       context: context,
       barrierDismissible: false, // user cannot close this — they must wait
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(color: AppColors.primary),
-            SizedBox(height: 24),
-            Text(
-              'Processing Data...',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            SizedBox(height: 12),
-            Text(
-              'Please wait, we are validating and processing your Google Sheet data. This may take a moment.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-          ],
+      // Back must not close it either: the pop below would then take this
+      // screen (the root route) instead of the dialog.
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.primary),
+              SizedBox(height: 24),
+              Text(
+                'Processing Data...',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              SizedBox(height: 12),
+              Text(
+                'Please wait, we are validating and processing your Google Sheet data. This may take a moment.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -718,6 +731,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     // term gets the scan counted twice.
     if (task.status == SyncStatus.uploading) return;
     if (_isPaused) return; // paused, ayaw mag-upload
+    // Sync loops keep calling in after the screen is gone (logout mid-sync);
+    // the setState below would throw. The task stays queued on disk.
+    if (!mounted) return;
 
     // The active term arrives on the settings stream a moment after launch. A
     // scan taken before it lands used to upload with term_id: null and belong
@@ -1044,9 +1060,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       }
 
       if (result.isSuccess) {
-        setState(
-          () => task.status = SyncStatus.success,
-        ); // n8n accept it, we done
+        // Set outside setState so the finally block persists it even if the
+        // screen was disposed while the upload was in flight.
+        task.status = SyncStatus.success; // n8n accept it, we done
+        if (mounted) setState(() {});
       } else {
         throw Exception(
           'Server error: ${result.statusCode}',
@@ -1064,15 +1081,14 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       final timedOut = e is TimeoutException;
       final unreachable = e is SocketException;
 
-      setState(() {
-        task.status = SyncStatus.failed; // mark as failed so user can retry
-        task.errorMessage = unreachable
-            ? 'Cannot reach n8n (check IP/URL)'
-            : timedOut
-            ? 'No answer yet — may have been processed'
-            : 'Sync Failed';
-        task.retryCount++; // track how many times this task has failed
-      });
+      task.status = SyncStatus.failed; // mark as failed so user can retry
+      task.errorMessage = unreachable
+          ? 'Cannot reach n8n (check IP/URL)'
+          : timedOut
+          ? 'No answer yet — may have been processed'
+          : 'Sync Failed';
+      task.retryCount++; // track how many times this task has failed
+      if (mounted) setState(() {});
 
       if ((unreachable || timedOut) && mounted) {
         // Auto-pause the rest of the queue so it doesn't spam errors. Through

@@ -113,6 +113,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   // the big fetch — grabs pending approvals, total user count, and file scan count
   Future<void> _fetchDashboardData() async {
+    // Reached after an await (term fetch, approval call), so the screen may be gone.
+    if (!mounted) return;
     setState(() => _isPendingLoading = true); // show loading spinner while we wait
     try {
       // fetch all users who are still "pending" — they want to be approved

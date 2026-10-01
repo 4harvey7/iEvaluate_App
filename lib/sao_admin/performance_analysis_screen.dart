@@ -9,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/controller_disposer.dart';
 import '../core/services/term_aware_state.dart';
 
 // outer widget shell, nothing fancy yet
@@ -164,7 +165,10 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => StatefulBuilder(
+      // Disposes the search controller after the exit animation (see ControllerDisposer).
+      builder: (_) => ControllerDisposer(
+        controllers: [searchController],
+        child: StatefulBuilder(
         builder: (ctx, setSheetState) {
           // DraggableScrollableSheet — can be pulled up or down by the user
           return DraggableScrollableSheet(
@@ -257,6 +261,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
             ),
           );
         },
+      ),
       ),
     );
   }
@@ -468,12 +473,26 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
             icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
             tooltip: 'Export Report',
             onPressed: () async {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saving PDF to Downloads...')));
-              await _pdfService.generatePerformanceReport(
-                title: 'University Performance Report - $_selectedLabel',
-                overviewStats: _overviewStats,
-                topInstructors: _topInstructors,
-              );
+              // SafeIconButton already ignores taps while this runs.
+              final messenger = ScaffoldMessenger.of(context);
+              messenger.showSnackBar(const SnackBar(content: Text('Saving PDF to Downloads...')));
+              // generatePerformanceReport only guards its logo load; building
+              // or sharing the PDF can still throw, which went uncaught.
+              try {
+                await _pdfService.generatePerformanceReport(
+                  title: 'University Performance Report - $_selectedLabel',
+                  overviewStats: _overviewStats,
+                  topInstructors: _topInstructors,
+                );
+              } catch (e) {
+                debugPrint('Performance PDF export failed: $e');
+                if (mounted) {
+                  messenger.showSnackBar(const SnackBar(
+                    content: Text('Could not export the PDF. Please try again.'),
+                    backgroundColor: AppColors.error,
+                  ));
+                }
+              }
             },
           ),
         ],

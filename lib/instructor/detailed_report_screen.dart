@@ -42,6 +42,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   final _supabase = Supabase.instance.client;
   final _pdfService = PdfService();
   bool _isLoading = true;
+  bool _isGeneratingPdf = false;
   String? _aiSuggestion;
   String _summaryText = 'Loading analysis...';
   final List<double> _managementMeans = List.filled(10, 0.0);
@@ -226,6 +227,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   }
 
   Future<void> _generatePDF() async {
+    // A second tap while the first PDF is still building would open a second
+    // share sheet on top of the first.
+    if (_isGeneratingPdf) return;
+    _isGeneratingPdf = true;
     try {
       await _pdfService.generateInstructorDetailedReport(
         instructorName: widget.instructorName,
@@ -249,6 +254,8 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           SnackBar(content: Text('Failed to generate PDF: $e')),
         );
       }
+    } finally {
+      _isGeneratingPdf = false;
     }
   }
 

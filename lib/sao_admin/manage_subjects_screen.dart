@@ -89,6 +89,8 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
 
   // loads the active term, departments, instructors, all subjects, and assignments
   Future<void> _loadData() async {
+    // Also called from the sheets' onSaved callbacks after their awaits.
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final settings = await _settingsService.getSettings();
@@ -287,21 +289,26 @@ class _ManageSubjectsScreenState extends State<ManageSubjectsScreen> with Single
     showDialog<void>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(message, style: const TextStyle(fontSize: 13.5)),
-            ),
-          ],
+      // barrierDismissible does not stop the system back button. Without this,
+      // back closed the barrier and _hideBusy then popped the root route.
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          backgroundColor: AppColors.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(message, style: const TextStyle(fontSize: 13.5)),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1588,7 +1595,10 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                       ),
                     ),
                     const SizedBox(width: 14),
-                    Column(
+                    // Expanded: the subtitle carries the subject code and
+                    // overflowed the Row on narrow screens / large text.
+                    Expanded(
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -1604,6 +1614,7 @@ class _AddSubjectModalState extends State<_AddSubjectModal> {
                           style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         ),
                       ],
+                    ),
                     ),
                   ],
                 ),

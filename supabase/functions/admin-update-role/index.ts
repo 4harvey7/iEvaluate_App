@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import {
+  cleanEmail,
   cleanIdentity,
   describeConflict,
   describeUniqueViolation,
@@ -28,6 +29,36 @@ async function hashString(str: string) {
 const MAX_OTP_ATTEMPTS = 5
 
 /**
+ * Message for "Supabase Auth already has a login with that address".
+ *
+ * auth.users keeps its own unique index on email and never releases it -- the
+ * soft delete in delete-user only bans the account -- so an address can be free
+ * in user_info and still be taken here. Starts with 'Duplicate' so the client
+ * shows it in the duplicate dialog and the catch block below passes it through.
+ */
+function describeAuthEmailConflict(error: any): string | null {
+  const raw = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase()
+  const taken =
+    raw.includes('already been registered') ||
+    raw.includes('already registered') ||
+    raw.includes('email_exists') ||
+    (raw.includes('duplicate') && raw.includes('email'))
+  if (!taken) return null
+  return 'Duplicate: this email address is already used by another login ' +
+    'account (possibly one that was removed). Choose a different address.'
+}
+
+/** Auth's own "that is not an email" rejection, reworded for the admin. */
+function describeAuthEmailInvalid(error: any): string | null {
+  const raw = `${error?.code ?? ''} ${error?.message ?? ''}`.toLowerCase()
+  if (raw.includes('email_address_invalid') || raw.includes('invalid email') ||
+      raw.includes('unable to validate email')) {
+    return 'Invalid input: Enter a valid email address'
+  }
+  return null
+}
+
+/**
  * 'Full-Time' / 'Part-Time' when the role name itself states the employment,
  * otherwise null meaning "leave whatever is on record alone".
  *
@@ -51,9 +82,15 @@ serve(async (req) => {
       lastName: rawLastName,
       roleId, roleName, verificationCode, isAcademic, isPromotion,
       deptId,
+      // Optional. Absent/null means "leave the email alone", which is what every
+      // caller that predates email editing sends (e.g. the admin's own
+      // settings screen).
+      email: rawEmail,
     } = await req.json()
 
     if (!targetUserId) throw new Error('Invalid input: missing target user')
+
+    const emailRequested = rawEmail !== undefined && rawEmail !== null
 
     // Renaming is the other way a duplicate gets created: the account was
     // unique when it was made, then someone edits the name to match an existing
@@ -61,11 +98,13 @@ serve(async (req) => {
     const formatError = validateIdentityFormat({
       firstName: rawFirstName,
       lastName: rawLastName,
+      ...(emailRequested ? { email: rawEmail } : {}),
     })
     if (formatError) throw new Error(`Invalid input: ${formatError}`)
 
     const firstName = cleanIdentity(rawFirstName)
     const lastName = cleanIdentity(rawLastName)
+    const newEmail = emailRequested ? cleanEmail(rawEmail) : null
 
     // ── Authenticate caller ───────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization')
@@ -80,6 +119,25 @@ serve(async (req) => {
       .from('Sao_users').select('roles!inner(Roles)').eq('user_id', caller.id).single()
     if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
       throw new Error('Forbidden: Admin access required')
+    }
+
+    // ── Current email of the target ───────────────────────────────────────────
+    // Read up front: it decides whether the email is actually changing, and it
+    // is where the "your account was updated" notice goes when it is not.
+    const { data: targetInfo, error: targetError } = await supabaseAdmin
+      .from('user_info').select('email, account_status').eq('id', targetUserId).single()
+    if (targetError || !targetInfo) throw new Error('Invalid input: user not found')
+
+    const oldEmail: string | null = targetInfo.email ?? null
+    const emailChanged =
+      newEmail !== null && newEmail !== cleanEmail(oldEmail ?? '')
+
+    // An admin's OWN login email goes through Settings, which makes Auth send a
+    // confirmation link to the new address. Changing it here would skip that
+    // proof of ownership and leave the admin's current session holding a stale
+    // address.
+    if (emailChanged && targetUserId === caller.id) {
+      throw new Error('Invalid input: change your own email from Settings.')
     }
 
     // ── One head per department ───────────────────────────────────────────────
@@ -158,17 +216,51 @@ serve(async (req) => {
     // ── Duplicate name check ──────────────────────────────────────────────────
     // excludeUserId is this account, so saving the dialog without changing the
     // name does not report the person as a duplicate of themselves.
+    // The email joins the same check when it is changing, so an address that
+    // belongs to another profile is refused before Auth is touched.
     const conflict = await findIdentityConflict(supabaseAdmin, {
-      firstName, lastName, excludeUserId: targetUserId,
+      firstName, lastName,
+      ...(emailChanged ? { email: newEmail! } : {}),
+      excludeUserId: targetUserId,
     })
     if (conflict) throw new Error(describeConflict(conflict, firstName, lastName))
 
     // ── Perform Updates ───────────────────────────────────────────────────────
-    const { error: updateError } = await supabaseAdmin.from('user_info').update({
+    // Email first, in Supabase Auth: that is the address signInWithPassword
+    // checks, so it is the authority. user_info.email is only the copy that
+    // login-by-university-ID resolves through. email_confirm skips the
+    // confirmation link -- the admin is vouching for the address.
+    if (emailChanged) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        targetUserId, { email: newEmail!, email_confirm: true },
+      )
+      if (authError) {
+        const msg = describeAuthEmailConflict(authError) ?? describeAuthEmailInvalid(authError)
+        if (msg) throw new Error(msg)
+        console.error('[admin-update-role] Auth email update failed:', authError)
+        throw new Error('Operation failed: could not update the login email.')
+      }
+    }
+
+    const profileUpdate: Record<string, unknown> = {
       first_name: firstName,
-      last_name: lastName
-    }).eq('id', targetUserId)
+      last_name: lastName,
+    }
+    if (emailChanged) profileUpdate.email = newEmail
+
+    const { error: updateError } = await supabaseAdmin.from('user_info')
+      .update(profileUpdate).eq('id', targetUserId)
     if (updateError) {
+      // Put Auth back, otherwise the login email and the ID-login copy disagree
+      // and signing in with the university ID fails for this person.
+      if (emailChanged && oldEmail) {
+        const { error: revertError } = await supabaseAdmin.auth.admin.updateUserById(
+          targetUserId, { email: oldEmail, email_confirm: true },
+        )
+        if (revertError) {
+          console.error('[admin-update-role] Could not revert auth email:', revertError)
+        }
+      }
       const dup = describeUniqueViolation(updateError)
       throw dup ? new Error(dup) : updateError
     }
@@ -253,8 +345,11 @@ serve(async (req) => {
     }
 
     // ── Notify User ───────────────────────────────────────────────────────────
-    const { data: userData } = await supabaseAdmin
-      .from('user_info').select('email, account_status').eq('id', targetUserId).single()
+    // When the email moved, both addresses hear about it: the new one so the
+    // person knows what to sign in with, the old one so a change they did not
+    // ask for does not go unnoticed.
+    const recipients = [{ email: emailChanged ? newEmail! : oldEmail! }]
+    if (emailChanged && oldEmail) recipients.push({ email: oldEmail })
 
     const BREVO_KEY = Deno.env.get('BREVO_API_KEY')
     const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')
@@ -265,7 +360,7 @@ serve(async (req) => {
       headers: { 'api-key': BREVO_KEY!, 'content-type': 'application/json' },
       body: JSON.stringify({
         sender: { name: 'SAO Management', email: SENDER_EMAIL },
-        to: [{ email: userData!.email }],
+        to: recipients,
         subject: 'Account Information Updated',
         htmlContent: `
           <h3>Hello, ${firstName}!</h3>
@@ -274,9 +369,10 @@ serve(async (req) => {
           <ul>
             <li><b>Name:</b> ${firstName} ${lastName}</li>
             <li><b>Role:</b> ${roleName}</li>
+            ${emailChanged ? `<li><b>Login email:</b> ${newEmail}</li>` : ''}
             ${newDeptName ? `<li><b>Department:</b> ${newDeptName}</li>` : ''}
             ${derivedEmployment ? `<li><b>Employment:</b> ${derivedEmployment}</li>` : ''}
-            <li><b>Status:</b> ${userData!.account_status.toUpperCase()}</li>
+            <li><b>Status:</b> ${String(targetInfo.account_status ?? '').toUpperCase()}</li>
           </ul>
           <p>If you did not request these changes or believe this is an error, please contact the SAO office immediately.</p>
           <p>Best regards,<br>SAO Management Team</p>
@@ -292,10 +388,18 @@ serve(async (req) => {
         new_role: roleName,
         new_dept: deptId ?? null,
         new_employment: derivedEmployment ?? null,
+        email_changed: emailChanged,
+        ...(emailChanged ? { old_email: oldEmail, new_email: newEmail } : {}),
       }
     })
 
-    return new Response(JSON.stringify({ message: 'Update successful' }), {
+    // emailUpdated lets the app tell a real email change apart from a
+    // deployment of this function that predates email editing and ignored it.
+    return new Response(JSON.stringify({
+      message: 'Update successful',
+      emailUpdated: emailChanged,
+      email: emailChanged ? newEmail : oldEmail,
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })

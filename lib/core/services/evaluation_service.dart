@@ -525,7 +525,7 @@ class EvaluationService {
         totalOverall += overall;
         totalMgmt += mgmt;
         totalPerf += perf;
-        totalResponses += (row['total_responses'] as int?) ?? 0;
+        totalResponses += (row['total_responses'] as num?)?.toInt() ?? 0;
       }
 
       final count = list.length; // faculty who actually have results this term
@@ -686,7 +686,7 @@ class EvaluationService {
     int totalResp = 0;
     for (var row in list) {
       sum += (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;    // accumulate score
-      totalResp += (row['total_responses'] as int?) ?? 0;          // accumulate responses
+      totalResp += (row['total_responses'] as num?)?.toInt() ?? 0;          // accumulate responses
     }
 
     return {
@@ -1146,7 +1146,7 @@ class EvaluationService {
           final iName = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
           
           // Accumulate student survey responses
-          final responses = (row['total_responses'] as int?) ?? 0;
+          final responses = (row['total_responses'] as num?)?.toInt() ?? 0;
 
           instructorNames[instId] = iName; // store name for this instructor
           instructorScores.putIfAbsent(instId, () => []).add(combinedScore);
@@ -1158,7 +1158,7 @@ class EvaluationService {
           final avg = e.value.reduce((a, b) => a + b) / e.value.length; // average scores for this instructor
           return SubjectInstructorPerformance(
             instructorId: e.key,
-            instructorName: instructorNames[e.key]!,
+            instructorName: instructorNames[e.key] ?? 'Unknown',
             avgScore: double.parse(avg.toStringAsFixed(2)),
             resultRows: e.value.length,
             totalResponses: instructorResponses[e.key] ?? 0,
@@ -1461,28 +1461,43 @@ class EvaluationService {
           .eq('dean_id', userId) // only get this dean's reports
           .order('created_at', ascending: false); // newest first
 
-      return (data as List).map((row) {
-        // Prefer stored name; fall back to joined user_info
-        // stored name is more reliable in case user info changes later
-        String instructorName = row['instructor_name'] ?? '';
-        if (instructorName.isEmpty) {
-          final ui = row['user_info'];
-          if (ui is Map) {
-            instructorName = '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim(); // combine from join
+      // Parsed row by row: one malformed row (a null id, an unparseable
+      // created_at) used to throw out of the whole map and empty the log.
+      final reports = <InterventionReport>[];
+      for (final row in (data as List)) {
+        try {
+          // Prefer stored name; fall back to joined user_info
+          // stored name is more reliable in case user info changes later
+          String instructorName = row['instructor_name']?.toString() ?? '';
+          if (instructorName.isEmpty) {
+            final ui = row['user_info'];
+            if (ui is Map) {
+              instructorName = '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim(); // combine from join
+            }
           }
+          final id = row['id']?.toString();
+          final instructorId = row['instructor_id']?.toString();
+          final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
+          if (id == null || instructorId == null || createdAt == null) {
+            debugPrint('Skipping malformed intervention report row: $id');
+            continue;
+          }
+          reports.add(InterventionReport(
+            id: id,
+            instructorId: instructorId,
+            instructorName: instructorName.isEmpty ? 'Unknown Instructor' : instructorName, // fallback if both sources empty
+            deanId: row['dean_id']?.toString() ?? '',
+            actionType: row['action_type']?.toString() ?? '',
+            notes: row['notes']?.toString() ?? '', // empty string if notes column is null
+            status: row['status']?.toString() ?? 'Active Tracking', // default status if missing
+            termId: row['term_id']?.toString() ?? '',
+            createdAt: createdAt,
+          ));
+        } catch (e) {
+          debugPrint('Skipping unreadable intervention report row: $e');
         }
-        return InterventionReport(
-          id: row['id'].toString(),
-          instructorId: row['instructor_id'],
-          instructorName: instructorName.isEmpty ? 'Unknown Instructor' : instructorName, // fallback if both sources empty
-          deanId: row['dean_id'],
-          actionType: row['action_type'],
-          notes: row['notes'] ?? '', // empty string if notes column is null
-          status: row['status'] ?? 'Active Tracking', // default status if missing
-          termId: row['term_id'] ?? '',
-          createdAt: DateTime.parse(row['created_at']), // parse the datetime string
-        );
-      }).toList();
+      }
+      return reports;
     } catch (e) {
       debugPrint('Error fetching intervention log: $e');
       return []; // something went wrong, return empty, dili ta crash the screen
@@ -1499,15 +1514,23 @@ class EvaluationService {
     required String notes,
   }) async {
     final termId = await _getActiveTermId();
-    if (termId == null) return; // no active term, cannot create report, ayaw proceed
+    // Throw rather than return: a silent return let the caller report
+    // "Intervention recorded successfully." for a report that was never saved.
+    if (termId == null) {
+      throw Exception('No active academic term is set, so the report could not be saved. '
+          'Ask the SAO office to set the current term.');
+    }
 
     // fetch instructor name so we can store it in the report denormalized
     final instructorData = await _supabase
         .from('user_info')
         .select('first_name, last_name')
         .eq('id', instructorId)
-        .single(); // must exist, crash if not found
-    
+        .maybeSingle(); // .single() threw a raw PostgREST error on a missing row
+    if (instructorData == null) {
+      throw Exception('That instructor account could not be found. Refresh and try again.');
+    }
+
     final instructorName = '${instructorData['first_name']} ${instructorData['last_name']}'; // combine names
 
     // insert the intervention report into the database

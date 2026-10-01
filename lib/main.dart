@@ -21,6 +21,7 @@ import 'gatherer/data_gatherer_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'core/services/push_notification_service.dart';
 import 'core/services/term_watcher.dart';
+import 'widgets/profile_completion_gate.dart';
 import 'widgets/term_change_gate.dart';
 
 void main() async {
@@ -71,12 +72,14 @@ Widget screenForRole(String role, String userId) {
   }
 
   // TECHNICAL DEBT: Gatherer bypasses MainScaffold — see file-level comment above.
-  if (userRole == UserRole.gatherer) {
-    return DataGathererScreen(userId: userId);
-  }
-
   // All other roles route through the shared scaffold.
-  return MainScaffold(role: userRole, userId: userId);
+  final Widget home = userRole == UserRole.gatherer
+      ? DataGathererScreen(userId: userId)
+      : MainScaffold(role: userRole, userId: userId);
+
+  // Every login lands here, so this is where a missing ID or address is asked
+  // for -- once per login, for every role (see profile_completion_gate.dart).
+  return ProfileCompletionGate(userId: userId, role: role, child: home);
 }
 
 class MyApp extends StatelessWidget {
