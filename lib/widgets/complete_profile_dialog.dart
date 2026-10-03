@@ -10,14 +10,16 @@
 import 'package:flutter/material.dart';
 
 import '../core/services/address_service.dart';
+import '../core/services/auth_service.dart';
 import '../core/services/identity_validator.dart';
 import '../core/services/profile_completion_service.dart';
+import '../login_screen.dart';
 import '../theme/app_colors.dart';
 import 'apple_ui.dart';
 import 'controller_disposer.dart';
 
 /// Shows the dialog. Resolves to true once every missing field is saved, false
-/// when the user chose "Later" (they are asked again at the next login).
+/// if the user logged out instead (the dialog cannot otherwise be dismissed).
 ///
 /// [isSaoRole] only changes wording: SAO personnel call the same
 /// `university_id` column a Staff ID, as registration and Personnel
@@ -40,7 +42,7 @@ Future<bool> showCompleteProfileDialog(
 
   final result = await showDialog<bool>(
     context: context,
-    // Tapping outside must not lose what was typed; "Later" is the way out.
+    // Forced: no tap-outside or back dismissal; save or Log out only.
     barrierDismissible: false,
     builder: (_) => ControllerDisposer(
       controllers: [idController, streetController, barangayController, barangayFocus],
@@ -181,11 +183,25 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     });
   }
 
+  /// The only way out besides a successful save: end the session and return to
+  /// login, so a user is never locked in (wrong account, failing save).
+  Future<void> _logOut() async {
+    if (_saving) return;
+    final navigator = Navigator.of(context);
+    setState(() => _saving = true);
+    await AuthService().signOut();
+    if (!mounted) return;
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      // Back button acts as "Later", except mid-save.
-      canPop: !_saving,
+      // Forced: only a successful save (or Log out) closes this dialog.
+      canPop: false,
       child: AlertDialog(
         backgroundColor: AppColors.surface,
         surfaceTintColor: Colors.transparent,
@@ -264,13 +280,13 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
             children: [
               Expanded(
                 child: TextButton(
-                  onPressed:
-                      _saving ? null : () => Navigator.of(context).pop(false),
+                  key: const Key('completeProfile.logout'),
+                  onPressed: _saving ? null : _logOut,
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  child: const Text('Later'),
+                  child: const Text('Log out'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -320,7 +336,7 @@ class _CompleteProfileDialogState extends State<CompleteProfileDialog> {
     ].join(' and ');
     return 'Your profile is missing $missing. Please add '
         '${_status.needsId && _status.needsAddress ? 'them' : 'it'} '
-        'so your records are complete.';
+        'to continue. This information is required.';
   }
 
   Widget _buildErrorBanner(String message) {

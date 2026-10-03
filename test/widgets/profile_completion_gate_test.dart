@@ -5,7 +5,8 @@
 //   * input is validated before anything is sent
 //   * a failed save keeps the dialog open with the reason, and a partial save
 //     stops asking for what was stored
-//   * "Later" closes without saving
+//   * the dialog is forced: no "Later", back/barrier do not dismiss, "Log out"
+//     is the only other exit
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ievaluateapp_final/core/services/address_service.dart';
@@ -176,16 +177,52 @@ void main() {
     expect(streetField, findsNothing); // already stored, no longer asked
   });
 
-  testWidgets('Later closes without saving', (tester) async {
+  testWidgets('forced: no Later, Log out present, text says required',
+      (tester) async {
     final service = FakeProfileService(
       const ProfileCompletionStatus(needsId: true, needsAddress: true),
     );
     await pumpGate(tester, service);
-    await tester.tap(find.text('Later'));
+    expect(find.text('Later'), findsNothing);
+    expect(find.byKey(const Key('completeProfile.logout')), findsOneWidget);
+    expect(find.text('Log out'), findsOneWidget);
+    expect(find.textContaining('required'), findsOneWidget);
+  });
+
+  testWidgets('back button and barrier tap do not dismiss', (tester) async {
+    final service = FakeProfileService(
+      const ProfileCompletionStatus(needsId: true, needsAddress: true),
+    );
+    await pumpGate(tester, service);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text(title), findsOneWidget);
+
+    await tester.tapAt(const Offset(5, 5)); // barrier
+    await tester.pumpAndSettle();
+    expect(find.text(title), findsOneWidget);
+    expect(service.saves, isEmpty);
+  });
+
+  testWidgets('dialog stays after failed save, closes after successful save',
+      (tester) async {
+    final service = FakeProfileService(
+      const ProfileCompletionStatus(needsId: true, needsAddress: false),
+      result: const ProfileCompletionResult.failed('nope'),
+    );
+    await pumpGate(tester, service);
+
+    await tester.enterText(idField, '2024-0001');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+    expect(find.text(title), findsOneWidget);
+
+    service.result = const ProfileCompletionResult.ok();
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
     expect(find.text(title), findsNothing);
-    expect(service.saves, isEmpty);
-    expect(tester.takeException(), isNull);
+    expect(service.saves, hasLength(2));
   });
 
   group('ProfileCompletionStatus.fromRow', () {
