@@ -3,6 +3,9 @@ project_id = "lyorziqedepfsgblqewv"
 [functions.admin-update-role]
 verify_jwt = true
 
+[functions.admin-activate-account]
+verify_jwt = true
+
 [functions.delete-user]
 enabled = true
 verify_jwt = false
@@ -27,7 +30,9 @@ entrypoint = "./functions/update-system-settings/index.ts"
 
 [functions.send-intervention-email]
 enabled = true
-verify_jwt = false
+# Defence in depth only: the anon key is itself a valid JWT, so the real
+# authentication and authorisation happen in the function code.
+verify_jwt = true
 import_map = "./functions/send-intervention-email/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

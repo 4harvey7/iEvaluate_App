@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { escapeHtml } from '../_shared/html.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -34,10 +35,11 @@ serve(async (req) => {
     const { autoSync, semester, academicYear } = await req.json()
 
     // 1. Fetch all SAO Admin emails
-    const { data: admins } = await supabaseAdmin
+    const { data: admins, error: adminsError } = await supabaseAdmin
       .from('Sao_users')
-      .select('user_info(email)')
-      .eq('roles!inner(Roles)', 'SAO_ADMIN')
+      .select('user_info(email), roles!inner(Roles)')
+      .eq('roles.Roles', 'SAO_ADMIN')
+    if (adminsError) console.error('update-system-settings: could not load SAO admin emails:', adminsError)
 
     const adminEmails = admins?.map(a => (a.user_info as any).email).filter(Boolean) || []
 
@@ -46,12 +48,12 @@ serve(async (req) => {
       const SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')
       if (!SENDER_EMAIL) throw new Error('BREVO_SENDER_EMAIL is not configured')
 
-      const syncStatus = autoSync ? 'ENABLED' : 'DISABLED'
-      let message = `Auto-Sync with system clock has been <b>${syncStatus}</b> by ${caller?.email}.<br><br>`
+      const syncStatus = autoSync ? 'ENABLED' : 'DISABLED' // fixed words, no escaping needed
+      let message = `Auto-Sync with system clock has been <b>${syncStatus}</b> by ${escapeHtml(caller?.email)}.<br><br>`
 
       if (!autoSync) {
         message += `The active term has been manually set to:<br>`
-        message += `<ul><li><b>Semester:</b> ${semester}</li><li><b>Academic Year:</b> ${academicYear}</li></ul>`
+        message += `<ul><li><b>Semester:</b> ${escapeHtml(semester)}</li><li><b>Academic Year:</b> ${escapeHtml(academicYear)}</li></ul>`
       }
 
       await fetch('https://api.brevo.com/v3/smtp/email', {
