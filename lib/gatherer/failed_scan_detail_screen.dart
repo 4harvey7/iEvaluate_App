@@ -450,10 +450,18 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   Future<void> _submit() async {
     setState(() => _isSubmitting = true);
     try {
-      final scores = <String, int>{};
+      // A blank cell is an unanswered question and is sent as null (the key
+      // is kept, value null). It must never become 0: a 0 would be averaged
+      // in and drag the instructor's mean down. Only 1..5 is a real answer.
+      int? rating(String key) {
+        final v = int.tryParse(_scoreCtrlMap[key]?.text.trim() ?? '');
+        return (v != null && v >= 1 && v <= 5) ? v : null;
+      }
+
+      final scores = <String, int?>{};
       for (int i = 1; i <= 10; i++) {
-        scores['m$i'] = int.tryParse(_scoreCtrlMap['m$i']?.text ?? '') ?? 0;
-        scores['p$i'] = int.tryParse(_scoreCtrlMap['p$i']?.text ?? '') ?? 0;
+        scores['m$i'] = rating('m$i');
+        scores['p$i'] = rating('p$i');
       }
 
       final payload = <String, dynamic>{

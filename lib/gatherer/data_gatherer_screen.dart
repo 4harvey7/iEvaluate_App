@@ -296,7 +296,8 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       final todayData = await _supabase
           .from('sast_all_raw_data_survey')
           .select('id')
-          .gte('created_at', startOfDay);
+          .gte('created_at', startOfDay)
+          .count(CountOption.exact); // server-side count, no 1000-row cap
 
       // Overall filtered by current term — if no term yet, get all
       var overallQuery = _supabase
@@ -308,13 +309,13 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           _currentTermId!,
         ); // filter by term
       }
-      final overallData = await overallQuery;
+      final overallData = await overallQuery.count(CountOption.exact);
 
       if (mounted) {
         setState(() {
-          _entriesToday = (todayData as List).length; // count of today's rows
+          _entriesToday = todayData.count; // count of today's rows
           _overallSurveyCount =
-              (overallData as List).length; // count for whole term
+              overallData.count; // count for whole term
           // The database only knows about scans it has already ingested. Scans
           // still sitting in the local queue were taken but are not in that
           // count yet, so adding them back keeps the gatherer's progress from

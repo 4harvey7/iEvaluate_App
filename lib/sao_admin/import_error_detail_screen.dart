@@ -263,12 +263,26 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
       // start with original raw data and overwrite scores if they were edited
       final correctedRawData = Map<String, dynamic>.from(_rawData);
       if (!_isSheet) {
-        // parse each score field — invalid or empty values default to 0
+        // parse each score field. An empty cell is an unanswered question and
+        // is sent as null (key kept, value null) -- never 0, which would be
+        // averaged in as a real rating. Anything outside 1..5 is not a valid
+        // answer and is treated the same way.
+        int? rating(String key) {
+          final v = int.tryParse(_scoreCtrlMap[key]?.text.trim() ?? '');
+          return (v != null && v >= 1 && v <= 5) ? v : null;
+        }
+
         for (int i = 1; i <= 10; i++) {
-          correctedRawData['m$i'] =
-              int.tryParse(_scoreCtrlMap['m$i']?.text.trim() ?? '') ?? 0;
-          correctedRawData['p$i'] =
-              int.tryParse(_scoreCtrlMap['p$i']?.text.trim() ?? '') ?? 0;
+          correctedRawData['m$i'] = rating('m$i');
+          correctedRawData['p$i'] = rating('p$i');
+          // raw_data may also carry the uppercase keys n8n writes (M1, P1).
+          // Keep them in step so a stale original value is not read instead.
+          if (correctedRawData.containsKey('M$i')) {
+            correctedRawData['M$i'] = correctedRawData['m$i'];
+          }
+          if (correctedRawData.containsKey('P$i')) {
+            correctedRawData['P$i'] = correctedRawData['p$i'];
+          }
         }
       }
 
@@ -971,8 +985,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
           keyboardType: TextInputType.number, // number keyboard — dili text
           textAlign: TextAlign.center, // center the digit in the cell
           inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,   // only allow numbers
-            LengthLimitingTextInputFormatter(1),       // max 1 digit — score is 0-9
+            FilteringTextInputFormatter.allow(RegExp(r'[1-5]')), // ratings are 1-5; leave blank for no answer
+            LengthLimitingTextInputFormatter(1),       // max 1 digit
           ],
           decoration: InputDecoration(
             labelText: key.toUpperCase(), // label like "M1", "P5"

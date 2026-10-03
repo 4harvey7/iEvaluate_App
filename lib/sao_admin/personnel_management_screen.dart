@@ -203,21 +203,35 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
       final today = DateTime.now();
       final startOfDay = DateTime(today.year, today.month, today.day).toUtc().toIso8601String();
 
-      final all = await _supabase
-          .from('sast_all_raw_data_survey')
-          .select('created_at')
-          .eq('sao_staff_id', userId);
-      totalScans = (all as List).length;
+      // Server-side exact counts (a plain select is capped at 1000 rows).
+      PostgrestFilterBuilder<PostgrestList> termQ() {
+        var q = _supabase.from('sast_all_raw_data_survey').select('id').eq('sao_staff_id', userId);
+        if (termId != null) q = q.eq('term_id', termId);
+        return q;
+      }
 
-      var termQ = _supabase.from('sast_all_raw_data_survey').select('created_at').eq('sao_staff_id', userId);
-      if (termId != null) termQ = termQ.eq('term_id', termId);
-      final termRows = await termQ;
-      termScans = (termRows as List).length;
-      todayScans = termRows.where((r) => (r['created_at'] as String? ?? '').compareTo(startOfDay) >= 0).length;
+      final results = await Future.wait<dynamic>([
+        _supabase
+            .from('sast_all_raw_data_survey')
+            .select('id')
+            .eq('sao_staff_id', userId)
+            .count(CountOption.exact),
+        termQ().count(CountOption.exact),
+        termQ().gte('created_at', startOfDay).count(CountOption.exact),
+        _supabase
+            .from('sast_all_raw_data_survey')
+            .select('created_at')
+            .eq('sao_staff_id', userId)
+            .order('created_at', ascending: false)
+            .limit(1),
+      ]);
+      totalScans = (results[0] as PostgrestResponse).count;
+      termScans = (results[1] as PostgrestResponse).count;
+      todayScans = (results[2] as PostgrestResponse).count;
 
-      if (all.isNotEmpty) {
-        final sorted = all.map((r) => r['created_at'] as String).toList()..sort((a, b) => b.compareTo(a));
-        lastUpload = sorted.first;
+      final latest = results[3] as List;
+      if (latest.isNotEmpty) {
+        lastUpload = latest.first['created_at'] as String;
       }
     } catch (e) { debugPrint('PersonnelModal error: $e'); }
 

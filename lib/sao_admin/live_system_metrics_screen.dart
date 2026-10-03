@@ -81,27 +81,30 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
   Future<void> _loadAiAccuracy() async {
     try {
       // 1. Processed surveys from sast_all_raw_data_survey
-      var query = _supabase
-          .from('sast_all_raw_data_survey')
-          .select('id, validation_status, manually_corrected, term_id');
-      if (_currentTermId != null) {
-        // Include records matching current term or unassigned term (null)
-        query = query.or('term_id.eq.$_currentTermId,term_id.is.null');
-      }
-      final rows = await query;
-
-      // tally up auto vs corrected
-      int auto = 0, corrected = 0;
-      for (final r in (rows as List)) {
-        final status = (r['validation_status']?.toString() ?? '').toLowerCase().trim();
-        final isManuallyCorrected = r['manually_corrected'] == true;
-
-        if (status == 'corrected' || isManuallyCorrected) {
-          corrected++;
-        } else {
-          auto++; // clean auto-processed
+      // Server-side exact counts (a plain select is capped at 1000 rows).
+      PostgrestFilterBuilder<PostgrestList> rawQuery() {
+        var query = _supabase.from('sast_all_raw_data_survey').select('id');
+        if (_currentTermId != null) {
+          // Include records matching current term or unassigned term (null)
+          query = query.or('term_id.eq.$_currentTermId,term_id.is.null');
         }
+        return query;
       }
+
+      // corrected = manually_corrected is true, OR validation_status is 'corrected'
+      // (case-insensitive); everything else is auto. The two corrected
+      // queries are disjoint so they can be summed.
+      final counts = await Future.wait([
+        rawQuery().count(CountOption.exact),
+        rawQuery().eq('manually_corrected', true).count(CountOption.exact),
+        rawQuery()
+            .not('manually_corrected', 'is', true)
+            .ilike('validation_status', 'corrected')
+            .count(CountOption.exact),
+      ]);
+      final total = counts[0].count;
+      final corrected = counts[1].count + counts[2].count;
+      final auto = total - corrected; // clean auto-processed
 
       // 2. Pending scans awaiting manual review in failed_scan_queue
       int manual = 0;
@@ -113,8 +116,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
         if (_currentTermId != null) {
           pendingQuery = pendingQuery.or('term_id.eq.$_currentTermId,term_id.is.null');
         }
-        final pendingRows = await pendingQuery;
-        manual = (pendingRows as List).length;
+        final pendingRes = await pendingQuery.count(CountOption.exact);
+        manual = pendingRes.count;
       } catch (e) {
         debugPrint('loadAiAccuracy pending review query error: $e');
       }

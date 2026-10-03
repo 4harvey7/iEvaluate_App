@@ -10,6 +10,7 @@ import '../widgets/apple_ui.dart';
 import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/sast_rating.dart';
 
 // Faculty roster widget — shows all instructors in this dept
 // Stateful because we fetch data and let user search/sort
@@ -236,10 +237,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                 : null;
 
             // Calculate trend: up/down/flat based on 0.1-point threshold
-            final currentScore = (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
-            final prevScore = (prevSurvey?['combined_score_mean'] as num?)?.toDouble() ?? (prevSurvey?['overall_mean'] as num?)?.toDouble() ?? 0.0;
+            // Stored values; null = no answers (never treated as 0).
+            final double? currentScore = SastRating.parse(survey?['combined_score_mean']) ?? SastRating.parse(survey?['overall_mean']);
+            final double? prevScore = SastRating.parse(prevSurvey?['combined_score_mean']) ?? SastRating.parse(prevSurvey?['overall_mean']);
             String trend;
-            if (prevSurvey == null || prevScore == 0.0) {
+            if (currentScore == null || prevScore == null) {
               trend = 'flat';
             } else if (currentScore - prevScore > 0.1) {
               trend = 'up';
@@ -267,10 +269,10 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               'university_id': f['university_id']?.toString() ?? '', // Carried through so the SAST report header can show it
               'title': roleByUserId[instructorId] ?? 'Instructor', // Role from separate lookup
               'department': deptName,
-              'score': (survey?['combined_score_mean'] as num?)?.toDouble() ?? (survey?['overall_mean'] as num?)?.toDouble() ?? 0.0,
-              'mgmt_score': (survey?['management_mean'] as num?)?.toDouble() ?? 0.0,
-              'perf_score': (survey?['performance_mean'] as num?)?.toDouble() ?? 0.0,
-              'evals': survey?['total_responses'] ?? 0,
+              'score': currentScore,
+              'mgmt_score': SastRating.parse(survey?['management_mean']),
+              'perf_score': SastRating.parse(survey?['performance_mean']),
+              'evals': SastRating.parseInt(survey?['total_responses']) ?? 0,
               'trend': trend,
               'account_status': status,
               'is_active': isActive,
@@ -311,10 +313,19 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     }).toList();
 
     // Apply the selected sort order — user can pick from dropdown
+    // Faculty with no results yet (score null) always sort last, either way.
+    int byScore(Map<String, dynamic> a, Map<String, dynamic> b, {required bool desc}) {
+      final double? sa = a['score'] as double?;
+      final double? sb = b['score'] as double?;
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return desc ? sb.compareTo(sa) : sa.compareTo(sb);
+    }
     if (_sortBy == 'Score (Highest to Lowest)') {
-      filtered.sort((a, b) => b['score'].compareTo(a['score'])); // Best to worst
+      filtered.sort((a, b) => byScore(a, b, desc: true)); // Best to worst
     } else if (_sortBy == 'Score (Lowest to Highest)') {
-      filtered.sort((a, b) => a['score'].compareTo(b['score'])); // Worst to best — intervention mode
+      filtered.sort((a, b) => byScore(a, b, desc: false)); // Worst to best — intervention mode
     } else if (_sortBy == 'Name (A-Z)') {
       filtered.sort((a, b) => a['name'].compareTo(b['name'])); // Alphabetical — old school
     }
@@ -377,7 +388,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     return Row(
       children: [
         // Score chip — red if below 3.0 (bad), dark if okay
-        Expanded(child: _statCard('Overall Score', '${instructor['score']}', instructor['score'] >= 3.0 ? AppColors.textPrimary : AppColors.error)),
+        Expanded(child: _statCard('Overall Score', SastRating.format(instructor['score'] as double?), ((instructor['score'] as double?) ?? 5.0) >= 3.0 ? AppColors.textPrimary : AppColors.error)),
         const SizedBox(width: 16),
         // Total evaluations — just a count, always in dark color
         Expanded(child: _statCard('Total Evals', '${instructor['evals']}', AppColors.textPrimary)),
@@ -593,7 +604,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                 itemBuilder: (context, index) {
                   final faculty = roster[index];
                   // Flag low performers with a red border — so dean know who to worry about
-                  bool isLowPerformer = faculty['score'] < 3.0;
+                  // No results yet (null) is not a low score.
+                  final double? facultyScore = faculty['score'] as double?;
+                  bool isLowPerformer = facultyScore != null && facultyScore < 3.0;
 
                   return Card(
                     color: AppColors.surface,
@@ -702,7 +715,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                                     const SizedBox(width: 4),
                                     // The score number — big and colored based on pass/fail threshold
                                     Text(
-                                      '${faculty['score']}',
+                                      SastRating.format(facultyScore),
                                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isLowPerformer ? AppColors.error : AppColors.textPrimary),
                                     ),
                                   ],
