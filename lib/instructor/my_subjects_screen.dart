@@ -13,6 +13,7 @@ import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/sast_rating.dart';
 
 // StatefulWidget because it needs to load term data before showing anything useful
 class MySubjectsScreen extends StatefulWidget {
@@ -111,21 +112,12 @@ class _MySubjectsScreenState extends State<MySubjectsScreen>
             return _buildEmptyState();
           }
 
-          // Use true term average if available, otherwise fallback to unweighted average
-          double termAverage = 0.0;
-          if (provider.trueTermAverage != null && provider.trueTermAverage! > 0) {
-            termAverage = provider.trueTermAverage!;
-          } else {
-            double totalMean = 0;
-            int count = 0;
-            for (var s in subjects) {
-              if (s.overallMean > 0) { // skip subjects with no score yet
-                totalMean += s.overallMean;
-                count++;
-              }
-            }
-            termAverage = count > 0 ? totalMean / count : 0.0;
-          }
+          // The term figure is the stored combined_score_mean from
+          // overall_total_survey (pooled over all subjects, blanks excluded).
+          // It is never rebuilt here by averaging subject means: that gave a
+          // different number from the one on the official report. Null means
+          // no results yet and is shown as such, not as 0.
+          final double? termAverage = provider.trueTermAverage;
 
           return RefreshIndicator(
             onRefresh: () => provider.load(termId: _currentTermId), // pull to reload subjects
@@ -164,7 +156,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen>
 
   // Builds the summary header card at the top of the list — shows term average and subject count.
   // The color of the verbal description badge changes based on the average score.
-  Widget _buildSummaryHeader(double average, int totalSubjects) {
+  Widget _buildSummaryHeader(double? average, int totalSubjects) {
     final color = Subject.getScoreColor(average); // green = good, red = time to reflect
     
     return Container(
@@ -247,7 +239,7 @@ class _MySubjectsScreenState extends State<MySubjectsScreen>
                   children: [
                     // Big average number — the main KPI of this screen
                     Text(
-                      average > 0 ? average.toStringAsFixed(2) : 'N/A',
+                      SastRating.format(average, empty: 'N/A'),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 36,

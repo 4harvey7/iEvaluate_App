@@ -3,6 +3,7 @@
 // talks to supabase, crunches numbers, returns summaries. importente kaayo.
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../utils/sast_rating.dart';
 
 // holds the summary stats for a whole department -- overall score, means, totals, etc.
 // murag the final report card of the department, but for deans to look at
@@ -232,9 +233,11 @@ List<Map<String, dynamic>> averagePerTerm(
       continue;
     }
 
-    final overall = (row['combined_score_mean'] as num?)?.toDouble() ??
-        (row['overall_mean'] as num?)?.toDouble() ??
-        0.0;
+    // An instructor with no answers this term has a NULL score. Skip them:
+    // counting them as 0 dragged the department average down for nothing.
+    final overall = SastRating.parse(row['combined_score_mean']) ??
+        SastRating.parse(row['overall_mean']);
+    if (overall == null) continue;
 
     final bucket = grouped.putIfAbsent(
       termId,
@@ -471,8 +474,9 @@ class EvaluationService {
               .from('sast_all_raw_data_survey')
               .select('id')
               .eq('term_id', termId)
-              .filter('instructor_ID', 'in', rosterFacultyIds);
-          formsScanned = (rawRows as List).length;
+              .filter('instructor_ID', 'in', rosterFacultyIds)
+              .count(CountOption.exact); // server-side count, no 1000-row cap
+          formsScanned = rawRows.count;
         } catch (e) {
           // Non-fatal, and it fails low rather than high: fall back to the
           // aggregated count so the card never claims more than it can show.
@@ -506,47 +510,44 @@ class EvaluationService {
       }
 
       final list = stats as List;
-      double totalOverall = 0;
-      double totalMgmt = 0;
-      double totalPerf = 0;
+      final overallScores = <double?>[];
+      final mgmtScores = <double?>[];
+      final perfScores = <double?>[];
       int totalResponses = 0;
 
-      // loop through each faculty record and accumulate the totals
+      // Collect each faculty member's STORED values. combined_score_mean is
+      // already (mgmt + perf) / 2 with one-null-means-the-other, so there is
+      // no Dart patch for it any more. A null (nobody answered) is skipped in
+      // the averages below instead of being counted as 0.
       for (var row in list) {
-        double mgmt = (row['management_mean'] as num?)?.toDouble() ?? 0.0;
-        double perf = (row['performance_mean'] as num?)?.toDouble() ?? 0.0;
-        double overall = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-
-        // Fallback logic if the generated column is 0.0 but component means exist
-        if (overall == 0.0 && (mgmt > 0 || perf > 0)) {
-          overall = double.parse(((mgmt + perf) / 2).toStringAsFixed(2)); // average of two components
-        }
-
-        totalOverall += overall;
-        totalMgmt += mgmt;
-        totalPerf += perf;
-        totalResponses += (row['total_responses'] as num?)?.toInt() ?? 0;
+        mgmtScores.add(SastRating.parse(row['management_mean']));
+        perfScores.add(SastRating.parse(row['performance_mean']));
+        overallScores.add(SastRating.parse(row['combined_score_mean']) ??
+            SastRating.parse(row['overall_mean']));
+        totalResponses += SastRating.parseInt(row['total_responses']) ?? 0;
       }
 
-      final count = list.length; // faculty who actually have results this term
+      // Faculty who actually have a score this term.
+      final count = overallScores.whereType<double>().length;
 
       // Completion is measured against the whole roster, not against the
       // people already scanned. Dividing by `count` meant one instructor with
       // 25 responses read as 100% complete for a department of twenty.
       // 25 responses is the assumed full class -- dili guarantee accurate.
       final expectedResponses =
-          (activeFacultyCount > 0 ? activeFacultyCount : count) * 25.0;
+          (activeFacultyCount > 0 ? activeFacultyCount : list.length) * 25.0;
       final calculatedRate = expectedResponses > 0
           ? (totalResponses / expectedResponses).clamp(0.0, 1.0)
           : 0.0;
 
-      // The means stay averaged over `count`. Treating an unscanned instructor
-      // as a zero would be worse than leaving them out -- but evaluatedCount
-      // travels with the result so the dashboard can say which it is.
+      // Each mean is averaged over the faculty who HAVE that value. Treating an
+      // unscanned instructor as a zero would be worse than leaving them out --
+      // but evaluatedCount travels with the result so the dashboard can say
+      // which it is. 0 here only ever means "no data" (hasNoData / > 0 checks).
       return EvaluationSummary(
-        averageScore: double.parse((totalOverall / count).toStringAsFixed(2)),
-        managementMean: double.parse((totalMgmt / count).toStringAsFixed(2)),
-        performanceMean: double.parse((totalPerf / count).toStringAsFixed(2)),
+        averageScore: SastRating.averageOfPresent(overallScores) ?? 0,
+        managementMean: SastRating.averageOfPresent(mgmtScores) ?? 0,
+        performanceMean: SastRating.averageOfPresent(perfScores) ?? 0,
         totalEvaluations: totalResponses,
         completionRate: double.parse(calculatedRate.toStringAsFixed(2)),
         // rosterFacultyIds -- active accounts, plus anyone deactivated who still
@@ -682,16 +683,18 @@ class EvaluationService {
     if ((data as List).isEmpty) return {}; // nothing in db, return empty
 
     final list = data as List;
-    double sum = 0;
+    final scores = <double?>[];
     int totalResp = 0;
     for (var row in list) {
-      sum += (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;    // accumulate score
-      totalResp += (row['total_responses'] as num?)?.toInt() ?? 0;          // accumulate responses
+      scores.add(_scoreOf(Map<String, dynamic>.from(row as Map))); // stored score, null = no answers
+      totalResp += SastRating.parseInt(row['total_responses']) ?? 0; // accumulate responses
     }
 
     return {
-      'avgScore': sum / list.length,       // average score across all instructors
-      'totalInstructors': list.length,     // how many instructors have data
+      // Average over instructors that HAVE a score; null ones are skipped,
+      // not counted as 0. Null when nobody has a score yet.
+      'avgScore': SastRating.averageOfPresent(scores),
+      'totalInstructors': scores.whereType<double>().length, // how many instructors have data
       'totalResponses': totalResp,         // total student responses school-wide
     };
   }
@@ -741,7 +744,8 @@ class EvaluationService {
         deptName = deptNameData['d_name'] ?? 'Unknown';
       }
       
-      final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
+      final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+      if (score == null) continue; // no answers yet -- skip, never count as 0
       deptScores.putIfAbsent(deptName, () => []).add(score); // add score to that dept's list
     }
 
@@ -755,12 +759,13 @@ class EvaluationService {
     }).toList();
   }
 
-  // The score every figure in this class is built from: combined_score_mean,
-  // with overall_mean standing in only while the performance half is missing.
-  static double _scoreOf(Map<String, dynamic> row) =>
-      (row['combined_score_mean'] as num?)?.toDouble() ??
-      (row['overall_mean'] as num?)?.toDouble() ??
-      0.0;
+  // The score every figure in this class is built from: the stored
+  // combined_score_mean, with overall_mean standing in for older rows.
+  // Null = the instructor has no answers this term; callers skip it rather
+  // than treating it as 0.
+  static double? _scoreOf(Map<String, dynamic> row) =>
+      SastRating.parse(row['combined_score_mean']) ??
+      SastRating.parse(row['overall_mean']);
 
   // get the top 10 instructors by overall score for the active term.
   // sorted descending so the best comes first. deans like to see who on top.
@@ -807,8 +812,11 @@ class EvaluationService {
     // instructors whose combined score belonged in the ten before Dart ever saw
     // the row, and left the survivors out of order. PostgREST cannot express
     // the coalesce, so the sort happens here, over one term's rows.
+    // Instructors with no score yet cannot be ranked, so they are left out.
     final ranked = List<Map<String, dynamic>>.from(data as List)
-      ..sort((a, b) => _scoreOf(b).compareTo(_scoreOf(a)));
+        .where((row) => _scoreOf(row) != null)
+        .toList()
+      ..sort((a, b) => _scoreOf(b)!.compareTo(_scoreOf(a)!));
     final top = ranked.take(10).toList();
 
     // ── Batch-fetch previous term scores for trend comparison ────────────────
@@ -827,8 +835,9 @@ class EvaluationService {
 
         for (final row in prevData as List) {
           final id = row['instructor_id'] as String?;
-          if (id != null) {
-            prevScores[id] = _scoreOf(Map<String, dynamic>.from(row as Map));
+          final prev = _scoreOf(Map<String, dynamic>.from(row as Map));
+          if (id != null && prev != null) {
+            prevScores[id] = prev;
           }
         }
       }
@@ -859,10 +868,10 @@ class EvaluationService {
 
       // ── Real trend: compare current score vs previous term ─────────────────
       // Threshold of 0.1 — anything smaller is noise, not a real change.
-      final currentScore = _scoreOf(row);
-      final prevScore = prevScores[row['instructor_id'] as String] ?? 0.0;
+      final currentScore = _scoreOf(row)!; // ranked rows all have a score
+      final prevScore = prevScores[row['instructor_id'] as String];
       final String trend;
-      if (prevScore == 0.0) {
+      if (prevScore == null) {
         trend = 'flat'; // no previous term data to compare — dont guess
       } else if (currentScore - prevScore > 0.1) {
         trend = 'up'; // improved by more than 0.1 — genuine increase
@@ -913,7 +922,9 @@ class EvaluationService {
       return (semOrder[aSemKey] ?? 99).compareTo(semOrder[bSemKey] ?? 99);
     });
 
-    return rows.map((row) {
+    // A term with no answers has no score to chart; it is left out rather
+    // than drawn as 0.
+    return rows.where((row) => _scoreOf(row) != null).map((row) {
       final term = row['academic_terms'] as Map?;
       // Build compact label: "1st\n25-26"
       String label = 'Term';
@@ -930,7 +941,7 @@ class EvaluationService {
       }
       return {
         'sem': label,
-        'score': (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
+        'score': _scoreOf(row)!,
       };
     }).toList();
   }
@@ -964,10 +975,12 @@ class EvaluationService {
       }
       
       if (subject == null) return null; // no subject data, skip
+      final score = SastRating.parse(row['overall_management_mean']);
+      if (score == null) return null; // no answers yet -- nothing to plot, not a 0
 
       return {
         'name': '${subject['subject_code']} - ${subject['subject_name']}', // formatted subject label
-        'score': (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0,
+        'score': score,
       };
     }).whereType<Map<String, dynamic>>().toList(); // remove nulls
   }
@@ -1069,11 +1082,12 @@ class EvaluationService {
       }
 
       // Create a map for quick performance lookup: "instructorId_subjectId" -> mean
-      // key combines instructor and subject so we can find it fast by two IDs
-      final Map<String, double> perfMap = {};
+      // key combines instructor and subject so we can find it fast by two IDs.
+      // Null = nobody answered the performance half (kept null, not 0).
+      final Map<String, double?> perfMap = {};
       for (var p in (perfResults as List)) {
-        perfMap['${p['instructor_id']}_${p['subject_id']}'] = 
-            (p['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+        perfMap['${p['instructor_id']}_${p['subject_id']}'] =
+            SastRating.parse(p['overall_performance_mean']);
       }
 
       final Map<String, List<Map<String, dynamic>>> groupedBySubject = {}; // group rows by subject code
@@ -1127,12 +1141,14 @@ class EvaluationService {
             processedSubIds.add(subId);
           }
 
-          double mgmt = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-          double perf = perfMap['${instId}_$subId'] ?? 0.0; // look up perf from our map
+          final double? mgmt = SastRating.parse(row['overall_management_mean']);
+          final double? perf = perfMap['${instId}_$subId']; // look up perf from our map
 
-          // combine mgmt and perf into one score; if no perf data just use mgmt alone
-          double combinedScore = double.parse(((mgmt + perf) / 2).toStringAsFixed(2));
-          if (perf == 0.0) combinedScore = mgmt; // fallback: no perf data so use mgmt only
+          // Per-subject overall from the two stored means, same rule as the
+          // backend's combined_score_mean: ROUND((mgmt + perf) / 2, 2), one
+          // null -> the other. No stored per-subject combined value exists.
+          // Both null = no answers for this class: skip it, don't count a 0.
+          final double? combinedScore = SastRating.combine(mgmt, perf);
 
           // handle instructor name from join -- same List/Map handling, again
           final userInfoRaw = row['instructor'];
@@ -1149,9 +1165,13 @@ class EvaluationService {
           final responses = (row['total_responses'] as num?)?.toInt() ?? 0;
 
           instructorNames[instId] = iName; // store name for this instructor
-          instructorScores.putIfAbsent(instId, () => []).add(combinedScore);
           instructorResponses[instId] = (instructorResponses[instId] ?? 0) + responses;
+          if (combinedScore == null) continue; // no answers -- not a 0
+          instructorScores.putIfAbsent(instId, () => []).add(combinedScore);
         }
+
+        // Nobody in this subject has a score yet -- nothing to report.
+        if (instructorScores.isEmpty) continue;
 
         // build the per-instructor breakdown objects for this subject
         final List<SubjectInstructorPerformance> breakdowns = instructorScores.entries.map((e) {
@@ -1286,10 +1306,11 @@ class EvaluationService {
         for (var row in (stats as List)) {
           final userInfo = row['user_info'];
           final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
-          final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-          
-          // Strict filter: only flag if strictly below threshold (3.0) and > 0
-          if (score > 0 && score < threshold) {
+          final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+
+          // Strict filter: only flag a real score strictly below the threshold
+          // (3.0). No score (null) is "no data", never a low score.
+          if (score != null && score < threshold) {
             alerts.add(ActionAlert(
               type: 'Performance',
               title: 'Low Performance Alert',
@@ -1374,9 +1395,11 @@ class EvaluationService {
       
       for (var row in (historyData as List)) {
         final iId = row['instructor_id'] as String;
-        final score = (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0;
-        
-        instructorHistory.putIfAbsent(iId, () => []).add(score);
+        // Terms without a score (no answers) are not strikes and are skipped.
+        final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+        if (score != null) {
+          instructorHistory.putIfAbsent(iId, () => []).add(score);
+        }
         
         if (!instructorNamesForHistory.containsKey(iId)) {
           final userInfo = row['user_info'];
@@ -1533,8 +1556,9 @@ class EvaluationService {
 
     final instructorName = '${instructorData['first_name']} ${instructorData['last_name']}'; // combine names
 
-    // insert the intervention report into the database
-    await _supabase.from('intervention_reports').insert({
+    // insert the intervention report into the database, and get its id back
+    // so the email function can load the saved row instead of trusting us
+    final inserted = await _supabase.from('intervention_reports').insert({
       'instructor_id': instructorId,
       'instructor_name': instructorName,  // store name denormalized so it persist even if user renamed
       'dean_id': deanId,
@@ -1542,15 +1566,20 @@ class EvaluationService {
       'notes': notes,
       'status': 'Pending', // starts as Pending, dean can resolve later
       'term_id': termId,
-    });
+    }).select('id').single();
 
     // Trigger email notification to the instructor via the Edge Function.
     // Non-critical: wrapped in try/catch so a failed email does not block the report.
     // basin email server down, dili ta let it ruin the whole thing
+    //
+    // The function builds the email only from the row with this report_id.
+    // 'record' is kept so a function deployed before this change still works;
+    // the new function uses it only as a lookup fallback, never as content.
     try {
       await _supabase.functions.invoke(
         'send-intervention-email',
         body: {
+          'report_id': inserted['id'],
           'record': {
             'instructor_id': instructorId,
             'dean_id': deanId,

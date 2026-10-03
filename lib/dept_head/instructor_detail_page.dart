@@ -10,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../instructor/detailed_report_screen.dart';
 import '../instructor/models/subject.dart';
 import '../widgets/apple_ui.dart';
+import '../core/utils/sast_rating.dart';
 
 /// Full-page view of an individual instructor, opened from the Faculty Roster.
 /// Shows: current-term score card, historical trend bar chart,
@@ -186,9 +187,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         // Add to chart data — includes label, overall score, mgmt, perf, and current flag
         history.add(_TermScore(
           label: label,
-          score: (row['combined_score_mean'] as num?)?.toDouble() ?? (row['overall_mean'] as num?)?.toDouble() ?? 0.0,
-          mgmt: (row['management_mean'] as num?)?.toDouble() ?? 0.0,
-          perf: (row['performance_mean'] as num?)?.toDouble() ?? 0.0,
+          // Stored values; null = no answers that term (drawn as an empty stub).
+          score: SastRating.parse(row['combined_score_mean']) ?? SastRating.parse(row['overall_mean']),
+          mgmt: SastRating.parse(row['management_mean']),
+          perf: SastRating.parse(row['performance_mean']),
           isCurrent: termId == widget.currentTermId, // Highlight current term bar in the chart
           termInfo: row['academic_terms'] as Map?, // store for sorting
         ));
@@ -242,8 +244,32 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             .eq('term_id', widget.currentTermId)
             .eq('subjects.department_id', headDeptId);
 
+        // The matching stored performance means, so a tile's overall is
+        // (Management + Performance) / 2 and not the management half alone.
+        final perfBySubject = <String, double?>{};
+        final mgmtSubjectIds = (mgmtRows as List)
+            .map((r) => r['subject_id']?.toString())
+            .whereType<String>()
+            .toList();
+        if (mgmtSubjectIds.isNotEmpty) {
+          try {
+            final perfRows = await _supabase
+                .from('performance_results')
+                .select('subject_id, overall_performance_mean')
+                .eq('instructor_id', instructorId)
+                .eq('term_id', widget.currentTermId)
+                .filter('subject_id', 'in', mgmtSubjectIds);
+            for (final r in (perfRows as List)) {
+              final sid = r['subject_id']?.toString();
+              if (sid != null) perfBySubject[sid] = SastRating.parse(r['overall_performance_mean']);
+            }
+          } catch (e) {
+            debugPrint('InstructorDetailPage: performance_results lookup failed: $e');
+          }
+        }
+
         // Map the management_results rows into Subject objects
-        for (final row in (mgmtRows as List)) {
+        for (final row in mgmtRows) {
           final s = row['subjects'];
           if (s == null) continue; // Skip if no subject data joined — dili ta add nulls
           subjects.add(Subject.fromJson({
@@ -251,8 +277,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             'subject_code': s['subject_code'] ?? 'N/A',
             'subject_name': s['subject_name'] ?? 'Subject',
             'created_at': s['created_at'] ?? DateTime.now().toIso8601String(),
-            'management_mean': row['overall_management_mean'], // At least we have management score
-            'performance_mean': null, // Performance not in this table — wala choice
+            'management_mean': SastRating.parse(row['overall_management_mean']),
+            'performance_mean': perfBySubject[row['subject_id']?.toString()],
           }));
         }
       }
@@ -324,40 +350,34 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 
   // ─── helpers ────────────────────────────────────────────────────────────────
 
-  // Returns a color based on the score value — like a traffic light for performance
-  // Green = great, blue = good, dark = okay, orange = meh, red = bad
-  Color _scoreColor(double score) {
-    if (score >= 4.20) return AppColors.success; // Outstanding — green light
-    if (score >= 3.40) return AppColors.primary; // Very Satisfactory — blue
-    if (score >= 2.60) return AppColors.textPrimary; // Satisfactory — neutral dark
-    if (score >= 1.80) return AppColors.warning; // Fair — orange, watch out
-    if (score > 0) return AppColors.error; // Unsatisfactory — red, dean needs to act
-    return AppColors.textSecondary; // No data — gray, literally wala pa
-  }
+  // Colour, label and thresholds all come from SastRating so this page, the
+  // instructor's own screens and the PDF agree (4.20 / 3.40 / 2.60 / 1.80,
+  // compared on the 2-decimal value). Null = no data.
+  Color _scoreColor(double? score) => SastRating.color(score);
 
   // Same bands as _scoreColor, but for the dark hero gradient at the top of
   // this page. _scoreColor's Satisfactory band is textPrimary (near-black) and
   // its Very Satisfactory band is `primary` -- which is heroGradient's own end
   // stop. Both vanish into the header they are painted on.
-  Color _scoreColorOnHero(double score) {
-    if (score >= 4.20) return AppColors.onHeroOutstanding;
-    if (score >= 3.40) return AppColors.onHeroGood;
-    if (score >= 2.60) return AppColors.onHeroNeutral;
-    if (score >= 1.80) return AppColors.onHeroFair;
-    if (score > 0) return AppColors.onHeroPoor;
-    return AppColors.textInvertedDim; // No data
+  Color _scoreColorOnHero(double? score) {
+    switch (SastRating.code(score)) {
+      case 'O':
+        return AppColors.onHeroOutstanding;
+      case 'VS':
+        return AppColors.onHeroGood;
+      case 'S':
+        return AppColors.onHeroNeutral;
+      case 'F':
+        return AppColors.onHeroFair;
+      case 'US':
+        return AppColors.onHeroPoor;
+      default:
+        return AppColors.textInvertedDim; // No data
+    }
   }
 
-  // Returns a verbal description of the score — what does the number actually mean
-  // Used in the score badge and subject tiles so it readable not just a number
-  String _verbalDesc(double score) {
-    if (score >= 4.20) return 'Outstanding'; // The best — rare but beautiful
-    if (score >= 3.40) return 'Very Satisfactory'; // Good — dean can relax
-    if (score >= 2.60) return 'Satisfactory'; // Okay — nothing alarming
-    if (score >= 1.80) return 'Fair'; // Borderline — monitor closely
-    if (score > 0) return 'Unsatisfactory'; // Below acceptable — intervention time
-    return 'No data'; // No evaluations yet — cannot judge fairly
-  }
+  // Verbal description of the score, e.g. "Very Satisfactory", or "No data".
+  String _verbalDesc(double? score) => SastRating.verbal(score);
 
   // ─── build ───────────────────────────────────────────────────────────────────
 
@@ -366,7 +386,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   @override
   Widget build(BuildContext context) {
     final instructor = widget.instructor;
-    final score = (instructor['score'] as num?)?.toDouble() ?? 0.0;
+    final double? score = SastRating.parse(instructor['score']);
     final name = instructor['name'] as String? ?? 'Instructor';
     final title = instructor['title'] as String? ?? 'Faculty';
     final dept = instructor['department'] as String? ?? '';
@@ -434,7 +454,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                               child: Column(
                                 children: [
                                   Text(
-                                    score > 0 ? score.toStringAsFixed(2) : '—', // Show dash if no score
+                                    SastRating.format(score), // Show dash if no score
                                     style: TextStyle(color: _scoreColorOnHero(score), fontSize: 22, fontWeight: FontWeight.bold),
                                   ),
                                   // Verbal desc below the number — e.g. "Outstanding"
@@ -491,8 +511,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // Row of three chips: Management score, Performance score, and Evaluation count
   // Side by side — compact and readable at a glance
   Widget _buildScoreRow(Map<String, dynamic> instructor) {
-    final mgmt = (instructor['mgmt_score'] as num?)?.toDouble() ?? 0.0;
-    final perf = (instructor['perf_score'] as num?)?.toDouble() ?? 0.0;
+    final mgmt = SastRating.parse(instructor['mgmt_score']);
+    final perf = SastRating.parse(instructor['perf_score']);
     final evals = (instructor['evals'] as num?)?.toInt() ?? 0;
     return Row(
       children: [
@@ -523,7 +543,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 
   // A single score chip — colored number on top, label below
   // Color adapts based on the score value — red if bad, green if good
-  Widget _scoreChip(String label, double score) {
+  Widget _scoreChip(String label, double? score) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(14),
@@ -535,7 +555,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         child: Column(
           children: [
             Text(
-              score > 0 ? score.toStringAsFixed(2) : '—', // Show dash if score is zero (no data)
+              SastRating.format(score), // Show dash if there is no data
               style: TextStyle(color: _scoreColor(score), fontSize: 20, fontWeight: FontWeight.bold),
             ),
             Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
@@ -566,9 +586,9 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                 termId: widget.currentTermId,
                 term: _termMeta?['semester'] ?? 'N/A', // Semester name for the report header
                 academicYear: _termMeta?['academic_year'] ?? 'N/A',
-                managementScore: (instructor['mgmt_score'] as num?)?.toDouble() ?? 0.0,
-                performanceScore: (instructor['perf_score'] as num?)?.toDouble() ?? 0.0,
-                overallScore: (instructor['score'] as num?)?.toDouble() ?? 0.0,
+                managementScore: SastRating.parse(instructor['mgmt_score']),
+                performanceScore: SastRating.parse(instructor['perf_score']),
+                overallScore: SastRating.parse(instructor['score']),
                 totalEvaluations: (instructor['evals'] as num?)?.toInt() ?? 0,
               ),
             ),
@@ -937,7 +957,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: _history.map((ts) {
                       // Bar height is proportional to score out of 5.0
-                      final barH = (ts.score / 5.0) * 120.0;
+                      final double? tsScore = ts.score;
+                      final barH = tsScore == null ? 0.0 : (tsScore / 5.0) * 120.0;
                       // Current term = blue, older terms = faded gray
                       final color = ts.isCurrent ? AppColors.primary : AppColors.textSecondary.withValues(alpha: 0.4);
                       return Expanded(
@@ -948,7 +969,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                             children: [
                               // Score label on top of each bar — small text
                               Text(
-                                ts.score > 0 ? ts.score.toStringAsFixed(2) : '—',
+                                SastRating.format(tsScore),
                                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ts.isCurrent ? AppColors.primary : AppColors.textSecondary),
                               ),
                               const SizedBox(height: 4),
@@ -956,7 +977,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                               AnimatedContainer(
                                 duration: const Duration(milliseconds: 600), // Smooth animation
                                 curve: Curves.easeOut,
-                                height: ts.score > 0 ? barH.clamp(8.0, 120.0) : 4.0, // Min 8px so bar is visible even for low scores
+                                height: tsScore != null ? barH.clamp(8.0, 120.0) : 4.0, // Min 8px so bar is visible even for low scores
                                 decoration: BoxDecoration(
                                   color: color,
                                   borderRadius: BorderRadius.circular(6),
@@ -1040,8 +1061,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   // instructor's own screen; the head reads the summary here.
   Widget _buildSubjectTile(Subject subject) {
     // Check if we have a score for this subject — basin wala pa evaluation for it
-    final hasScore = subject.managementMean != null || subject.performanceMean != null;
-    final score = hasScore ? subject.overallMean : 0.0;
+    final double? score = subject.overallMean;
+    final hasScore = score != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1089,7 +1110,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(score.toStringAsFixed(2), style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(SastRating.format(score), style: TextStyle(color: _scoreColor(score), fontWeight: FontWeight.bold, fontSize: 16)),
                 Text(subject.verbalDescription, style: TextStyle(color: _scoreColor(score), fontSize: 10)), // e.g. "Very Satisfactory"
               ],
             ),
@@ -1104,9 +1125,9 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 /// dili pwede just use a Map — this is cleaner and type-safe.
 class _TermScore {
   final String label;    // Short label shown under the bar chart — e.g. "1st\n25-26"
-  final double score;    // Overall score for this term
-  final double mgmt;     // Management score — separate tracking
-  final double perf;     // Performance score — separate tracking
+  final double? score;   // Overall score for this term (null = no answers)
+  final double? mgmt;    // Management score — separate tracking
+  final double? perf;    // Performance score — separate tracking
   final bool isCurrent;  // If true, this term's bar is highlighted in primary color
   final Map? termInfo;   // Raw academic_terms map — used only for sorting, not displayed
 

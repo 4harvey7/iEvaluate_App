@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../models/subject.dart';
 import '../../widgets/apple_ui.dart';
+import '../../core/utils/sast_rating.dart';
 
 class SubjectCard extends StatelessWidget {
   final Subject subject;
@@ -64,12 +65,12 @@ class SubjectCard extends StatelessWidget {
                 children: [
                   _buildMiniMetric(
                     Icons.settings_suggest_outlined,
-                    'Management ${subject.managementMean?.toStringAsFixed(2) ?? "N/A"}',
+                    'Management ${SastRating.format(subject.managementMean)}',
                     AppColors.primary,
                   ),
                   _buildMiniMetric(
                     Icons.psychology_outlined,
-                    'Performance ${subject.performanceMean?.toStringAsFixed(2) ?? "N/A"}',
+                    'Performance ${SastRating.format(subject.performanceMean)}',
                     AppColors.success,
                   ),
                 ],
@@ -81,7 +82,7 @@ class SubjectCard extends StatelessWidget {
     );
   }
 
-  Widget _buildScoreBadge(double score) {
+  Widget _buildScoreBadge(double? score) {
     Color color = Subject.getScoreColor(score);
 
     return Container(
@@ -94,14 +95,14 @@ class SubjectCard extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            score > 0 ? score.toStringAsFixed(2) : 'N/A',
+            SastRating.format(score, empty: 'N/A'),
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: color,
               fontSize: 14,
             ),
           ),
-          if (score > 0)
+          if (score != null)
             Text(
               Subject.getVDCode(score),
               style: TextStyle(

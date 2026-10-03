@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../core/utils/sast_rating.dart';
 
 
 class ManageDepartmentsScreen extends StatefulWidget {
@@ -795,22 +796,20 @@ class _DepartmentDetailSheetState extends State<_DepartmentDetailSheet> {
 
         for (final s in (scores as List)) {
           final id = s['instructor_id'] as String?;
-          final overall = (s['combined_score_mean'] as num?)?.toDouble() ?? (s['overall_mean'] as num?)?.toDouble() ?? 0.0;
-          final mgmt =
-              (s['management_mean'] as num?)?.toDouble() ?? 0.0;
-          final perf =
-              (s['performance_mean'] as num?)?.toDouble() ?? 0.0;
-          final evalsCount = (s['total_responses'] as int?) ?? 0;
+          // The stored combined_score_mean is the instructor's score; it is
+          // not rebuilt from management/performance here. Null (no answers)
+          // becomes this screen's 0.0 "no data" value and is left out of the
+          // department average below, never counted as a 0 score.
+          final double? stored = SastRating.parse(s['combined_score_mean']) ??
+              SastRating.parse(s['overall_mean']);
+          final evalsCount = SastRating.parseInt(s['total_responses']) ?? 0;
+          final computedScore = stored ?? 0.0;
 
-          final computedScore = overall > 0
-              ? overall
-              : (mgmt > 0 || perf > 0)
-                  ? (mgmt + perf) / 2
-                  : 0.0;
-
-          totalScore += computedScore;
           totalEvals += evalsCount;
-          if (computedScore > 0) scoreCount++;
+          if (stored != null) {
+            totalScore += stored;
+            scoreCount++;
+          }
 
           // The head is not in `instructors`, so their own score has to be
           // picked up here or it goes into the department average unseen.

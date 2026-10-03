@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subject.dart';
+import '../../core/utils/sast_rating.dart';
 
 /// Loads subjects for the current instructor+term via the instructor_subjects
 /// junction table (2NF schema). Scores come from management_results /
@@ -209,43 +210,16 @@ class SubjectsProvider extends ChangeNotifier {
         final mgmt = mgmtBySubjectId[id];
         final perf = perfBySubjectId[id];
 
-        double mMean =
-            (mgmt?['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-        double pMean =
-            (perf?['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
-        int totalResponses =
-            (mgmt?['total_responses'] as num?)?.toInt() ??
-            (perf?['total_responses'] as num?)?.toInt() ??
+        // Stored means only (blank answers already excluded by the backend).
+        // Null = nobody answered that category yet; it is kept null instead
+        // of being turned into 0 or rebuilt from raw forms, so the card shows
+        // "N/A" rather than a fake 0.00.
+        final double? mMean = SastRating.parse(mgmt?['overall_management_mean']);
+        final double? pMean = SastRating.parse(perf?['overall_performance_mean']);
+        final int totalResponses =
+            SastRating.parseInt(mgmt?['total_responses']) ??
+            SastRating.parseInt(perf?['total_responses']) ??
             0;
-
-        // Fallback to raw data if no pre-computed results
-        if (mMean == 0.0 && pMean == 0.0) {
-          try {
-            final rawRows = await supabase
-                .from('sast_all_raw_data_survey')
-                .select(
-                  'm1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10',
-                )
-                .eq('subject_id', id)
-                .eq('instructor_ID', userId)
-                .eq('term_id', activeTermId);
-
-            if ((rawRows as List).isNotEmpty) {
-              double mSum = 0, pSum = 0;
-              for (var row in rawRows) {
-                for (int i = 1; i <= 10; i++) {
-                  mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
-                  pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
-                }
-              }
-              mMean = mSum / (rawRows.length * 10);
-              pMean = pSum / (rawRows.length * 10);
-              totalResponses = rawRows.length;
-            }
-          } catch (e) {
-            debugPrint('[SubjectsProvider] Raw fallback error for $code: $e');
-          }
-        }
 
         debugPrint(
           '[SubjectsProvider] $code mgmt=$mMean perf=$pMean n=$totalResponses',

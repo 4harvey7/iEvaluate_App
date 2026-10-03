@@ -4,6 +4,7 @@ import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/sast_rating.dart';
 
 class DetailedReportScreen extends StatefulWidget {
   final String userId;
@@ -13,9 +14,10 @@ class DetailedReportScreen extends StatefulWidget {
   final String department;
   final String term;
   final String academicYear;
-  final double managementScore;
-  final double performanceScore;
-  final double overallScore;
+  // Null = no stored result yet (shown as "—", never as 0.00).
+  final double? managementScore;
+  final double? performanceScore;
+  final double? overallScore;
   final int totalEvaluations;
 
   const DetailedReportScreen({
@@ -27,9 +29,9 @@ class DetailedReportScreen extends StatefulWidget {
     required this.department,
     required this.term,
     required this.academicYear,
-    this.managementScore = 0.0,
-    this.performanceScore = 0.0,
-    this.overallScore = 0.0,
+    this.managementScore,
+    this.performanceScore,
+    this.overallScore,
     this.totalEvaluations = 0,
   });
 
@@ -45,14 +47,23 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   bool _isGeneratingPdf = false;
   String? _aiSuggestion;
   String _summaryText = 'Loading analysis...';
-  final List<double> _managementMeans = List.filled(10, 0.0);
-  final List<double> _performanceMeans = List.filled(10, 0.0);
+  // Stored per-question means (overall_question_means). Null = nobody
+  // answered that question; it is never filled in as 0.
+  final List<double?> _managementMeans = List<double?>.filled(10, null);
+  final List<double?> _performanceMeans = List<double?>.filled(10, null);
+  // How many forms answered each question (response_count, migration 013).
+  // Null on rows written before that column existed -- then the
+  // "(x of y answered)" note is simply left out.
+  final List<int?> _managementCounts = List<int?>.filled(10, null);
+  final List<int?> _performanceCounts = List<int?>.filled(10, null);
+  // True once the term has a stored result row or any question means.
+  bool _hasResults = false;
   List<Map<String, dynamic>> _wordCloudData = [];
 
   // State variables for summary metrics
-  late double _mgmtScore;
-  late double _perfScore;
-  late double _overallScore;
+  late double? _mgmtScore;
+  late double? _perfScore;
+  late double? _overallScore;
   late int _totalEvals;
 
   @override
@@ -86,9 +97,12 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
       }
 
       // 2. Prepare queries with MANDATORY term filtering
+      // select('*') rather than an explicit list: response_count only exists
+      // once migration 013 is applied, and naming a missing column makes
+      // PostgREST reject the whole request.
       final questionQuery = _supabase
           .from('overall_question_means')
-          .select('category, question_number, mean_score')
+          .select('*')
           .eq('instructor_id', widget.userId)
           .eq('term_id', effectiveTermId);
       
@@ -117,105 +131,65 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
         summaryQuery.order('created_at', ascending: false).limit(1).maybeSingle(),
       ]);
 
-      List data = (results[0] as List?) ?? [];
+      final List data = (results[0] as List?) ?? [];
       final words = (results[1] as List?) ?? [];
       final aiData = results[2] as Map<String, dynamic>?;
       final summaryData = results[3] as Map<String, dynamic>?;
 
-      // FALLBACK: If summary tables are empty, calculate directly from RAW data
-      if (data.isEmpty && effectiveTermId != null) {
-        debugPrint('Summary tables empty for term $effectiveTermId. Calculating directly from RAW data...');
-        try {
-          final rawResults = await _supabase
-              .from('sast_all_raw_data_survey')
-              .select()
-              .eq('instructor_ID', widget.userId)
-              .eq('term_id', effectiveTermId);
-          
-          if (rawResults.isNotEmpty) {
-            List<Map<String, dynamic>> fallbackData = [];
-            int totalResp = rawResults.length;
-            
-            // Calculate Management Means (M1-M10)
-            double mgmtSum = 0;
-            for (int i = 1; i <= 10; i++) {
-              double qSum = 0;
-              for (var row in rawResults) {
-                qSum += double.tryParse(row['m$i']?.toString() ?? '0') ?? 0;
-              }
-              double qMean = qSum / totalResp;
-              mgmtSum += qMean;
-              fallbackData.add({'category': 'Management', 'question_number': i, 'mean_score': qMean});
-            }
-            _mgmtScore = mgmtSum / 10;
-
-            // Calculate Performance Means (P1-P10)
-            double perfSum = 0;
-            for (int i = 1; i <= 10; i++) {
-              double qSum = 0;
-              for (var row in rawResults) {
-                qSum += double.tryParse(row['p$i']?.toString() ?? '0') ?? 0;
-              }
-              double qMean = qSum / totalResp;
-              perfSum += qMean;
-              fallbackData.add({'category': 'Performance', 'question_number': i, 'mean_score': qMean});
-            }
-            _perfScore = perfSum / 10;
-            
-            _overallScore = (_mgmtScore + _perfScore) / 2;
-            _totalEvals = totalResp;
-            data = fallbackData;
-          }
-        } catch (e) {
-          debugPrint('Raw fallback calculation failed: $e');
-        }
-      }
-
+      // No fallback that recomputes means from sast_all_raw_data_survey: it
+      // counted blank answers as 0 and divided by every form. The report shows
+      // the stored values or says there are no results yet.
       debugPrint('Fetched ${data.length} question means for user: ${widget.userId}');
 
       if (mounted) {
         setState(() {
+          // Reset first so a term switch never keeps the previous term's means.
+          for (var i = 0; i < 10; i++) {
+            _managementMeans[i] = null;
+            _performanceMeans[i] = null;
+            _managementCounts[i] = null;
+            _performanceCounts[i] = null;
+          }
+
           for (var row in data) {
             final cat = row['category'];
             final qNumRaw = row['question_number'];
             final qNum = (qNumRaw is int ? qNumRaw : int.tryParse(qNumRaw.toString()) ?? 0) - 1;
-            
-            // Extremely robust parsing for numeric strings or numbers
-            final rawScore = row['mean_score'];
-            double score = 0.0;
-            if (rawScore is num) {
-              score = rawScore.toDouble();
-            } else if (rawScore != null) {
-              score = double.tryParse(rawScore.toString()) ?? 0.0;
-            }
-            
+
+            // Numbers or numeric strings; null (nobody answered) stays null.
+            final score = SastRating.parse(row['mean_score']);
+            final answered = SastRating.parseInt(row['response_count']);
+
             if (cat == 'Management' && qNum >= 0 && qNum < 10) {
               _managementMeans[qNum] = score;
+              _managementCounts[qNum] = answered;
             } else if (cat == 'Performance' && qNum >= 0 && qNum < 10) {
               _performanceMeans[qNum] = score;
+              _performanceCounts[qNum] = answered;
             }
           }
-          
+
           _wordCloudData = List<Map<String, dynamic>>.from(words);
           _aiSuggestion = aiData?['ai_suggestion'];
           _summaryText = _aiSuggestion ?? "No significant trends identified for this period.";
 
+          // The summary row is the source of truth for this term: Management,
+          // Performance and Overall exactly as stored. Without a row there is
+          // nothing to show (not 0.00).
           if (summaryData != null) {
             debugPrint('Found summary data: $summaryData');
-            final ms = double.tryParse(summaryData['management_mean']?.toString() ?? '');
-            if (ms != null) _mgmtScore = ms;
-            
-            final ps = double.tryParse(summaryData['performance_mean']?.toString() ?? '');
-            if (ps != null) _perfScore = ps;
-
-            final ts = summaryData['total_responses'] as int?;
-            if (ts != null) _totalEvals = ts;
-            
-            final os = double.tryParse(summaryData['combined_score_mean']?.toString() ?? '') 
-                ?? double.tryParse(summaryData['overall_mean']?.toString() ?? '') 
-                ?? 0.0;
-            _overallScore = os;
+            _mgmtScore = SastRating.parse(summaryData['management_mean']);
+            _perfScore = SastRating.parse(summaryData['performance_mean']);
+            _totalEvals = SastRating.parseInt(summaryData['total_responses']) ?? 0;
+            _overallScore = SastRating.parse(summaryData['combined_score_mean']) ??
+                SastRating.parse(summaryData['overall_mean']);
+          } else {
+            _mgmtScore = null;
+            _perfScore = null;
+            _overallScore = null;
+            _totalEvals = 0;
           }
+          _hasResults = summaryData != null || data.isNotEmpty;
 
           _isLoading = false;
         });
@@ -259,29 +233,6 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     }
   }
 
-  String getVerbalDescription(double score) {
-    if (score >= 4.20) return 'Outstanding';
-    if (score >= 3.40) return 'Very Satisfactory';
-    if (score >= 2.60) return 'Satisfactory';
-    if (score >= 1.80) return 'Fair';
-    return 'Unsatisfactory';
-  }
-
-  String getVDCode(double score) {
-    if (score >= 4.20) return 'O';
-    if (score >= 3.40) return 'VS';
-    if (score >= 2.60) return 'S';
-    if (score >= 1.80) return 'F';
-    return 'US';
-  }
-
-  Color getVDColor(double score) {
-    if (score >= 4.20) return AppColors.success;
-    if (score >= 3.40) return AppColors.primary;
-    if (score >= 1.80) return AppColors.warning;
-    return AppColors.error;
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -300,6 +251,12 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
       ),
       body: _isLoading
           ? const AppleLoadingState(label: 'Preparing official report…')
+          : !_hasResults
+          ? const AppleEmptyState(
+              icon: Icons.assessment_outlined,
+              title: 'No evaluation results yet',
+              message: 'Results for this term will appear here once evaluation forms have been processed.',
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -309,9 +266,9 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
                   const Divider(height: 32),
                   _buildSummaryTable(),
                   const SizedBox(height: 24),
-                  _buildCriteriaSection('I. Management', _managementCriteria, _mgmtScore, _managementMeans),
+                  _buildCriteriaSection('I. Management', _managementCriteria, _mgmtScore, _managementMeans, _managementCounts),
                   const SizedBox(height: 24),
-                  _buildCriteriaSection('II. Performance', _performanceCriteria, _perfScore, _performanceMeans),
+                  _buildCriteriaSection('II. Performance', _performanceCriteria, _perfScore, _performanceMeans, _performanceCounts),
                   const SizedBox(height: 32),
                   _buildCommentsSection(),
                   const SizedBox(height: 32),
@@ -440,21 +397,21 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     );
   }
 
-  Widget _buildSummaryCell(double score) {
+  Widget _buildSummaryCell(double? score) {
     return TableCell(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
           children: [
-            Text(score.toStringAsFixed(2), style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(getVDCode(score), style: TextStyle(color: getVDColor(score), fontWeight: FontWeight.bold)),
+            Text(SastRating.format(score), style: const TextStyle(fontWeight: FontWeight.bold)),
+            Text(SastRating.code(score), style: TextStyle(color: SastRating.color(score), fontWeight: FontWeight.bold)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCriteriaSection(String title, List<String> criteria, double sectionMean, List<double> questionMeans) {
+  Widget _buildCriteriaSection(String title, List<String> criteria, double? sectionMean, List<double?> questionMeans, List<int?> answeredCounts) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -486,13 +443,28 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
               ],
             ),
             ...criteria.asMap().entries.map((entry) {
-              double score = questionMeans[entry.key];
+              final double? score = questionMeans[entry.key];
+              // "2 of 3 answered": per-question count vs. forms for the term.
+              final answered = SastRating.answeredLabel(answeredCounts[entry.key], _totalEvals);
               return TableRow(
                 children: [
                   TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text('${entry.key + 1}', style: const TextStyle(fontSize: 10)))),
                   TableCell(child: Padding(padding: EdgeInsets.all(8), child: Text(entry.value, style: const TextStyle(fontSize: 10)))),
-                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(score.toStringAsFixed(2), style: const TextStyle(fontSize: 10))))),
-                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(getVDCode(score), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: getVDColor(score)))))),
+                  TableCell(
+                    child: Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Column(
+                          children: [
+                            Text(SastRating.format(score), style: const TextStyle(fontSize: 10)),
+                            if (answered != null)
+                              Text(answered, textAlign: TextAlign.center, style: const TextStyle(fontSize: 8, color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  TableCell(child: Center(child: Padding(padding: EdgeInsets.all(8), child: Text(SastRating.code(score), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: SastRating.color(score)))))),
                 ],
               );
             }),
@@ -502,7 +474,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           padding: const EdgeInsets.all(8),
           alignment: Alignment.centerRight,
           child: Text(
-            'Section Mean: ${sectionMean.toStringAsFixed(2)} (${getVerbalDescription(sectionMean)})',
+            'Section Mean: ${SastRating.format(sectionMean)} (${SastRating.verbal(sectionMean)})',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
           ),
         ),

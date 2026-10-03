@@ -120,13 +120,27 @@ void main() {
       expect(result.single['score'], 3.7);
     });
 
-    test('both null reads as zero rather than throwing', () {
+    test('both null is skipped, not counted as zero', () {
+      // No answers = NULL score. Counting it as 0 dragged the department
+      // average down; it must simply not take part.
+      final result = averagePerTerm(
+        [
+          row(term: 'A', instructor: 'ana'),
+          row(term: 'A', instructor: 'ben', combined: 4.0),
+        ],
+        membership: {'A|ana', 'A|ben'},
+      );
+
+      expect(result.single['score'], 4.0);
+    });
+
+    test('a term where nobody has a score yields no point', () {
       final result = averagePerTerm(
         [row(term: 'A', instructor: 'ana')],
         membership: {'A|ana'},
       );
 
-      expect(result.single['score'], 0.0);
+      expect(result, isEmpty);
     });
 
     test('scores are rounded to two decimals', () {

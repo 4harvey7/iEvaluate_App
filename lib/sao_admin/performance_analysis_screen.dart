@@ -11,6 +11,7 @@ import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/controller_disposer.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/sast_rating.dart';
 
 // outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
@@ -142,7 +143,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
         setState(() {
           // getGlobalStats() returns {avgScore, totalInstructors, totalResponses}
           _overviewStats = {
-            'overall': (globalStats['avgScore'] as double? ?? 0.0).toStringAsFixed(2), // round to 2 decimals
+            'overall': SastRating.format(globalStats['avgScore'] as double?, empty: 'N/A'), // 2 decimals; N/A when nobody has a score
             'totalEvals': '${globalStats['totalResponses'] ?? 0}', // total survey responses
           };
           _topInstructors = topInstructors; // sorted list of instructor performances
@@ -389,7 +390,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                           mainAxisAlignment: MainAxisAlignment.end,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar
+                                            Text(SastRating.format(data['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar (2 decimals)
                                             const SizedBox(height: 8),
                                             Container(
                                               width: barWidth,
@@ -429,7 +430,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                           decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                                          child: Text('${subject['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)), // score badge
+                                          child: Text(SastRating.format(subject['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)), // score badge
                                         ),
                                       ],
                                     ),
@@ -603,7 +604,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text('${instructor.overallScore}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)), // the score number
+                                  Text(SastRating.format(instructor.overallScore), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)), // the score number
                                 ],
                               ),
                             ),

@@ -11,6 +11,7 @@ import 'detailed_report_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/sast_rating.dart';
 
 // StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
@@ -123,10 +124,11 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
               ? '${termData['semester']} ${termData['academic_year']}'
               : 'Unknown Term', // fallback if academic_terms join is null
           'created_at': termData?['created_at'] ?? item['created_at'] ?? '',
-          'overallScore': (item['combined_score_mean'] as num?)?.toDouble() ?? (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
-          'managementScore': (item['management_mean'] as num?)?.toDouble() ?? 0.0,
-          'performanceScore': (item['performance_mean'] as num?)?.toDouble() ?? 0.0,
-          'evaluations': (item['total_responses'] as int?) ?? 0,
+          // Stored values; null = no answers (shown as "—", never 0.00).
+          'overallScore': SastRating.parse(item['combined_score_mean']) ?? SastRating.parse(item['overall_mean']),
+          'managementScore': SastRating.parse(item['management_mean']),
+          'performanceScore': SastRating.parse(item['performance_mean']),
+          'evaluations': SastRating.parseInt(item['total_responses']) ?? 0,
         };
       }
 
@@ -209,10 +211,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
         return;
       }
 
-      // Build lookup maps: subject_id → subject metadata, and subject_code → list of IDs
-      // Multiple IDs per code because same subject can have multiple sections
+      // Build lookup map: subject_id → subject metadata (one card per subject row)
       final Map<String, Map<String, dynamic>> subjectById = {};
-      final Map<String, List<String>> codeToIds = {};
       for (var row in subjectsList) {
         final subjectData = row['subjects'];
         if (subjectData == null) continue;
@@ -223,7 +223,6 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
         final code = s['subject_code']?.toString();
         if (id == null || code == null) continue;
         subjectById.putIfAbsent(id, () => s);
-        codeToIds.putIfAbsent(code, () => []).add(id); // group sections by subject code
       }
 
       final validSubjectIds = subjectById.keys.toList();
@@ -266,86 +265,22 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
         }
       }
 
-      // 3. Build subject list — one entry per unique subject_code.
-      //    Aggregate across sections (weighted by total_responses).
-      // This ensures that if a subject has 2 sections, we combine them properly.
+      // 3. Build subject list — one entry per subject row, showing that row's
+      //    stored means as-is (blank answers already excluded by the backend).
+      //    Sections are no longer blended into a weighted average in Dart, and
+      //    there is no raw-form fallback (it counted blanks as 0). A subject
+      //    with no stored result keeps null means and shows "N/A".
       List<Map<String, dynamic>> processed = [];
 
-      for (var entry in codeToIds.entries) {
-        final code = entry.key;
-        final ids = entry.value;
-        final meta = subjectById[ids.first]!; // use first section's metadata for display
+      for (var entry in subjectById.entries) {
+        final id = entry.key;
+        final meta = entry.value;
+        final code = meta['subject_code']?.toString() ?? id;
 
-        // Weighted sum for management — weight each section by its number of responses
-        double mWeightedSum = 0, pWeightedSum = 0;
-        int mTotal = 0, pTotal = 0;
+        final double? mMean = SastRating.parse(bestMgmt[id]?['overall_management_mean']);
+        final double? pMean = SastRating.parse(bestPerf[id]?['overall_performance_mean']);
 
-        for (var id in ids) {
-          final mgmt = bestMgmt[id];
-          if (mgmt != null) {
-            final n = (mgmt['total_responses'] as num?)?.toInt() ?? 0;
-            final mean = (mgmt['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-            mWeightedSum += mean * n; // weighted contribution
-            mTotal += n;
-          }
-          final perf = bestPerf[id];
-          if (perf != null) {
-            final n = (perf['total_responses'] as num?)?.toInt() ?? 0;
-            final mean = (perf['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
-            pWeightedSum += mean * n;
-            pTotal += n;
-          }
-        }
-
-        // Final weighted average for this subject code
-        double mMean = mTotal > 0 ? mWeightedSum / mTotal : 0.0;
-        double pMean = pTotal > 0 ? pWeightedSum / pTotal : 0.0;
-
-        // Fallback to raw data if no pre-computed results — bahala na last resort
-        if (mMean == 0.0 && pMean == 0.0) {
-          debugPrint('[PastSemesters] No precomputed data for $code in $termId, using raw...');
-          final rawData = await _supabase
-              .from('sast_all_raw_data_survey')
-              .select('m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10')
-              .filter('subject_id', 'in', ids)
-              .eq('instructor_ID', widget.userId)
-              .eq('term_id', termId);
-
-          if ((rawData as List).isNotEmpty) {
-            double mSum = 0, pSum = 0;
-            // Sum all 10 management and 10 performance columns across all rows
-            for (var row in rawData) {
-              for (int i = 1; i <= 10; i++) {
-                mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
-                pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
-              }
-            }
-            // Divide by (total rows * 10 questions) to get mean per question
-            mMean = mSum / (rawData.length * 10);
-            pMean = pSum / (rawData.length * 10);
-          }
-        }
-
-        // Debug logs — very verbose, but helpful when things go wrong
-        debugPrint('[PastSemesters] ─────────────────────────────────');
-        debugPrint('[PastSemesters] Subject: $code | Term: $termId');
-        debugPrint('[PastSemesters]   Subject IDs (this term): $ids');
-        for (var id in ids) {
-          final mg = bestMgmt[id];
-          final pf = bestPerf[id];
-          debugPrint('[PastSemesters]   subj_id=$id');
-          if (mg != null) {
-            debugPrint('[PastSemesters]     mgmt: overall=${mg["overall_management_mean"]} | responses=${mg["total_responses"]} | created=${mg["created_at"]}');
-          } else {
-            debugPrint('[PastSemesters]     mgmt: NO ROW FOUND');
-          }
-          if (pf != null) {
-            debugPrint('[PastSemesters]     perf: overall=${pf["overall_performance_mean"]} | responses=${pf["total_responses"]} | created=${pf["created_at"]}');
-          } else {
-            debugPrint('[PastSemesters]     perf: NO ROW FOUND');
-          }
-        }
-        debugPrint('[PastSemesters]   FINAL → mgmt=$mMean | perf=$pMean');
+        debugPrint('[PastSemesters] Subject: $code ($id) | Term: $termId → mgmt=$mMean | perf=$pMean');
 
         // Add the processed subject to our result list
         processed.add({
@@ -443,9 +378,9 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                         // Parse semester and academic year from combined string
                         term: _semesterOf(termData['semester']?.toString()),
                         academicYear: _academicYearOf(termData['semester']?.toString()),
-                        managementScore: (termData['managementScore'] as num?)?.toDouble() ?? 0.0,
-                        performanceScore: (termData['performanceScore'] as num?)?.toDouble() ?? 0.0,
-                        overallScore: (termData['overallScore'] as num?)?.toDouble() ?? 0.0,
+                        managementScore: SastRating.parse(termData['managementScore']),
+                        performanceScore: SastRating.parse(termData['performanceScore']),
+                        overallScore: SastRating.parse(termData['overallScore']),
                         totalEvaluations: (termData['evaluations'] as int?) ?? 0,
                       )));
                     },
@@ -552,9 +487,10 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: _historicalData.map((data) {
-                      double score = (data['overallScore'] as num?)?.toDouble() ?? 0.0;
-                      // Bar height proportional to score out of 5 — max 120px
-                      double h = (score / 5.0) * 120;
+                      final double? score = SastRating.parse(data['overallScore']);
+                      // Bar height proportional to score out of 5 — max 120px.
+                      // A term with no answers (null) keeps the minimum stub, labelled "—".
+                      final double h = score == null ? 0 : (score / 5.0) * 120;
                       bool isSel = data['termId'] == _selectedTermId; // highlight selected term
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -565,7 +501,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                             SizedBox(
                               width: 44,
                               child: Text(
-                                score.toStringAsFixed(2),
+                                SastRating.format(score),
                                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.visible,

@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import '../evaluation_service.dart';
+import '../../utils/sast_rating.dart';
 
 class PdfService {
   // ─────────────────────────────────────────────────────────
@@ -204,12 +205,13 @@ class PdfService {
     required String department,
     required String term,
     required String academicYear,
-    required double mgmtScore,
-    required double perfScore,
-    required double overallScore,
+    // Stored values; null = no answers (printed as "—", never as 0.00).
+    required double? mgmtScore,
+    required double? perfScore,
+    required double? overallScore,
     required int totalEvals,
-    required List<double> managementMeans,
-    required List<double> performanceMeans,
+    required List<double?> managementMeans,
+    required List<double?> performanceMeans,
     required String aiSuggestion,
     required List<Map<String, dynamic>> wordCloudData,
   }) async {
@@ -317,7 +319,7 @@ class PdfService {
     );
   }
 
-  pw.Widget _pwSummaryTable(int n, double mgmt, double perf, double overall) {
+  pw.Widget _pwSummaryTable(int n, double? mgmt, double? perf, double? overall) {
     return pw.Table(
       border: pw.TableBorder.all(),
       children: [
@@ -333,16 +335,16 @@ class PdfService {
         pw.TableRow(
           children: [
             pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('$n', style: const pw.TextStyle(fontSize: 10)))),
-            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(mgmt.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
-            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(perf.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
-            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(overall.toStringAsFixed(2), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
+            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(SastRating.format(mgmt), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
+            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(SastRating.format(perf), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
+            pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(SastRating.format(overall), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)))),
           ],
         ),
       ],
     );
   }
 
-  pw.Widget _pwCriteriaSection(String title, List<String> criteria, double sectionMean, List<double> questionMeans) {
+  pw.Widget _pwCriteriaSection(String title, List<String> criteria, double? sectionMean, List<double?> questionMeans) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -371,13 +373,13 @@ class PdfService {
               ],
             ),
             ...criteria.asMap().entries.map((entry) {
-              double score = questionMeans.length > entry.key ? questionMeans[entry.key] : 0.0;
+              final double? score = questionMeans.length > entry.key ? questionMeans[entry.key] : null;
               return pw.TableRow(
                 children: [
                   pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text('${entry.key + 1}', style: const pw.TextStyle(fontSize: 8))),
                   pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(entry.value, style: const pw.TextStyle(fontSize: 8))),
-                  pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(score.toStringAsFixed(2), style: const pw.TextStyle(fontSize: 8)))),
-                  pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(_getVDCode(score), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)))),
+                  pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(SastRating.format(score), style: const pw.TextStyle(fontSize: 8)))),
+                  pw.Center(child: pw.Padding(padding: const pw.EdgeInsets.all(4), child: pw.Text(SastRating.code(score), style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)))),
                 ],
               );
             }),
@@ -387,7 +389,7 @@ class PdfService {
           padding: const pw.EdgeInsets.all(4),
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
-            'Section Mean: ${sectionMean.toStringAsFixed(2)} (${_getVerbalDescription(sectionMean)})',
+            'Section Mean: ${SastRating.format(sectionMean)} (${SastRating.verbal(sectionMean)})',
             style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9),
           ),
         ),
@@ -395,10 +397,12 @@ class PdfService {
     );
   }
 
-  pw.Widget _pwCommentsSection(String aiSuggestion, List<Map<String, dynamic>> wordCloudData, double mgmt, double perf, double overall) {
+  pw.Widget _pwCommentsSection(String aiSuggestion, List<Map<String, dynamic>> wordCloudData, double? mgmt, double? perf, double? overall) {
     final summaryText = aiSuggestion.isNotEmpty
         ? aiSuggestion
-        : "Integrated ratings (Management = ${mgmt.toStringAsFixed(2)}, Performance = ${perf.toStringAsFixed(2)}, Overall = ${overall.toStringAsFixed(2)}, all ${_getVerbalDescription(overall)}) reflect a positive overall evaluation.";
+        : overall == null
+            ? 'No evaluation results yet.'
+            : "Integrated ratings (Management = ${SastRating.format(mgmt)}, Performance = ${SastRating.format(perf)}, Overall = ${SastRating.format(overall)}, ${SastRating.verbal(overall)}).";
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -438,8 +442,9 @@ class PdfService {
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
         pw.Text('RANGE & Verbal Description (VD):', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-        pw.Text('4.21 - 5.00 : Outstanding (O)  |  3.41 - 4.20 : Very Satisfactory (VS)  |  2.61 - 3.40 : Satisfactory (S)', style: const pw.TextStyle(fontSize: 7)),
-        pw.Text('1.81 - 2.60 : Fair (F)  |  1.00 - 1.80 : Unsatisfactory (US)', style: const pw.TextStyle(fontSize: 7)),
+        // Same bands as the app (SastRating): 4.20 / 3.40 / 2.60 / 1.80.
+        pw.Text('4.20 - 5.00 : Outstanding (O)  |  3.40 - 4.19 : Very Satisfactory (VS)  |  2.60 - 3.39 : Satisfactory (S)', style: const pw.TextStyle(fontSize: 7)),
+        pw.Text('1.80 - 2.59 : Fair (F)  |  1.00 - 1.79 : Unsatisfactory (US)', style: const pw.TextStyle(fontSize: 7)),
       ],
     );
   }
@@ -468,22 +473,6 @@ class PdfService {
         ),
       ],
     );
-  }
-
-  String _getVerbalDescription(double score) {
-    if (score >= 4.21) return 'Outstanding';
-    if (score >= 3.41) return 'Very Satisfactory';
-    if (score >= 2.61) return 'Satisfactory';
-    if (score >= 1.81) return 'Fair';
-    return 'Unsatisfactory';
-  }
-
-  String _getVDCode(double score) {
-    if (score >= 4.21) return 'O';
-    if (score >= 3.41) return 'VS';
-    if (score >= 2.61) return 'S';
-    if (score >= 1.81) return 'F';
-    return 'US';
   }
 
   static const List<String> _managementCriteria = [

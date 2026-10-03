@@ -5,6 +5,7 @@ import 'models/subject.dart';
 import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
+import '../core/utils/sast_rating.dart';
 
 class TermSubjectsScreen extends StatefulWidget {
   final String userId;
@@ -78,15 +79,16 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
             .filter('subject_id', 'in', validSubjectIds),
       ]);
 
-      final Map<String, double> mgmtMap = {};
+      // Stored means only; null (nobody answered) stays null, never 0.
+      final Map<String, double?> mgmtMap = {};
       for (var row in (results[0] as List)) {
         final sid = row['subject_id']?.toString();
-        if (sid != null) mgmtMap[sid] = (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
+        if (sid != null) mgmtMap[sid] = SastRating.parse(row['overall_management_mean']);
       }
-      final Map<String, double> perfMap = {};
+      final Map<String, double?> perfMap = {};
       for (var row in (results[1] as List)) {
         final sid = row['subject_id']?.toString();
-        if (sid != null) perfMap[sid] = (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
+        if (sid != null) perfMap[sid] = SastRating.parse(row['overall_performance_mean']);
       }
 
       // 3. Build subject list
@@ -94,29 +96,10 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       for (var entry in subjectById.entries) {
         final id = entry.key;
         final meta = entry.value;
-        double mMean = mgmtMap[id] ?? 0.0;
-        double pMean = perfMap[id] ?? 0.0;
-
-        // Fallback to raw if no pre-computed
-        if (mMean == 0.0 && pMean == 0.0) {
-          final rawData = await _supabase.from('sast_all_raw_data_survey')
-              .select()
-              .eq('subject_id', id)
-              .eq('instructor_ID', widget.userId)
-              .eq('term_id', widget.termId);
-
-          if ((rawData as List).isNotEmpty) {
-            double mSum = 0, pSum = 0;
-            for (var row in rawData) {
-              for (int i = 1; i <= 10; i++) {
-                mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
-                pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
-              }
-            }
-            mMean = mSum / (rawData.length * 10);
-            pMean = pSum / (rawData.length * 10);
-          }
-        }
+        // No raw-form fallback: it counted blank answers as 0. A subject with
+        // no stored result shows "N/A" until the backend has computed it.
+        final double? mMean = mgmtMap[id];
+        final double? pMean = perfMap[id];
 
         processedSubjects.add(Subject.fromJson({
           ...meta,

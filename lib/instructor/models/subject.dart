@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_colors.dart';
+import '../../core/utils/sast_rating.dart';
 
 class Subject {
   final String? id; // UUID from database
@@ -56,39 +56,18 @@ class Subject {
               : null),
   );
 
-  double get overallMean {
-    if (managementMean != null && performanceMean != null) {
-      return (managementMean! + performanceMean!) / 2;
-    }
-    return managementMean ?? performanceMean ?? 0.0;
-  }
+  /// Overall for this subject, from its two stored category means:
+  /// ROUND((Management + Performance) / 2, 2), or whichever side exists.
+  /// Null when the subject has no answers yet (never 0).
+  double? get overallMean => SastRating.combine(managementMean, performanceMean);
 
   String get verbalDescription => getVerbalDescription(overallMean);
 
-  static String getVerbalDescription(double score) {
-    if (score >= 4.20) return 'Outstanding';
-    if (score >= 3.40) return 'Very Satisfactory';
-    if (score >= 2.60) return 'Satisfactory';
-    if (score >= 1.80) return 'Fair';
-    if (score > 0) return 'Unsatisfactory';
-    return 'N/A';
-  }
+  // Thin wrappers kept so existing callers keep compiling; the thresholds
+  // live in SastRating so the screens and the PDF can never disagree.
+  static String getVerbalDescription(double? score) => SastRating.verbal(score);
 
-  static String getVDCode(double score) {
-    if (score >= 4.20) return 'O';
-    if (score >= 3.40) return 'VS';
-    if (score >= 2.60) return 'S';
-    if (score >= 1.80) return 'F';
-    if (score > 0) return 'US';
-    return '-';
-  }
+  static String getVDCode(double? score) => SastRating.code(score);
 
-  static Color getScoreColor(double score) {
-    if (score >= 4.20) return AppColors.success;
-    if (score >= 3.40) return AppColors.primary;
-    if (score >= 2.60) return AppColors.textPrimary;
-    if (score >= 1.80) return AppColors.warning;
-    if (score > 0) return AppColors.error;
-    return AppColors.textPrimary;
-  }
+  static Color getScoreColor(double? score) => SastRating.color(score);
 }

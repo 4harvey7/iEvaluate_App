@@ -8,6 +8,7 @@ import '../core/services/evaluation_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
+import '../core/utils/sast_rating.dart';
 
 // The main widget — stateful because data is fetched async
 class SubjectAnalyticsScreen extends StatefulWidget {
@@ -134,7 +135,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.end,
                                   children: [
                                     // Their average score — red if below 3.0, blue if okay
-                                    Text('${item.avgScore}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: item.avgScore < 3.0 ? AppColors.error : AppColors.primary)),
+                                    Text(SastRating.format(item.avgScore), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: item.avgScore < 3.0 ? AppColors.error : AppColors.primary)),
                                     const Text('Avg Score', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                                   ],
                                 ),
@@ -259,7 +260,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                     Row(
                                       children: [
                                         // Average score — the overall number for this subject
-                                        _buildMiniStat('Avg Score', '${subject.avgScore}', isAnomaly ? AppColors.warning : AppColors.textPrimary),
+                                        _buildMiniStat('Avg Score', SastRating.format(subject.avgScore), isAnomaly ? AppColors.warning : AppColors.textPrimary),
                                         // Difficulty rating — how hard students find this subject
                                         _buildMiniStat('Difficulty', subject.difficulty, AppColors.primary),
                                         // Sentiment — "Critical" turns red, others stay green
@@ -305,7 +306,7 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         const Text('0.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
-                                        Text('Dept Avg: ${subject.deptAvg}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
+                                        Text('Dept Avg: ${SastRating.format(subject.deptAvg)}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold)),
                                         const Text('5.0', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
                                       ],
                                     ),

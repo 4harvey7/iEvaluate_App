@@ -17,6 +17,7 @@ import 'providers/subjects_provider.dart';
 import 'detailed_report_screen.dart';
 import 'subject_detail_screen.dart';
 import '../widgets/apple_ui.dart';
+import '../core/utils/sast_rating.dart';
 
 
 // The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
@@ -69,9 +70,10 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             _currentYear = data['academicYear'] ?? _currentYear;
             _instructorName = data['name'] ?? _instructorName;
             _instructorDept = data['dept'] ?? _instructorDept;
-            _myPerformance['overallScore'] = data['overallScore'] ?? 0.0;
-            _myPerformance['managementScore'] = data['managementScore'] ?? 0.0;
-            _myPerformance['performanceScore'] = data['performanceScore'] ?? 0.0;
+            // Null stays null: "no results yet" must not come back as 0.00.
+            _myPerformance['overallScore'] = SastRating.parse(data['overallScore']);
+            _myPerformance['managementScore'] = SastRating.parse(data['managementScore']);
+            _myPerformance['performanceScore'] = SastRating.parse(data['performanceScore']);
             _myPerformance['totalEvaluations'] = data['totalEvaluations'] ?? 0;
             _recentFeedback = List<String>.from(data['feedback'] ?? []);
             if (data['history'] != null) {
@@ -207,27 +209,23 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         _currentTermId = settings.termId ?? '';
       }
 
-      // Reset all analytics to 0 first, to prevent old data from ghosting into new term
-      double overallScore = 0.0;
-      double managementScore = 0.0;
-      double performanceScore = 0.0;
+      // Reset all analytics first, to prevent old data from ghosting into a
+      // new term. Null = no stored result, shown as "—", never as 0.00.
+      double? overallScore;
+      double? managementScore;
+      double? performanceScore;
       int totalEvaluations = 0;
       List<String> feedback = [];
 
       // 3. Fetch Analytics for SPECIFIC TERM (Only if term ID exists)
       if (_currentTermId.isNotEmpty) {
-        // Find all subjects assigned to this instructor for this term via junction table
-        final subjectsResponse = await _supabase
-            .from('instructor_subjects')
-            .select('subject_id')
-            .eq('instructor_id', widget.userId)
-            .eq('term_id', _currentTermId);
-        
-        // Convert the list of rows into a simple list of subject ID strings
-        final subjectIds = (subjectsResponse as List).map((s) => s['subject_id'].toString()).toList();
-        debugPrint('[InstructorDashboard] Found Subject IDs for term $_currentTermId: $subjectIds');
-
-        // Try the pre-computed summary table first — fastest path, best case scenario
+        // The stored, pooled-over-all-subjects result for this instructor and
+        // term. Blanks are excluded by the backend, and the app only displays
+        // these values: Overall = (Management + Performance) / 2, exactly as
+        // the official report shows it. There is deliberately no fallback
+        // that re-averages subject rows or raw forms in Dart -- those gave a
+        // different number (blanks counted as 0, rounding drift). No row means
+        // "No evaluation results yet".
         final analytics = await _supabase
             .from('overall_total_survey')
             .select()
@@ -237,89 +235,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
         if (analytics != null) {
           debugPrint('[InstructorDashboard] Found data in overall_total_survey');
-          overallScore = (analytics['combined_score_mean'] as num?)?.toDouble() ?? (analytics['overall_mean'] as num?)?.toDouble() ?? 0.0;
-          managementScore = (analytics['management_mean'] as num?)?.toDouble() ?? 0.0;
-          performanceScore = (analytics['performance_mean'] as num?)?.toDouble() ?? 0.0;
-          totalEvaluations = analytics['total_responses'] ?? 0;
+          overallScore = SastRating.parse(analytics['combined_score_mean']) ??
+              SastRating.parse(analytics['overall_mean']);
+          managementScore = SastRating.parse(analytics['management_mean']);
+          performanceScore = SastRating.parse(analytics['performance_mean']);
+          totalEvaluations = SastRating.parseInt(analytics['total_responses']) ?? 0;
         } else {
-          // FALLBACK 1: Aggregate from individual subject results (Matches SubjectDetailScreen logic)
-          // The pre-computed table is empty, so we compute it manually. A bit extra, but wala choice.
-          debugPrint('[InstructorDashboard] overall_total_survey empty or null. Checking subject results fallback...');
-          
-          var mgmtQuery = _supabase.from('management_results').select('overall_management_mean, total_responses').eq('term_id', _currentTermId);
-          var perfQuery = _supabase.from('performance_results').select('overall_performance_mean, total_responses').eq('term_id', _currentTermId);
-
-          // Filter by subject IDs if we have them, else fall back to instructor ID filter
-          if (subjectIds.isNotEmpty) {
-            mgmtQuery = mgmtQuery.filter('subject_id', 'in', subjectIds);
-            perfQuery = perfQuery.filter('subject_id', 'in', subjectIds);
-          } else {
-            mgmtQuery = mgmtQuery.eq('instructor_id', widget.userId);
-            perfQuery = perfQuery.eq('instructor_id', widget.userId);
-          }
-
-          // Run both queries at the same time para mas bilis
-          final results = await Future.wait([mgmtQuery, perfQuery]);
-          final mList = results[0] as List;
-          final pList = results[1] as List;
-
-          if (mList.isNotEmpty || pList.isNotEmpty) {
-            double mSum = 0, pSum = 0;
-            int mCount = 0, pCount = 0;
-            int mTotal = 0, pTotal = 0;
-
-            // Sum up all management subject scores
-            for (var row in mList) {
-              mSum += (row['overall_management_mean'] as num?)?.toDouble() ?? 0.0;
-              mTotal += (row['total_responses'] as int?) ?? 0;
-              mCount++;
-            }
-            // Sum up all performance subject scores
-            for (var row in pList) {
-              pSum += (row['overall_performance_mean'] as num?)?.toDouble() ?? 0.0;
-              pTotal += (row['total_responses'] as int?) ?? 0;
-              pCount++;
-            }
-
-            // Calculate weighted averages — simple average across subjects
-            managementScore = mCount > 0 ? mSum / mCount : 0.0;
-            performanceScore = pCount > 0 ? pSum / pCount : 0.0;
-            overallScore = (managementScore + performanceScore) / 2;
-            // Use the higher response count as the base — more generous, murag
-            totalEvaluations = mTotal > pTotal ? mTotal : pTotal;
-            
-            debugPrint('[InstructorDashboard] Aggregated: mgmt=$managementScore, perf=$performanceScore, evals=$totalEvaluations');
-          } 
-          
-          // FALLBACK 2: Raw data — if even subject results are empty, dig into the raw spreadsheet data
-          if (totalEvaluations == 0) {
-            debugPrint('[InstructorDashboard] Subject results empty. Checking raw data...');
-            var rawQuery = _supabase.from('sast_all_raw_data_survey').select().eq('term_id', _currentTermId);
-            
-            if (subjectIds.isNotEmpty) {
-              rawQuery = rawQuery.filter('subject_id', 'in', subjectIds);
-            } else {
-              rawQuery = rawQuery.eq('instructor_ID', widget.userId);
-            }
-
-            final rawData = await rawQuery;
-            if (rawData.isNotEmpty) {
-              int count = rawData.length;
-              double mSum = 0, pSum = 0;
-              // Loop through each row and sum up m1-m10 and p1-p10 columns
-              for (var row in rawData) {
-                for (int i = 1; i <= 10; i++) {
-                  mSum += (row['m$i'] as num?)?.toDouble() ?? 0.0;
-                  pSum += (row['p$i'] as num?)?.toDouble() ?? 0.0;
-                }
-              }
-              // Divide by (count * 10) because 10 questions each — do the math
-              managementScore = mSum / (count * 10);
-              performanceScore = pSum / (count * 10);
-              overallScore = (managementScore + performanceScore) / 2;
-              totalEvaluations = count;
-            }
-          }
+          debugPrint('[InstructorDashboard] No overall_total_survey row for term $_currentTermId -- no results yet.');
         }
 
         // 4. Fetch Recent Feedback — the actual words students wrote about you
@@ -410,9 +332,11 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 // semester is free text; substring(0, 3) throws on "1" or "".
                 label = '${sem.length > 3 ? sem.substring(0, 3) : sem}\n$yearShort';
               }
+              // Stored value only; a term with no answers stays null and
+              // draws an empty bar instead of a 0.00 one.
               _myHistory.add({
                 'sem': label,
-                'score': (item['combined_score_mean'] as num?)?.toDouble() ?? (item['overall_mean'] as num?)?.toDouble() ?? 0.0,
+                'score': SastRating.parse(item['combined_score_mean']) ?? SastRating.parse(item['overall_mean']),
               });
             }
           }
@@ -513,11 +437,11 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     }
   }
   
-  // Performance data map — starts all zero, gets filled after fetch
+  // Performance data map — starts empty (null = no result), gets filled after fetch
   final Map<String, dynamic> _myPerformance = {
-    'overallScore': 0.0,
-    'managementScore': 0.0,
-    'performanceScore': 0.0,
+    'overallScore': null,
+    'managementScore': null,
+    'performanceScore': null,
     'totalEvaluations': 0,
     'trend': 'neutral', // reserved for future use — bahala na
   };
@@ -705,8 +629,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
                     // The big score number — the main attraction of this whole card
                     Builder(builder: (context) {
-                      final overall = (_myPerformance['overallScore'] as num?)?.toDouble() ?? 0.0;
-                      final hasData = overall > 0; // no data = show N/A, not 0.00
+                      final overall = SastRating.parse(_myPerformance['overallScore']);
+                      final hasData = overall != null; // no data = show "—", not 0.00
                       final vd = Subject.getVerbalDescription(overall); // e.g. "Outstanding"
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -716,7 +640,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  hasData ? overall.toStringAsFixed(2) : 'N/A',
+                                  SastRating.format(overall),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 52, // big number = big ego boost
@@ -726,9 +650,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                const Text(
-                                  'Overall Weighted Mean',
-                                  style: TextStyle(color: AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w500),
+                                Text(
+                                  hasData ? 'Overall Weighted Mean' : 'No evaluation results yet',
+                                  style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w500),
                                 ),
                               ],
                             ),
@@ -763,9 +687,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildStat('Management', _myPerformance['managementScore'].toStringAsFixed(2)),
+                        _buildStat('Management', SastRating.format(SastRating.parse(_myPerformance['managementScore']))),
                         Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // divider line
-                        _buildStat('Performance', _myPerformance['performanceScore'].toStringAsFixed(2)),
+                        _buildStat('Performance', SastRating.format(SastRating.parse(_myPerformance['performanceScore']))),
                         Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // another divider
                         _buildStat('Evaluations', _myPerformance['totalEvaluations'].toString()),
                       ],
@@ -786,9 +710,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               termId: _currentTermId,
                               term: _currentSemester,
                               academicYear: _currentYear,
-                              managementScore: (_myPerformance['managementScore'] as num?)?.toDouble() ?? 0.0,
-                              performanceScore: (_myPerformance['performanceScore'] as num?)?.toDouble() ?? 0.0,
-                              overallScore: (_myPerformance['overallScore'] as num?)?.toDouble() ?? 0.0,
+                              managementScore: SastRating.parse(_myPerformance['managementScore']),
+                              performanceScore: SastRating.parse(_myPerformance['performanceScore']),
+                              overallScore: SastRating.parse(_myPerformance['overallScore']),
                               totalEvaluations: _myPerformance['totalEvaluations'],
                             ),
                           ),
@@ -855,15 +779,17 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: _myHistory.map<Widget>((data) {
-                              // Bar height is proportional to score out of 5.0
-                              double barHeight = (data['score'] / 5.0) * 100;
+                              // Bar height is proportional to score out of 5.0;
+                              // a term with no answers (null) gets no bar, not a 0 bar.
+                              final double? score = SastRating.parse(data['score']);
+                              final double barHeight = score == null ? 0 : (score / 5.0).clamp(0.0, 1.0) * 100;
                               // Flexible lets bars share the available width equally —
                               // avoids overflow when there are 4+ history entries
                               return Flexible(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    Text('${data['score']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
+                                    Text(SastRating.format(score), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
                                     const SizedBox(height: 4),
                                     Container(
                                       width: 20,
