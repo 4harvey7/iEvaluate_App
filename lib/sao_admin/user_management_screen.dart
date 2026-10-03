@@ -4,8 +4,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
+import '../core/services/account_activation_service.dart';
 import '../core/services/department_head_guard.dart';
 import '../core/services/identity_validator.dart';
+import '../widgets/activate_account_dialog.dart';
 import '../widgets/duplicate_warning_dialog.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -13,6 +15,7 @@ import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/controller_disposer.dart';
+import '../core/utils/sast_rating.dart';
 
 /// The head currently sitting for one department.
 ///
@@ -324,7 +327,24 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     final String currentStatus = (ui['account_status'] ?? '').toString();
     // flip the status: if approved then disable, if disabled then approve
     final String newStatus = currentStatus == 'approved' ? 'disabled' : 'approved';
-    
+
+    // Approving a placeholder login (added during scanning) goes through
+    // activation instead: real email first, then approval. A missing ID/address
+    // is asked of the person after login. See AccountActivationService.
+    if (newStatus == 'approved' &&
+        AccountActivationService.requiresActivation(Map<String, dynamic>.from(ui))) {
+      final changed = await showActivateAccountDialog(
+        context,
+        userId: user['user_id'].toString(),
+        fullName: '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim(),
+        subtitle: [user['role_data']?['Roles'], user['dept_data']?['d_name']]
+            .where((part) => part != null && part.toString().trim().isNotEmpty)
+            .join(' • '),
+      );
+      if (changed && mounted) _fetchData(); // activated, or already was
+      return;
+    }
+
     try {
       // call edge function to update the status — importente kaayo this goes through the function
       await _supabase.functions.invoke('admin-accept-user', body: {
@@ -385,15 +405,17 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 .select('overall_mean, combined_score_mean, total_responses')
                 .eq('term_id', termId)
                 .filter('instructor_id', 'in', instrIds);
-            int total = 0; double sum = 0;
+            int total = 0;
+            final scores = <double?>[];
             for (final r in (rows as List)) {
-              total += (r['total_responses'] as int? ?? 0);
-              sum += (r['combined_score_mean'] as num?)?.toDouble() ?? (r['overall_mean'] as num?)?.toDouble() ?? 0.0;
+              total += SastRating.parseInt(r['total_responses']) ?? 0;
+              // Stored score; null (no answers) is skipped below, not a 0.
+              scores.add(SastRating.parse(r['combined_score_mean']) ?? SastRating.parse(r['overall_mean']));
             }
             // package the summary into a map
             deptSummary = {
               'instructorCount': instrIds.length,
-              'avgScore': (rows).isEmpty ? 0.0 : sum / (rows).length,
+              'avgScore': SastRating.averageOfPresent(scores), // null = no scores yet
               'totalResponses': total,
             };
           }
@@ -473,7 +495,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       const SizedBox(height: 16),
       // three info tiles: average score, instructor count, total responses
       Row(children: [
-        Expanded(child: _infoTile('Avg Score', (s['avgScore'] as double).toStringAsFixed(2), AppColors.primary)),
+        Expanded(child: _infoTile('Avg Score', SastRating.format(s['avgScore'] as double?), AppColors.primary)),
         const SizedBox(width: 10),
         Expanded(child: _infoTile('Instructors', '${s['instructorCount']}', Colors.teal)),
         const SizedBox(width: 10),
@@ -1255,6 +1277,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                               final user = users[index];
                               final ui = user['user_info'];
                               final isActive = ui['account_status'] == 'approved'; // active or disabled
+                              // Approve would open activation (placeholder login from scanning)
+                              final needsActivation = !isActive &&
+                                  AccountActivationService.requiresActivation(Map<String, dynamic>.from(ui));
 
                               return Card(
                                 color: AppColors.surface,
@@ -1281,7 +1306,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                     itemBuilder: (context) {
                                       return [
                                         const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit, size: 18), SizedBox(width: 8), Text('Edit Profile')])),
-                                        PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : 'Approve')])),
+                                        PopupMenuItem(value: 'status', child: Row(children: [Icon(isActive ? Icons.block : Icons.check_circle, size: 18), SizedBox(width: 8), Text(isActive ? 'Disable' : (needsActivation ? 'Activate & Approve' : 'Approve'))])),
                                       ];
                                     },
                                   ),

@@ -7,11 +7,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../core/services/system_settings_service.dart';
+import '../core/services/account_activation_service.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
 
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/activate_account_dialog.dart';
 import '../core/services/term_aware_state.dart';
 
 
@@ -143,13 +145,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       if (_currentTermId != null) {
         fileQuery = fileQuery.eq('term_id', _currentTermId!); // only this term's scans
       }
-      final fileRes = await fileQuery;
+      final fileRes = await fileQuery.count(CountOption.exact); // server-side count, no 1000-row cap
 
       if (mounted) {
         setState(() {
           _livePendingApprovals = List<Map<String, dynamic>>.from(pendingResponse); // save the pending list
           _totalUsersCount = countRes.count; // save user count
-          _filesScannedCount = (fileRes as List).length; // save file count
+          _filesScannedCount = fileRes.count; // save file count
           _isPendingLoading = false; // done loading, hide spinner
         });
 
@@ -375,6 +377,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
               : (roleObj?['Roles'] ?? 'SAO Staff');
         }
 
+        // placeholder login (added during scanning) -> Approve opens activation
+        final needsActivation = AccountActivationService.requiresActivation(user);
+
         // each pending user gets a card with approve/reject buttons
         // tap the card to see full details
         return Padding(
@@ -400,8 +405,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       Text(subDetail, style: AppTextStyles.bodySmall, overflow: TextOverflow.ellipsis),
                       const SizedBox(height: 2),
-                      Text('Tap to view full details',
-                          style: AppTextStyles.labelSmall.copyWith(color: AppColors.primary)),
+                      Text(needsActivation ? 'Needs activation • tap for details' : 'Tap to view full details',
+                          style: AppTextStyles.labelSmall.copyWith(
+                              color: needsActivation ? AppColors.warning : AppColors.primary)),
                     ],
                   ),
                   trailing: Wrap(
@@ -409,7 +415,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       SafeIconButton(
                         icon: const Icon(Icons.check_circle, color: AppColors.success),
-                        onPressed: () => _handleApproval(user['id'], fullName, true),
+                        onPressed: () => _onApprovePressed(user, fullName, subDetail),
                       ),
                       SafeIconButton(
                         icon: const Icon(Icons.cancel, color: AppColors.error),
@@ -428,7 +434,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   // Shows the full account details of a pending user in a bottom sheet
   void _showPendingUserDetails(BuildContext context, Map<String, dynamic> user, String fullName, String department) {
-    final email = user['email'] ?? 'Not provided';
+    final needsActivation = AccountActivationService.requiresActivation(user);
+    final email = AccountActivationService.isPlaceholderEmail(user['email']?.toString())
+        ? 'No real login yet (placeholder)'
+        : (user['email'] ?? 'Not provided');
     final address = user['address'] ?? 'Not provided';
     final universityId = user['university_id']?.toString() ?? 'Not provided';
     final employment = user['employment_status'] ?? 'Not provided';
@@ -529,7 +538,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.check_circle, color: Colors.white),
-                    label: const Text('Approve', style: TextStyle(color: Colors.white)),
+                    label: Text(needsActivation ? 'Activate' : 'Approve',
+                        style: const TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.success,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -537,7 +547,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     ),
                     onPressed: () {
                       Navigator.pop(context);
-                      _handleApproval(user['id'], fullName, true);
+                      _onApprovePressed(user, fullName, department);
                     },
                   ),
                 ),
@@ -573,6 +583,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
     );
+  }
+
+  // green check — accounts with a real email are approved in one tap (a missing
+  // ID/address is asked of the person after login), but a placeholder login
+  // (added during scanning) opens the activation dialog: real email, then approval.
+  Future<void> _onApprovePressed(Map<String, dynamic> user, String fullName, String subDetail) async {
+    if (!AccountActivationService.requiresActivation(user)) {
+      return _handleApproval(user['id'], fullName, true);
+    }
+    final changed = await showActivateAccountDialog(
+      context,
+      userId: user['id'].toString(),
+      fullName: fullName,
+      subtitle: subDetail,
+    );
+    if (changed && mounted) _fetchDashboardData(); // activated, or already was
   }
 
   // approve or reject a user — this is the admin's divine power right here
