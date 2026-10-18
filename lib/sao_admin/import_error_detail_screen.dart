@@ -595,6 +595,10 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
                       width: double.infinity,
                       height: 130, // fixed thumbnail height
                       fit: BoxFit.cover, // cover the box, crop if needed
+                      // A thumbnail: decode at screen width, not the full photo.
+                      cacheWidth: (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                     ),
                   ),
                   // "tap to zoom" overlay hint in bottom right corner
@@ -664,7 +668,15 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
               maxScale: 8.0,  // up to 8x zoom — importente for blurry handwriting
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(bytes, fit: BoxFit.contain),
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.contain,
+                  // Room to zoom without decoding a full-sensor photo.
+                  cacheWidth: (MediaQuery.sizeOf(context).width *
+                          MediaQuery.devicePixelRatioOf(context) *
+                          3)
+                      .round(),
+                ),
               ),
             ),
             // X button in top right to close the viewer

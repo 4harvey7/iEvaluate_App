@@ -414,6 +414,9 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                                           File(task.localPath),
                                           width: 44,
                                           height: 52,
+                                          // Full-sensor photos are ~8 MP; decode
+                                          // the thumbnail small, not 30+ MB each.
+                                          cacheWidth: 132,
                                           fit: BoxFit.cover,
                                           errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: AppColors.textSecondary),
                                         ),
@@ -489,6 +492,26 @@ class _GathererSyncViewState extends State<GathererSyncView> {
   }
 
   Widget _buildSubtitle(ScanTask task) {
+    // Uploaded, but n8n discarded the form on its own (it is not counted).
+    if (task.status == SyncStatus.success && task.outcome != null) {
+      final label = task.isAlreadyScanned
+          ? 'ALREADY SCANNED'
+          : 'DISCARDED (FEWER THAN 5 ANSWERS)';
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label, style: const TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold)),
+          if ((task.outcomeMessage ?? '').isNotEmpty)
+            Text(
+              task.outcomeMessage!,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+        ],
+      );
+    }
     if (task.status == SyncStatus.failed) {
       return Text(task.errorMessage ?? 'Upload failed', style: const TextStyle(color: AppColors.error, fontSize: 11));
     }
@@ -510,6 +533,11 @@ class _GathererSyncViewState extends State<GathererSyncView> {
       case SyncStatus.uploading:
         return const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary));
       case SyncStatus.success:
+        if (task.outcome != null) {
+          // Sent, but not counted — never the green tick.
+          return Icon(task.isAlreadyScanned ? Icons.copy_all_rounded : Icons.block,
+              color: AppColors.warning, size: 20);
+        }
         return const Icon(Icons.check_circle, color: AppColors.success, size: 20);
       case SyncStatus.failed:
         return IconButton(

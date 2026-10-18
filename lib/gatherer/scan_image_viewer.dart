@@ -107,6 +107,13 @@ class ScanImageViewer extends StatelessWidget {
               child: Image.file(
                 file,
                 fit: BoxFit.contain,
+                // Three screens wide leaves room to zoom in on a stamp digit
+                // without decoding all 13 MP (~52 MB) of a full-sensor photo.
+                // A smaller photo is never scaled up.
+                cacheWidth: (MediaQuery.sizeOf(context).width *
+                        MediaQuery.devicePixelRatioOf(context) *
+                        3)
+                    .round(),
                 errorBuilder: (_, _, _) => const Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

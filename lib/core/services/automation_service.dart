@@ -37,6 +37,16 @@ class AutomationService {
 
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  /// Whether requests go straight to n8n (`USE_DIRECT_N8N=true`, local
+  /// testing only) instead of through the Supabase proxy.
+  bool get sendsDirect => Env.useDirectN8n && Env.n8nBaseUrl.isNotEmpty;
+
+  /// The action a request body must be wrapped in ({"action", "payload"}) for
+  /// the proxy, or null when [sendsDirect] posts the bare payload. For callers
+  /// that build the body themselves, off the UI isolate (see
+  /// [invokeEncodedAction]).
+  String? envelopeActionFor(String action) => sendsDirect ? null : action;
+
   /// Executes an automation action.
   /// Uses the secure Supabase Edge Function proxy by default so the server IP is hidden.
   Future<AutomationResponse> invokeAction({
@@ -45,17 +55,49 @@ class AutomationService {
     Duration timeout = const Duration(seconds: 45),
   }) async {
     // If explicitly configured for direct local development (e.g. localhost:5678)
-    if (Env.useDirectN8n && Env.n8nBaseUrl.isNotEmpty) {
-      return _invokeDirect(action: action, payload: payload, timeout: timeout);
+    if (sendsDirect) {
+      return _invokeDirect(
+          action: action, body: jsonEncode(payload ?? {}), timeout: timeout);
     }
+    return _invokeProxy(
+      body: {
+        'action': action,
+        'payload': payload ?? {},
+      },
+      timeout: timeout,
+    );
+  }
 
+  /// [invokeAction] for a request body that is already JSON-encoded to UTF-8
+  /// bytes, wrapped as [envelopeActionFor] says. The bytes are sent as they
+  /// are: nothing is re-encoded or copied on the UI isolate, which matters
+  /// for a scan upload's few megabytes of base64.
+  Future<AutomationResponse> invokeEncodedAction({
+    required String action,
+    required Uint8List body,
+    Duration timeout = const Duration(seconds: 45),
+  }) {
+    if (sendsDirect) {
+      return _invokeDirect(action: action, body: body, timeout: timeout);
+    }
+    return _invokeProxy(
+      body: body,
+      // Without it a Uint8List body is labelled application/octet-stream.
+      headers: const {'Content-Type': 'application/json'},
+      timeout: timeout,
+    );
+  }
+
+  Future<AutomationResponse> _invokeProxy({
+    required Object body,
+    Map<String, String>? headers,
+    required Duration timeout,
+  }) async {
     try {
       final response = await _supabase.functions.invoke(
         'n8n-proxy',
-        body: {
-          'action': action,
-          'payload': payload ?? {},
-        },
+        headers: headers,
+        body: body,
       ).timeout(timeout);
 
       final status = response.status;
@@ -100,9 +142,10 @@ class AutomationService {
   }
 
   /// Direct fallback only used when `USE_DIRECT_N8N=true` is set for local testing.
+  /// [body] is the JSON payload, as a String or as UTF-8 bytes.
   Future<AutomationResponse> _invokeDirect({
     required String action,
-    Map<String, dynamic>? payload,
+    required Object body,
     Duration timeout = const Duration(seconds: 45),
   }) async {
     try {
@@ -125,7 +168,7 @@ class AutomationService {
         res = await http.post(
           uri,
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(payload ?? {}),
+          body: body,
         ).timeout(timeout);
       }
 
@@ -184,10 +227,24 @@ class AutomationService {
   }
 
   Future<AutomationResponse> uploadScan(Map<String, dynamic> payload) {
+    // Full-sensor photos are ~2-4 MB (3-5 MB as base64). This timeout covers
+    // sending that over mobile data AND the proxy's own 60 s wait on n8n, so
+    // 60 s here gave up on slow uplinks while n8n was still working.
     return invokeAction(
       action: 'scan-upload',
       payload: payload,
-      timeout: const Duration(seconds: 60),
+      timeout: const Duration(seconds: 120),
+    );
+  }
+
+  /// [uploadScan] for a body built off the UI isolate by
+  /// buildScanUploadBody (capture_normalise.dart), wrapped as
+  /// `envelopeActionFor('scan-upload')` says. Same 120 s timeout.
+  Future<AutomationResponse> uploadScanBody(Uint8List body) {
+    return invokeEncodedAction(
+      action: 'scan-upload',
+      body: body,
+      timeout: const Duration(seconds: 120),
     );
   }
 

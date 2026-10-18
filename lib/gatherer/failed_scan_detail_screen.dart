@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/automation_service.dart';
 import '../core/services/scan_image_service.dart';
 import '../theme/app_colors.dart';
+import 'services/stamp.dart';
 
 class FailedScanDetailScreen extends StatefulWidget {
   final Map<String, dynamic> scan; // the failed scan record from Supabase
@@ -46,6 +47,14 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   String? _selectedSubjectId;
   Timer? _subjectDebounce;
 
+  // ── Stamp Number ──────────────────────────────────────────────────────────
+  // The numbering-machine stamp: what n8n read, what staff confirm or type.
+  late final QueueStamp _stamp;
+  late TextEditingController _stampCtrl;
+  bool _noStamp = false; // staff say the paper has no stamp at all
+  String? _stampError;
+  DuplicateStampAnswer? _duplicateStamp; // n8n's 409: already saved this term
+
   // ── Action States ─────────────────────────────────────────────────────────
   bool _isSubmitting = false;
   bool _isDiscarding = false;
@@ -67,6 +76,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         TextEditingController(text: partial['remarks']?.toString() ?? '');
     _studentIdCtrl =
         TextEditingController(text: partial['student_id']?.toString() ?? '');
+    _stamp = QueueStamp.fromRow(widget.scan);
+    _stampCtrl = TextEditingController(text: _stamp.stampNo ?? '');
 
     _initScores();
     _loadScanImage();
@@ -97,6 +108,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _subjectCtrl.dispose();
     _remarksCtrl.dispose();
     _studentIdCtrl.dispose();
+    _stampCtrl.dispose();
     _instructorDebounce?.cancel();
     _subjectDebounce?.cancel();
     for (final c in _scoreCtrlMap.values) {
@@ -446,8 +458,40 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     }
   }
 
+  // ── Stamp Checks ──────────────────────────────────────────────────────────
+  /// Why the stamp field cannot be sent as it is, or null when it can.
+  String? _checkStamp() {
+    if (_noStamp) return null;
+    final typed = Stamp.normalize(_stampCtrl.text);
+    if (typed.isEmpty) {
+      return _stamp.needsStaffInput
+          ? 'Type the stamp number, or tick "This form has no stamp".'
+          : null;
+    }
+    return Stamp.validationError(typed);
+  }
+
+  void _onStampEdited() {
+    if (_stampError != null || _duplicateStamp != null) {
+      setState(() {
+        _stampError = null;
+        _duplicateStamp = null;
+      });
+    }
+  }
+
   // ── Submit Correction ─────────────────────────────────────────────────────
   Future<void> _submit() async {
+    final stampError = _checkStamp();
+    if (stampError != null) {
+      setState(() => _stampError = stampError);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(stampError),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     try {
       // A blank cell is an unanswered question and is sent as null (the key
@@ -475,6 +519,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         'subject_id': _selectedSubjectId,
         'remarks': _remarksCtrl.text.trim(),
         'student_id': _studentIdCtrl.text.trim(),
+        // Digits exactly as printed (leading zeros kept), or null when the
+        // form has no stamp. n8n refuses a stamp already saved this term.
+        'stamp_no': Stamp.toPayload(_stampCtrl.text, noStamp: _noStamp),
+        'stamp_source': 'staff',
         ...scores,
         'manually_corrected': true,
         'validation_status': 'corrected',
@@ -483,6 +531,25 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       };
 
       final result = await AutomationService.instance.submitManualCorrection(payload);
+
+      // 409 duplicate_stamp: nothing was saved. Keep the screen open so the
+      // number can be fixed (or the scan discarded if it is the same form).
+      final duplicate =
+          DuplicateStampAnswer.tryParse(result.statusCode, result.data);
+      if (duplicate != null) {
+        if (mounted) {
+          setState(() {
+            _duplicateStamp = duplicate;
+            _stampError = 'Already saved this term. Check the number.';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Not saved: ${duplicate.explanation}'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 6),
+          ));
+        }
+        return;
+      }
 
       if (result.isSuccess) {
         if (mounted) {
@@ -590,6 +657,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
 
                         // Original Data Reference Card
                         _buildOriginalDataCard(),
+                        const SizedBox(height: 16),
+
+                        // Stamp number: what was read, fix or confirm it
+                        _buildStampCard(),
                         const SizedBox(height: 20),
 
                         // Correction Section Heading
@@ -658,6 +729,8 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     final String msg;
     if (reasonsList != null) {
       msg = reasonsList.map((r) {
+        final stampLabel = Stamp.reasonLabel(r);
+        if (stampLabel != null) return stampLabel;
         final raw = r.toString();
         final s = (raw.contains(':') ? raw.substring(0, raw.indexOf(':')).trim() : raw)
             .replaceAll('_', ' ');
@@ -738,6 +811,10 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                       width: double.infinity,
                       height: 130,
                       fit: BoxFit.cover,
+                      // A thumbnail: decode at screen width, not the full photo.
+                      cacheWidth: (MediaQuery.sizeOf(context).width *
+                              MediaQuery.devicePixelRatioOf(context))
+                          .round(),
                     ),
                   ),
                   Container(
@@ -804,7 +881,15 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
               maxScale: 8.0,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Image.memory(bytes, fit: BoxFit.contain),
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.contain,
+                  // Room to zoom without decoding a full-sensor photo.
+                  cacheWidth: (MediaQuery.sizeOf(context).width *
+                          MediaQuery.devicePixelRatioOf(context) *
+                          3)
+                      .round(),
+                ),
               ),
             ),
             Positioned(
@@ -927,6 +1012,182 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ── 3b. Stamp Number Card ─────────────────────────────────────────────────
+  Widget _buildStampCard() {
+    final status = _stamp.status;
+    final statusOk = status == 'ok' && _stamp.reasons.isEmpty;
+    final accent = _duplicateStamp != null
+        ? AppColors.error
+        : (statusOk ? AppColors.success : AppColors.warning);
+    final choices = _stamp.choices;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.confirmation_number_outlined, size: 16, color: accent),
+              const SizedBox(width: 6),
+              const Text(
+                'Stamp Number',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  Stamp.statusLabel(status),
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const Divider(height: 16),
+          _dataRow('Read from scan', _stamp.stampNo ?? '—'),
+          // Plain-English reasons (missing / unreadable / several stamps).
+          ..._stamp.reasons.map((code) {
+            final text = Stamp.reasonText(code);
+            if (text == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.info_outline, size: 15, color: AppColors.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (choices.isNotEmpty) ...[
+            const Text(
+              'Stamped numbers found — tap the right one:',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: choices.map((c) {
+                final selected =
+                    !_noStamp && Stamp.normalize(_stampCtrl.text) == c;
+                return ChoiceChip(
+                  label: Text(c, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  selected: selected,
+                  selectedColor: AppColors.primary.withValues(alpha: 0.18),
+                  onSelected: _isSubmitting
+                      ? null
+                      : (_) {
+                          setState(() {
+                            _noStamp = false;
+                            _stampCtrl.text = c;
+                            _stampError = null;
+                            _duplicateStamp = null;
+                          });
+                        },
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 4),
+          TextField(
+            controller: _stampCtrl,
+            enabled: !_noStamp && !_isSubmitting,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(Stamp.maxDigits),
+            ],
+            onChanged: (_) => _onStampEdited(),
+            decoration: _inputDecoration(
+              label: 'Stamp number',
+              prefix: Icons.tag,
+            ).copyWith(
+              helperText: 'Digits exactly as printed, keep leading zeros (3–12).',
+              errorText: _stampError,
+            ),
+          ),
+          CheckboxListTile(
+            value: _noStamp,
+            onChanged: _isSubmitting
+                ? null
+                : (v) => setState(() {
+                      _noStamp = v ?? false;
+                      _stampError = null;
+                      _duplicateStamp = null;
+                    }),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            controlAffinity: ListTileControlAffinity.leading,
+            activeColor: AppColors.primary,
+            title: const Text(
+              'This form has no stamp',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+            ),
+          ),
+          if (_duplicateStamp != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.copy_all_rounded, size: 16, color: AppColors.error),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _duplicateStamp!.explanation,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

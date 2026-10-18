@@ -17,6 +17,15 @@ class ScanTask {
   final bool formSuspect;
   final String? termId;
 
+  /// Set when n8n took the upload but discarded the form on its own, so it is
+  /// not counted: 'duplicate_stamp' (this paper form was already scanned this
+  /// term) or 'too_few_answers' (fewer than 5 of the 20 items answered). Null
+  /// for a normal upload. The status stays success — there is nothing to retry.
+  String? outcome;
+
+  /// n8n's message for [outcome], shown in the sync queue.
+  String? outcomeMessage;
+
   ScanTask({
     required this.id,
     required this.localPath,
@@ -25,7 +34,12 @@ class ScanTask {
     this.errorMessage,
     this.formSuspect = false,
     this.termId,
+    this.outcome,
+    this.outcomeMessage,
   });
+
+  /// True when n8n discarded this upload as a form already scanned this term.
+  bool get isAlreadyScanned => outcome == 'duplicate_stamp';
 
   Map<String, dynamic> toMap() {
     return {
@@ -36,6 +50,8 @@ class ScanTask {
       'errorMessage': errorMessage,
       'formSuspect': formSuspect,
       'termId': termId,
+      'outcome': outcome,
+      'outcomeMessage': outcomeMessage,
     };
   }
 
@@ -54,6 +70,9 @@ class ScanTask {
       // never checked, so the honest default is "not flagged".
       formSuspect: map['formSuspect'] as bool? ?? false,
       termId: map['termId'] as String?,
+      // Older queues have neither key: a normal upload.
+      outcome: map['outcome'] as String?,
+      outcomeMessage: map['outcomeMessage'] as String?,
     );
   }
 

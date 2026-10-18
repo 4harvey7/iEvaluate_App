@@ -6,7 +6,6 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:math';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -15,6 +14,7 @@ import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import 'services/form_signature.dart';
 import 'services/scan_analysis.dart';
+import 'services/scan_frame_geometry.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  Paper size definitions (portrait width ÷ height ratio)
@@ -59,6 +59,10 @@ class GathererScannerView extends StatefulWidget {
   final VoidCallback onOpenImportData; // open google sheet import screen
   final VoidCallback? onMenuPressed; // open the drawer
 
+  /// Works out whether a captured photo is sharp and is an SS Form 2. Only
+  /// replaced by tests, which need an analysis that is still running.
+  final Future<ScanAnalysis> Function(String path) analyseCapture;
+
   const GathererScannerView({
     super.key,
     required this.onScan,
@@ -66,6 +70,7 @@ class GathererScannerView extends StatefulWidget {
     required this.queueCount,
     required this.onOpenImportData,
     this.onMenuPressed,
+    @visibleForTesting this.analyseCapture = analyseCaptureFile,
   });
 
   @override
@@ -294,7 +299,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
         return; // widget unmounted during dispose, abort
       }
 
-      // create new camera controller — max resolution for best scan quality
+      // create new camera controller — max resolution for best scan quality.
+      // Since camera 0.11 Android runs on CameraX, where max means the full
+      // sensor for the still (4160 x 3120 = 13 MP on the Infinix X6525), not
+      // the 1920 x 1080 video size camera_android returned. The preview stays
+      // screen-sized (960 x 720 there). Kept at max on purpose: the only
+      // smaller preset with stills above 1080p, ultraHigh, is a 16:9
+      // 3840 x 2160 crop of the 4:3 sensor that would also reshape the
+      // preview, and camera 0.11 has no setting for an 8-12 MP 4:3 still.
+      // The upload caps the long side at 3264 instead (capture_normalise.dart).
       final newController = CameraController(
         cameras.first, // use back camera (first in list on most devices)
         ResolutionPreset.max, // highest resolution — importente for OCR accuracy
@@ -317,8 +330,11 @@ class _GathererScannerViewState extends State<GathererScannerView>
         }
       });
 
+      final init = Stopwatch()..start();
       await newController.initialize(); // this is where actual camera access happens
-      
+      debugPrint('ScanPerf: camera init ${init.elapsedMilliseconds}ms '
+          '(preview ${newController.value.previewSize})');
+
       // Check again if we were disposed or replaced during initialization
       // race condition possible if user navigate away quickly
       if (!mounted || _controller != newController) {
@@ -433,26 +449,20 @@ class _GathererScannerViewState extends State<GathererScannerView>
       _isTakingPicture = true; // show "HOLD STEADY" text
     });
     try {
+      // Once this returns the JPEG is completely written — the only thing
+      // USE PHOTO ever has to wait for, and the preview is not shown before it.
+      final shot = Stopwatch()..start();
       final XFile photo = await _controller!.takePicture(); // capture the image
-      try {
-        await _controller!.setFocusMode(FocusMode.auto); // unlock focus after capture
-      } catch (_) {}
+      debugPrint('ScanPerf: takePicture ${shot.elapsedMilliseconds}ms');
 
-      // Analyse before showing the result — sharpness and document type.
-      if (mounted) {
-        setState(() {
-          _isCheckingBlur = true; // show "CHECKING SCAN" tag
-          _capturedImagePath = photo.path; // switch to preview screen
-        });
-      }
-
-      await _runScanChecks(photo.path); // runs off the UI thread
-
+      // Preview first, then unlock focus. On CameraX the unlock waits for a
+      // new focus-and-metering run to settle, and the photo sat behind it.
       if (mounted && thisSession == _captureSession) {
-        setState(() {
-          _isCheckingBlur = false; // checks done, show the verdict
-        });
+        _showCapture(photo.path, thisSession);
       }
+      try {
+        await _controller?.setFocusMode(FocusMode.auto); // unlock focus after capture
+      } catch (_) {}
     } catch (e) {
       // TC-S03 step 7: camera faults must be reported, not swallowed silently.
       debugPrint('Capture error: $e');
@@ -484,8 +494,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
   // discard the captured image and return to camera — user wants to retake
   Future<void> _retake() async {
     _captureSession++; // invalidate any in-flight scan checks
-    if (_capturedImagePath != null) {
-      final f = File(_capturedImagePath!);
+    final retaken = _capturedImagePath;
+    if (retaken != null) {
+      _evictPreview(retaken);
+      final f = File(retaken);
       if (f.existsSync()) try { f.deleteSync(); } catch (_) {} // delete the bad image file
     }
     // TC-S03 Step 2: restore autofocus mode to auto and reset transient states
@@ -503,31 +515,54 @@ class _GathererScannerViewState extends State<GathererScannerView>
     }
   }
 
+  // Switch to the preview for a finished capture and start the checks behind
+  // it. Nothing waits on them: USE PHOTO works straight away, and the verdict
+  // only matters if it is in by the time the gatherer presses it.
+  void _showCapture(String path, int session) {
+    setState(() {
+      _capturedImagePath = path; // switch to preview screen
+      _isCheckingBlur = true; // show "ANALYZING SHARPNESS" tag
+      // No verdict yet — never carry the last photo's over to this one.
+      _isBlurry = false;
+      _isDarkOrOccluded = false;
+      _formCheck = FormCheck.unknown;
+    });
+    unawaited(_runScanChecks(path, session));
+  }
+
+  /// Test hook: behave as if the camera had just written [path].
+  @visibleForTesting
+  void debugShowCapture(String path) => _showCapture(path, ++_captureSession);
+
   // Check the captured photo: is it sharp, and is it actually an SS Form 2?
   //
-  // Both answers come out of one decode on a background isolate. The decode is
-  // the expensive part and it had to happen anyway for the blur check, so the
-  // document check rides along for roughly a millisecond. Running it through
-  // compute() also gets the decode off the UI thread, where it used to freeze
-  // the preview for as long as it took.
-  Future<void> _runScanChecks(String path) async {
+  // Both answers come out of one decode (native, see scan_analysis.dart) and
+  // the maths runs on a background isolate, so the preview never freezes.
+  Future<void> _runScanChecks(String path, int session) async {
+    ScanAnalysis? result;
+    final watch = Stopwatch()..start();
     try {
-      final bytes = await File(path).readAsBytes();
-      final result = await compute(analyseScan, bytes);
-
-      if (mounted) {
-        setState(() {
-          _isBlurry = result.isBlurry;
-          _formCheck = result.form;
-          _isDarkOrOccluded = result.isDarkOrOccluded;
-        });
-        debugPrint('Scan analysis: $result');
-      }
+      result = await widget.analyseCapture(path);
+      debugPrint('Scan analysis: $result');
+      debugPrint('ScanPerf: scan analysis ${watch.elapsedMilliseconds}ms');
     } catch (e) {
       // Fail open. A crashed check must never cost the gatherer a scan — the
       // paper form is handled once, and a form refused here is data lost.
       debugPrint('Scan analysis error: $e');
     }
+    // Retaken, or already sent with USE PHOTO: this verdict belongs to a photo
+    // that is no longer on screen.
+    if (!mounted || session != _captureSession || _capturedImagePath != path) {
+      return;
+    }
+    setState(() {
+      _isCheckingBlur = false; // checks done, show the verdict
+      if (result != null) {
+        _isBlurry = result.isBlurry;
+        _formCheck = result.form;
+        _isDarkOrOccluded = result.isDarkOrOccluded;
+      }
+    });
   }
 
   // TC-S03 step 5: lens occlusion or pitch dark photo confirmation
@@ -594,15 +629,24 @@ class _GathererScannerViewState extends State<GathererScannerView>
   Future<void> _acceptImage() async {
     if (_isAccepting) return; // second tap while the first is still copying
     _isAccepting = true;
+    final watch = Stopwatch()..start();
     try {
       await _acceptImageOnce();
     } finally {
       _isAccepting = false;
+      // Includes any blurry/dark dialog the gatherer had to answer.
+      debugPrint('ScanPerf: USE PHOTO handler ${watch.elapsedMilliseconds}ms');
     }
   }
 
   Future<void> _acceptImageOnce() async {
     if (_capturedImagePath == null) return;
+
+    // The photo file is complete — the preview only appears once takePicture
+    // has returned — so nothing here waits on the checks. If they are still
+    // running the photo goes as it is, with no verdict (form unknown, so it is
+    // not flagged); the warnings below are for verdicts that are already in.
+    // Upright/oversize fixes happen at upload time (capture_normalise.dart).
 
     // TC-S03 step 5: occluded or pitch dark check
     if (_isDarkOrOccluded) {
@@ -621,6 +665,10 @@ class _GathererScannerViewState extends State<GathererScannerView>
       if (_capturedImagePath == null) return; // retaken while the sheet was up
     }
 
+    // Committed to this photo: a verdict landing from here on is dropped.
+    _captureSession++;
+    final formCheck = _isCheckingBlur ? FormCheck.unknown : _formCheck;
+
     // Build the final filename: <base>_<PAPER_TAG>.jpg
     // e.g.  SCAN-1234567890_A4.jpg  /  _LONG.jpg  /  _SHORT.jpg
     final orig = File(_capturedImagePath!);
@@ -630,15 +678,26 @@ class _GathererScannerViewState extends State<GathererScannerView>
         .replaceFirst(RegExp(r'\.(jpg|jpeg|png)$', caseSensitive: false), '');
     final finalName = '${base}_${_selectedPaper.fileTag}.jpg';
 
-    // Copy into the persistent documents directory so the file is not wiped
+    // Move into the persistent documents directory so the file is not wiped
     // by Android when the camera temp dir is cleared between sessions.
+    final move = Stopwatch()..start();
     String finalPath;
     try {
       final docDir = await getApplicationDocumentsDirectory();
-      final dest = File('${docDir.path}${Platform.pathSeparator}$finalName');
-      await orig.copy(dest.path); // copy — not rename — so orig is left intact
-      try { orig.deleteSync(); } catch (_) {} // clean up the temp file after copy
-      finalPath = dest.path;
+      final dest = '${docDir.path}${Platform.pathSeparator}$finalName';
+      try {
+        // The camera's cache dir and Documents share the app's data
+        // partition, so this is a metadata-only rename (microseconds, fine
+        // on the UI isolate) -- the copy it replaces wrote the whole
+        // full-sensor photo out a second time.
+        finalPath = orig.renameSync(dest).path;
+      } catch (_) {
+        // Different filesystem after all: copy (off the UI isolate), then
+        // drop the temp file.
+        await orig.copy(dest);
+        try { orig.deleteSync(); } catch (_) {}
+        finalPath = dest;
+      }
     } catch (_) {
       // Copy failed (e.g. out of storage). Fall back to rename in place.
       // The scan may be lost after a restart, but that is better than losing
@@ -652,6 +711,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
         finalPath = _capturedImagePath!; // last resort: keep original path
       }
     }
+    debugPrint('ScanPerf: USE PHOTO file move ${move.elapsedMilliseconds}ms');
 
     // Guard against the OS purging the temp file between capture and acceptance
     if (!File(finalPath).existsSync()) {
@@ -673,15 +733,22 @@ class _GathererScannerViewState extends State<GathererScannerView>
       });
       return;
     }
-    widget.onScan(finalPath, _formCheck); // hand stable path to parent for upload
+    final handOff = Stopwatch()..start();
+    widget.onScan(finalPath, formCheck); // hand stable path to parent for upload
+    debugPrint('ScanPerf: USE PHOTO hand-off ${handOff.elapsedMilliseconds}ms');
 
-    // Restore auto-focus so the camera isn't stuck on a locked point
-    try {
-      await _controller?.setFocusMode(FocusMode.auto);
-    } catch (_) {}
     // The scan is already handed off; if the tab was switched meanwhile there
     // is no view left to reset.
     if (!mounted) return;
+    final accepted = _capturedImagePath;
+    // Straight back to the camera. Restoring auto-focus is a camera round
+    // trip that used to hold the photo on screen until it answered; it now
+    // happens behind the live preview.
+    unawaited(() async {
+      try {
+        await _controller?.setFocusMode(FocusMode.auto);
+      } catch (_) {}
+    }());
     setState(() {
       _capturedImagePath = null;      // clear path = go back to camera
       _formCheck = FormCheck.unknown; // next capture starts with no verdict
@@ -693,6 +760,25 @@ class _GathererScannerViewState extends State<GathererScannerView>
       _isFocusing = false;
       _focusPoint = null;             // dismiss any lingering focus ring
     });
+    if (accepted != null) _evictPreview(accepted);
+  }
+
+  /// The preview of the photo at [path], decoded at screen width: the photo
+  /// itself is full-sensor (13 MP on the Infinix, ~52 MB decoded).
+  ImageProvider _previewImage(String path) => ResizeImage.resizeIfNeeded(
+        (MediaQuery.sizeOf(context).width *
+                MediaQuery.devicePixelRatioOf(context))
+            .round(),
+        null,
+        FileImage(File(path)),
+      );
+
+  /// Drop the preview's decoded pixels once the photo has left the screen
+  /// (sent or retaken). The cache would otherwise hold a few MB per capture
+  /// for a file that has been renamed or deleted.
+  void _evictPreview(String path) {
+    if (!mounted) return;
+    unawaited(_previewImage(path).evict().catchError((_) => false));
   }
 
 
@@ -703,33 +789,27 @@ class _GathererScannerViewState extends State<GathererScannerView>
   //  This calculate the exact Rect for the paper guide overlay.
   // ══════════════════════════════════════════════════════════════════════════════
 
-  /// Returns the Rect for the paper guide frame in screen coordinates.
-  /// Frame is pinned near the top (below the toolbar) rather than centred,
-  /// so there is generous space below for the guidance text + capture button.
-  Rect _frameRect(Size screen, {double hPad = 30.0}) {
-    // How far from screen top the frame starts (approx: safeArea + toolbar height)
-    const topOffset  = 110.0;
-    // Reserve at the bottom for guidance text + capture button — dont overlap controls
-    const botReserve = 205.0;
+  // Layout constants for the scanner screen (logical px).
+  static const double _controlsRowH = 56; // top row: flash / paper / link / sync
+  static const double _captureZoneH = 76; // 66px shutter + gaps, above nav bar
+  static const double _frameTopGap = 8;
+  static const double _frameBottomGap = 4;
+  static const double _frameSideMargin = 12;
 
-    final maxW = screen.width - hPad * 2; // max frame width with horizontal padding
-    final maxH = screen.height - topOffset - botReserve; // max usable height for frame
-
-    var fw = maxW;
-    var fh = fw / _selectedPaper.ratio; // calculate height from ratio
-
-    // If too tall, constrain by height — maintain ratio but shrink width
-    if (fh > maxH) {
-      fh = maxH;
-      fw = fh * _selectedPaper.ratio; // recalculate width from constrained height
-    }
-
-    return Rect.fromLTWH(
-      (screen.width - fw) / 2, // horizontally centered
-      topOffset,   // ← pinned near top instead of vertically centred
-      fw,
-      fh,
+  /// Frame inside the part of the camera area not used by controls, the
+  /// instruction lines or the capture zone. The preview is cover-scaled over
+  /// the whole [area], so everything visible there is in the still.
+  Rect _frameFor(Size area, EdgeInsets safe, Rect preview) {
+    final free = Rect.fromLTRB(
+      _frameSideMargin,
+      safe.top + _controlsRowH + _frameTopGap,
+      area.width - _frameSideMargin,
+      area.height - safe.bottom - _captureZoneH - _frameBottomGap,
     );
+    final visible = free
+        .intersect(Rect.fromLTWH(0, 0, area.width, area.height))
+        .intersect(preview);
+    return frameInPreview(visible, _selectedPaper.ratio, hPad: 0, vPad: 0);
   }
 
   // true when camera is busy — either focusing or taking picture
@@ -743,6 +823,11 @@ class _GathererScannerViewState extends State<GathererScannerView>
 
   @override
   Widget build(BuildContext context) {
+    // if we captured an image, show the preview screen instead of camera.
+    // Checked first: the preview needs only the photo, not the camera, so a
+    // pause mid-preview (which disposes the camera) must not hide it.
+    if (_capturedImagePath != null) return _buildPreviewScreen();
+
     final CameraController? controller = _controller;
 
     // camera not ready yet — loading, or stopped with a reason
@@ -784,25 +869,36 @@ class _GathererScannerViewState extends State<GathererScannerView>
       );
     }
 
-    // if we captured an image, show the preview screen instead of camera
-    if (_capturedImagePath != null) return _buildPreviewScreen();
-
-    final screen = MediaQuery.of(context).size;
-    final frame = _frameRect(screen); // calculate guide frame rect
+    return LayoutBuilder(builder: (context, box) {
+    // The real camera area: the parent Scaffold already shrinks the body by
+    // the nav bar, so box is exactly the space above it.
+    final area = Size(box.maxWidth, box.maxHeight);
+    final safe = MediaQuery.paddingOf(context);
+    final pAspect = portraitAspect(controller.value.aspectRatio);
+    final previewRect = coverRect(area, pAspect);
+    final frame = _frameFor(area, safe, previewRect);
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Camera preview with tap-to-focus
-          // fills entire screen, user can tap anywhere to focus
+          // 1. Camera preview with tap-to-focus. Cover-scaled so it fills the
+          // camera area with no black bands; the cropped sides are still part
+          // of the captured photo.
           Positioned.fill(
             child: GestureDetector(
               onTapUp: _handleFocus, // tap to set focus point
-              child: Center(
-                child: CameraPreview(
-                  controller,
-                  key: ValueKey(controller), // key ensures rebuild when controller changes
+              child: ClipRect(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: pAspect * 1000,
+                    height: 1000,
+                    child: CameraPreview(
+                      controller,
+                      key: ValueKey(controller), // rebuild when controller changes
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -816,7 +912,7 @@ class _GathererScannerViewState extends State<GathererScannerView>
               builder: (_, _) => CustomPaint(
                 painter: _ScanOverlayPainter(
                   frameRect: frame,
-                  dimColor: Colors.black.withValues(alpha: 0.55), // semi-transparent dim
+                  dimColor: Colors.black.withValues(alpha: 0.6), // semi-transparent scrim
                   frameColor: _showOrientationWarning
                       ? Colors.white24 // dim frame when in landscape (scanning disabled)
                       : (_frameColorAnim.value ?? AppColors.primary), // animate to green on capture
@@ -825,13 +921,15 @@ class _GathererScannerViewState extends State<GathererScannerView>
             ),
           ),
 
-          // 3. Paper-size label (inside top-left of frame)
-          // shows which paper size is selected — "A4", "Short Bond", etc.
-          Positioned(
-            left: frame.left + 12,
-            top: frame.top + 12,
-            child: _PaperLabel(label: _selectedPaper.label),
-          ),
+          // 3. Instruction / status pill overlaid at the top of the frame
+          // (the paper size is named in the pill and in the dropdown).
+          if (!_showOrientationWarning)
+            Positioned(
+              left: frame.left + 8,
+              right: area.width - frame.right + 8,
+              top: frame.top + 8,
+              child: IgnorePointer(child: Center(child: _buildBottomGuidance())),
+            ),
 
           // 4. Tap-to-focus ring — circular border at the tap point
           if (_focusPoint != null)
@@ -934,16 +1032,13 @@ class _GathererScannerViewState extends State<GathererScannerView>
                   ),
                 ),
 
-                const Spacer(), // push capture button and guidance to the bottom
+                const Spacer(), // frame zone, nothing covers the paper area
 
-                // Bottom guidance text — changes based on current state
-                _buildBottomGuidance(),
-                const SizedBox(height: 24),
-
-                // Capture button — big white circle at the bottom
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 40),
+                // Capture button zone, below the frame and above the nav bar
+                SizedBox(
+                  height: _captureZoneH,
                   child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       ApplePressable(
                         onTap: _busy ? null : _takePicture,
@@ -951,8 +1046,8 @@ class _GathererScannerViewState extends State<GathererScannerView>
                         semanticLabel: 'Capture scan',
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
-                          width: 80,
-                          height: 80,
+                          width: 66,
+                          height: 66,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
@@ -969,15 +1064,6 @@ class _GathererScannerViewState extends State<GathererScannerView>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'TAP TO CAPTURE',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 2,
-                            fontSize: 12),
-                      ),
                     ],
                   ),
                 ),
@@ -987,84 +1073,79 @@ class _GathererScannerViewState extends State<GathererScannerView>
         ],
       ),
     );
+    });
   }
 
   // build the guidance text shown above the capture button
   // changes based on: tilt angle, focusing state, taking picture state
   Widget _buildBottomGuidance() {
-    if (_tiltAngle > 30) {
-      // phone too tilted — show tilt angle and warning to hold straight
-      return Column(children: [
-        const Icon(Icons.screen_rotation, color: Colors.redAccent, size: 36),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    Widget status(Widget lead, String text, Color color) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.redAccent.withValues(alpha: 0.5)),
+            color: Colors.black.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
           ),
-          child: Text(
-            'TILT: ${_tiltAngle.toStringAsFixed(0)}° — HOLD STRAIGHT', // show exact angle so user know how much to adjust
-            style: const TextStyle(
-              color: Colors.redAccent,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-              fontSize: 14,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              lead,
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(text,
+                    style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                        fontSize: 11.5)),
+              ),
+            ],
           ),
-        ),
-      ]);
+        );
+    const spinner = 16.0;
+    if (_tiltAngle > 30) {
+      return status(
+          const Icon(Icons.screen_rotation, color: Colors.redAccent, size: 20),
+          'TILT: ${_tiltAngle.toStringAsFixed(0)}° — HOLD STRAIGHT',
+          Colors.redAccent);
     }
     if (_isFocusing) {
-      // AF is locking — tell user camera is working
-      return const Column(children: [
-        CircularProgressIndicator(color: Colors.greenAccent, strokeWidth: 2.5),
-        SizedBox(height: 10),
-        Text('FOCUSING…',
-            style: TextStyle(
-                color: Colors.greenAccent,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                fontSize: 13)),
-      ]);
+      return status(
+          const SizedBox(
+              width: spinner,
+              height: spinner,
+              child: CircularProgressIndicator(
+                  color: Colors.greenAccent, strokeWidth: 2)),
+          'FOCUSING...',
+          Colors.greenAccent);
     }
     if (_isTakingPicture) {
-      // actively capturing — tell user to not move
-      return const Column(children: [
-        CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2.5),
-        SizedBox(height: 10),
-        Text('HOLD STEADY…',
-            style: TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-                fontSize: 13)),
-      ]);
+      return status(
+          const SizedBox(
+              width: spinner,
+              height: spinner,
+              child: CircularProgressIndicator(
+                  color: AppColors.primary, strokeWidth: 2)),
+          'HOLD STEADY...',
+          AppColors.primary);
     }
-    // default state — normal scanning instructions
-    return Column(children: [
-      Text(
-        'FIT ${_selectedPaper.label.toUpperCase()} PAPER INSIDE THE FRAME', // remind user what paper they selected
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        'FIT ${_selectedPaper.label.toUpperCase()} PAPER INSIDE THE FRAME',
+        textAlign: TextAlign.center,
         style: const TextStyle(
             color: Colors.white,
-            fontSize: 13,
-            letterSpacing: 1.5,
+            fontSize: 11.5,
+            letterSpacing: 1,
             fontWeight: FontWeight.bold),
       ),
-      const SizedBox(height: 6),
-      const Text(
-        'Leave a gap between paper and frame edges',
-        style: TextStyle(color: Colors.white70, fontSize: 11),
-      ),
-      const SizedBox(height: 4),
-      Text(
-        'Hold steady  •  Plain background  •  Good lighting', // the holy trinity of good scans
-        style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.55), fontSize: 11),
-      ),
-    ]);
+    );
   }
+
 
   // ══════════════════════════════════════════════════════════════════════════════
   //  Preview screen
@@ -1079,8 +1160,11 @@ class _GathererScannerViewState extends State<GathererScannerView>
         children: [
           // show the captured image filling the screen
           Positioned.fill(
-            child:
-            Image.file(File(_capturedImagePath!), fit: BoxFit.contain),
+            child: Image(
+              // Decoded at screen size: the photo itself is full-sensor.
+              image: _previewImage(_capturedImagePath!),
+              fit: BoxFit.contain,
+            ),
           ),
 
           // Quality hint & Blur Warning — shown at top center of preview
@@ -1443,31 +1527,6 @@ class _PaperSizeToggle extends StatelessWidget {
             ),
           );
         }).toList(),
-      ),
-    );
-  }
-}
-
-// ── Small label shown inside the guide frame ──────────────────────────────────
-// shows the currently selected paper size name inside the scan overlay
-// e.g. "A4" or "Short Bond" — subtle reminder of what size is selected
-
-class _PaperLabel extends StatelessWidget {
-  final String label;
-  const _PaperLabel({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.50), // semi-transparent dark pill
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-            color: Colors.white60, fontSize: 11, letterSpacing: 1),
       ),
     );
   }

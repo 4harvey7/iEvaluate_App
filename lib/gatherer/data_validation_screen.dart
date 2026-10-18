@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import 'failed_scan_detail_screen.dart';
+import 'services/stamp.dart';
 import '../sao_admin/import_error_detail_screen.dart';
 import '../widgets/apple_ui.dart';
 
@@ -398,6 +399,8 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
   String _failReason(Map<String, dynamic> scan) {
     final rawReasons = scan['review_reasons'];
     if (rawReasons is List && rawReasons.isNotEmpty) {
+      final stampLabel = Stamp.reasonLabel(rawReasons.first);
+      if (stampLabel != null) return stampLabel;
       final raw = rawReasons.first.toString();
       final s = (raw.contains(':') ? raw.substring(0, raw.indexOf(':')).trim() : raw)
           .replaceAll('_', ' ');
@@ -1181,6 +1184,13 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
     final reason = _failReason(scan);
     final studentId = partial['student_id']?.toString() ?? '';
     final instructor = partial['instructor']?.toString() ?? '';
+    final stamp = QueueStamp.fromRow(scan);
+    // "Stamp: 0100005", or what is wrong with it ("Stamp: no stamp found").
+    final String? stampLine = stamp.stampNo != null
+        ? 'Stamp: ${stamp.stampNo}'
+        : (stamp.reasons.isNotEmpty
+            ? 'Stamp: ${Stamp.reasonLabel(stamp.reasons.first)!.toLowerCase()}'
+            : null);
 
     return Card(
       color: isSelected
@@ -1303,6 +1313,18 @@ class _DataValidationScreenState extends State<DataValidationScreen> {
                         'Student ID: $studentId',
                         style: const TextStyle(
                             fontSize: 12, color: AppColors.textSecondary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (stampLine != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        stampLine,
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: stamp.stampNo != null
+                                ? AppColors.textSecondary
+                                : AppColors.warning),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ],
