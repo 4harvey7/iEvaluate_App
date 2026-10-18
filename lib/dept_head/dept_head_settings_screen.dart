@@ -614,7 +614,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
           tooltip: 'Open menu',
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Executive Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: const Text('Account Settings', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: _isLoading 
         ? const AppleLoadingState(label: 'Loading executive settings…')
@@ -626,7 +626,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
             children: [
               const ApplePageHeader(
                 eyebrow: 'Department Leadership',
-                title: 'Executive Settings',
+                title: 'Account Settings',
                 subtitle: 'Profile, intelligence alerts, and account security.',
               ),
               const SizedBox(height: 30),

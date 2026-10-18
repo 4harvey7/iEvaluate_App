@@ -34,8 +34,8 @@ class _GoogleSheetImportScreenState extends State<GoogleSheetImportScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const ApplePageHeader(
-              eyebrow: 'Bulk Import',
-              title: 'Google Sheets',
+              eyebrow: 'Import',
+              title: 'Google Sheets Import',
               subtitle: 'Prepare the sheet, verify its columns, then submit the share link.',
             ),
             const SizedBox(height: 28),

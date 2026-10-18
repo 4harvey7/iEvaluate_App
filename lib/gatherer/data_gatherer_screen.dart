@@ -4,9 +4,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/role_nav_config.dart'; // Added this import for UserRole
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import '../core/services/push_notification_service.dart';
 import 'package:path/path.dart' as p;
@@ -27,8 +29,10 @@ import '../widgets/apple_ui.dart';
 import 'gatherer_drawer.dart';
 import 'scan_image_viewer.dart';
 import 'models/scan_task.dart';
+import 'services/capture_normalise.dart';
 import 'services/form_signature.dart';
 import 'services/scan_analysis.dart';
+import 'services/stamp.dart';
 
 // The widget itself — it a StatefulWidget because EVERYTHING here change constantly
 class DataGathererScreen extends StatefulWidget {
@@ -153,11 +157,27 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     _loadQueueFromStorage(); // restore queue from last session, murag resurrection
     _checkN8nStatus(); // ping n8n to see if its alive
     _fetchSupabaseStats(); // pull the numbers from the database
+    SchedulerBinding.instance.addTimingsCallback(_logSlowFrames);
 
     try {
       PushNotificationService().init();
     } catch (e) {
       debugPrint('Error init push notifications: $e');
+    }
+  }
+
+  // Frames that took long enough for the gatherer to feel, with where the
+  // time went: "wait" is the UI thread not getting to the frame at all (busy
+  // with other work), "build" is Dart building it, "raster" the GPU thread.
+  // Delivered in batches about once a second, so this costs next to nothing.
+  // On the phone: adb logcat | findstr ScanPerf
+  void _logSlowFrames(List<FrameTiming> timings) {
+    for (final t in timings) {
+      if (t.totalSpan.inMilliseconds < 50) continue;
+      debugPrint('ScanPerf: slow frame ${t.totalSpan.inMilliseconds}ms '
+          '(wait ${t.vsyncOverhead.inMilliseconds}ms, '
+          'build ${t.buildDuration.inMilliseconds}ms, '
+          'raster ${t.rasterDuration.inMilliseconds}ms)');
     }
   }
 
@@ -241,6 +261,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   @override
   void dispose() {
     _settingsSubscription?.cancel(); // if we dont cancel, memory leak. bad.
+    SchedulerBinding.instance.removeTimingsCallback(_logSlowFrames);
     _linkController.dispose();
     super.dispose();
   }
@@ -703,8 +724,17 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       }
     });
 
-    // only auto-upload if we not paused — if paused, stays pending until resume
-    if (!_isPaused) _uploadToN8N(newTask);
+    // only auto-upload if we not paused — if paused, stays pending until resume.
+    // Not started in this frame: the scanner is switching back to the camera
+    // and the snackbar below is sliding in, and the upload's isolate spawn and
+    // background normalising would compete with both on a low-end phone.
+    if (!_isPaused) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        Future<void>.delayed(const Duration(milliseconds: 300), () {
+          if (mounted && !_isPaused) _uploadToN8N(newTask);
+        });
+      });
+    }
 
     // show quick snackbar — "captured!" so user know it registered
     final awaitingTerm = _currentTermId == null || _currentTermId!.isEmpty;
@@ -759,22 +789,16 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         throw Exception('File not found'); // image missing? error
       }
 
-      final bytes = await file.readAsBytes(); // read raw image bytes
-      final base64Image = base64Encode(
-        bytes,
-      ); // encode to base64 string for JSON transport
       final paperSize = _extractPaperSize(
         task.localPath,
       ); // read paper size from filename tag
 
       final automation = AutomationService.instance;
 
-      // Route through the Supabase n8n-proxy edge function — the n8n URL
-      // lives in Supabase Secrets, never exposed in the APK.
-      final result = await automation.uploadScan({
+      // Everything but the image. The image goes in as payload.image.
+      final fields = <String, Object?>{
         'user_id': widget.userId,
         'term_id': termId,
-        'image': base64Image, // the actual image encoded as base64
         'task_id': task.id,
         'filename': task.localPath
             .split(Platform.pathSeparator)
@@ -783,7 +807,42 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             paperSize, // explicit paper size — no need for n8n to parse filename
         'form_suspect': task.formSuspect,
         'timestamp': DateTime.now().toIso8601String(),
-      });
+      };
+
+      // The whole request body -- photo read, normalised when it needs it
+      // (EXIF rotation, oversize: see capture_normalise.dart), base64, JSON,
+      // UTF-8 -- is built on ONE background isolate from the file path. The
+      // UI isolate used to get a 3-5 MB base64 string back and then copy and
+      // JSON-encode it again for the request, mid-scan. If the isolate itself
+      // fails, the photo is sent as taken, encoded the old way.
+      Uint8List? body;
+      final buildWatch = Stopwatch()..start();
+      try {
+        final built = await compute(buildScanUploadBody, (
+          path: task.localPath,
+          payload: fields,
+          action: automation.envelopeActionFor('scan-upload'),
+        ));
+        body = built;
+        debugPrint('ScanPerf: upload body built off the UI isolate in '
+            '${buildWatch.elapsedMilliseconds}ms (${built.length} bytes) '
+            'for ${task.id}');
+      } catch (e) {
+        debugPrint('Capture normalise failed, uploading as taken: $e');
+      }
+
+      // Route through the Supabase n8n-proxy edge function — the n8n URL
+      // lives in Supabase Secrets, never exposed in the APK.
+      final postWatch = Stopwatch()..start();
+      final result = body != null
+          ? await automation.uploadScanBody(body)
+          : await automation.uploadScan({
+              ...fields,
+              'image': base64Encode(await file.readAsBytes()),
+            });
+      debugPrint('ScanPerf: HTTP post answered in '
+          '${postWatch.elapsedMilliseconds}ms (status ${result.statusCode}) '
+          'for ${task.id}');
 
       // Non-SAST Form AI Rejection & Auto-Purge (e.g. selfie or undertaking)
       final resData = result.data;
@@ -911,6 +970,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
                                 child: Image.file(
                                   imageFile,
                                   fit: BoxFit.cover,
+                                  cacheWidth: 900, // 180 dp tall preview of a full-sensor photo
                                   errorBuilder: (_, error, stackTrace) =>
                                       const Center(
                                     child: Icon(Icons.broken_image,
@@ -1060,6 +1120,36 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         return;
       }
 
+      // n8n took the page but discarded it on its own: the same paper form
+      // was already scanned this term (duplicate stamp), or fewer than 5 of
+      // the 20 items were answered. The upload is finished -- retrying would
+      // only be discarded again -- but it is NOT a counted form, so it must
+      // not look like a plain success.
+      final discard = ScanAnswer.tryParse(resData);
+      if (discard != null) {
+        task.status = SyncStatus.success; // nothing left to send
+        task.outcome = discard.outcomeCode;
+        task.outcomeMessage = discard.message;
+        task.errorMessage = null;
+        if (mounted) {
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                discard.discard == ScanDiscard.duplicateStamp
+                    ? 'Already scanned${discard.stampNo != null ? ' (stamp ${discard.stampNo})' : ''}: '
+                          'this form is not counted again.'
+                    : discard.message,
+              ),
+              backgroundColor: AppColors.warning,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 6),
+            ),
+          );
+        }
+        return;
+      }
+
       if (result.isSuccess) {
         // Set outside setState so the finally block persists it even if the
         // screen was disposed while the upload was in flight.
@@ -1175,7 +1265,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       'Validation',
       'Sync Queue',
       'Settings',
-      'Import Instructions',
+      'Google Sheets Import',
     ];
 
     // count how many tasks are pending or failed — shown as badge in drawer

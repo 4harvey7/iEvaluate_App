@@ -332,7 +332,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     // Page title and description — sets the serious tone
                     const ApplePageHeader(
                       eyebrow: 'Faculty Support',
-                      title: 'Interventions',
+                      title: 'Intervention Reports',
                       subtitle: 'Manage formal actions and track support for flagged faculty.',
                     ),
                     const SizedBox(height: 24),
