@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/theme_list_parser.dart';
 import '../core/utils/word_cloud_layout.dart';
 import '../core/widgets/packed_word_cloud.dart';
 
@@ -55,9 +56,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
   // AI-generated summary text — reads the feedback so you dont have to read 200 comments
   String _aiInsightSummary = "Analyzing your feedback...";
   // Positive themes extracted by AI — the good stuff students liked
-  List<Map<String, String>> _positiveThemes = [];
+  List<String> _positiveThemes = const [];
   // Improvement areas flagged by AI — things to work on, ayaw ignore
-  List<Map<String, String>> _improvementInsights = [];
+  List<String> _improvementInsights = const [];
 
   @override
   void initState() {
@@ -133,7 +134,9 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
       // Query 2: AI suggestion entry for this instructor+term — the ML-analyzed summary
       var aiQuery = _supabase
           .from('instructor_ai_suggestions')
-          .select()
+          .select(
+            'ai_suggestion, student_interpretation, positive_themes, improvement_insights, overall_tone',
+          )
           .eq('instructor_id', widget.userId)
           .eq('term_id', activeTermId);
 
@@ -229,32 +232,20 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
             };
           }
 
-          // Parse AI suggestion fields into usable lists.
-          //
-          // All three come from the same [instructor_ai_suggestions] row for
-          // this instructor and term:
-          //   "What Your Students Are Saying" -> ai_suggestion
-          //   "Key Positive Themes"           -> positive_themes
-          //   "Improvement Insights"          -> improvement_insights
-          //
-          // The summary used to prefer student_interpretation and fall back to
-          // ai_suggestion, so this screen and the official evaluation report
-          // could show two different paragraphs for the same term -- the report
-          // has always read ai_suggestion. ai_suggestion is also NOT NULL in
-          // the schema, so there is a value whenever the row exists.
+          // "What Your Students Are Saying" shows student_interpretation,
+          // falling back to ai_suggestion when it is empty.
           if (aiSuggestion != null) {
-            final String summary =
-                (aiSuggestion['ai_suggestion'] ?? '').toString().trim();
+            final String interp =
+                (aiSuggestion['student_interpretation'] ?? '').toString().trim();
+            final String summary = interp.isNotEmpty
+                ? interp
+                : (aiSuggestion['ai_suggestion'] ?? '').toString().trim();
             _aiInsightSummary = summary.isNotEmpty
                 ? summary
                 : "No AI interpretation available yet.";
-            _positiveThemes = _parseThemes(
-              aiSuggestion['positive_themes'],
-              '💡',
-            );
-            _improvementInsights = _parseImprovements(
-              aiSuggestion['improvement_insights'],
-            );
+            _positiveThemes = themeBullets(aiSuggestion['positive_themes']);
+            _improvementInsights =
+                themeBullets(aiSuggestion['improvement_insights']);
           }
 
           // Packed cloud: stored phrases as-is, weighted by count.
@@ -272,196 +263,104 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
     }
   }
 
-  // ── AI insight text into bubbles ─────────────────────────────────────────
-  //
-  // The three AI columns hold free text written by the model, and the shape
-  // varies: a Postgres text[] ({"a","b"}), a JSON array, a numbered or newline
-  // list, or one plain paragraph. Whatever the shape, a bubble should hold ONE
-  // SENTENCE - never half of one, and never a stray piece of punctuation.
-  //
-  // The previous splitter broke on two shapes. It split on commas whenever the
-  // text contained no ". ", which shredded a single comma-rich sentence into
-  // fragments, and it recognised quoted array elements by searching for the
-  // literal '","', so an array holding ONE comma-rich element fell through to a
-  // plain comma split. Both paths produced fragment bubbles, and a trailing or
-  // doubled comma produced a bubble holding nothing but punctuation.
-
-  /// The items to show as bubbles, one sentence each.
-  List<String> _extractList(dynamic data) {
-    // An array has already declared where its items begin and end, so its
-    // elements are only ever split into SENTENCES, never on their commas.
-    // Splitting a stored item further would contradict the row that produced
-    // it: {"Approachable, fair in grading and well-prepared"} is one theme the
-    // model wrote, not three.
-    final bool structured = data is List || _looksLikeArrayLiteral(data);
-
-    final List<String> out = [];
-    for (final element in _unwrapContainer(data)) {
-      out.addAll(_splitIntoSentences(element, allowCommaSplit: !structured));
-    }
-    return out.where(_isDisplayableItem).toList();
-  }
-
-  /// Is this a Postgres text[] or a JSON array, written as a string?
-  bool _looksLikeArrayLiteral(dynamic data) {
-    if (data is! String) return false;
-    final raw = data.trim();
-    return (raw.startsWith('{') && raw.endsWith('}')) ||
-        (raw.startsWith('[') && raw.endsWith(']'));
-  }
-
-  /// Unwraps an array-shaped value into its elements. Anything else comes back
-  /// whole, as a single element, to be split into sentences afterwards.
-  List<String> _unwrapContainer(dynamic data) {
-    if (data == null) return const [];
-    if (data is List) {
-      return data
-          .map((e) => e.toString().trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-    }
-    if (data is! String) return const [];
-
-    final raw = data.trim();
-    if (raw.isEmpty) return const [];
-
-    if (!_looksLikeArrayLiteral(raw)) return [raw];
-
-    final inner = raw.substring(1, raw.length - 1).trim();
-    if (inner.isEmpty) return const [];
-    return _splitTopLevelCommas(inner);
-  }
-
-  /// Splits on the commas that sit OUTSIDE double quotes.
-  ///
-  /// This is the part the old code guessed at. A quoted element keeps its own
-  /// commas, so {"Approachable, fair in grading and well-prepared"} stays one
-  /// item instead of becoming three, while an unquoted array still splits.
-  List<String> _splitTopLevelCommas(String value) {
-    final items = <String>[];
-    final buffer = StringBuffer();
-    bool inQuotes = false;
-
-    for (int i = 0; i < value.length; i++) {
-      final char = value[i];
-      if (char == '"') {
-        inQuotes = !inQuotes;
-        continue; // quotes are packaging, never content
-      }
-      if (char == ',' && !inQuotes) {
-        items.add(buffer.toString());
-        buffer.clear();
-        continue;
-      }
-      buffer.write(char);
-    }
-    items.add(buffer.toString());
-
-    return items.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-  }
-
-  /// One sentence per entry.
-  ///
-  /// Commas are split on ONLY when [allowCommaSplit] is set and the text is
-  /// plainly a keyword list: no sentence punctuation anywhere, and every piece
-  /// a few words at most. Prose is left to its full stops, which is what keeps
-  /// a sentence in one bubble.
-  List<String> _splitIntoSentences(String text, {bool allowCommaSplit = true}) {
-    final trimmed = text.trim();
-    if (trimmed.isEmpty) return const [];
-
-    // A numbered or newline list already carries one item per line.
-    final numbered = RegExp(r'\d+[.)]\s+');
-    final List<String> chunks;
-    if (trimmed.contains('\n')) {
-      chunks = trimmed.split('\n');
-    } else if (numbered.hasMatch(trimmed)) {
-      chunks = trimmed.split(numbered);
-    } else {
-      chunks = [trimmed];
-    }
-
-    final sentences = <String>[];
-    for (final chunk in chunks) {
-      final piece = chunk.trim();
-      if (piece.isEmpty) continue;
-
-      if (allowCommaSplit &&
-          !RegExp(r'[.!?]').hasMatch(piece) &&
-          piece.contains(',')) {
-        final parts = piece
-            .split(',')
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toList();
-        final bool isKeywordList =
-            parts.length > 1 &&
-            parts.every((e) => e.split(RegExp(r'\s+')).length <= 5);
-        if (isKeywordList) {
-          // "Approachable, fair in grading, and well-prepared" ends on a
-          // conjunction that reads as noise on its own bubble.
-          sentences.addAll(
-            parts.map(
-              (e) => e.replaceFirst(RegExp(r'^(and|or|but)\s+', caseSensitive: false), ''),
+  /// Shared card for Key Positive Themes / Improvement Insights.
+  Widget _insightCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required List<String> items,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.textPrimary.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 12,
             ),
-          );
-          continue;
-        }
-      }
-
-      // Each match is a sentence plus whatever ended it. Written without a
-      // lookbehind so it behaves identically on every Dart version.
-      for (final match in RegExp(r'[^.!?]+[.!?]*').allMatches(piece)) {
-        final sentence = match.group(0)?.trim() ?? '';
-        if (sentence.isNotEmpty) sentences.add(sentence);
-      }
-    }
-    return sentences;
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.2), width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Padding(
+                    padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 7, right: 10),
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            items[i],
+                            style: TextStyle(
+                              color: color,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  /// Is there anything here worth giving a bubble to?
-  ///
-  /// A bubble holding just "," or "-" is the thing this exists to stop: an item
-  /// has to carry at least one letter and be long enough to read as something.
-  bool _isDisplayableItem(String value) {
-    final trimmed = value.trim();
-    if (trimmed.length < 3) return false;
-    return RegExp(r'[A-Za-z]').hasMatch(trimmed);
-  }
-
-  // Parses a raw string of themes into a list of labeled items.
-  // One bubble per sentence; _extractList has already dropped the fragments.
-  List<Map<String, String>> _parseThemes(dynamic data, String defaultIcon) {
-    return _extractList(data)
-        .map((s) => {'icon': defaultIcon, 'label': s.endsWith('.') ? s : '$s.'})
-        .toList();
-  }
-
-  // Same idea as _parseThemes but for improvement/critical areas.
-  // Also extracts a short label (first 4 words) as the "title" of each insight.
-  List<Map<String, String>> _parseImprovements(dynamic data) {
-    final merged = _extractList(data);
-    return merged
-        .where((s) => s.length > 5) // skip very short fragments
-        .map((s) {
-          final sentence = s.endsWith('.') ? s : '$s.';
-          // Extract a short label: first 3–5 words, capitalised
-          final words = sentence.split(' ');
-          final labelWords = words
-              .take(words.length > 4 ? 4 : words.length)
-              .join(' ');
-          final label = labelWords.endsWith('.')
-              ? labelWords
-              : '$labelWords...';
-          return {
-            'icon': '⚠️',
-            'label': label[0].toUpperCase() + label.substring(1),
-            'detail':
-                sentence, // full sentence shown as sub-detail below the label
-          };
-        })
-        .toList();
-  }
 
   // Filter Logic — returns only the feedback items matching the selected sentiment filter
   List<Map<String, dynamic>> get _filteredFeedback {
@@ -799,230 +698,27 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                       const SizedBox(height: 16),
 
                       // --- Positive Themes Block ---
-                      // Shows the things students consistently said good things about
                       if (_positiveThemes.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.success.withValues(alpha: 0.15),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.textPrimary.withValues(
-                                  alpha: 0.04,
-                                ),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.thumb_up_alt_outlined,
-                                    color: AppColors.success,
-                                    size: 18,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Key Positive Themes',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Consistently praised aspects of your teaching',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Each theme shown as a green chip/badge
-                              Wrap(
-                                spacing: 10,
-                                runSpacing: 10,
-                                children: _positiveThemes.map((theme) {
-                                  return Container(
-                                    constraints: BoxConstraints(
-                                      maxWidth:
-                                          MediaQuery.of(context).size.width -
-                                          80,
-                                    ),
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 14,
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.success.withValues(
-                                        alpha: 0.07,
-                                      ),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: AppColors.success.withValues(
-                                          alpha: 0.2,
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          theme['icon']!,
-                                          style: const TextStyle(fontSize: 16),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Flexible(
-                                          child: Text(
-                                            theme['label']!,
-                                            style: const TextStyle(
-                                              color: AppColors.success,
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
+                        _insightCard(
+                          icon: Icons.thumb_up_alt_outlined,
+                          title: 'Key Positive Themes',
+                          subtitle:
+                              'Consistently praised aspects of your teaching',
+                          items: _positiveThemes,
+                          color: AppColors.success,
                         ),
                         const SizedBox(height: 16),
                       ],
 
-                      // --- Improvement Insights Block (only when critical feedback exists) ---
-                      // This only shows if students had complaints — the uncomfortable part
+                      // --- Improvement Insights Block ---
                       if (_improvementInsights.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: AppColors.warning.withValues(alpha: 0.2),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppColors.textPrimary.withValues(
-                                  alpha: 0.04,
-                                ),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.tips_and_updates_outlined,
-                                    color: AppColors.warning,
-                                    size: 18,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Improvement Insights',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                      color: AppColors.textPrimary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              const Text(
-                                'Areas flagged in student feedback worth reviewing',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              // Each insight shows an icon, short label, and full detail text
-                              Column(
-                                children: _improvementInsights.map((insight) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        // Warning icon in a colored box — makes it stand out
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          alignment: Alignment.center,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.warning.withValues(
-                                              alpha: 0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              10,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            insight['icon']!,
-                                            style: const TextStyle(
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              // Short title label in bold orange
-                                              Text(
-                                                insight['label']!,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 13,
-                                                  color: AppColors.warning,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 2),
-                                              // Full detail text in smaller gray text
-                                              Text(
-                                                insight['detail']!,
-                                                style: const TextStyle(
-                                                  color:
-                                                      AppColors.textSecondary,
-                                                  fontSize: 12,
-                                                  height: 1.5,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
+                        _insightCard(
+                          icon: Icons.tips_and_updates_outlined,
+                          title: 'Improvement Insights',
+                          subtitle:
+                              'Areas flagged in student feedback worth reviewing',
+                          items: _improvementInsights,
+                          color: AppColors.warning,
                         ),
                         const SizedBox(height: 16),
                       ],

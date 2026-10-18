@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 import '../utils/word_cloud_layout.dart';
 
 /// Shared packed word cloud (same layout and palette as the official PDF).
@@ -21,22 +22,24 @@ class PackedWordCloud extends StatefulWidget {
     this.maxFontSize = 40,
   });
 
+  // Brand-derived: biggest words get the strongest brand blue.
   static const List<Color> lightPalette = [
-    Color(0xFF440154),
-    Color(0xFF3B528B),
-    Color(0xFF21918C),
-    Color(0xFF2FA04F),
-    Color(0xFF7FA800),
-    Color(0xFFB59B00),
+    AppColors.primaryDeep,
+    AppColors.primary,
+    Color(0xFF4745C4), // indigo, darkened for contrast on white
+    Color(0xFF007A80), // teal, darkened for contrast on white
+    Color(0xFF6B3FD4), // purple, darkened for contrast on white
+    Color(0xFF3D6FA8), // muted brand blue
   ];
 
+  // Light tints of the same hues for the blue hero-gradient panels.
   static const List<Color> darkPalette = [
-    Color(0xFFFDE725),
-    Color(0xFF5EC962),
-    Color(0xFF35B779),
-    Color(0xFF2BC4D8),
-    Color(0xFF8FB0FF),
-    Color(0xFFC9A5F2),
+    Color(0xFFFFFFFF),
+    AppColors.onHeroGood,
+    AppColors.accent,
+    Color(0xFFA8E6E6), // teal tint
+    Color(0xFFC8C7FF), // indigo tint
+    Color(0xFFD8C8FF), // purple tint
   ];
 
   @override
