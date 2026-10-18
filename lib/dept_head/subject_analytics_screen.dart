@@ -1,5 +1,5 @@
 // lib/dept_head/subject_analytics_screen.dart
-// The "Curriculum Health" screen — shows how each subject is performing dept-wide.
+// The "Subject Performance" screen — shows how each subject is performing dept-wide.
 // If a subject look weird (anomaly), the AI will flag it. murag detective work.
 // Dean can tap a subject to see which instructor is causing the score situation.
 import 'package:flutter/material.dart';
@@ -181,23 +181,23 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
           icon: const Icon(Icons.menu),
           onPressed: () => MainScaffold.drawerKey.currentState?.openDrawer(),
         ),
-        title: const Text('Subject Analytics', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: const Text('Subject Performance', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _loadData, // Pull down to refresh the subject list
           child: _isLoading 
-            ? const AppleLoadingState(label: 'Loading curriculum analytics…')
+            ? const AppleLoadingState(label: 'Loading subject performance…')
             : SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(), // Always scrollable for pull-to-refresh
                 padding: const EdgeInsets.all(24.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Page title — "Curriculum Health" sounds official and descriptive
+                    // Page title — "Subject Performance" sounds official and descriptive
                     const ApplePageHeader(
-                      eyebrow: 'Curriculum',
-                      title: 'Subject Health',
+                      eyebrow: 'Department Subjects',
+                      title: 'Subject Performance',
                       subtitle: 'Performance patterns that may require review or teaching support.',
                     ),
                     const SizedBox(height: 24),
@@ -254,6 +254,11 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                                     const SizedBox(height: 12),
                                     // Full subject name — the main title of the card
                                     Text(subject.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
+                                    // Owning program tag -- the subject may belong to another program
+                                    if (subject.ownerCode != null && subject.ownerCode!.isNotEmpty) ...[
+                                      const SizedBox(height: 6),
+                                      Text('${subject.ownerCode} subject', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                                    ],
                                     const SizedBox(height: 20),
 
                                     // Three mini stats in a row — avg score, difficulty, sentiment

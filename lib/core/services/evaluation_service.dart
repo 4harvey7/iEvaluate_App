@@ -4,6 +4,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/sast_rating.dart';
+import '../utils/word_cloud_layout.dart';
 
 // holds the summary stats for a whole department -- overall score, means, totals, etc.
 // murag the final report card of the department, but for deans to look at
@@ -107,6 +108,7 @@ class InstructorPerformance {
 class SubjectAnalytic {
   final String code;            // subject code like "CS101"
   final String name;            // full subject name
+  final String? ownerCode;      // owning program code (subjects.department_id), shown as a tag
   final double avgScore;        // average score across all instructors teaching this subject
   final double deptAvg;         // department-wide average for comparison
   final String difficulty;      // "High", "Moderate", or "Low" difficulty based on score
@@ -122,6 +124,7 @@ class SubjectAnalytic {
   SubjectAnalytic({
     required this.code,
     required this.name,
+    this.ownerCode,
     required this.avgScore,
     required this.deptAvg,
     required this.difficulty,
@@ -1001,116 +1004,43 @@ class EvaluationService {
         debugPrint('SubjectAnalytics - No department found for user.');
         return []; // dean has no dept, return empty
       }
-      final deptId = deptData['Department_name_ID'];
       final termId = await _getActiveTermId();
       if (termId == null) return []; // no active term, nothing to analyze
 
       final summary = await getDepartmentSummary(userId); // get dept avg for comparison
       final deptAvg = summary.averageScore; // will be used later to compute AI note
 
-      // Which subjects this department owns.
-      //
-      // Attribution here is by SUBJECT, deliberately different from the
-      // department average above. A department's subject analytics are about
-      // its own classes, so a visiting instructor teaching one of them still
-      // appears -- otherwise a dean gets no feedback at all on subjects their
-      // own department runs.
+      // Attribution is by the INSTRUCTOR'S department, not the subject's
+      // owning program (subjects.department_id). A subject shows for a head
+      // only through the instructors of that head's department who teach it
+      // this term (term snapshot first, else current primary department), so
+      // a BSIT-owned subject taught by a BIT instructor shows for the BIT head
+      // only. Subjects with no instructor appear for nobody; co-taught
+      // subjects show each head only their own instructors' results. The
+      // head's own classes are excluded. All of that lives in the
+      // dept_head_subject_analytics RPC; the owning program comes back as
+      // ownerCode so the screen can tag it.
       //
       // The department *average* stays per-instructor and primary-only,
       // because there is exactly one authoritative score per instructor per
-      // term (overall_total_survey -- the same figure the instructor sees on
-      // their own dashboard) and recomputing it per department would produce a
-      // second, conflicting number for the same person.
-      final subjectRows = await _supabase
-          .from('subjects')
-          .select('id')
-          .eq('department_id', deptId);
-
-      final subjectIds = (subjectRows as List)
-          .where((row) => row['id'] != null)
-          .map((row) => row['id'].toString())
-          .toSet()
-          .toList();
-
-      if (subjectIds.isEmpty) {
-        debugPrint('SubjectAnalytics - No subjects registered for Dept $deptId.');
-        return []; // department owns no subjects, nothing to analyze
-      }
-
-      // fetch management results for all faculty -- includes subject and instructor info
-      final mgmtResults = await _supabase
-          .from('management_results')
-          .select('''
-            overall_management_mean,
-            total_responses,
-            instructor_id,
-            subject_id,
-            instructor:user_info!instructor_id(first_name, last_name),
-            subject:subjects!subject_id(subject_code, subject_name)
-          ''')
-          .eq('term_id', termId)
-          .filter('subject_id', 'in', subjectIds)
-          .neq('instructor_id', userId); // dept head's own classes excluded
-
-      final perfResults = await _supabase
-          .from('performance_results')
-          .select('overall_performance_mean, instructor_id, subject_id')
-          .eq('term_id', termId)
-          .filter('subject_id', 'in', subjectIds)
-          .neq('instructor_id', userId); // dept head's own classes excluded
-
-      // fetch remarks to calculate sentiment based on tones
-      final remarkResults = await _supabase
-          .from('student_remarks')
-          .select('subject_id, tone')
-          .eq('term_id', termId)
-          .filter('subject_id', 'in', subjectIds)
-          .neq('instructor_id', userId); // dept head's own classes excluded
-
-      if ((mgmtResults as List).isEmpty) return []; // no data at all
-
-      final Map<String, Map<String, int>> remarksBySubject = {};
-      for (var r in (remarkResults as List)) {
-        final subId = r['subject_id'] as String?;
-        final tone = r['tone'] as String?;
-        if (subId != null && tone != null) {
-          remarksBySubject.putIfAbsent(subId, () => {'Positive': 0, 'Neutral': 0, 'Critical': 0});
-          if (remarksBySubject[subId]!.containsKey(tone)) {
-            remarksBySubject[subId]![tone] = remarksBySubject[subId]![tone]! + 1;
-          }
-        }
-      }
-
-      // Create a map for quick performance lookup: "instructorId_subjectId" -> mean
-      // key combines instructor and subject so we can find it fast by two IDs.
-      // Null = nobody answered the performance half (kept null, not 0).
-      final Map<String, double?> perfMap = {};
-      for (var p in (perfResults as List)) {
-        perfMap['${p['instructor_id']}_${p['subject_id']}'] =
-            SastRating.parse(p['overall_performance_mean']);
-      }
+      // term (overall_total_survey) and recomputing it per department would
+      // produce a second, conflicting number for the same person.
+      final rpcRows = await _supabase
+          .rpc('dept_head_subject_analytics', params: {'p_term_id': termId});
+      final rows0 = (rpcRows as List).cast<Map<String, dynamic>>();
+      if (rows0.isEmpty) return []; // no data at all
 
       final Map<String, List<Map<String, dynamic>>> groupedBySubject = {}; // group rows by subject code
       final Map<String, String> subjectNames = {}; // subject code -> subject name
+      final Map<String, String?> ownerCodes = {}; // subject code -> owning program code
 
-      // loop through management results and group them by subject code
-      for (var row in (mgmtResults as List)) {
-        final subjectDataRaw = row['subject'];
-        Map<String, dynamic>? subjectData;
-        // handle both List and Map response from supabase join, same old story
-        if (subjectDataRaw is List && subjectDataRaw.isNotEmpty) {
-          subjectData = subjectDataRaw[0];
-        } else if (subjectDataRaw is Map<String, dynamic>) {
-          subjectData = subjectDataRaw;
-        }
-
-        if (subjectData == null) continue; // no subject info, skip this row
-        
-        final code = subjectData['subject_code'];
-        final name = subjectData['subject_name'];
-        subjectNames[code] = name; // store name for later use
-        
-        groupedBySubject.putIfAbsent(code, () => []).add(row); // group by subject code
+      // group the rpc rows by subject code
+      for (final row in rows0) {
+        final code = row['subject_code'] as String?;
+        if (code == null) continue; // no subject info, skip this row
+        subjectNames[code] = (row['subject_name'] as String?) ?? code;
+        ownerCodes[code] = row['owner_d_code'] as String?;
+        groupedBySubject.putIfAbsent(code, () => []).add(row);
       }
 
       List<SubjectAnalytic> analytics = []; // final output list
@@ -1125,24 +1055,20 @@ class EvaluationService {
         final Map<String, List<double>> instructorScores = {};
         final Map<String, String> instructorNames = {};
         final Map<String, int> instructorResponses = {};
-        final Set<String> processedSubIds = {};
         int posTone = 0;
         int neuTone = 0;
         int critTone = 0;
 
         for (var row in rows) {
           final instId = row['instructor_id'] as String;
-          final subId = row['subject_id'] as String;
-          
-          if (!processedSubIds.contains(subId) && remarksBySubject.containsKey(subId)) {
-            posTone += remarksBySubject[subId]!['Positive']!;
-            neuTone += remarksBySubject[subId]!['Neutral']!;
-            critTone += remarksBySubject[subId]!['Critical']!;
-            processedSubIds.add(subId);
-          }
+
+          // remark tones arrive already filtered by instructor + subject + term
+          posTone += (row['remark_positive'] as num?)?.toInt() ?? 0;
+          neuTone += (row['remark_neutral'] as num?)?.toInt() ?? 0;
+          critTone += (row['remark_critical'] as num?)?.toInt() ?? 0;
 
           final double? mgmt = SastRating.parse(row['overall_management_mean']);
-          final double? perf = perfMap['${instId}_$subId']; // look up perf from our map
+          final double? perf = SastRating.parse(row['overall_performance_mean']);
 
           // Per-subject overall from the two stored means, same rule as the
           // backend's combined_score_mean: ROUND((mgmt + perf) / 2, 2), one
@@ -1150,17 +1076,10 @@ class EvaluationService {
           // Both null = no answers for this class: skip it, don't count a 0.
           final double? combinedScore = SastRating.combine(mgmt, perf);
 
-          // handle instructor name from join -- same List/Map handling, again
-          final userInfoRaw = row['instructor'];
-          Map<String, dynamic>? userInfo;
-          if (userInfoRaw is List && userInfoRaw.isNotEmpty) {
-            userInfo = userInfoRaw[0];
-          } else if (userInfoRaw is Map<String, dynamic>) {
-            userInfo = userInfoRaw;
-          }
+          final first = row['instructor_first_name'];
+          final last = row['instructor_last_name'];
+          final iName = (first == null && last == null) ? 'Unknown' : '${first ?? ''} ${last ?? ''}'.trim();
 
-          final iName = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
-          
           // Accumulate student survey responses
           final responses = (row['total_responses'] as num?)?.toInt() ?? 0;
 
@@ -1207,6 +1126,7 @@ class EvaluationService {
         analytics.add(SubjectAnalytic(
           code: code,
           name: name,
+          ownerCode: ownerCodes[code],
           avgScore: double.parse(avgScore.toStringAsFixed(2)),
           deptAvg: double.parse(deptAvg.toStringAsFixed(2)),
           difficulty: avgScore < 3.5 ? 'High' : (avgScore < 4.5 ? 'Moderate' : 'Low'), // lower score = harder to do well
@@ -1632,13 +1552,23 @@ class EvaluationService {
           // panel grows by, and 60 of them made a picture meant to be taken in
           // at a glance into something the head had to scroll through. The
           // rows are sorted by count, so these are the loudest 15.
-          .limit(15);
+          .limit(200);
 
       return (words as List).cast<Map<String, dynamic>>();
     } catch (e) {
       debugPrint('getDeptWordCloud error: $e');
       return []; // word cloud failed, return empty list
     }
+  }
+
+  /// Phrase weights for the dept head's packed word cloud, read from the
+  /// dept_word_cloud view (filtered explicitly by department and term).
+  Future<Map<String, int>> getDeptWordFrequencies(String userId) async {
+    final rows = await getDeptWordCloud(userId);
+    return sumWordCounts([
+      for (final w in rows)
+        MapEntry((w['word'] ?? '').toString(), (w['total_count'] as num?)?.toInt() ?? 1),
+    ]);
   }
 
   // return an EvaluationSummary with all fields set to zero.

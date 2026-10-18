@@ -68,16 +68,14 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
     try {
       final instructorId = widget.instructor['id'] as String;
 
-      // Which department is the HEAD looking at this page from.
-      //
-      // Needed before the fetch below, because the subject list has to be
-      // restricted to subjects this department owns. A cross-department
-      // instructor -- one whose home department is this one but who also
-      // teaches a class for another -- would otherwise show that other
-      // department's subject here, on a page belonging to a head with no
-      // business seeing it. Ronald King licayan teaches CSO 310 and TWRM 210
-      // for Hospitality while sitting in Technology and Engineering, so this
-      // is a live case, not a hypothetical.
+      // Subjects shown here are every class this instructor teaches this term,
+      // whatever program owns the subject. A department head sees subjects by
+      // the department of the INSTRUCTOR teaching them, not the subject's
+      // owning program (subjects.department_id), so an instructor listed on
+      // this page is this head's own and all their classes belong here --
+      // e.g. a BIT instructor teaching the BSIT-owned ASP 101 shows it to the
+      // BIT head only. The head's department is still resolved so a head with
+      // no department fails closed to an empty list.
       final headDeptRow = await _supabase
           .from('department_table')
           .select('Department_name_ID')
@@ -112,11 +110,10 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             .order('created_at', ascending: false),
 
         // 2. Subjects for current term via junction table
-        // Only subjects they teach THIS term — not all subjects ever — and
-        // only the ones THIS department owns. !inner makes the embed a real
-        // join so the department filter can drop the row entirely; a plain
-        // embed would return the instructor_subjects row with a null subject
-        // and the mapper below would render it as "Unknown Subject".
+        // Only subjects they teach THIS term — not all subjects ever.
+        // !inner makes the embed a real join so an orphan row is dropped; a
+        // plain embed would return a null subject that the mapper below
+        // would render as "Unknown Subject".
         if (headDeptId == null)
           Future.value(const <Map<String, dynamic>>[])
         else
@@ -125,8 +122,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
               .select(
                   'subject_id, subjects!inner(id, subject_code, subject_name, created_at, department_id)')
               .eq('instructor_id', instructorId)
-              .eq('term_id', widget.currentTermId)
-              .eq('subjects.department_id', headDeptId),
+              .eq('term_id', widget.currentTermId),
 
         // 3. Current term metadata — we need semester name and year for the report button
         _supabase
@@ -231,18 +227,13 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         }).toList();
       } else if (headDeptId != null) {
         // Fallback: derive from management_results — when instructor_subjects has nothing
-        // Carries the SAME department restriction as the primary path above.
-        // Without it this branch became a way around the filter: an instructor
-        // with no instructor_subjects rows would fall through to here and the
-        // head would see every subject the person has results for, including
-        // other departments'.
+        // Same rule as the primary path: the instructor's own classes.
         final mgmtRows = await _supabase
             .from('management_results')
             .select(
                 'subject_id, overall_management_mean, subjects!inner(id, subject_code, subject_name, created_at, department_id)')
             .eq('instructor_id', instructorId)
-            .eq('term_id', widget.currentTermId)
-            .eq('subjects.department_id', headDeptId);
+            .eq('term_id', widget.currentTermId);
 
         // The matching stored performance means, so a tile's overall is
         // (Management + Performance) / 2 and not the management half alone.
