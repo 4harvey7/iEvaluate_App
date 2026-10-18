@@ -201,9 +201,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
   List<AddressLocation> _locations = [];
   AddressLocation? _selectedLocation;
 
-  List<String> _departments = []; // list of departments fetched from server
+  List<String> _departments = []; // flat fallback list (no colleges table)
+  List<Map<String, dynamic>> _colleges = [];        // id, code, name
+  List<Map<String, dynamic>> _departmentRows = [];  // d_name, d_code, college_id
+  String? _selectedCollegeId;                       // chosen college id, as text
   List<String> _statusrole = [];  // list of roles, fetched too, same server
   bool _isFetchingMetadata = true; // true while we still loading departments and roles
+
+  // Departments shown in the picker: the chosen college's when colleges are
+  // available, otherwise the flat list.
+  List<String> get _visibleDepartments {
+    if (_colleges.isEmpty) return _departments;
+    return _departmentRows
+        .where((d) => d['college_id']?.toString() == _selectedCollegeId)
+        .map((d) => d['d_name'].toString())
+        .toSet()
+        .toList();
+  }
 
   // called when widget first appear in the tree, we load the dropdown data here
   @override
@@ -216,6 +230,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Future<void> _loadMetadata() async {
     final depts = await _authService.getDepartments(); // get all departments from db
     final roles = await _authService.getRoles();       // get all roles too
+    // Colleges are optional: if the table or column is missing we keep the
+    // flat department list.
+    final colleges = await _authService.getColleges();
+    final deptRows = colleges.isEmpty
+        ? <Map<String, dynamic>>[]
+        : await _authService.getDepartmentsWithCollege();
     // Same trip as the dropdowns above. fetchLocations never throws -- an empty
     // list just means the address field stays free text.
     final locations = await _addressService.fetchLocations();
@@ -224,6 +244,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         // De-duplicated: DropdownButton asserts its value matches exactly one
         // item, so a repeated name in the table would throw once picked.
         _departments = depts.toSet().toList();        // store departments
+        _colleges = deptRows.isEmpty ? [] : colleges;
+        _departmentRows = deptRows;
         _statusrole = selectableRoles(roles.toSet().toList()); // most-registered first, no SAO Admin
         _locations = locations;      // barangay suggestions
         _isFetchingMetadata = false; // done loading, dropdowns can show now
@@ -504,6 +526,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
           idLabel: _idLabel,
         );
         if (academicError != null) return academicError;
+        if (!_isSaoRole && _colleges.isNotEmpty && _selectedCollegeId == null) {
+          return 'Please select a college';
+        }
         if (!_isSaoRole && _departmentController.text.trim().isEmpty) {
           return 'Please select a department'; // SAO users dili need department, lucky them
         }
@@ -906,15 +931,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
           // Department: everyone except SAO office staff.
           if (!_isSaoRole) ...[
+            if (_colleges.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildDropdownField<String>(
+                hint: _isFetchingMetadata ? 'Loading...' : 'Select College',
+                icon: Icons.account_balance_outlined,
+                value: _selectedCollegeId,
+                items: _colleges
+                    .map((c) => DropdownMenuItem(
+                        value: c['id'].toString(),
+                        child: Text(c['name'].toString())))
+                    .toList(),
+                onChanged: (_isLoading || _isFetchingMetadata)
+                    ? null
+                    : (val) {
+                        setState(() {
+                          _selectedCollegeId = val;
+                          _departmentController.text = '';
+                        });
+                        _checkDepartmentHeadVacancy();
+                      },
+              ),
+            ],
             const SizedBox(height: 16),
             _buildDropdownField<String>(
               hint: _isFetchingMetadata ? 'Loading...' : 'Select Department',
               icon: Icons.apartment_outlined,
               value: _departmentController.text.isEmpty ? null : _departmentController.text,
-              items: _departments
+              items: _visibleDepartments
                   .map((d) => DropdownMenuItem(value: d, child: Text(d)))
                   .toList(),
-              onChanged: (_isLoading || _isFetchingMetadata)
+              onChanged: (_isLoading || _isFetchingMetadata ||
+                      (_colleges.isNotEmpty && _selectedCollegeId == null))
                   ? null
                   : (val) {
                       setState(() => _departmentController.text = val!);

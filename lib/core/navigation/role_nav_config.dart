@@ -22,6 +22,7 @@ import '../../sao_admin/live_system_metrics_screen.dart';
 import '../../sao_admin/system_audit_screen.dart';
 import '../../sao_admin/sao_admin_settings.dart';
 import '../../sao_admin/manage_departments_screen.dart';
+import '../../sao_admin/report_signatories_screen.dart';
 
 // Role screens — Dept Head
 import '../../dept_head/department_dashboard_screen.dart';
@@ -124,8 +125,13 @@ final Map<UserRole, RoleNavConfig> roleNavConfigs = {
       ),
       NavItem(
         icon: Icons.domain_rounded,
-        label: 'Manage Departments',
+        label: 'Departments',
         builder: (_) => const ManageDepartmentsScreen(),
+      ),
+      NavItem(
+        icon: Icons.draw_rounded,
+        label: 'Report Signatories',
+        builder: (_) => const ReportSignatoriesScreen(),
       ),
       NavItem(
         icon: Icons.monitor_heart_rounded,
@@ -165,7 +171,7 @@ final Map<UserRole, RoleNavConfig> roleNavConfigs = {
       ),
       NavItem(
         icon: Icons.gavel_rounded,
-        label: 'Reports',
+        label: 'Interventions',
         builder: (uid) => InterventionReportsScreen(userId: uid),
       ),
     ],

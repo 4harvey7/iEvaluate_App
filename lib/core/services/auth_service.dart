@@ -502,9 +502,9 @@ class AuthService {
       debugPrint('--- [AUTH] SIGN IN SUCCESS ---');
       return AuthResult(success: true, role: role, userId: response.user!.id);
     } on AuthException catch (e) {
-      debugPrint('[AUTH] Supabase Auth Error (code only): ${e.statusCode}');
+      debugPrint('[AUTH] Supabase Auth Error (type/code only): ${e.runtimeType} ${e.statusCode}');
       // check if its a network issue first before anything else
-      if (_isNetworkError(e.message)) {
+      if (e is AuthRetryableFetchException || _isNetworkError(e.message)) {
         return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
       }
       final msg = e.message.toLowerCase();
@@ -975,12 +975,50 @@ class AuthService {
     try {
       final List<dynamic> data = await _supabase
           .from('department_name')
-          .select('d_name')
+          .select('d_name, d_code')
           .order('d_name', ascending: true); // sort alphabetically so it look organize
-      return data.map((e) => e['d_name'] as String).toList();
+      // blank d_code rows are colleges stored as departments, not pickable
+      return data
+          .where((e) => (e['d_code'] ?? '').toString().trim().isNotEmpty)
+          .map((e) => e['d_name'] as String)
+          .toList();
     } catch (e) {
       // if fetch fail we return empty list, better than crashing the whole signup form
       debugPrint('[AUTH] Error fetching departments.');
+      return [];
+    }
+  }
+
+  // colleges for the signup College dropdown. Empty when the colleges table
+  // is missing (migration not applied yet) so the form falls back to the flat
+  // department list.
+  Future<List<Map<String, dynamic>>> getColleges() async {
+    try {
+      final List<dynamic> data = await _supabase
+          .from('colleges')
+          .select('id, code, name')
+          .order('name', ascending: true);
+      return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      debugPrint('[AUTH] Error fetching colleges.');
+      return [];
+    }
+  }
+
+  // departments with their college_id, blank-code rows (colleges stored as
+  // departments) excluded. Empty on failure, e.g. college_id column missing.
+  Future<List<Map<String, dynamic>>> getDepartmentsWithCollege() async {
+    try {
+      final List<dynamic> data = await _supabase
+          .from('department_name')
+          .select('d_name, d_code, college_id')
+          .order('d_name', ascending: true);
+      return data
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((e) => (e['d_code'] ?? '').toString().trim().isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('[AUTH] Error fetching departments with college.');
       return [];
     }
   }

@@ -22,6 +22,8 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
   final _codeController = TextEditingController();
 
   List<Map<String, dynamic>> _departments = [];
+  // Empty when the colleges table does not exist yet; the picker is then hidden.
+  List<Map<String, dynamic>> _colleges = [];
   bool _isLoading = true;
 
   // When non-null we are in edit mode
@@ -49,8 +51,17 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
     try {
       final data = await _supabase
           .from('department_name')
-          .select('id, d_name, d_code')
+          .select('*')
           .order('d_name', ascending: true);
+      try {
+        final cs = await _supabase
+            .from('colleges')
+            .select('id, code, name')
+            .order('name', ascending: true);
+        _colleges = List<Map<String, dynamic>>.from(cs);
+      } catch (_) {
+        _colleges = [];
+      }
       if (mounted) {
         setState(() {
           _departments = List<Map<String, dynamic>>.from(data);
@@ -214,6 +225,7 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
       barrierDismissible: false,
       builder: (context) {
         bool isSaving = false;
+        Object? collegeId = dept?['college_id'];
         final isEditing = dept != null;
 
         return StatefulBuilder(builder: (context, setState) {
@@ -276,6 +288,32 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                       },
                     ),
                     const SizedBox(height: 12),
+                    if (_colleges.isNotEmpty) ...[
+                      DropdownButtonFormField<Object>(
+                        initialValue: _colleges.any((c) => c['id'] == collegeId)
+                            ? collegeId
+                            : null,
+                        isExpanded: true,
+                        decoration: InputDecoration(
+                          labelText: 'College',
+                          prefixIcon: const Icon(Icons.account_balance_outlined,
+                              color: AppColors.primary),
+                          filled: true,
+                          fillColor: AppColors.background,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: BorderSide.none),
+                        ),
+                        items: _colleges
+                            .map((c) => DropdownMenuItem<Object>(
+                                value: c['id'], child: Text(c['name'].toString())))
+                            .toList(),
+                        onChanged: isSaving
+                            ? null
+                            : (v) => setState(() => collegeId = v),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     TextFormField(
                       controller: _codeController,
                       textCapitalization: TextCapitalization.characters,
@@ -437,12 +475,20 @@ class _ManageDepartmentsScreenState extends State<ManageDepartmentsScreen> {
                           if (isEditing) {
                             await _supabase
                                 .from('department_name')
-                                .update({'d_name': name, 'd_code': code}).eq('id', dept['id']);
+                                .update({
+                                  'd_name': name,
+                                  'd_code': code,
+                                  if (_colleges.isNotEmpty) 'college_id': collegeId,
+                                }).eq('id', dept['id']);
                             _showSnack('Department updated successfully');
                           } else {
                             await _supabase
                                 .from('department_name')
-                                .insert({'d_name': name, 'd_code': code});
+                                .insert({
+                                  'd_name': name,
+                                  'd_code': code,
+                                  if (_colleges.isNotEmpty) 'college_id': collegeId,
+                                });
                             _showSnack('Department added successfully');
                           }
                           // Popping when the dialog is already gone would
