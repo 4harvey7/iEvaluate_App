@@ -44,7 +44,7 @@ dependencies:
   intl: ^0.19.0
   pdf: ^3.11.1
   printing: ^5.13.2
-  camera: ^0.10.5+5
+  camera: ^0.11.4 # 0.11 = CameraX on Android: ResolutionPreset.max takes full-sensor stills
   path_provider: ^2.1.1
   http: ^1.2.1
   sensors_plus: ^5.0.1
@@ -83,6 +83,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/CTU_logo.png
+    - assets/images/ctu_seal.png
+    - assets/images/bagong_pilipinas.png
     - assets/images/sast_tab_guide.png
     - assets/images/sast_sheet_guide.png
     # .env REMOVED — never bundle secrets as a Flutter asset.

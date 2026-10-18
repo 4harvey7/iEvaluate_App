@@ -13,6 +13,7 @@ import '../core/navigation/main_scaffold.dart';
 import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
 import '../widgets/apple_ui.dart';
+import '../core/widgets/packed_word_cloud.dart';
 
 // The main widget for the department dashboard. Very importente kaayo.
 // It is stateful because data changes and we need to rebuild the UI — dili pwede static.
@@ -91,7 +92,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
   // Alerts are the problems we hope to never see but always plan for — bahala na
   List<ActionAlert> _dynamicAlerts = [];
   // Word cloud — the AI version of "what students actually think"
-  List<Map<String, dynamic>> _wordCloudData = [];
+  Map<String, int> _cloudFreq = {};
   // Department performance history across terms
   List<Map<String, dynamic>> _deptHistory = [];
   // The current term ID — basin naa pa previous term, we make sure its the right one
@@ -119,8 +120,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
               ...?(data['deptInfo'] as Map?)?.cast<String, dynamic>(),
             };
             
-            if (data['wordCloud'] != null) {
-              _wordCloudData = List<Map<String, dynamic>>.from(data['wordCloud'].map((x) => Map<String, dynamic>.from(x)));
+            if (data['wordFreq'] is Map) {
+              _cloudFreq = (data['wordFreq'] as Map).map((k, v) => MapEntry(k.toString(), (v as num).toInt()));
             }
             if (data['history'] != null) {
               _deptHistory = List<Map<String, dynamic>>.from(data['history'].map((x) => Map<String, dynamic>.from(x)));
@@ -193,7 +194,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
       // If no average yet, default to 3.0 so alerts still work — smart move
       final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0;
       final alerts = await _evaluationService.getDepartmentAlerts(widget.userId, threshold: deptAvg);
-      final wordCloud = await _evaluationService.getDeptWordCloud(widget.userId);
+      final wordCloud = await _evaluationService.getDeptWordFrequencies(widget.userId);
       // Fetch the historical performance of the whole department
       final history = await _evaluationService.getDepartmentHistory(widget.userId);
       
@@ -242,7 +243,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             'evaluatedCount': summary.evaluatedCount,
           };
           _dynamicAlerts = alerts; // Store alerts for the dashboard and notification bell
-          _wordCloudData = wordCloud; // Store word cloud data for the AI section
+          _cloudFreq = wordCloud; // Single-word frequencies for the packed cloud
           _deptHistory = history; // Store the history chart data
         });
 
@@ -254,7 +255,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             'year': _currentYear,
             'termId': _currentTermId,
             'deptInfo': _deptInfo,
-            'wordCloud': _wordCloudData,
+            'wordFreq': _cloudFreq,
             'history': _deptHistory,
             'alerts': _dynamicAlerts.map((a) => {
               'type': a.type,
@@ -325,17 +326,6 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     return _yearColors[index % _yearColors.length];
   }
 
-  // Word cloud colours — cycle through these based on word index
-  // We have 5 colors, repeat if more than 5 words. bahala na, looks nice anyway.
-  static const List<Color> _cloudColors = [
-    AppColors.primary,           // Vibrant Orange
-    Color(0xFF4ADE80),           // Bright Neon Green
-    Colors.lightBlueAccent,      // Bright Blue
-    Color(0xFFFACC15),           // Bright Yellow
-    Color(0xFFF87171),           // Bright Coral/Red
-  ];
-
-  // The main build method — builds the entire screen UI.
   // Its long but thats because there is a LOT of info to show. dili ta complain.
   @override
   Widget build(BuildContext context) {
@@ -440,7 +430,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 // Big title — "Executive Dashboard" sounds fancy, dean will like
                 ApplePageHeader(
                   eyebrow: 'Department Leadership',
-                  title: 'Executive Overview',
+                  title: 'Department Overview',
                   subtitle: _deptInfo['college'] ?? 'Department',
                 ),
                 const SizedBox(height: 24),
@@ -709,7 +699,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       BoxShadow(color: AppColors.textPrimary.withValues(alpha: 0.2), blurRadius: 14, offset: const Offset(0, 6))
                     ],
                   ),
-                  child: _wordCloudData.isEmpty
+                  child: _cloudFreq.isEmpty
                   ? const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
                       child: Center(
@@ -719,50 +709,11 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                         ),
                       ),
                     )
-                  : Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 10.0,
-                    runSpacing: 10.0,
-                    children: List.generate(_wordCloudData.length, (i) {
-                      final wordData = _wordCloudData[i];
-                      final count = (wordData['total_count'] as num?)?.toInt() ?? 1;
-                      
-                      // Use relative scaling: most frequent word is 1.0, least is near 0.0
-                      final maxCount = (_wordCloudData.first['total_count'] as num?)?.toInt() ?? 1;
-                      final double ratio = maxCount > 0 ? (count / maxCount) : 1.0;
-                      
-                      // Scale between 12px and 28px based on frequency. The top
-                      // of that range used to be 32, which bought very little
-                      // emphasis for the row height it cost.
-                      final double fontSize = 12.0 + (ratio * 16.0);
-                      
-                      final String word = wordData['word'] ?? '';
-                      final color = _cloudColors[i % _cloudColors.length];
-                      
-                      final Widget wordText = Text(
-                        word,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: fontSize,
-                          fontWeight: ratio > 0.5 ? FontWeight.w800 : FontWeight.w600,
-                          color: color,
-                          height: 1.1,
-                          letterSpacing: -0.2,
-                          shadows: [
-                            Shadow(color: Colors.black.withValues(alpha: 0.3), offset: const Offset(0, 1), blurRadius: 2),
-                          ],
-                        ),
-                      );
-
-                      // Every word sits horizontal now. Turning every 4th one
-                      // sideways looked dynamic, but a rotated word is as TALL
-                      // as it is long -- "Practice exercises" alone forced a
-                      // 120px row -- so a handful of them stretched the panel
-                      // past a screen and the cloud had to be scrolled.
-                      return wordText;
-                    }),
-                  ),
+                  : PackedWordCloud(
+                      frequencies: _cloudFreq,
+                      height: 240,
+                      onDarkBackground: true,
+                    ),
                 ),
                 ),
                 const SizedBox(height: 32),

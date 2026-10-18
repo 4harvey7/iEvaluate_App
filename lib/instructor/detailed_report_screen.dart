@@ -59,6 +59,15 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   // True once the term has a stored result row or any question means.
   bool _hasResults = false;
   List<Map<String, dynamic>> _wordCloudData = [];
+  String _aiInterpretation = '';
+  String _aiPositive = '';
+  String _aiImprovement = '';
+  String _aiTone = '';
+  // Extra PDF data; each load is best-effort and falls back silently.
+  String _college = '';
+  String _courseTaught = '';
+  List<SastSubjectReport> _subjectReports = [];
+  SastSignatories _signatories = SastSignatories.defaults;
 
   // State variables for summary metrics
   late double? _mgmtScore;
@@ -114,7 +123,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
 
       final aiQuery = _supabase
           .from('instructor_ai_suggestions')
-          .select('ai_suggestion')
+          .select('*')
           .eq('instructor_id', widget.userId)
           .eq('term_id', effectiveTermId);
 
@@ -124,9 +133,9 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           .eq('instructor_id', widget.userId)
           .eq('term_id', effectiveTermId);
 
-      final results = await Future.wait([
+      final results = await Future.wait<dynamic>([
         questionQuery,
-        wordQuery.order('count', ascending: false).limit(10),
+        wordQuery.order('count', ascending: false).limit(200),
         aiQuery.order('updated_at', ascending: false).limit(1).maybeSingle(),
         summaryQuery.order('created_at', ascending: false).limit(1).maybeSingle(),
       ]);
@@ -171,6 +180,10 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
 
           _wordCloudData = List<Map<String, dynamic>>.from(words);
           _aiSuggestion = aiData?['ai_suggestion'];
+          _aiInterpretation = (aiData?['student_interpretation'] ?? '').toString();
+          _aiPositive = (aiData?['positive_themes'] ?? '').toString();
+          _aiImprovement = (aiData?['improvement_insights'] ?? '').toString();
+          _aiTone = (aiData?['overall_tone'] ?? '').toString();
           _summaryText = _aiSuggestion ?? "No significant trends identified for this period.";
 
           // The summary row is the source of truth for this term: Management,
@@ -200,16 +213,153 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     }
   }
 
+  /// College (department_name.college_id -> colleges.name), every subject taught
+  /// in the term, and the signatories. Each query fails soft: a missing
+  /// table/column (migration not applied) just leaves the default.
+  Future<void> _loadPdfExtras() async {
+    final termId = (widget.termId != null && widget.termId!.isNotEmpty)
+        ? widget.termId!
+        : (await _supabase.from('system_settings').select('current_term_id').maybeSingle())?['current_term_id']?.toString();
+
+    try {
+      final row = await _supabase
+          .from('department_table')
+          .select('department_name:Department_name_ID(colleges(name))')
+          .eq('user_id', widget.userId)
+          .limit(1)
+          .maybeSingle();
+      final dn = row?['department_name'];
+      final col = dn is Map ? dn['colleges'] : null;
+      final name = col is Map ? col['name'] : (col is List && col.isNotEmpty ? col.first['name'] : null);
+      _college = (name ?? '').toString().trim();
+    } catch (e) {
+      debugPrint('DetailedReportScreen: college lookup skipped: $e');
+      _college = '';
+    }
+
+    try {
+      if (termId != null && termId.isNotEmpty) {
+        final rows = await _supabase
+            .from('instructor_subjects')
+            .select('subjects!inner(subject_code, subject_name)')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', termId);
+        final names = <String>{};
+        for (final r in (rows as List)) {
+          final s = r['subjects'];
+          if (s is! Map) continue;
+          final code = (s['subject_code'] ?? '').toString().trim();
+          final nm = (s['subject_name'] ?? '').toString().trim();
+          final label = [code, nm].where((e) => e.isNotEmpty).join(' - ');
+          if (label.isNotEmpty) names.add(label);
+        }
+        _courseTaught = names.join(', ');
+      }
+    } catch (e) {
+      debugPrint('DetailedReportScreen: course lookup skipped: $e');
+    }
+
+    // Per-subject stored results: one row per instructor/subject/term in
+    // management_results and performance_results (true per-item means).
+    _subjectReports = [];
+    try {
+      if (termId != null && termId.isNotEmpty) {
+        final mRows = List<Map<String, dynamic>>.from(await _supabase
+            .from('management_results')
+            .select('*')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', termId));
+        final pRows = List<Map<String, dynamic>>.from(await _supabase
+            .from('performance_results')
+            .select('*')
+            .eq('instructor_id', widget.userId)
+            .eq('term_id', termId));
+        final ids = <String>{
+          for (final r in [...mRows, ...pRows])
+            if (r['subject_id'] != null) r['subject_id'].toString(),
+        };
+        if (ids.isNotEmpty) {
+          final subs = await _supabase
+              .from('subjects')
+              .select('id, subject_code, subject_name')
+              .inFilter('id', ids.toList());
+          final labels = <String, String>{};
+          for (final s in (subs as List)) {
+            final code = (s['subject_code'] ?? '').toString().trim();
+            final nm = (s['subject_name'] ?? '').toString().trim();
+            labels[s['id'].toString()] = [code, nm].where((e) => e.isNotEmpty).join(' - ');
+          }
+          Map<String, dynamic>? find(List<Map<String, dynamic>> rows, String id) {
+            for (final r in rows) {
+              if (r['subject_id']?.toString() == id) return r;
+            }
+            return null;
+          }
+
+          final reports = <SastSubjectReport>[];
+          for (final id in ids) {
+            final m = find(mRows, id);
+            final p = find(pRows, id);
+            final mm = List<double?>.generate(10, (i) => m == null ? null : SastRating.parse(m['m${i + 1}_mean']));
+            final pm = List<double?>.generate(10, (i) => p == null ? null : SastRating.parse(p['p${i + 1}_mean']));
+            if (mm.every((v) => v == null) && pm.every((v) => v == null)) continue;
+            final mgmt = m == null ? null : SastRating.parse(m['overall_management_mean']);
+            final perf = p == null ? null : SastRating.parse(p['overall_performance_mean']);
+            final overall = (mgmt != null && perf != null) ? (mgmt + perf) / 2 : (mgmt ?? perf);
+            reports.add(SastSubjectReport(
+              courseTaught: labels[id] ?? '',
+              totalEvals: SastRating.parseInt(m?['total_responses']) ?? SastRating.parseInt(p?['total_responses']) ?? 0,
+              mgmtScore: mgmt,
+              perfScore: perf,
+              overallScore: overall,
+              managementMeans: mm,
+              performanceMeans: pm,
+            ));
+          }
+          reports.sort((a, b) => a.courseTaught.compareTo(b.courseTaught));
+          _subjectReports = reports;
+          if (reports.isNotEmpty) {
+            final codes = reports
+                .map((r) => r.courseTaught.split(' - ').first.trim())
+                .where((c) => c.isNotEmpty)
+                .toList();
+            _courseTaught = 'All subjects (${reports.length}): ${codes.join(', ')}';
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('DetailedReportScreen: per-subject lookup skipped: $e');
+      _subjectReports = [];
+    }
+
+    try {
+      final row = await _supabase.from('report_signatories').select('*').eq('id', 1).maybeSingle();
+      _signatories = SastSignatories.fromRow(row);
+    } catch (e) {
+      debugPrint('DetailedReportScreen: signatories lookup skipped: $e');
+      _signatories = SastSignatories.defaults;
+    }
+  }
+
   Future<void> _generatePDF() async {
     // A second tap while the first PDF is still building would open a second
     // share sheet on top of the first.
     if (_isGeneratingPdf) return;
     _isGeneratingPdf = true;
     try {
+      await _loadPdfExtras();
       await _pdfService.generateInstructorDetailedReport(
         instructorName: widget.instructorName,
         universityId: widget.universityId,
         department: widget.department,
+        college: _college,
+        courseTaught: _courseTaught,
+        subjectReports: _subjectReports,
+        studentInterpretation: _aiInterpretation,
+        positiveThemes: _aiPositive,
+        improvementInsights: _aiImprovement,
+        overallTone: _aiTone,
+        signatories: _signatories,
         term: widget.term,
         academicYear: widget.academicYear,
         mgmtScore: _mgmtScore,
@@ -238,7 +388,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Official Evaluation Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: const Text('Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.surface,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),

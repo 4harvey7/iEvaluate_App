@@ -7,6 +7,8 @@ import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../core/services/term_aware_state.dart';
+import '../core/utils/word_cloud_layout.dart';
+import '../core/widgets/packed_word_cloud.dart';
 
 // StatefulWidget — lots of dynamic data (feedback, AI analysis, word cloud, filters)
 class StudentFeedbackScreen extends StatefulWidget {
@@ -47,7 +49,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
   };
 
   // Word cloud items — words that appear often in feedback, with size and color
-  List<Map<String, dynamic>> _wordCloud = [];
+  Map<String, int> _cloudFreq = {};
   // All feedback items loaded from database — filtered copy is shown in UI
   List<Map<String, dynamic>> _allFeedback = [];
   // AI-generated summary text — reads the feedback so you dont have to read 200 comments
@@ -151,7 +153,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
             .maybeSingle(), // only most recent AI entry
         wordCloudQuery
             .order('count', ascending: false)
-            .limit(25), // top 25 words only
+            .limit(200),
       ]);
 
       final remarks = responses[0] as List;
@@ -255,21 +257,11 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
             );
           }
 
-          // Dense Word Cloud Logic — scale font size by frequency count
-          _wordCloud = words.asMap().entries.map((entry) {
-            int index = entry.key;
-            var w = entry.value;
-            return {
-              'word': w['word'],
-              // More aggressive scaling for visual impact — frequent words are BIG
-              'weight': 14.0 + (w['count'] as num).toDouble() * 4.5,
-              'color': _getWordColor(w['word']),
-              // More organic rotation pattern — every 5th or 7th word gets rotated sideways
-              'rotated': index % 5 == 0 || index % 7 == 0,
-            };
-          }).toList();
-          _wordCloud
-              .shuffle(); // Distribute high/low counts randomly for better density
+          // Packed cloud: stored phrases as-is, weighted by count.
+          _cloudFreq = sumWordCounts([
+            for (final w in words)
+              MapEntry((w['word'] ?? '').toString(), (w['count'] as num?)?.toInt() ?? 1),
+          ]);
 
           _isLoading = false;
         });
@@ -471,19 +463,6 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
         .toList();
   }
 
-  // Maps a word to a color based on its length — simple but gives visual variety
-  // Short words get one color, longer words get another. Murag random but consistent.
-  Color _getWordColor(String word) {
-    final colors = [
-      AppColors.primary,
-      AppColors.success,
-      Colors.lightBlueAccent,
-      AppColors.warning,
-    ];
-    return colors[word.length %
-        colors.length]; // modulo gives predictable color per word
-  }
-
   // Filter Logic — returns only the feedback items matching the selected sentiment filter
   List<Map<String, dynamic>> get _filteredFeedback {
     List<Map<String, dynamic>> filtered = List.from(_allFeedback);
@@ -586,7 +565,7 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                     children: [
                       const ApplePageHeader(
                         eyebrow: 'Student Voice',
-                        title: 'Feedback Insights',
+                        title: 'Student Feedback',
                         subtitle: 'Sentiment, recurring themes, and individual comments.',
                       ),
                       const SizedBox(height: 24),
@@ -1105,81 +1084,21 @@ class _StudentFeedbackScreenState extends State<StudentFeedbackScreen>
                         // what becomes the word's height. Clipping is now
                         // impossible by construction rather than by luck of the
                         // shuffle.
-                        child: LayoutBuilder(
-                          builder: (context, panelConstraints) {
-                            final double maxWordExtent =
-                                panelConstraints.maxWidth;
-                            return Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8.0,
-                          runSpacing: 6.0,
-                          children: _wordCloud.map((wordData) {
-                            // Scale font: weight 14–58 maps to 10–22px readable range
-                            // High count words = bigger, rare words = smaller
-                            final double rawWeight =
-                                (wordData['weight'] as double).clamp(
-                                  14.0,
-                                  58.0,
-                                );
-                            final double fontSize =
-                                10.0 + ((rawWeight - 14.0) / 44.0) * 12.0;
-
-                            final Widget wordText = Text(
-                              wordData['word'],
-                              textAlign: TextAlign.center,
-                              softWrap: false,
-                              maxLines: 1,
-                              style: TextStyle(
-                                fontSize: fontSize,
-                                fontWeight: fontSize > 18
-                                    ? FontWeight.w800
-                                    : FontWeight.w600, // bold if large
-                                color: wordData['color'],
-                                height: 1.1,
-                                letterSpacing: -0.1,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black.withValues(alpha: 0.3),
-                                    offset: const Offset(0, 1),
-                                    blurRadius: 2,
+                        child: _cloudFreq.isEmpty
+                            ? const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 16),
+                                child: Center(
+                                  child: Text(
+                                    'No feedback data yet for this term.',
+                                    style: TextStyle(color: Colors.white70, fontSize: 14),
                                   ),
-                                ],
-                              ),
-                            );
-
-                            // Bounded to the panel and allowed to shrink, so a
-                            // long word renders smaller instead of running off
-                            // the edge. scaleDown only ever reduces, so short
-                            // words keep the size their count earned them.
-                            final Widget boundedWord = ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: maxWordExtent,
-                              ),
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: wordText,
-                              ),
-                            );
-
-                            // Restore organic layout: every 5th or 7th word goes vertical (bottom→top)
-                            if (wordData['rotated'] == true) {
-                              return RotatedBox(
-                                quarterTurns:
-                                    3, // 270° = bottom-to-top rotation for visual variety
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 3,
-                                  ),
-                                  child: boundedWord,
                                 ),
-                              );
-                            }
-                            return boundedWord; // normal horizontal word
-                          }).toList(),
-                            );
-                          },
-                        ),
+                              )
+                            : PackedWordCloud(
+                                frequencies: _cloudFreq,
+                                height: 240,
+                                onDarkBackground: true,
+                              ),
                       ),
                       const SizedBox(height: 32),
 
