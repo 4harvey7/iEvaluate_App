@@ -11,6 +11,7 @@ import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/deactivate_account_dialog.dart';
 import '../widgets/controller_disposer.dart';
+import '../sast_guide/sast_guide_screen.dart';
 
 class GathererSettingsView extends StatefulWidget {
   const GathererSettingsView({super.key});
@@ -630,6 +631,27 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                 value: _validationNotifications,
                 onChanged: _setValidationNotif,
               ),
+            ),
+            const SizedBox(height: 32),
+
+            const AppleSectionHeader(title: 'Help'),
+            const SizedBox(height: 12),
+            Card(
+              color: AppColors.surface,
+              elevation: 1,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.menu_book_outlined, color: AppColors.primary),
+                    ),
+                    title: const Text('SAST Guidelines', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    subtitle: const Text('Stamping, filling, scanning, review, import.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                    onTap: () => SastGuideGate.open(context),
+                  ),
             ),
             const SizedBox(height: 32),
 

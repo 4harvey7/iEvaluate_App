@@ -1,7 +1,6 @@
 // lib/gatherer/failed_scan_detail_screen.dart
 // Manual correction screen for scans flagged during OCR/OMR processing.
 // UI aligned with ImportErrorDetailScreen for a clean, consistent experience.
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/automation_service.dart';
 import '../core/services/scan_image_service.dart';
 import '../theme/app_colors.dart';
+import 'services/correction_pickers.dart';
 import 'services/stamp.dart';
 
 class FailedScanDetailScreen extends StatefulWidget {
@@ -35,17 +35,31 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
   // 20 score controllers: m1-m10 and p1-p10
   final Map<String, TextEditingController> _scoreCtrlMap = {};
 
-  // ── Autocomplete: Instructor ──────────────────────────────────────────────
-  final FocusNode _instructorFocus = FocusNode();
-  List<Map<String, dynamic>> _instructorSuggestions = [];
-  String? _selectedInstructorId;
-  Timer? _instructorDebounce;
+  // ── Pickers: Instructor + Subject ─────────────────────────────────────────
+  // Backed by the people a form can be credited to (approved instructors and
+  // placeholders) and the subjects, loaded once. Pre-selected from the AI's
+  // suggestion or a clear match of the scan text, so staff usually only check
+  // them. The ids are what n8n credits; without them the scan used to end up
+  // in Import Errors and had to be corrected twice.
+  late final ScanIdentity _scanIdentity;
+  CorrectionPickerData? _pickers;
+  bool _pickersLoading = true;
 
-  // ── Autocomplete: Subject ─────────────────────────────────────────────────
+  final FocusNode _instructorFocus = FocusNode();
+  List<PickerInstructor> _instructorSuggestions = [];
+  String? _selectedInstructorId;
+  bool _instructorTouched = false; // staff typed/picked: no auto pre-select
+  bool _instructorError = false;
+
   final FocusNode _subjectFocus = FocusNode();
-  List<Map<String, dynamic>> _subjectSuggestions = [];
+  List<PickerSubject> _subjectSuggestions = [];
   String? _selectedSubjectId;
-  Timer? _subjectDebounce;
+  PickerSubject? _selectedSubject;
+  bool _subjectTouched = false;
+  bool _subjectError = false;
+
+  // n8n's 422: instructor/subject not found. Nothing was saved.
+  CorrectionNotFoundAnswer? _notFound;
 
   // ── Stamp Number ──────────────────────────────────────────────────────────
   // The numbering-machine stamp: what n8n read, what staff confirm or type.
@@ -78,13 +92,18 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         TextEditingController(text: partial['student_id']?.toString() ?? '');
     _stamp = QueueStamp.fromRow(widget.scan);
     _stampCtrl = TextEditingController(text: _stamp.stampNo ?? '');
+    _scanIdentity = ScanIdentity.fromPartial(partial);
 
     _initScores();
     _loadScanImage();
+    _loadPickers();
 
-    // Hide suggestions when focus leaves the fields
+    // Show the list when a field gets focus; hide it when focus leaves
+    // (small delay so a tap on a suggestion still lands).
     _instructorFocus.addListener(() {
-      if (!_instructorFocus.hasFocus) {
+      if (_instructorFocus.hasFocus) {
+        _showInstructorSuggestions();
+      } else {
         Future.delayed(const Duration(milliseconds: 150), () {
           if (mounted) setState(() => _instructorSuggestions = []);
         });
@@ -92,7 +111,9 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     });
 
     _subjectFocus.addListener(() {
-      if (!_subjectFocus.hasFocus) {
+      if (_subjectFocus.hasFocus) {
+        _showSubjectSuggestions();
+      } else {
         Future.delayed(const Duration(milliseconds: 150), () {
           if (mounted) setState(() => _subjectSuggestions = []);
         });
@@ -109,8 +130,6 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     _remarksCtrl.dispose();
     _studentIdCtrl.dispose();
     _stampCtrl.dispose();
-    _instructorDebounce?.cancel();
-    _subjectDebounce?.cancel();
     for (final c in _scoreCtrlMap.values) {
       c.dispose();
     }
@@ -322,86 +341,92 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
     }
   }
 
-  // ── Autocomplete: Instructor ──────────────────────────────────────────────
-  void _onInstructorChanged(String query) {
-    _selectedInstructorId = null;
-    _instructorDebounce?.cancel();
-    if (query.trim().length < 2) {
-      setState(() => _instructorSuggestions = []);
-      return;
+  // ── Pickers: load + pre-select ────────────────────────────────────────────
+  Future<void> _loadPickers() async {
+    CorrectionPickerData data;
+    try {
+      data = await CorrectionPickerData.load(_supabase);
+    } catch (e) {
+      debugPrint('[FailedScanDetail] Picker lists error: $e');
+      data = const CorrectionPickerData([], []);
     }
-    _instructorDebounce = Timer(const Duration(milliseconds: 300), () {
-      _searchInstructors(query.trim());
+    if (!mounted) return;
+    setState(() {
+      _pickers = data;
+      _pickersLoading = false;
+      // Pre-select what the AI suggested / the scan clearly names, unless
+      // staff already started typing or picking.
+      if (!_instructorTouched && _selectedInstructorId == null) {
+        final p = _scanIdentity.pickInstructor(data.instructors);
+        if (p != null) _applyInstructor(p);
+      }
+      if (!_subjectTouched && _selectedSubjectId == null) {
+        final s = _scanIdentity.pickSubject(data.subjects);
+        if (s != null) _applySubject(s);
+      }
     });
   }
 
-  Future<void> _searchInstructors(String query) async {
-    try {
-      final results = await _supabase
-          .from('user_info')
-          .select('id, first_name, last_name')
-          .or('first_name.ilike.%$query%,last_name.ilike.%$query%')
-          .limit(6);
-      if (mounted) {
-        setState(() {
-          _instructorSuggestions =
-              List<Map<String, dynamic>>.from(results as List);
-        });
-      }
-    } catch (e) {
-      debugPrint('[FailedScanDetail] Instructor search error: $e');
-    }
+  List<PickerInstructor> get _instructorList => _pickers?.instructors ?? const [];
+  List<PickerSubject> get _subjectList => _pickers?.subjects ?? const [];
+
+  // ── Picker: Instructor ────────────────────────────────────────────────────
+  void _showInstructorSuggestions() {
+    // a picked entry shows the whole list; typed text filters it
+    final q = _selectedInstructorId != null ? '' : _instructorCtrl.text;
+    setState(() => _instructorSuggestions = PickerSearch.instructors(q, _instructorList));
   }
 
-  void _selectInstructor(Map<String, dynamic> item) {
-    final name =
-        '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim();
+  void _onInstructorChanged(String query) {
     setState(() {
-      _instructorCtrl.text = name;
-      _selectedInstructorId = item['id']?.toString();
-      _instructorSuggestions = [];
+      _instructorTouched = true;
+      _selectedInstructorId = null;
+      _instructorSuggestions = PickerSearch.instructors(query, _instructorList);
+    });
+  }
+
+  void _applyInstructor(PickerInstructor item) {
+    _instructorCtrl.text = item.name;
+    _selectedInstructorId = item.id;
+    _instructorSuggestions = [];
+    _instructorError = false;
+  }
+
+  void _selectInstructor(PickerInstructor item) {
+    setState(() {
+      _instructorTouched = true;
+      _applyInstructor(item);
     });
     _instructorFocus.unfocus();
   }
 
-  // ── Autocomplete: Subject ─────────────────────────────────────────────────
+  // ── Picker: Subject ───────────────────────────────────────────────────────
+  void _showSubjectSuggestions() {
+    final q = _selectedSubjectId != null ? '' : _subjectCtrl.text;
+    setState(() => _subjectSuggestions = PickerSearch.subjects(q, _subjectList));
+  }
+
   void _onSubjectChanged(String query) {
-    _selectedSubjectId = null;
-    _subjectDebounce?.cancel();
-    if (query.trim().length < 2) {
-      setState(() => _subjectSuggestions = []);
-      return;
-    }
-    _subjectDebounce = Timer(const Duration(milliseconds: 300), () {
-      _searchSubjects(query.trim());
+    setState(() {
+      _subjectTouched = true;
+      _selectedSubjectId = null;
+      _selectedSubject = null;
+      _subjectSuggestions = PickerSearch.subjects(query, _subjectList);
     });
   }
 
-  Future<void> _searchSubjects(String query) async {
-    try {
-      final results = await _supabase
-          .from('subjects')
-          .select('id, subject_code, subject_name')
-          .or('subject_code.ilike.%$query%,subject_name.ilike.%$query%')
-          .limit(6);
-      if (mounted) {
-        setState(() {
-          _subjectSuggestions =
-              List<Map<String, dynamic>>.from(results as List);
-        });
-      }
-    } catch (e) {
-      debugPrint('[FailedScanDetail] Subject search error: $e');
-    }
+  void _applySubject(PickerSubject item) {
+    _subjectCtrl.text = item.display;
+    _selectedSubjectId = item.id;
+    _selectedSubject = item;
+    _subjectSuggestions = [];
+    _subjectError = false;
   }
 
-  void _selectSubject(Map<String, dynamic> item) {
-    final display =
-        '${item['subject_code'] ?? ''} — ${item['subject_name'] ?? ''}'.trim();
+  void _selectSubject(PickerSubject item) {
     setState(() {
-      _subjectCtrl.text = display;
-      _selectedSubjectId = item['id']?.toString();
-      _subjectSuggestions = [];
+      _subjectTouched = true;
+      _applySubject(item);
     });
     _subjectFocus.unfocus();
   }
@@ -492,6 +517,33 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
       return;
     }
 
+    // Instructor and subject must be picked from the lists (their ids are
+    // what gets credited). Only when a list could not be loaded is the typed
+    // text sent on its own; n8n then matches it and answers 422 if unsure.
+    if (_pickersLoading) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Still loading the instructor and subject lists. Try again in a moment.'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+    final needInstructor = _instructorList.isNotEmpty && _selectedInstructorId == null;
+    final needSubject = _subjectList.isNotEmpty && _selectedSubjectId == null;
+    if (needInstructor || needSubject) {
+      setState(() {
+        _instructorError = needInstructor;
+        _subjectError = needSubject;
+      });
+      final what = needInstructor && needSubject
+          ? 'the instructor and the subject'
+          : (needInstructor ? 'the instructor' : 'the subject');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Pick $what from the list before submitting.'),
+        backgroundColor: AppColors.warning,
+      ));
+      return;
+    }
+
     setState(() => _isSubmitting = true);
     try {
       // A blank cell is an unanswered question and is sent as null (the key
@@ -513,9 +565,14 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         'task_id': widget.scan['task_id'],
         'user_id': widget.scan['user_id'],
         'term_id': widget.scan['term_id'],
+        // ids are what n8n credits; the names ride along (older n8n builds
+        // and the import-error fallback read them)
         'instructor': _instructorCtrl.text.trim(),
         'instructor_id': _selectedInstructorId,
-        'subject': _subjectCtrl.text.trim(),
+        'subject': (_selectedSubject != null && _selectedSubject!.code.isNotEmpty)
+            ? _selectedSubject!.code
+            : _subjectCtrl.text.trim(),
+        'subject_name': _selectedSubject?.name,
         'subject_id': _selectedSubjectId,
         'remarks': _remarksCtrl.text.trim(),
         'student_id': _studentIdCtrl.text.trim(),
@@ -544,6 +601,31 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           });
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Not saved: ${duplicate.explanation}'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 6),
+          ));
+        }
+        return;
+      }
+
+      // 422 instructor/subject not found: nothing was saved and the scan
+      // stays pending. Keep the screen open with the pickers highlighted.
+      final notFound =
+          CorrectionNotFoundAnswer.tryParse(result.statusCode, result.data);
+      if (notFound != null) {
+        if (mounted) {
+          setState(() {
+            _notFound = notFound;
+            _instructorError = notFound.instructorMissing;
+            _subjectError = notFound.subjectMissing;
+            if (notFound.instructorMissing) _selectedInstructorId = null;
+            if (notFound.subjectMissing) {
+              _selectedSubjectId = null;
+              _selectedSubject = null;
+            }
+          });
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(notFound.message),
             backgroundColor: AppColors.error,
             duration: const Duration(seconds: 6),
           ));
@@ -674,7 +756,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                         ),
                         const SizedBox(height: 4),
                         const Text(
-                          'Search and select the correct instructor and subject, or adjust any scores detected below.',
+                          'The instructor and subject were pre-selected from the scan where it was clear. Check them, search and pick another if needed, and adjust any scores below.',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         ),
                         const SizedBox(height: 16),
@@ -1419,34 +1501,85 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         ),
       );
 
-  // ── Autocomplete Input Widgets ─────────────────────────────────────────────
+  // ── Picker Input Widgets ───────────────────────────────────────────────────
+  /// "Scan read: …" under a picker label, so staff can compare.
+  Widget _scanReadHint(String read) {
+    if (read.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 6),
+      child: Text(
+        'Scan read: $read',
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontStyle: FontStyle.italic),
+        overflow: TextOverflow.ellipsis,
+        maxLines: 2,
+      ),
+    );
+  }
+
+  Widget? _pickerSuffix(bool selected) {
+    if (_pickersLoading) {
+      return const Padding(
+        padding: EdgeInsets.all(14),
+        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+      );
+    }
+    return selected ? const Icon(Icons.check_circle, color: AppColors.success, size: 20) : null;
+  }
+
+  /// "Did you mean" chips from n8n's 422 candidates.
+  Widget _candidateChips<T>(List<T> items, String Function(T) label, void Function(T) onTap) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          const Text('Did you mean:', style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          ...items.map((c) => ActionChip(
+                label: Text(label(c), style: const TextStyle(fontSize: 12)),
+                onPressed: _isSubmitting ? null : () => onTap(c),
+              )),
+        ],
+      ),
+    );
+  }
+
   Widget _buildInstructorField() {
+    final candidates = _notFound?.instructorMissing == true && _selectedInstructorId == null
+        ? _notFound!.instructorCandidates
+        : const <PickerInstructor>[];
+    final noList = !_pickersLoading && _instructorList.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _scanReadHint(_scanIdentity.instructorRead),
         TextField(
+          key: const Key('instructorPicker'),
           controller: _instructorCtrl,
           focusNode: _instructorFocus,
           onChanged: _onInstructorChanged,
           textCapitalization: TextCapitalization.words,
           decoration: _inputDecoration(
-            label: 'Correct Instructor Name',
+            label: 'Instructor (search and pick)',
             prefix: Icons.person_search_outlined,
-            suffix: _selectedInstructorId != null
-                ? const Icon(Icons.check_circle, color: AppColors.success, size: 20)
-                : null,
+            suffix: _pickerSuffix(_selectedInstructorId != null),
+          ).copyWith(
+            errorText: _instructorError ? 'Pick the instructor from the list' : null,
+            helperText: noList ? 'Instructor list unavailable: the typed name is sent as it is.' : null,
           ),
         ),
         if (_instructorSuggestions.isNotEmpty)
-          _buildSuggestionCard(
+          _buildSuggestionCard<PickerInstructor>(
             _instructorSuggestions,
             itemBuilder: (item) => Row(
               children: [
-                _avatar(_initials(item['first_name'], item['last_name'])),
+                _avatar(_initialsOf(item.name)),
                 const SizedBox(width: 12),
                 Flexible(
                   child: Text(
-                    '${item['first_name'] ?? ''} ${item['last_name'] ?? ''}'.trim(),
+                    item.isPlaceholder ? '${item.name} (placeholder)' : item.name,
                     style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1455,30 +1588,38 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             ),
             onTap: _selectInstructor,
           ),
+        _candidateChips<PickerInstructor>(candidates, (c) => c.name, _selectInstructor),
         const SizedBox(height: 14),
       ],
     );
   }
 
   Widget _buildSubjectField() {
+    final candidates = _notFound?.subjectMissing == true && _selectedSubjectId == null
+        ? _notFound!.subjectCandidates
+        : const <PickerSubject>[];
+    final noList = !_pickersLoading && _subjectList.isEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _scanReadHint(_scanIdentity.subjectRead),
         TextField(
+          key: const Key('subjectPicker'),
           controller: _subjectCtrl,
           focusNode: _subjectFocus,
           onChanged: _onSubjectChanged,
           textCapitalization: TextCapitalization.characters,
           decoration: _inputDecoration(
-            label: 'Correct Subject / Course Code',
+            label: 'Subject / Course Code (search and pick)',
             prefix: Icons.book_outlined,
-            suffix: _selectedSubjectId != null
-                ? const Icon(Icons.check_circle, color: AppColors.success, size: 20)
-                : null,
+            suffix: _pickerSuffix(_selectedSubjectId != null),
+          ).copyWith(
+            errorText: _subjectError ? 'Pick the subject from the list' : null,
+            helperText: noList ? 'Subject list unavailable: the typed text is sent as it is.' : null,
           ),
         ),
         if (_subjectSuggestions.isNotEmpty)
-          _buildSuggestionCard(
+          _buildSuggestionCard<PickerSubject>(
             _subjectSuggestions,
             itemBuilder: (item) => Row(
               children: [
@@ -1489,7 +1630,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    item['subject_code']?.toString() ?? '',
+                    item.code,
                     style: const TextStyle(
                       color: AppColors.primary,
                       fontWeight: FontWeight.bold,
@@ -1500,7 +1641,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    item['subject_name']?.toString() ?? '',
+                    item.name,
                     style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1509,15 +1650,16 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             ),
             onTap: _selectSubject,
           ),
+        _candidateChips<PickerSubject>(candidates, (c) => c.display, _selectSubject),
         const SizedBox(height: 14),
       ],
     );
   }
 
-  Widget _buildSuggestionCard(
-    List<Map<String, dynamic>> items, {
-    required Widget Function(Map<String, dynamic>) itemBuilder,
-    required void Function(Map<String, dynamic>) onTap,
+  Widget _buildSuggestionCard<T>(
+    List<T> items, {
+    required Widget Function(T) itemBuilder,
+    required void Function(T) onTap,
   }) {
     return Container(
       margin: const EdgeInsets.only(top: 2, bottom: 4),
@@ -1647,9 +1789,11 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         ),
       );
 
-  String _initials(dynamic firstName, dynamic lastName) {
-    final f = firstName?.toString() ?? '';
-    final l = lastName?.toString() ?? '';
-    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
+  String _initialsOf(String name) {
+    final parts = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    if (parts.isEmpty) return '';
+    final f = parts.first[0];
+    final l = parts.length > 1 ? parts.last[0] : '';
+    return '$f$l'.toUpperCase();
   }
 }

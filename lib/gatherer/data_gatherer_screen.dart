@@ -1,6 +1,7 @@
 // The main mothership screen for the data gatherer.
 // This file hold everything together — dashboard, scanner, validation, sync,
 // settings. If this file break, everything break. ayaw pag-touch unless sure ka.
+import '../sast_guide/sast_guide_screen.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -33,6 +34,7 @@ import 'services/capture_normalise.dart';
 import 'services/form_signature.dart';
 import 'services/scan_analysis.dart';
 import 'services/stamp.dart';
+import 'sheet_import_job.dart';
 
 // The widget itself — it a StatefulWidget because EVERYTHING here change constantly
 class DataGathererScreen extends StatefulWidget {
@@ -158,6 +160,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     _checkN8nStatus(); // ping n8n to see if its alive
     _fetchSupabaseStats(); // pull the numbers from the database
     SchedulerBinding.instance.addTimingsCallback(_logSlowFrames);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) SastGuideGate.maybeShow(context);
+    });
 
     try {
       PushNotificationService().init();
@@ -607,6 +612,13 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
       if (result.isSuccess) {
         _linkController.clear(); // clear the input field, import done
+        // New workflow: the answer only means "started". Wait for the job's
+        // real end (sheet_import_jobs) instead of claiming success now.
+        final jobId = sheetImportJobId(result.data);
+        if (jobId != null) {
+          if (mounted) await _waitForSheetImportJob(jobId, result.data);
+          return;
+        }
         if (mounted) {
           final data = result.data;
           final dynamic imp = data is Map ? (data['imported_count'] ?? data['imported'] ?? data['rows_imported'] ?? data['total_imported']) : null;
@@ -625,9 +637,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       } else {
         // n8n return an error status — something wrong server-side
         if (mounted) {
+          // 422: n8n could not read the sheet and says why (no access, not found, no rows)
+          final why = result.statusCode == 422 ? result.errorMessage : null;
           _showStatusDialog(
             title: 'Import Failed',
-            message: 'Server returned an error (${result.statusCode}).',
+            message: why ?? 'Server returned an error (${result.statusCode}).',
             isSuccess: false,
           );
         }
@@ -653,6 +667,87 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         );
       }
     }
+  }
+
+  // Non-dismissable "Importing…" dialog while polling sheet_import_jobs every
+  // 4 s; then the real counts, the real error, or "taking longer" after 60 min.
+  Future<void> _waitForSheetImportJob(String jobId, dynamic firstAnswer) async {
+    final found = firstAnswer is Map ? firstAnswer['rows'] : null;
+    final progress = ValueNotifier<SheetImportJob?>(null);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          content: ValueListenableBuilder<SheetImportJob?>(
+            valueListenable: progress,
+            builder: (_, job, _) {
+              final rows = job?.rows ?? found;
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: AppColors.primary),
+                  const SizedBox(height: 24),
+                  const Text('Importing…',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${rows != null ? 'Rows found: $rows\n' : ''}'
+                    'Saving the rows and analysing the comments. This can take '
+                    'several minutes for a big sheet. Please keep this screen open.'
+                    '${job != null && job.isError ? '\n\nA problem was reported; waiting for the import to finish.' : ''}',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    final supabase = Supabase.instance.client;
+    final outcome = await pollSheetImportJob(
+      fetch: () => supabase
+          .from('sheet_import_jobs')
+          .select()
+          .eq('id', jobId)
+          .maybeSingle(),
+      onUpdate: (job) => progress.value = job,
+      cancelled: () => !mounted,
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop(); // close the progress dialog
+    progress.dispose();
+
+    final job = outcome.job;
+    if (outcome.timedOut || job == null || !job.isFinished) {
+      _showStatusDialog(
+        title: 'Still Importing',
+        message: 'The import is taking longer than expected (over 60 minutes). '
+            'It may still be running. Check the results again later before '
+            'sending this sheet again.'
+            '${job != null && job.isError ? '\n\nProblem reported so far:\n${sheetImportErrorText(job)}' : ''}',
+        isSuccess: false,
+      );
+    } else if (job.isError) {
+      _showStatusDialog(
+        title: 'Import Finished With Problems',
+        message: sheetImportErrorText(job),
+        isSuccess: false,
+      );
+    } else {
+      final counts = sheetImportSummary(job);
+      _showStatusDialog(
+        title: 'Import Successful',
+        message: counts.isEmpty ? (job.message ?? 'Import completed.') : 'Import completed.\n$counts',
+        isSuccess: true,
+      );
+    }
+    _fetchSupabaseStats();
   }
 
   // show a simple success or error dialog after an operation

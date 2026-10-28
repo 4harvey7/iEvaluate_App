@@ -10,6 +10,7 @@ import '../core/services/system_settings_service.dart';
 import '../core/services/account_activation_service.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
+import '../sast_guide/sast_guide_screen.dart';
 
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
@@ -78,6 +79,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     _fetchAdminProfile(); // get the admin's name so dashboard not say just "Admin"
     _fetchTermThenData(); // fetch current term first, then fetch all the dashboard data
     _checkSystemStatus(); // ping the servers to see if they still alive
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) SastGuideGate.maybeShow(context); // once-per-semester guide
+    });
   }
 
   // Reload when the SAO office switches the active term, instead of

@@ -21,7 +21,8 @@
 //   "N8N_WEBHOOK_MANUAL_CORRECTION": "webhook/sast-manual-correction",
 //   "N8N_WEBHOOK_SUBJECT_BULK_IMPORT": "webhook/subject-bulk-import",
 //   "N8N_WEBHOOK_IMPORT_ERROR_CORRECTION": "webhook/import-error-correction",
-//   "PYTHON_PROCESS_CROP": "process-crop"
+//   "PYTHON_PROCESS_CROP": "process-crop",
+//   "SHEET_SERVICE_ACCOUNT_EMAIL": "name@project.iam.gserviceaccount.com"
 // }
 //
 // The .env.json file is listed in .gitignore and is NEVER committed.
@@ -53,6 +54,13 @@ class Env {
   // ── Base URLs ──────────────────────────────────────────────────────────────
   static const String n8nBaseUrl =
       String.fromEnvironment('N8N_BASE_URL', defaultValue: '');
+
+  // ── Google Sheet import ────────────────────────────────────────────────────
+  /// Service account the SAO must share import sheets with (shown in the
+  /// SAST Guidelines screen). Set via --dart-define SHEET_SERVICE_ACCOUNT_EMAIL.
+  static const String sheetServiceAccountEmail = String.fromEnvironment(
+      'SHEET_SERVICE_ACCOUNT_EMAIL',
+      defaultValue: '(ask the SAO admin for the service account email)');
 
   // ── Full n8n Webhook URLs ──────────────────────────────────────────────────
   static String get n8nHealthUrl =>

@@ -14,6 +14,7 @@ import '../widgets/blocking_progress_overlay.dart';
 import '../core/services/term_watcher.dart';
 import '../widgets/deactivate_account_dialog.dart';
 import '../widgets/controller_disposer.dart';
+import '../sast_guide/sast_guide_screen.dart';
 
 
 class SaoAdminSettings extends StatefulWidget {
@@ -1152,6 +1153,26 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               // 4. SECURITY & DANGER ZONE
               // red title because it means business — change password or nuke account
               // ==========================================
+              const Text('Help', style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              Card(
+                color: AppColors.surface,
+                elevation: 1,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(8)),
+                      child: const Icon(Icons.menu_book_outlined, color: AppColors.primary),
+                    ),
+                    title: const Text('SAST Guidelines', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                    subtitle: const Text('Stamping, filling, scanning, review, import.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
+                    onTap: () => SastGuideGate.open(context),
+                  ),
+              ),
+              const SizedBox(height: 32),
               const Text('Security & Administration', style: TextStyle(color: AppColors.error, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               Card(
