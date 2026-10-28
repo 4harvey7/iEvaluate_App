@@ -104,3 +104,51 @@ List<String> _splitOutsideQuotes(String s) {
   flush();
   return out;
 }
+
+/// One paragraph from a stored theme column: a list becomes a natural list
+/// ending in a period, prose is kept as-is. Empty when there is nothing to show.
+String themeParagraph(Object? raw) {
+  final v = parseThemeValue(raw);
+  if (v.isEmpty) return '';
+  if (v.items.isEmpty) return v.text;
+  return _sentence(v.toNaturalList());
+}
+
+/// The points to show as a bullet list, one per item.
+/// - Text with line breaks (the current format: one sentence per line): one
+///   item per non-empty line, deduplicated, bullet markers removed.
+/// - An array (or a Postgres/JSON array literal): one item per element.
+/// - Anything else (old rows: one run-on paragraph): ONE item. It is never
+///   split on commas, which would cut sentences apart.
+List<String> themeBullets(Object? raw) {
+  if (raw == null) return const [];
+  final s = raw is String ? raw.trim() : null;
+  if (s != null && s.contains('\n')) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final line in s.split(RegExp(r'\r?\n'))) {
+      final t = line
+          .replaceFirst(RegExp(r'^\s*(?:[-*\u2022\u2013\u2014]+|\d{1,2}[.)])\s+'), '')
+          .trim();
+      if (t.isEmpty || t.toUpperCase() == 'NULL') continue;
+      if (seen.add(t.toLowerCase())) out.add(t);
+    }
+    return out;
+  }
+  final listLike = raw is Iterable ||
+      (s != null &&
+          ((s.startsWith('{') && s.endsWith('}')) ||
+              (s.startsWith('[') && s.endsWith(']'))));
+  if (listLike) {
+    return parseThemeValue(raw).items.map(_sentence).toList();
+  }
+  final p = themeParagraph(raw);
+  return p.isEmpty ? const [] : [p];
+}
+
+String _sentence(String text) {
+  final s = text.trim();
+  if (s.isEmpty) return '';
+  final cap = s[0].toUpperCase() + s.substring(1);
+  return RegExp(r'[.!?]$').hasMatch(cap) ? cap : '$cap.';
+}
