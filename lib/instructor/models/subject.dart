@@ -9,6 +9,9 @@ class Subject {
   final double? managementMean;
   final double? performanceMean;
 
+  /// New 15-item SET overall % for this subject (null for old-form terms).
+  final double? setPct;
+
   /// All subject IDs that map to this subject code in the current term.
   /// Populated by SubjectsProvider to avoid cross-term ID contamination.
   final Set<String> allRelatedIds;
@@ -20,6 +23,7 @@ class Subject {
     required this.addedAt,
     this.managementMean,
     this.performanceMean,
+    this.setPct,
     Set<String>? allRelatedIds,
   }) : allRelatedIds = allRelatedIds ?? const {};
 
@@ -47,6 +51,7 @@ class Subject {
         DateTime.now(),
     managementMean: (json['management_mean'] as num?)?.toDouble(),
     performanceMean: (json['performance_mean'] as num?)?.toDouble(),
+    setPct: (json['set_pct'] as num?)?.toDouble(),
     allRelatedIds: json['all_ids'] is Set<String>
         ? json['all_ids'] as Set<String>
         : (json['all_ids'] is Iterable

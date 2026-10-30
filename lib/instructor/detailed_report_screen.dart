@@ -5,6 +5,8 @@ import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
+import '../widgets/eval_report_widgets.dart';
 
 class DetailedReportScreen extends StatefulWidget {
   final String userId;
@@ -45,6 +47,8 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   final _pdfService = PdfService();
   bool _isLoading = true;
   bool _isGeneratingPdf = false;
+  // New 15-item report (SET / SUP) for this term; null = old-form term.
+  EvalReport? _evalReport;
   String? _aiSuggestion;
   String _summaryText = 'Loading analysis...';
   // Stored per-question means (overall_question_means). Null = nobody
@@ -104,6 +108,50 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
         if (mounted) setState(() => _isLoading = false);
         return;
       }
+
+      // New-form term: pooled SET (+ supervisor) results replace the old report.
+      final evalReport = await EvalResultsService.load(instructorId: widget.userId, termId: effectiveTermId);
+      if (evalReport != null && evalReport.student != null) {
+        // The AI summary and word cloud are keyed by instructor + term, not by form:
+        // the n8n comment analysis fills them for the new-form import too.
+        List<dynamic> words = const [];
+        Map<String, dynamic>? aiData;
+        try {
+          final extra = await Future.wait<dynamic>([
+            _supabase
+                .from('instructor_wordcloud')
+                .select('word, count')
+                .eq('instructor_id', widget.userId)
+                .eq('term_id', effectiveTermId)
+                .order('count', ascending: false)
+                .limit(200),
+            _supabase
+                .from('instructor_ai_suggestions')
+                .select('*')
+                .eq('instructor_id', widget.userId)
+                .eq('term_id', effectiveTermId)
+                .order('updated_at', ascending: false)
+                .limit(1)
+                .maybeSingle(),
+          ]);
+          words = (extra[0] as List?) ?? const [];
+          aiData = extra[1] as Map<String, dynamic>?;
+        } catch (e) {
+          debugPrint('DetailedReportScreen: AI summary / word cloud not loaded: $e');
+        }
+        if (mounted) {
+          setState(() {
+            _evalReport = evalReport;
+            _hasResults = true;
+            _isLoading = false;
+            _wordCloudData = List<Map<String, dynamic>>.from(words);
+            _aiSuggestion = aiData?['ai_suggestion'];
+            _summaryText = _aiSuggestion ?? "No significant trends identified for this period.";
+          });
+        }
+        return;
+      }
+      if (mounted && _evalReport != null) setState(() => _evalReport = null);
 
       // 2. Prepare queries with MANDATORY term filtering
       // select('*') rather than an explicit list: response_count only exists
@@ -348,6 +396,20 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     _isGeneratingPdf = true;
     try {
       await _loadPdfExtras();
+      final ev = _evalReport;
+      if (ev?.student != null) {
+        await _pdfService.generateSetReport(
+          scope: ev!.student!,
+          instructorName: widget.instructorName,
+          department: widget.department,
+          college: _college,
+          courseTaught: _courseTaught,
+          term: widget.term,
+          academicYear: widget.academicYear,
+          comments: ev.studentComments,
+        );
+        return;
+      }
       await _pdfService.generateInstructorDetailedReport(
         instructorName: widget.instructorName,
         universityId: widget.universityId,
@@ -388,7 +450,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+        title: Text(_evalReport != null ? 'Official SET Report' : 'Official SAST Report', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.surface,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
@@ -414,6 +476,11 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
                 children: [
                   AppleSurface(child: _buildOfficialHeader()),
                   const Divider(height: 32),
+                  if (_evalReport != null) ...[
+                    EvalReportView(report: _evalReport!),
+                    const SizedBox(height: 24),
+                    _buildCommentsSection(),
+                  ] else ...[
                   _buildSummaryTable(),
                   const SizedBox(height: 24),
                   _buildCriteriaSection('I. Management', _managementCriteria, _mgmtScore, _managementMeans, _managementCounts),
@@ -423,6 +490,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
                   _buildCommentsSection(),
                   const SizedBox(height: 32),
                   _buildLegend(),
+                  ],
                 ],
               ),
             ),
@@ -453,10 +521,12 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           ],
         ),
         const SizedBox(height: 16),
-        const Text(
-          "STUDENTS' ASSESSMENT SURVEY FOR TEACHERS (SAST)",
+        Text(
+          _evalReport != null
+              ? 'STUDENT EVALUATION OF TEACHING (SET)'
+              : "STUDENTS' ASSESSMENT SURVEY FOR TEACHERS (SAST)",
           textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
         ),
         const Text("INDIVIDUAL REPORT AND COMMENTS", textAlign: TextAlign.center),
         const SizedBox(height: 16),

@@ -11,6 +11,8 @@ import '../instructor/detailed_report_screen.dart';
 import '../instructor/models/subject.dart';
 import '../widgets/apple_ui.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
+import '../widgets/eval_report_widgets.dart';
 
 /// Full-page view of an individual instructor, opened from the Faculty Roster.
 /// Shows: current-term score card, historical trend bar chart,
@@ -43,6 +45,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
   bool _isLoading = true; // Show spinner until data is ready
   List<_TermScore> _history = []; // One entry per term — used for the bar chart
   List<Subject> _subjects = []; // Subjects this instructor teaches this term
+  EvalReport? _evalReport; // New 15-item report for the current term (null = old-form term)
   Map<String, dynamic>? _termMeta; // semester + academic_year for current term — for the report
   
   // Real sentiment data instead of hardcoded
@@ -184,13 +187,51 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
         history.add(_TermScore(
           label: label,
           // Stored values; null = no answers that term (drawn as an empty stub).
-          score: SastRating.parse(row['combined_score_mean']) ?? SastRating.parse(row['overall_mean']),
+          // Trend is on the percent scale: old means convert as mean / 5 * 100.
+          score: SastRating.meanToPct(SastRating.parse(row['combined_score_mean']) ?? SastRating.parse(row['overall_mean'])),
           mgmt: SastRating.parse(row['management_mean']),
           perf: SastRating.parse(row['performance_mean']),
           isCurrent: termId == widget.currentTermId, // Highlight current term bar in the chart
           termInfo: row['academic_terms'] as Map?, // store for sorting
+          termId: termId,
         ));
       }
+
+      // New-form terms (eval_results): pooled SET % joins the same trend.
+      final newPcts = await EvalResultsService.termPcts(instructorId);
+      final extraIds = newPcts.keys.where((id) => !seenTerms.contains(id)).toList();
+      final extraMeta = <String, Map>{};
+      if (extraIds.isNotEmpty) {
+        final rows = await _supabase.from('academic_terms').select('id, semester, academic_year').filter('id', 'in', extraIds);
+        for (final r in rows as List) {
+          extraMeta[r['id'].toString()] = r;
+        }
+      }
+      for (final e in newPcts.entries) {
+        final existing = history.indexWhere((h) => h.termId == e.key);
+        if (existing >= 0) {
+          history[existing] = history[existing].withScore(e.value);
+          continue;
+        }
+        final m = extraMeta[e.key];
+        final sem = m?['semester']?.toString() ?? '';
+        final yr = m?['academic_year']?.toString() ?? '';
+        final ayParts = yr.split('-');
+        final yearShort = ayParts.length == 2
+            ? '${ayParts[0].length >= 2 ? ayParts[0].substring(ayParts[0].length - 2) : ayParts[0]}-'
+              '${ayParts[1].length >= 2 ? ayParts[1].substring(ayParts[1].length - 2) : ayParts[1]}'
+            : yr;
+        history.add(_TermScore(
+          label: '${sem.split(' ').first}\n$yearShort',
+          score: e.value,
+          mgmt: null,
+          perf: null,
+          isCurrent: e.key == widget.currentTermId,
+          termInfo: m,
+          termId: e.key,
+        ));
+      }
+      final evalReport = await EvalResultsService.load(instructorId: instructorId, termId: widget.currentTermId);
 
       // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
       // DB orders only by academic_year which doesn't handle 1st vs 2nd within same year
@@ -326,6 +367,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       if (mounted) {
         setState(() {
           _history = history;
+          _evalReport = (evalReport?.student != null) ? evalReport : null;
           _subjects = subjects;
           _termMeta = termData; // Store term info for the report button
           _sentimentSummary = sentimentSummary;
@@ -474,14 +516,20 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       // Score breakdown row — management, performance, and eval count
-                      _buildScoreRow(instructor),
-                      const SizedBox(height: 28),
+                      // (new-form terms show the SET / supervisor report instead)
+                      if (_evalReport == null) ...[
+                        _buildScoreRow(instructor),
+                        const SizedBox(height: 28),
+                      ],
 
                       // Official Report Button — goes to the full SAST report page
                       _buildReportButton(instructor),
                       _buildDeactivateButton(instructor),
                       const SizedBox(height: 24),
-                      _buildSentimentAnalysis(), // NEW: Sentiment analysis widget
+                      if (_evalReport != null)
+                        EvalReportView(report: _evalReport!)
+                      else
+                        _buildSentimentAnalysis(), // NEW: Sentiment analysis widget
                       const SizedBox(height: 24),
                       _buildTrendSection(),
                       const SizedBox(height: 32),
@@ -947,9 +995,9 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: _history.map((ts) {
-                      // Bar height is proportional to score out of 5.0
+                      // Bar height is proportional to the percent score
                       final double? tsScore = ts.score;
-                      final barH = tsScore == null ? 0.0 : (tsScore / 5.0) * 120.0;
+                      final barH = tsScore == null ? 0.0 : (tsScore / 100.0) * 120.0;
                       // Current term = blue, older terms = faded gray
                       final color = ts.isCurrent ? AppColors.primary : AppColors.textSecondary.withValues(alpha: 0.4);
                       return Expanded(
@@ -960,7 +1008,7 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
                             children: [
                               // Score label on top of each bar — small text
                               Text(
-                                SastRating.format(tsScore),
+                                SastRating.formatPct(tsScore),
                                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ts.isCurrent ? AppColors.primary : AppColors.textSecondary),
                               ),
                               const SizedBox(height: 4),
@@ -1116,11 +1164,12 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
 /// dili pwede just use a Map — this is cleaner and type-safe.
 class _TermScore {
   final String label;    // Short label shown under the bar chart — e.g. "1st\n25-26"
-  final double? score;   // Overall score for this term (null = no answers)
+  final double? score;   // Overall score for this term on the percent scale (null = no answers)
   final double? mgmt;    // Management score — separate tracking
   final double? perf;    // Performance score — separate tracking
   final bool isCurrent;  // If true, this term's bar is highlighted in primary color
   final Map? termInfo;   // Raw academic_terms map — used only for sorting, not displayed
+  final String termId;
 
   const _TermScore({
     required this.label,
@@ -1129,5 +1178,10 @@ class _TermScore {
     required this.perf,
     required this.isCurrent,
     this.termInfo,
+    this.termId = '',
   });
+
+  _TermScore withScore(double? s) => _TermScore(
+        label: label, score: s, mgmt: mgmt, perf: perf,
+        isCurrent: isCurrent, termInfo: termInfo, termId: termId);
 }

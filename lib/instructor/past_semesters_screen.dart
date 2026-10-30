@@ -12,6 +12,8 @@ import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
+import '../widgets/eval_report_widgets.dart';
 
 // StatefulWidget because we fetch data from Supabase and manage selected term state
 class PastSemestersScreen extends StatefulWidget {
@@ -37,6 +39,8 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
   // The subjects taught in the selected term
   List<Map<String, dynamic>> _selectedTermSubjects = [];
   // Instructor profile data for the report header
+  // New 15-item report for the selected term (null for old-form terms)
+  EvalReport? _termEval;
   String _instructorName = 'Instructor';
   String _instructorDept = '';
   String _universityId = '';
@@ -132,6 +136,39 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
         };
       }
 
+      // Old terms on the percent scale (mean / 5 * 100), so old and new terms
+      // can share one trend chart.
+      for (final t in termsMap.values) {
+        t['pct'] = SastRating.meanToPct(t['overallScore'] as double?);
+      }
+      // New-form terms (eval_results): pooled SET %.
+      final newPcts = await EvalResultsService.termPcts(widget.userId);
+      final missing = newPcts.keys.where((id) => !termsMap.containsKey(id)).toList();
+      Map<String, Map<String, dynamic>> termMeta = {};
+      if (missing.isNotEmpty) {
+        final metaRows = await _supabase.from('academic_terms').select('id, semester, academic_year, created_at').filter('id', 'in', missing);
+        for (final m in metaRows as List) {
+          termMeta[m['id'].toString()] = Map<String, dynamic>.from(m);
+        }
+      }
+      for (final e in newPcts.entries) {
+        final existing = termsMap[e.key];
+        if (existing != null) {
+          existing['pct'] = e.value;
+          existing['isNew'] = true;
+          continue;
+        }
+        final m = termMeta[e.key];
+        termsMap[e.key] = {
+          'termId': e.key,
+          'semester': m != null ? '${m['semester']} ${m['academic_year']}' : 'Unknown Term',
+          'created_at': m?['created_at'] ?? '',
+          'pct': e.value,
+          'isNew': true,
+          'evaluations': 0,
+        };
+      }
+
       List<Map<String, dynamic>> processedData = termsMap.values.toList();
       // Sort chronologically: oldest academic year first, then 1st → 2nd → Summer within year
       processedData.sort((a, b) {
@@ -195,6 +232,14 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
   Future<void> _loadSelectedTermData(String termId) async {
     try {
       if (mounted) setState(() => _isTermLoading = true);
+
+      // New-form term: load the pooled SET/SUP report for the term.
+      final isNewTerm = _historicalData.any((t) => t['termId'] == termId && t['isNew'] == true);
+      final termEval = isNewTerm
+          ? await EvalResultsService.load(instructorId: widget.userId, termId: termId)
+          : null;
+      final setPcts = isNewTerm ? await EvalResultsService.subjectPcts(widget.userId, termId) : <String, double>{};
+      if (mounted) setState(() => _termEval = termEval);
 
       debugPrint('[PastSemesters] =========================================');
       debugPrint('[PastSemesters] LOAD TERM: ${widget.userId} | term=$termId');
@@ -287,6 +332,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
           ...meta,
           'management_mean': mMean,
           'performance_mean': pMean,
+          'set_pct': setPcts[id],
         });
       }
 
@@ -422,6 +468,10 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
               // No history at all — maybe the instructor is brand new
               const Center(child: Text('No historical data found.')),
 
+            if (_termEval != null) ...[
+              const SizedBox(height: 24),
+              EvalReportView(report: _termEval!),
+            ],
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -446,6 +496,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                   ...s,
                   'management_mean': s['management_mean'],
                   'performance_mean': s['performance_mean'],
+                  'set_pct': s['set_pct'],
                   // Use fallback date if created_at is missing — dili null ang date pls
                   'created_at': s['created_at'] ?? termData?['created_at'] ?? DateTime.now().toIso8601String(),
                 });
@@ -487,10 +538,10 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                     crossAxisAlignment: CrossAxisAlignment.end,
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: _historicalData.map((data) {
-                      final double? score = SastRating.parse(data['overallScore']);
-                      // Bar height proportional to score out of 5 — max 120px.
+                      final double? score = SastRating.parse(data['pct']);
+                      // Bar height proportional to the percent score (old means converted: mean / 5 * 100) — max 120px.
                       // A term with no answers (null) keeps the minimum stub, labelled "—".
-                      final double h = score == null ? 0 : (score / 5.0) * 120;
+                      final double h = score == null ? 0 : (score / 100.0) * 120;
                       bool isSel = data['termId'] == _selectedTermId; // highlight selected term
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -501,7 +552,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
                             SizedBox(
                               width: 44,
                               child: Text(
-                                SastRating.format(score),
+                                SastRating.formatPct(score),
                                 style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.visible,

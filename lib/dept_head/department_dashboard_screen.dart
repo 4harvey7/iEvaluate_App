@@ -14,6 +14,7 @@ import 'subject_analytics_screen.dart';
 import 'intervention_reports_screen.dart';
 import '../widgets/apple_ui.dart';
 import '../core/widgets/packed_word_cloud.dart';
+import '../core/utils/sast_rating.dart';
 
 // The main widget for the department dashboard. Very importente kaayo.
 // It is stateful because data changes and we need to rebuild the UI — dili pwede static.
@@ -51,7 +52,25 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     'facultyCount': 0,
     'deactivatedWithResults': 0,
     'evaluatedCount': 0,
+    // SET-15 term: avgPct set (card shows %), supervisor X of Y evaluations done.
+    'avgPct': null,
+    'supervisorDone': null,
+    'supervisorTotal': null,
   };
+
+  bool get _isPct => _deptInfo['avgPct'] != null;
+
+  /// Chart is on the % scale when any bar is a new-form term.
+  bool get _historyIsPct => _deptHistory.any((h) => h['isPct'] == true);
+
+  /// Verbal label + supervisor progress under the average, new-form terms only.
+  String? get _newFormNote {
+    if (!_isPct) return null;
+    final label = SastRating.verbalPct((_deptInfo['avgPct'] as num).toDouble());
+    final total = _deptInfo['supervisorTotal'] as int?;
+    final done = _deptInfo['supervisorDone'] as int?;
+    return total == null || done == null ? label : '$label | Supervisor evaluations done: $done/$total';
+  }
 
   /// One line saying what the department average is actually based on.
   ///
@@ -241,6 +260,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
             'facultyCount': summary.facultyCount,
             'deactivatedWithResults': summary.deactivatedWithResults,
             'evaluatedCount': summary.evaluatedCount,
+            'avgPct': summary.avgPct,
+            'supervisorDone': summary.supervisorDone,
+            'supervisorTotal': summary.supervisorTotal,
           };
           _dynamicAlerts = alerts; // Store alerts for the dashboard and notification bell
           _cloudFreq = wordCloud; // Single-word frequencies for the packed cloud
@@ -465,12 +487,19 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                     // end stop, so the headline figure was being painted in the
                     // colour of the card behind it.
                     Text(
-                      '${_deptInfo['overallScore']}',
+                      _isPct ? SastRating.formatPct((_deptInfo['avgPct'] as num).toDouble()) : '${_deptInfo['overallScore']}',
                       style: const TextStyle(color: AppColors.textInverted, fontSize: 40, fontWeight: FontWeight.bold),
                     ),
-                                    const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                                    if (!_isPct) const Text('/5.0', style: TextStyle(color: Colors.white70, fontSize: 16)),
                                   ],
                                 ),
+                                if (_newFormNote != null) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    _newFormNote!,
+                                    style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+                                  ),
+                                ],
                                 if (_coverageNote != null) ...[
                                   const SizedBox(height: 2),
                                   Text(
@@ -510,9 +539,9 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                 const SizedBox(height: 32),
                 
                 // --- DEPARTMENT HISTORY (GROWTH CHART) ---
-                const AppleSectionHeader(
+                AppleSectionHeader(
                   title: 'Department Growth',
-                  subtitle: 'Weighted mean across recent academic terms.',
+                  subtitle: _historyIsPct ? 'Average rating (%) across recent academic terms.' : 'Weighted mean across recent academic terms.',
                 ),
                 const SizedBox(height: 12),
                 RepaintBoundary(
@@ -530,6 +559,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                       : LayoutBuilder(
                           builder: (context, constraints) {
                             bool isScrollable = _deptHistory.length > 5;
+                            final pctScale = _historyIsPct;
                             
                             Widget content = Row(
                               mainAxisAlignment: isScrollable ? MainAxisAlignment.start : MainAxisAlignment.spaceAround,
@@ -539,7 +569,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                 // Scale height, max height ~100px out of 5.0
                                 // Clamped: a negative height throws in layout,
                                 // and one over 100 overflows the 200px card.
-                                double barHeight = (score / 5.0).clamp(0.0, 1.0) * 100;
+                                double barHeight = (score / (pctScale ? 100.0 : 5.0)).clamp(0.0, 1.0) * 100;
                                 
                                 // Colour by school year — every semester of the
                                 // same year shares one colour.
@@ -552,7 +582,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                                     children: [
                                       // Clean bold text instead of heavy badge
                                       Text(
-                                        score.toStringAsFixed(2),
+                                        pctScale ? SastRating.formatPct(score) : score.toStringAsFixed(2),
                                         style: TextStyle(fontWeight: FontWeight.w800, color: barColor, fontSize: 13),
                                       ),
                                       const SizedBox(height: 8),

@@ -9,6 +9,8 @@ import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
+import '../widgets/eval_report_widgets.dart';
 
 // The main widget — stateful because data is fetched async
 class SubjectAnalyticsScreen extends StatefulWidget {
@@ -28,6 +30,10 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
 
   bool _isLoading = true; // Show spinner on first open
   List<SubjectAnalytic> _subjectAnalytics = []; // All subject data for this dept
+
+  // New-form term (SET-15): per-subject % built from eval_results. Null = old term.
+  String? _termId;
+  List<_SetSubject>? _setSubjects;
 
   // Load data when screen first appears
   @override
@@ -58,6 +64,18 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
     
     try {
       if (userId.isNotEmpty) {
+        // New-form term first: if SET-15 results exist, show those (student only).
+        final setSubjects = await _loadSetSubjects(userId);
+        if (setSubjects != null && setSubjects.isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _setSubjects = setSubjects;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+        if (mounted) setState(() => _setSubjects = null);
         // Get all subject analytics — the service handles all the complex queries
         final data = await _evaluationService.getSubjectAnalyticsForDept(userId);
         if (mounted) {
@@ -72,6 +90,159 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
       debugPrint('Error loading subject analytics: $e');
       if (mounted) setState(() => _isLoading = false); // Stop spinner on error
     }
+  }
+
+  // SET-15 % per subject for the current term (department scope by RLS).
+  // Instructor names only; student ids never reach this screen. SUP-15 is
+  // never read here.
+  Future<List<_SetSubject>?> _loadSetSubjects(String userId) async {
+    try {
+      final settings = await _supabase.from('system_settings').select('current_term_id').maybeSingle();
+      final termId = settings?['current_term_id']?.toString();
+      if (termId == null) return null;
+      _termId = termId;
+      final rows = (await EvalResultsService.deptSubjectRows(termId)).where((r) => r.instructorId != userId).toList();
+      if (rows.isEmpty) return null;
+      final subjectIds = rows.map((r) => r.subjectId).toSet().toList();
+      final instructorIds = rows.map((r) => r.instructorId).toSet().toList();
+      final subs = await _supabase.from('subjects').select('id, subject_code, subject_name').inFilter('id', subjectIds);
+      final people = await _supabase.from('user_info').select('id, first_name, last_name').inFilter('id', instructorIds);
+      final subById = {for (final r in subs as List) r['id'].toString(): r};
+      final nameById = {
+        for (final r in people as List) r['id'].toString(): '${r['first_name'] ?? ''} ${r['last_name'] ?? ''}'.trim()
+      };
+      final grouped = <String, _SetSubject>{};
+      for (final r in rows) {
+        final sub = subById[r.subjectId];
+        final g = grouped.putIfAbsent(
+          r.subjectId,
+          () => _SetSubject(r.subjectId, '${sub?['subject_code'] ?? ''}', '${sub?['subject_name'] ?? 'Subject'}'),
+        );
+        g.instructors.add(_SetInstructor(r.instructorId, nameById[r.instructorId] ?? 'Instructor', r.pct, r.respondents));
+      }
+      return grouped.values.toList()..sort((a, b) => a.code.compareTo(b.code));
+    } catch (e) {
+      debugPrint('Error loading SET subject analytics: $e');
+      return null;
+    }
+  }
+
+  // One instructor's SET section and item % for a subject (student scope only).
+  void _showSetInstructor(_SetSubject subject, _SetInstructor inst) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.85,
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: FutureBuilder<EvalReport?>(
+          future: EvalResultsService.load(instructorId: inst.id, termId: _termId!, subjectId: subject.id),
+          builder: (context, snap) {
+            final scope = snap.data?.student;
+            return ListView(
+              children: [
+                Text('${subject.code} ${subject.name}'.trim(),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                const SizedBox(height: 4),
+                Text(inst.name, style: const TextStyle(color: AppColors.textSecondary)),
+                const SizedBox(height: 16),
+                if (snap.connectionState != ConnectionState.done)
+                  const Center(child: CircularProgressIndicator())
+                else if (scope == null)
+                  const Text('No student evaluation results for this subject.')
+                else
+                  EvalScopeCard(scope: scope, heading: 'Student evaluation (SET)'),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _showSetSubjectDetails(_SetSubject subject) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(subject.code, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
+            Text(subject.name,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            const SizedBox(height: 16),
+            const Text('Instructors (tap for sections and items)', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final i in subject.instructors)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(i.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text('${i.respondents} respondent${i.respondents == 1 ? '' : 's'}'),
+                      trailing: EvalPctBadge(pct: i.pct),
+                      onTap: () => _showSetInstructor(subject, i),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSetBody() {
+    return Column(
+      children: [
+        for (final sub in _setSubjects!)
+          Card(
+            color: AppColors.surface,
+            elevation: 1,
+            margin: const EdgeInsets.only(bottom: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () => _showSetSubjectDetails(sub),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(sub.code, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 12)),
+                          const SizedBox(height: 6),
+                          Text(sub.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+                          const SizedBox(height: 4),
+                          Text('${sub.instructors.length} instructor${sub.instructors.length == 1 ? '' : 's'} - SET %',
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    EvalPctBadge(pct: sub.avgPct),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   // Opens a bottom sheet with the instructor breakdown for a specific subject.
@@ -203,7 +374,9 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
                     const SizedBox(height: 24),
 
                     // No subject data yet — either new term or service returned empty
-                    if (_subjectAnalytics.isEmpty)
+                    if (_setSubjects != null)
+                      _buildSetBody()
+                    else if (_subjectAnalytics.isEmpty)
                       const AppleEmptyState(
                         icon: Icons.analytics_outlined,
                         title: 'No subject data',
@@ -366,4 +539,23 @@ class _SubjectAnalyticsScreenState extends State<SubjectAnalyticsScreen> {
       ),
     );
   }
+}
+
+class _SetInstructor {
+  final String id;
+  final String name;
+  final double pct;
+  final int respondents;
+  _SetInstructor(this.id, this.name, this.pct, this.respondents);
+}
+
+class _SetSubject {
+  final String id;
+  final String code;
+  final String name;
+  final List<_SetInstructor> instructors = [];
+  _SetSubject(this.id, this.code, this.name);
+
+  // Plain average of the instructors' SET overall % for this subject.
+  double? get avgPct => SastRating.averageOfPresent(instructors.map((i) => i.pct));
 }

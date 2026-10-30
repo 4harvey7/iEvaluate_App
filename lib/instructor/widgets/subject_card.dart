@@ -3,6 +3,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_text_styles.dart';
 import '../models/subject.dart';
 import '../../widgets/apple_ui.dart';
+import '../../widgets/eval_report_widgets.dart';
 import '../../core/utils/sast_rating.dart';
 
 class SubjectCard extends StatelessWidget {
@@ -51,10 +52,12 @@ class SubjectCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                _buildScoreBadge(subject.overallMean),
+                subject.setPct != null
+                    ? EvalPctBadge(pct: subject.setPct)
+                    : _buildScoreBadge(subject.overallMean),
               ],
             ),
-            if (showMetrics) ...[
+            if (showMetrics && subject.setPct == null) ...[
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
                 child: Divider(height: 1),

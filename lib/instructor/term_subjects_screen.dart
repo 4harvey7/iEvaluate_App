@@ -6,6 +6,7 @@ import 'subject_detail_screen.dart';
 import 'widgets/subject_card.dart';
 import '../widgets/apple_ui.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
 
 class TermSubjectsScreen extends StatefulWidget {
   final String userId;
@@ -92,6 +93,7 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
       }
 
       // 3. Build subject list
+      final setPcts = await EvalResultsService.subjectPcts(widget.userId, widget.termId);
       List<Subject> processedSubjects = [];
       for (var entry in subjectById.entries) {
         final id = entry.key;
@@ -105,6 +107,7 @@ class _TermSubjectsScreenState extends State<TermSubjectsScreen> {
           ...meta,
           'management_mean': mMean,
           'performance_mean': pMean,
+          'set_pct': setPcts[id],
           'all_ids': <String>{id},
         }));
       }

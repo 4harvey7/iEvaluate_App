@@ -7,6 +7,7 @@
 // The app polls that row by id until finished_at is set.
 
 import 'dart:async';
+import 'dart:convert';
 
 class SheetImportJob {
   final String status; // processing | done | error
@@ -20,6 +21,10 @@ class SheetImportJob {
   final String? message;
   final String? failedNode;
   final DateTime? finishedAt;
+  // Migration 021: {form_type, term_label, rows, new, already_imported,
+  // excluded_under_5, rejected, reasons:[{reason, plain_text, count, rows}]}.
+  // Null on an old DB (no column) or an old workflow.
+  final Map<String, dynamic>? details;
 
   const SheetImportJob({
     required this.status,
@@ -33,6 +38,7 @@ class SheetImportJob {
     this.message,
     this.failedNode,
     this.finishedAt,
+    this.details,
   });
 
   static int? _int(dynamic v) =>
@@ -55,7 +61,19 @@ class SheetImportJob {
         message: _str(row['message']),
         failedNode: _str(row['failed_node']),
         finishedAt: DateTime.tryParse('${row['finished_at'] ?? ''}'),
+        details: _details(row['details']),
       );
+
+  static Map<String, dynamic>? _details(dynamic v) {
+    if (v is Map) return Map<String, dynamic>.from(v);
+    if (v is String && v.trim().startsWith('{')) {
+      try {
+        final d = jsonDecode(v);
+        if (d is Map) return Map<String, dynamic>.from(d);
+      } catch (_) {}
+    }
+    return null;
+  }
 
   /// The flow has really ended. An 'error' recorded while n8n is still
   /// running (finished_at not set yet) is not the end: keep polling.
@@ -134,4 +152,57 @@ String sheetImportErrorText(SheetImportJob job) {
   final counts = sheetImportSummary(job);
   if (counts.isNotEmpty) parts.add(counts);
   return parts.join('\n\n');
+}
+
+/// What the final dialog shows.
+class SheetImportOutcome {
+  final String title;
+  final String message;
+  final bool isSuccess;
+  const SheetImportOutcome(this.title, this.message, this.isSuccess);
+}
+
+/// Title, text and tone for a finished job. Uses `details` when present,
+/// else the older counts. Never throws on a missing or odd key.
+SheetImportOutcome sheetImportOutcome(SheetImportJob job) {
+  final d = job.details;
+  if (job.isError) {
+    final msg = job.message ?? 'The import reported a problem.';
+    return SheetImportOutcome('Import failed', msg, false);
+  }
+  if (d == null) {
+    final counts = sheetImportSummary(job);
+    return SheetImportOutcome(
+      'Import finished',
+      counts.isEmpty ? (job.message ?? 'Import completed.') : 'Import completed.\n$counts',
+      true,
+    );
+  }
+  int n(String k) => SheetImportJob._int(d[k]) ?? 0;
+  final rejected = n('rejected');
+  final lines = <String>[
+    'New: ${n('new')}',
+    'Already imported earlier (skipped): ${n('already_imported')}',
+    'Saved but not counted (fewer than 5 answers): ${n('excluded_under_5')}',
+    'Not imported: $rejected',
+  ];
+  final reasons = d['reasons'];
+  if (reasons is List && reasons.isNotEmpty) {
+    lines.add('');
+    for (final r in reasons.take(5)) {
+      if (r is! Map) continue;
+      final text = SheetImportJob._str(r['plain_text']) ?? SheetImportJob._str(r['reason']) ?? 'Unknown reason';
+      final count = SheetImportJob._int(r['count']);
+      final rows = r['rows'] is List ? (r['rows'] as List).map((e) => '$e').toList() : const <String>[];
+      var line = text;
+      if (count != null) line += ' - $count';
+      if (rows.isNotEmpty) line += ' (rows ${rows.join(', ')})';
+      lines.add(line);
+    }
+  }
+  return SheetImportOutcome(
+    rejected > 0 ? 'Import finished - some rows need attention' : 'Import finished',
+    lines.join('\n'),
+    rejected == 0,
+  );
 }

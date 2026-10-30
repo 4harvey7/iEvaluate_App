@@ -121,4 +121,29 @@ class SastRating {
     }
     return n == 0 ? null : round2(sum / n);
   }
+
+  // ---- Percent scale (new 15-item SET / SUP forms) -------------------------
+
+  /// Old SAST mean (1..5) shown on the percent scale: mean / 5 * 100.
+  static double? meanToPct(double? mean) => mean == null ? null : round2(mean / 5 * 100);
+
+  /// >= 84 Outstanding, >= 68 Very Satisfactory, >= 52 Satisfactory,
+  /// >= 36 Fair, otherwise Unsatisfactory.
+  static String verbalPct(double? pct) {
+    if (pct == null) return noData;
+    if (pct >= 84) return 'Outstanding';
+    if (pct >= 68) return 'Very Satisfactory';
+    if (pct >= 52) return 'Satisfactory';
+    if (pct >= 36) return 'Fair';
+    return 'Unsatisfactory';
+  }
+
+  static Color colorPct(double? pct) => color(pct == null ? null : pct / 20);
+
+  /// "86.5%", or [empty] when there is no value.
+  static String formatPct(double? pct, {String empty = emptyValue}) {
+    final r = round2(pct);
+    if (r == null) return empty;
+    return '${r.toStringAsFixed(r == r.roundToDouble() ? 0 : 1)}%';
+  }
 }

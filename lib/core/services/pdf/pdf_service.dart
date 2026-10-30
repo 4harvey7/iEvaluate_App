@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import '../evaluation_service.dart';
+import '../eval_results_service.dart';
 import '../../utils/sast_rating.dart';
 import '../../utils/theme_list_parser.dart';
 import '../../utils/word_cloud_layout.dart';
@@ -156,19 +157,20 @@ class PdfService {
             pw.Text('TOP PERFORMING INSTRUCTORS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
             pw.SizedBox(height: 10),
             pw.TableHelper.fromTextArray(
-              headers: ['Rank', 'Instructor', 'Department', 'Score', 'Evals'],
+              headers: ['Rank', 'Instructor', 'Department', 'Score', if (topInstructors.any((i) => i.isPct)) 'Rating', 'Evals'],
               data: topInstructors.asMap().entries.map((e) => [
                 '#${e.key + 1}',
                 e.value.name,
                 e.value.department.replaceAll('College of ', ''), // Shorten long names
-                e.value.overallScore.toStringAsFixed(2),
+                e.value.isPct ? SastRating.formatPct(e.value.setPct) : e.value.overallScore.toStringAsFixed(2),
+                if (topInstructors.any((i) => i.isPct)) e.value.verbalLabel,
                 e.value.subjectCount.toString(),
               ]).toList(),
               headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
               headerDecoration: pw.BoxDecoration(color: primaryColor), // Highlight the top performers table
               cellStyle: const pw.TextStyle(fontSize: 10),
               cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {0: pw.Alignment.center, 3: pw.Alignment.center, 4: pw.Alignment.center},
+              cellAlignments: {0: pw.Alignment.center, 3: pw.Alignment.center, 4: pw.Alignment.center, if (topInstructors.any((i) => i.isPct)) 5: pw.Alignment.center},
               border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
               rowDecoration: const pw.BoxDecoration(
                 border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5)),
@@ -254,6 +256,140 @@ class PdfService {
     );
     final fileName = 'SAST_Report_${instructorName.replaceAll(' ', '_')}.pdf';
     await _saveAndShare(bytes, fileName);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  SET report (new 15-item student evaluation, new terms only)
+  // ─────────────────────────────────────────────────────────
+  Future<void> generateSetReport({
+    required EvalScope scope,
+    required String instructorName,
+    required String department,
+    String college = '',
+    String courseTaught = '',
+    required String term,
+    required String academicYear,
+    List<String> comments = const [],
+  }) async {
+    final bytes = await buildSetReport(
+      scope: scope,
+      instructorName: instructorName,
+      department: department,
+      college: college,
+      courseTaught: courseTaught,
+      term: term,
+      academicYear: academicYear,
+      comments: comments,
+    );
+    await _saveAndShare(bytes, 'SET_Report_${instructorName.replaceAll(' ', '_')}.pdf');
+  }
+
+  Future<Uint8List> buildSetReport({
+    required EvalScope scope,
+    required String instructorName,
+    required String department,
+    String college = '',
+    String courseTaught = '',
+    required String term,
+    required String academicYear,
+    List<String> comments = const [],
+  }) async {
+    final pdf = pw.Document();
+    pw.Widget line(String label, String value) => pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+          child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            pw.SizedBox(width: 130, child: pw.Text(label, style: const pw.TextStyle(fontSize: 9))),
+            pw.Text(': ', style: const pw.TextStyle(fontSize: 9)),
+            pw.Expanded(child: pw.Text(value, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold))),
+          ]),
+        );
+
+    // SET RATING Computation: blanks are skipped, so the denominator is
+    // 5 x (items answered), which is 75 when all 15 items are answered.
+    final answered = scope.items.where((i) => scope.itemMean[i.no] != null).toList();
+    final total = answered.fold<double>(0, (a, i) => a + scope.itemMean[i.no]!);
+    final denom = 5 * answered.length;
+    final pct = scope.pct;
+    final codes = scope.sectionTitles.keys.toList()..sort();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        maxPages: 20,
+        build: (ctx) => [
+          pw.Center(
+            child: pw.Column(children: [
+              if (college.trim().isNotEmpty)
+                pw.Text(college.trim().toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text('STUDENT EVALUATION OF TEACHING (SET) INDIVIDUAL REPORT',
+                  style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+              pw.Text('AY ${_shortTerm(term)} $academicYear'.trim(),
+                  style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            ]),
+          ),
+          pw.SizedBox(height: 10),
+          line('Name of Faculty', instructorName),
+          line('Department', department),
+          line('Course Taught', courseTaught),
+          line('No. of Student-evaluators', '${scope.respondents}'),
+          pw.SizedBox(height: 8),
+          for (final c in codes) ...[
+            pw.Table(
+              border: pw.TableBorder.all(width: 0.5),
+              columnWidths: const {0: pw.FlexColumnWidth(1), 1: pw.FixedColumnWidth(44)},
+              children: [
+                pw.TableRow(children: [
+                  _cell('$c. ${scope.sectionTitles[c]}', size: 9, bold: true, bg: PdfColors.grey200),
+                  _cell('Mean', size: 9, bold: true, align: pw.TextAlign.center, bg: PdfColors.grey200),
+                ]),
+                for (final i in scope.items.where((x) => x.section == c))
+                  pw.TableRow(children: [
+                    _cell('${i.no}. ${i.text}'),
+                    _cell(SastRating.format(scope.itemMean[i.no]), align: pw.TextAlign.center),
+                  ]),
+              ],
+            ),
+            pw.SizedBox(height: 8),
+          ],
+          pw.Container(
+            padding: const pw.EdgeInsets.all(8),
+            decoration: pw.BoxDecoration(border: pw.Border.all(width: 0.8)),
+            child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+              pw.Text('SET RATING Computation', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 4),
+              pw.Text('Total Score = sum of the item ratings = ${total.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9)),
+              pw.Text(
+                  'SET Rating = Total Score / ${denom == 75 ? '75' : denom} x 100'
+                  ' = ${total.toStringAsFixed(2)} / $denom x 100 = ${SastRating.formatPct(pct)}',
+                  style: const pw.TextStyle(fontSize: 9)),
+              pw.SizedBox(height: 3),
+              pw.Text(
+                  'Blank (unanswered) items are skipped, not counted as zero: answered total / (5 x items answered). '
+                  'All 15 items answered gives a denominator of 75. This form: ${answered.length} of ${scope.items.length} items answered.',
+                  style: pw.TextStyle(fontSize: 8, fontStyle: pw.FontStyle.italic)),
+              pw.SizedBox(height: 6),
+              pw.Text('Verbal Rating: ${scope.verbalLabel.toUpperCase()}',
+                  style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+              pw.Text('84-100 Outstanding | 68-83.99 Very Satisfactory | 52-67.99 Satisfactory | 36-51.99 Fair | below 36 Unsatisfactory',
+                  style: const pw.TextStyle(fontSize: 7)),
+            ]),
+          ),
+          pw.SizedBox(height: 10),
+          pw.Text('Comments of the students', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 3),
+          if (comments.isEmpty)
+            pw.Text('No comments.', style: const pw.TextStyle(fontSize: 9))
+          else
+            for (final c in comments)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 3),
+                child: pw.Text('- $c', style: const pw.TextStyle(fontSize: 9)),
+              ),
+        ],
+      ),
+    );
+    return pdf.save();
   }
 
   /// Pure builder: data in, PDF bytes out (no saving / sharing).

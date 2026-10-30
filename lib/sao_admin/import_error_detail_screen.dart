@@ -4,6 +4,7 @@
 // and optionally edit scores if it was a scan (not a sheet).
 // After fixing, it sends to n8n for re-processing. Importente kaayo ni sya.
 import 'dart:async';
+import 'dart:convert';
 // needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -58,6 +59,53 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   Map<String, dynamic> get _rawData => (widget.error['raw_data'] is Map)
       ? Map<String, dynamic>.from(widget.error['raw_data'] as Map)
       : <String, dynamic>{};
+
+  // SET-15 / SUP-15 rows (new 15-item forms) cannot be fixed here: the fix path
+  // only understands the old 20-item SAST form. raw_data may be a Map or a JSON string.
+  bool get _isNewForm {
+    dynamic raw = widget.error['raw_data'];
+    if (raw is String) {
+      try {
+        raw = jsonDecode(raw);
+      } catch (_) {
+        return false;
+      }
+    }
+    if (raw is! Map) return false;
+    final instrument = raw['instrument']?.toString();
+    return instrument == 'SET-15' || instrument == 'SUP-15';
+  }
+
+  static const String _newFormNote =
+      "This row is from the Student Evaluation of Teachers (SET) / Supervisor's "
+      'Evaluation of Faculty import. Fix the instructor or subject name in the '
+      'Google Sheet and import the sheet again; the same rows are replaced, '
+      'not duplicated.';
+
+  Widget _buildNewFormNote() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline, color: AppColors.warning, size: 20),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(_newFormNote,
+                style: TextStyle(
+                    color: AppColors.textPrimary, fontSize: 13, height: 1.5)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void initState() {
@@ -248,6 +296,10 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   // submits the corrected data to n8n for re-processing
   // requires both instructor and subject to be selected — no shortcuts here, ayaw mag-skip
   Future<void> _submit() async {
+    if (_isNewForm) {
+      _showSnack(_newFormNote, AppColors.warning);
+      return; // never send SET-15 / SUP-15 rows down the old-form fix path
+    }
     if (_selectedInstructorId == null) {
       _showSnack('Select an instructor from the suggestions.', AppColors.warning);
       return; // cannot proceed without valid instructor ID
@@ -391,6 +443,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final raw = _rawData; // the raw data from the original failed record
+    final newForm = _isNewForm;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -453,8 +506,15 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
                   // ── Scanned image (scan errors only) ──────────────────
                   // only show if it came from a scan — sheet has no image
-                  if (!_isSheet) _buildImageSection(),
+                  if (!_isSheet && !newForm) _buildImageSection(),
 
+                  if (newForm) ...[
+                    _buildNewFormNote(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _buildOriginalDataCard(raw),
+                    ),
+                  ] else
                   // ── Form fields ───────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -506,7 +566,7 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
           // ── Submit bar ────────────────────────────────────────────────
           // sticky bottom bar with the submit button — always visible
-          _buildSubmitBar(),
+          if (!newForm) _buildSubmitBar(),
         ],
       ),
     );

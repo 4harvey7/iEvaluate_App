@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/subject.dart';
 import '../../core/utils/sast_rating.dart';
+import '../../core/services/eval_results_service.dart';
 
 /// Loads subjects for the current instructor+term via the instructor_subjects
 /// junction table (2NF schema). Scores come from management_results /
@@ -200,6 +201,7 @@ class SubjectsProvider extends ChangeNotifier {
       }
 
       // 4. Build Subject objects
+      final setPcts = await EvalResultsService.subjectPcts(userId, activeTermId);
       final List<Subject> newSubjects = [];
 
       for (var entry in subjectById.entries) {
@@ -231,6 +233,7 @@ class SubjectsProvider extends ChangeNotifier {
               ...meta,
               'management_mean': mMean,
               'performance_mean': pMean,
+              'set_pct': setPcts[id],
               'all_ids': <String>{id},
             }),
           );

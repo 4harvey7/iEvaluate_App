@@ -15,6 +15,7 @@ import '../core/services/term_watcher.dart';
 import '../widgets/deactivate_account_dialog.dart';
 import '../widgets/controller_disposer.dart';
 import '../sast_guide/sast_guide_screen.dart';
+import 'term_form_setting_card.dart';
 
 
 class SaoAdminSettings extends StatefulWidget {
@@ -1145,8 +1146,13 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-
+              const SizedBox(height: 24),
+              const AppleSectionHeader(
+                title: 'Evaluation Form',
+                subtitle: 'Which form this semester uses for imports and reports.',
+              ),
+              const SizedBox(height: 12),
+              TermFormSettingCard(key: ValueKey(_isUpdatingSettings)),
               const SizedBox(height: 32),
 
               // ==========================================

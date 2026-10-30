@@ -151,11 +151,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       }
       final fileRes = await fileQuery.count(CountOption.exact); // server-side count, no 1000-row cap
 
+      // New 15-item forms (SET-15 / SUP-15) write eval_responses, not the old raw
+      // table, so a new-form term would otherwise read 0 here.
+      var newFormCount = 0;
+      try {
+        var q = _supabase.from('eval_responses').select('id').eq('status', 'submitted');
+        if (_currentTermId != null) q = q.eq('term_id', _currentTermId!);
+        newFormCount = (await q.count(CountOption.exact)).count;
+      } catch (e) {
+        debugPrint('[DASHBOARD] eval_responses count failed: $e');
+      }
+
       if (mounted) {
         setState(() {
           _livePendingApprovals = List<Map<String, dynamic>>.from(pendingResponse); // save the pending list
           _totalUsersCount = countRes.count; // save user count
-          _filesScannedCount = fileRes.count; // save file count
+          _filesScannedCount = fileRes.count + newFormCount; // old scans + new-form responses
           _isPendingLoading = false; // done loading, hide spinner
         });
 

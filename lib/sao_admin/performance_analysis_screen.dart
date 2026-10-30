@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/evaluation_service.dart';
+import '../core/services/eval_results_service.dart';
 import '../core/services/pdf/pdf_service.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -42,6 +43,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
     'completion': '0%', // how many subjects have been evaluated
   };
 
+
+  // New 15-item SET results for the selected term (null = old-form term)
+  ({int instructors, int subjects, double? avgPct})? _setSummary;
 
   List<InstructorPerformance> _topInstructors = []; // ranked list of instructors by score
 
@@ -139,11 +143,17 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
       final globalStats = await _evaluationService.getGlobalStats(termId: _selectedTermId);
       final topInstructors = await _evaluationService.getTopInstructors(termId: _selectedTermId);
 
+      final setSummary = _selectedTermId == null ? null : await EvalResultsService.termSummary(_selectedTermId!);
+      final setAvg = setSummary?.avgPct;
+
       if (mounted) {
         setState(() {
+          _setSummary = setSummary;
           // getGlobalStats() returns {avgScore, totalInstructors, totalResponses}
           _overviewStats = {
-            'overall': SastRating.format(globalStats['avgScore'] as double?, empty: 'N/A'), // 2 decimals; N/A when nobody has a score
+            // New term: average SET %; old term: mean as before.
+            'overall': setAvg != null ? SastRating.formatPct(setAvg) : SastRating.format(globalStats['avgScore'] as double?, empty: 'N/A'),
+            'overallIsPct': setAvg != null,
             'totalEvals': '${globalStats['totalResponses'] ?? 0}', // total survey responses
           };
           _topInstructors = topInstructors; // sorted list of instructor performances
@@ -232,7 +242,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                       final inst = filtered[i];
                       final score = inst.overallScore;
                       // color based on score: green=great, yellow=okay, red=low, gray=no data
-                      final color = score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textTertiary;
+                      final color = inst.isPct
+                          ? SastRating.colorPct(inst.setPct)
+                          : score >= 4.0 ? AppColors.success : score >= 3.0 ? AppColors.warning : score > 0 ? AppColors.error : AppColors.textTertiary;
                       return Card(
                         color: AppColors.surface,
                         margin: const EdgeInsets.only(bottom: 8),
@@ -250,7 +262,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                           title: Text(inst.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), overflow: TextOverflow.ellipsis),
                           subtitle: Text(inst.department, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
                           trailing: Text(
-                            score > 0 ? score.toStringAsFixed(2) : '—', // show score or dash if no data
+                            inst.isPct ? SastRating.formatPct(inst.setPct) : score > 0 ? score.toStringAsFixed(2) : '—', // show score or dash if no data
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: color),
                           ),
                         ),
@@ -381,7 +393,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                                     crossAxisAlignment: CrossAxisAlignment.end, // bars grow from bottom
                                     children: history.map<Widget>((data) {
-                                      double barHeight = (data['score'] / 5.0) * 120; // scale bar to max 120px height
+                                      double barHeight = ((data['score'] as double) / 100.0) * 120; // scale bar to max 120px height
                                       double barWidth = 40 * chartScale; // bar width scales with zoom
 
                                       return Padding(
@@ -390,7 +402,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                           mainAxisAlignment: MainAxisAlignment.end,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Text(SastRating.format(data['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar (2 decimals)
+                                            Text(SastRating.formatPct(data['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar (2 decimals)
                                             const SizedBox(height: 8),
                                             Container(
                                               width: barWidth,
@@ -410,7 +422,17 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                 ),
                               ),
                           ),
-                          const SizedBox(height: 32),
+                          if (_setSummary != null) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildStatCard('SET Average', SastRating.formatPct(_setSummary!.avgPct, empty: 'N/A'), Icons.percent, AppColors.primary)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildStatCard('Instructors / Subjects', '${_setSummary!.instructors} / ${_setSummary!.subjects}', Icons.groups, AppColors.primary)),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 32),
                           // subject breakdown for the current term
                           const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                           const SizedBox(height: 16),
@@ -552,7 +574,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                 // two stat cards: university average and total evaluations
                 Row(
                   children: [
-                    Expanded(child: _buildStatCard('University Avg', '${_overviewStats['overall']}/5', Icons.star, AppColors.primary)),
+                    Expanded(child: _buildStatCard('University Avg', _overviewStats['overallIsPct'] == true ? '${_overviewStats['overall']}' : '${_overviewStats['overall']}/5', Icons.star, AppColors.primary)),
                     const SizedBox(width: 16),
                     Expanded(child: _buildStatCard('Total Evals', '${_overviewStats['totalEvals'] ?? 0}', Icons.library_books, AppColors.primary)),
                   ],
@@ -604,7 +626,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                                     size: 20,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(SastRating.format(instructor.overallScore), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)), // the score number
+                                  Text(instructor.isPct ? SastRating.formatPct(instructor.setPct) : SastRating.format(instructor.overallScore), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)), // the score number
                                 ],
                               ),
                             ),

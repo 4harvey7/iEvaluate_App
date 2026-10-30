@@ -110,7 +110,7 @@ class AutomationService {
           data: data,
         );
       } else {
-        final errorMsg = data is Map ? (data['error'] ?? data['message']) : data?.toString();
+        final errorMsg = data is Map ? (data['message'] ?? data['error']) : data?.toString();
         return AutomationResponse(
           isSuccess: false,
           statusCode: status,
@@ -123,7 +123,7 @@ class AutomationService {
       final details = fe.details;
       String? errorMsg;
       if (details is Map) {
-        errorMsg = details['error']?.toString() ?? details['message']?.toString();
+        errorMsg = details['message']?.toString() ?? details['error']?.toString();
       }
       return AutomationResponse(
         isSuccess: false,

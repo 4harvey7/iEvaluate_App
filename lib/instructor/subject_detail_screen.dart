@@ -5,6 +5,8 @@ import 'models/subject.dart';
 import '../widgets/apple_ui.dart';
 import '../core/services/term_aware_state.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
+import '../widgets/eval_report_widgets.dart';
 
 class SubjectDetailScreen extends StatefulWidget {
   final Subject subject;
@@ -27,6 +29,8 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen>
   final _supabase = Supabase.instance.client;
 
   bool _isLoading = true;
+  // New 15-item report (SET / SUP). When set, it replaces the old-form view.
+  EvalReport? _evalReport;
   // Stored means for this subject. Null = nobody answered (shown as "—").
   double? _mgmtScore;
   double? _perfScore;
@@ -106,6 +110,35 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen>
         if (mounted) setState(() => _isLoading = false);
         return;
       }
+
+      // New-form term: this subject has eval_results rows, use the new view.
+      final ownSubjectId = widget.subject.id;
+      final evalReport = await EvalResultsService.load(
+        instructorId: widget.userId,
+        termId: activeTermId,
+        subjectId: (ownSubjectId != null && ownSubjectId.isNotEmpty) ? ownSubjectId : null,
+      );
+      if (evalReport != null && evalReport.student != null) {
+        // The toned remarks are keyed by instructor + term + subject (student_remarks), not by form.
+        List<Map<String, dynamic>> toned = const [];
+        if (ownSubjectId != null && ownSubjectId.isNotEmpty) {
+          try {
+            final rows = await _supabase
+                .from('student_remarks')
+                .select('remark, tone, created_at')
+                .eq('subject_id', ownSubjectId)
+                .eq('instructor_id', widget.userId)
+                .eq('term_id', activeTermId)
+                .order('created_at', ascending: false);
+            toned = (rows as List).cast<Map<String, dynamic>>();
+          } catch (e) {
+            debugPrint('[SubjectDetailScreen] student_remarks not loaded: $e');
+          }
+        }
+        if (mounted) setState(() { _evalReport = evalReport; _subjectRemarks = toned; _isLoading = false; });
+        return;
+      }
+      if (mounted && _evalReport != null) setState(() => _evalReport = null);
 
       final subjectCode = widget.subject.code;
       debugPrint('[SubjectDetailScreen] Fetching "$subjectCode" in term "$activeTermId"');
@@ -405,7 +438,7 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen>
                     ApplePageHeader(
                       eyebrow: widget.subject.code,
                       title: widget.subject.name,
-                      subtitle: '$_totalResponses total respondents',
+                      subtitle: '${_evalReport?.student?.respondents ?? _totalResponses} total respondents',
                     ),
                     if (_sourceNote != null) ...[
                       const SizedBox(height: 6),
@@ -413,7 +446,9 @@ class _SubjectDetailScreenState extends State<SubjectDetailScreen>
                     ],
                     const SizedBox(height: 24),
 
-                    if (_mgmtData == null && _perfData == null) ...[
+                    if (_evalReport != null)
+                      EvalReportView(report: _evalReport!)
+                    else if (_mgmtData == null && _perfData == null) ...[
                       const AppleEmptyState(
                         icon: Icons.assessment_outlined,
                         title: 'No evaluation results yet',

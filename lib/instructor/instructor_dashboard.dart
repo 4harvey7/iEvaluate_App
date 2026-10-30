@@ -18,6 +18,7 @@ import 'detailed_report_screen.dart';
 import 'subject_detail_screen.dart';
 import '../widgets/apple_ui.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
 
 
 // The main dashboard widget. StatefulWidget because life is stateful, dili siya const.
@@ -76,6 +77,11 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             _myPerformance['performanceScore'] = SastRating.parse(data['performanceScore']);
             _myPerformance['totalEvaluations'] = data['totalEvaluations'] ?? 0;
             _recentFeedback = List<String>.from(data['feedback'] ?? []);
+            _newForm = data['newForm'] == true;
+            _newPct = SastRating.parse(data['newPct']);
+            _newVerbal = data['newVerbal'] as String?;
+            _newSubjects = (data['newSubjects'] as num?)?.toInt() ?? 0;
+            _historyPct = data['historyPct'] == true;
             if (data['history'] != null) {
               _myHistory.clear();
               _myHistory.addAll(List<Map<String, dynamic>>.from(data['history'].map((x) => Map<String, dynamic>.from(x))));
@@ -216,6 +222,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
       double? performanceScore;
       int totalEvaluations = 0;
       List<String> feedback = [];
+      EvalScope? newScope;
+      var newSubjects = 0;
+      var newComments = <String>[];
 
       // 3. Fetch Analytics for SPECIFIC TERM (Only if term ID exists)
       if (_currentTermId.isNotEmpty) {
@@ -244,6 +253,15 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
           debugPrint('[InstructorDashboard] No overall_total_survey row for term $_currentTermId -- no results yet.');
         }
 
+        // New 15-item form results for this term. When present they win over the
+        // old tables (which new-form terms never write).
+        final report = await EvalResultsService.load(instructorId: widget.userId, termId: _currentTermId);
+        newScope = report?.student;
+        if (newScope != null) {
+          newSubjects = (await EvalResultsService.subjectPcts(widget.userId, _currentTermId)).length;
+          newComments = report!.studentComments;
+        }
+
         // 4. Fetch Recent Feedback — the actual words students wrote about you
         // We now filter directly by instructor_id and term_id to ensure we get remarks
         // even if the n8n AI pipeline missed mapping the subject_id.
@@ -257,14 +275,32 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
         final feedbackData = await feedbackQuery.order('created_at', ascending: false).limit(5);
         
         feedback = (feedbackData as List).map((f) => f['remark'] as String).toList();
+        if (feedback.isEmpty && newScope != null) feedback = newComments.take(5).toList();
       }
 
       // 5. Fetch Historical Performance (All terms) — the "glow up" chart data
       final historyData = await _supabase
           .from('overall_total_survey')
-          .select('overall_mean, combined_score_mean, academic_terms(semester, academic_year)')
+          .select('term_id, overall_mean, combined_score_mean, academic_terms(semester, academic_year)')
           .eq('instructor_id', widget.userId)
           .order('created_at', ascending: true); // oldest first, so chart goes left to right
+
+      // Pooled SET percents per term, merged into the history. Terms that only
+      // have new-form results have no overall_total_survey row, so add them.
+      final termPcts = await EvalResultsService.termPcts(widget.userId);
+      final historyRows = [for (final h in historyData as List) Map<String, dynamic>.from(h as Map)];
+      final haveTerms = {for (final h in historyRows) h['term_id']?.toString()};
+      final missing = termPcts.keys.where((t) => !haveTerms.contains(t)).toList();
+      if (missing.isNotEmpty) {
+        final extra = await _supabase.from('academic_terms').select('id, semester, academic_year').inFilter('id', missing);
+        for (final t in extra as List) {
+          historyRows.add({
+            'term_id': t['id'].toString(),
+            'academic_terms': {'semester': t['semester'], 'academic_year': t['academic_year']},
+          });
+        }
+      }
+      final historyPct = termPcts.isNotEmpty;
 
       // Apply all fetched data to state if widget is still alive
       if (mounted) {
@@ -296,13 +332,19 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                 'evals=$totalEvaluations');
 
           _recentFeedback = feedback; // update the recent feedback list
+          _newForm = newScope != null;
+          _newPct = newScope?.pct;
+          _newVerbal = newScope?.verbalLabel;
+          _newSubjects = newSubjects;
+          _historyPct = historyPct;
+          if (newScope != null) _myPerformance['totalEvaluations'] = newScope.respondents;
 
           // Build the history chart from the last 4 terms only — fit in the bar chart
-          if ((historyData as List).isNotEmpty) {
+          if (historyRows.isNotEmpty) {
             _myHistory.clear();
             // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
             final semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
-            final sorted = List.from(historyData)..sort((a, b) {
+            final sorted = List.from(historyRows)..sort((a, b) {
               final aTerm = a['academic_terms'];
               final bTerm = b['academic_terms'];
               final aYear = int.tryParse(aTerm?['academic_year']?.toString().split('-').first ?? '0') ?? 0;
@@ -334,9 +376,12 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
               }
               // Stored value only; a term with no answers stays null and
               // draws an empty bar instead of a 0.00 one.
+              final oldMean = SastRating.parse(item['combined_score_mean']) ?? SastRating.parse(item['overall_mean']);
+              final tp = termPcts[item['term_id']?.toString()];
               _myHistory.add({
                 'sem': label,
-                'score': SastRating.parse(item['combined_score_mean']) ?? SastRating.parse(item['overall_mean']),
+                // One scale per chart: percent when any term is new-form.
+                'score': historyPct ? (tp ?? SastRating.meanToPct(oldMean)) : oldMean,
               });
             }
           }
@@ -356,6 +401,11 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
             'performanceScore': _myPerformance['performanceScore'],
             'totalEvaluations': _myPerformance['totalEvaluations'],
             'feedback': _recentFeedback,
+            'newForm': _newForm,
+            'newPct': _newPct,
+            'newVerbal': _newVerbal,
+            'newSubjects': _newSubjects,
+            'historyPct': _historyPct,
             'history': _myHistory,
           };
           await prefs.setString('instructor_profile_${widget.userId}', jsonEncode(cacheData));
@@ -448,6 +498,13 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
   // History list for the bar chart — max 4 items, older to newer
   final List<Map<String, dynamic>> _myHistory = [];
+  // New 15-item form state: when the current term has SET-15 results the hero
+  // card shows percent + verbal label; the history chart uses one scale.
+  bool _newForm = false;
+  double? _newPct;
+  String? _newVerbal;
+  int _newSubjects = 0;
+  bool _historyPct = false;
 
   @override
   Widget build(BuildContext context) {
@@ -629,9 +686,9 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
 
                     // The big score number — the main attraction of this whole card
                     Builder(builder: (context) {
-                      final overall = SastRating.parse(_myPerformance['overallScore']);
+                      final overall = _newForm ? _newPct : SastRating.parse(_myPerformance['overallScore']);
                       final hasData = overall != null; // no data = show "—", not 0.00
-                      final vd = Subject.getVerbalDescription(overall); // e.g. "Outstanding"
+                      final vd = _newForm ? (_newVerbal ?? SastRating.verbalPct(overall)) : Subject.getVerbalDescription(overall); // e.g. "Outstanding"
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
@@ -640,7 +697,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  SastRating.format(overall),
+                                  _newForm ? SastRating.formatPct(overall) : SastRating.format(overall),
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 52, // big number = big ego boost
@@ -651,7 +708,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  hasData ? 'Overall Weighted Mean' : 'No evaluation results yet',
+                                  hasData ? (_newForm ? 'Overall Rating (SET-15)' : 'Overall Weighted Mean') : 'No evaluation results yet',
                                   style: const TextStyle(color: AppColors.textInvertedDim, fontSize: 11, fontWeight: FontWeight.w500),
                                 ),
                               ],
@@ -687,11 +744,17 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildStat('Management', SastRating.format(SastRating.parse(_myPerformance['managementScore']))),
-                        Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // divider line
-                        _buildStat('Performance', SastRating.format(SastRating.parse(_myPerformance['performanceScore']))),
-                        Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // another divider
-                        _buildStat('Evaluations', _myPerformance['totalEvaluations'].toString()),
+                        if (_newForm) ...[
+                          _buildStat('Respondents', _myPerformance['totalEvaluations'].toString()),
+                          Container(width: 1, height: 40, color: AppColors.textInvertedFaint),
+                          _buildStat('Subjects rated', _newSubjects.toString()),
+                        ] else ...[
+                          _buildStat('Management', SastRating.format(SastRating.parse(_myPerformance['managementScore']))),
+                          Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // divider line
+                          _buildStat('Performance', SastRating.format(SastRating.parse(_myPerformance['performanceScore']))),
+                          Container(width: 1, height: 40, color: AppColors.textInvertedFaint), // another divider
+                          _buildStat('Evaluations', _myPerformance['totalEvaluations'].toString()),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -782,14 +845,14 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
                               // Bar height is proportional to score out of 5.0;
                               // a term with no answers (null) gets no bar, not a 0 bar.
                               final double? score = SastRating.parse(data['score']);
-                              final double barHeight = score == null ? 0 : (score / 5.0).clamp(0.0, 1.0) * 100;
+                              final double barHeight = score == null ? 0 : (score / (_historyPct ? 100.0 : 5.0)).clamp(0.0, 1.0) * 100;
                               // Flexible lets bars share the available width equally —
                               // avoids overflow when there are 4+ history entries
                               return Flexible(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    Text(SastRating.format(score), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
+                                    Text(_historyPct ? SastRating.formatPct(score) : SastRating.format(score), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 10)),
                                     const SizedBox(height: 4),
                                     Container(
                                       width: 20,

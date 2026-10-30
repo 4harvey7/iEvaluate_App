@@ -11,6 +11,7 @@ import 'intervention_reports_screen.dart';
 import 'instructor_detail_page.dart';
 import '../core/services/term_aware_state.dart';
 import '../core/utils/sast_rating.dart';
+import '../core/services/eval_results_service.dart';
 
 // Faculty roster widget — shows all instructors in this dept
 // Stateful because we fetch data and let user search/sort
@@ -33,6 +34,11 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
   
   bool _isLoading = true; // Start loading immediately on open
   List<Map<String, dynamic>> _facultyList = []; // All faculty from the dept
+  // Supervisor evaluations (SUP-15): the checklist shows only when the term uses that form.
+  bool _supervisorTerm = false;
+  Set<String> _evaluatedIds = {};
+  /// New-form terms: a SET % below this is flagged.
+  static const double _lowSetPct = 60;
   String _currentTermId = ''; // Current academic term — we only show scores for this term
 
   // Kick off data fetch as soon as screen loads
@@ -132,6 +138,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
       // Build the composite cache key: deptId_termId
       // This ensures each dept head has their own cache slot per term.
       final cacheKey = '${deptId}_$activeTermId';
+      await _loadSupervisorChecklist(activeTermId);
       if (_rosterCache.containsKey(cacheKey)) {
         if (mounted) {
           setState(() {
@@ -217,6 +224,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               'Fetched ${facultyData.length} faculty rows for Dept ID: $deptId');
         }
 
+        final setByInstructor = await EvalResultsService.instructorPcts(activeTermId);
         final fetchedList = (facultyData as List).map<Map<String, dynamic>>((f) {
             final instructorId = f['id']?.toString() ?? '';
 
@@ -260,7 +268,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
             // it is what stops the list and the average from disagreeing.
             final status = (f['account_status'] ?? '').toString();
             final isActive = status.trim().toLowerCase() == 'approved';
-            final hasTermData = survey != null;
+            final setRow = setByInstructor[instructorId];
+            final hasTermData = survey != null || setRow != null;
 
             // Return the clean faculty map — all the info the UI cards need
             return {
@@ -272,7 +281,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               'score': currentScore,
               'mgmt_score': SastRating.parse(survey?['management_mean']),
               'perf_score': SastRating.parse(survey?['performance_mean']),
-              'evals': SastRating.parseInt(survey?['total_responses']) ?? 0,
+              'evals': setRow?.respondents ?? SastRating.parseInt(survey?['total_responses']) ?? 0,
+              // New-form term: SET % (null for old-form terms)
+              'set_pct': setRow?.pct,
               'trend': trend,
               'account_status': status,
               'is_active': isActive,
@@ -299,6 +310,25 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     }
   }
 
+  // Which faculty this dept head has already evaluated (supervisor form) this term.
+  Future<void> _loadSupervisorChecklist(String termId) async {
+    var supTerm = false;
+    var evaluated = <String>{};
+    try {
+      final ti = await _supabase
+          .from('eval_term_instruments')
+          .select('evaluator_type')
+          .eq('term_id', termId)
+          .eq('evaluator_type', 'supervisor')
+          .maybeSingle();
+      supTerm = ti != null;
+      if (supTerm) evaluated = await EvalResultsService.evaluatedBy(widget.userId, termId);
+    } catch (e) {
+      debugPrint('Supervisor term lookup skipped: $e');
+    }
+    if (mounted) setState(() { _supervisorTerm = supTerm; _evaluatedIds = evaluated; });
+  }
+
   // Search query — user types here to filter by name. Empty = show all.
   String _searchQuery = '';
   // Sort option — default to highest score first (dean want to see stars on top)
@@ -315,8 +345,9 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     // Apply the selected sort order — user can pick from dropdown
     // Faculty with no results yet (score null) always sort last, either way.
     int byScore(Map<String, dynamic> a, Map<String, dynamic> b, {required bool desc}) {
-      final double? sa = a['score'] as double?;
-      final double? sb = b['score'] as double?;
+      // Both scales compared as %: old means convert as mean / 5 * 100.
+      final double? sa = (a['set_pct'] as double?) ?? SastRating.meanToPct(a['score'] as double?);
+      final double? sb = (b['set_pct'] as double?) ?? SastRating.meanToPct(b['score'] as double?);
       if (sa == null && sb == null) return 0;
       if (sa == null) return 1;
       if (sb == null) return -1;
@@ -459,6 +490,41 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     );
   }
 
+  // "Supervisor evaluations this term": who this dept head has evaluated.
+  Widget _buildSupervisorChecklist() {
+    final done = _facultyList.where((f) => _evaluatedIds.contains(f['id'])).length;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      child: Card(
+        color: AppColors.surface,
+        elevation: 1,
+        margin: EdgeInsets.zero,
+        child: ExpansionTile(
+          title: const Text('Supervisor evaluations this term', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+          subtitle: Text('$done of ${_facultyList.length} evaluated', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView(shrinkWrap: true, children: [
+            for (final f in _facultyList)
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  _evaluatedIds.contains(f['id']) ? Icons.check_circle : Icons.radio_button_unchecked,
+                  color: _evaluatedIds.contains(f['id']) ? AppColors.success : AppColors.textTertiary,
+                ),
+                title: Text(f['name']?.toString() ?? ''),
+                trailing: Text(_evaluatedIds.contains(f['id']) ? 'Evaluated' : 'Not yet',
+                    style: TextStyle(fontSize: 12, color: _evaluatedIds.contains(f['id']) ? AppColors.success : AppColors.textSecondary)),
+              ),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // Empty state widget — shown when no faculty found or search returns nothing
   Widget _buildEmptyState() {
     return Padding(
@@ -591,6 +657,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
               ),
             ),
 
+            if (_supervisorTerm) _buildSupervisorChecklist(),
+
             // ==========================================
             // ROSTER LIST
             // Scrollable list of instructor cards — tap any to see full detail
@@ -606,7 +674,10 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                   // Flag low performers with a red border — so dean know who to worry about
                   // No results yet (null) is not a low score.
                   final double? facultyScore = faculty['score'] as double?;
-                  bool isLowPerformer = facultyScore != null && facultyScore < 3.0;
+                  final double? setPct = faculty['set_pct'] as double?;
+                  bool isLowPerformer = setPct != null
+                      ? setPct < _lowSetPct
+                      : (facultyScore != null && facultyScore < 3.0);
 
                   return Card(
                     color: AppColors.surface,
@@ -715,7 +786,7 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
                                     const SizedBox(width: 4),
                                     // The score number — big and colored based on pass/fail threshold
                                     Text(
-                                      SastRating.format(facultyScore),
+                                      setPct != null ? SastRating.formatPct(setPct) : SastRating.format(facultyScore),
                                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: isLowPerformer ? AppColors.error : AppColors.textPrimary),
                                     ),
                                   ],

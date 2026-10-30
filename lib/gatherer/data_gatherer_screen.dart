@@ -337,11 +337,22 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       }
       final overallData = await overallQuery.count(CountOption.exact);
 
+      // New 15-item form responses (eval_responses) never reach the old raw
+      // table; add them so a new-form term does not show 0 surveys.
+      var newFormCount = 0;
+      try {
+        var nq = _supabase.from('eval_responses').select('id').eq('status', 'submitted');
+        if (_currentTermId != null) nq = nq.eq('term_id', _currentTermId!);
+        newFormCount = (await nq.count(CountOption.exact)).count;
+      } catch (e) {
+        debugPrint('fetchSupabaseStats eval_responses error: $e');
+      }
+
       if (mounted) {
         setState(() {
           _entriesToday = todayData.count; // count of today's rows
           _overallSurveyCount =
-              overallData.count; // count for whole term
+              overallData.count + newFormCount; // count for whole term
           // The database only knows about scans it has already ingested. Scans
           // still sitting in the local queue were taken but are not in that
           // count yet, so adding them back keeps the gatherer's progress from
@@ -542,7 +553,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
 
   // submit a Google Form/Sheet link to n8n for processing
   // shows a loading dialog while waiting — we not impatient but 30s timeout lang
-  Future<void> _submitLink(String? manualLink) async {
+  Future<void> _submitLink(String? manualLink, [String formType = 'SAST-20']) async {
     String link =
         manualLink ?? _linkController.text.trim(); // use provided or from field
     if (link.isEmpty) return; // nothing to submit, ayaw
@@ -600,6 +611,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         'term_id': _currentTermId, // which term this import belongs to
         'link': link,
         'type': 'google_form_import',
+        'form_type': formType, // SAST-20 (default), SET-15 or SUP-15
         'semester': _currentSemester,
         'academic_year': _currentYear,
         'timestamp': DateTime.now().toIso8601String(),
@@ -628,7 +640,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             summary = 'Import completed.\n• Imported: ${imp ?? 0}\n• Errors: ${err ?? 0}';
           }
           _showStatusDialog(
-            title: 'Import Successful',
+            title: 'Import finished',
             message: summary,
             isSuccess: true,
           );
@@ -638,7 +650,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         // n8n return an error status — something wrong server-side
         if (mounted) {
           // 422: n8n could not read the sheet and says why (no access, not found, no rows)
-          final why = result.statusCode == 422 ? result.errorMessage : null;
+          // wrong_form_type also comes as 422 with {message, error}: prefer message
+          final d = result.data;
+          final why = result.statusCode == 422
+              ? ((d is Map ? (d['message'] ?? d['error'])?.toString() : null) ?? result.errorMessage)
+              : null;
           _showStatusDialog(
             title: 'Import Failed',
             message: why ?? 'Server returned an error (${result.statusCode}).',
@@ -733,18 +749,12 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             '${job != null && job.isError ? '\n\nProblem reported so far:\n${sheetImportErrorText(job)}' : ''}',
         isSuccess: false,
       );
-    } else if (job.isError) {
-      _showStatusDialog(
-        title: 'Import Finished With Problems',
-        message: sheetImportErrorText(job),
-        isSuccess: false,
-      );
     } else {
-      final counts = sheetImportSummary(job);
+      final result = sheetImportOutcome(job);
       _showStatusDialog(
-        title: 'Import Successful',
-        message: counts.isEmpty ? (job.message ?? 'Import completed.') : 'Import completed.\n$counts',
-        isSuccess: true,
+        title: result.title,
+        message: result.message,
+        isSuccess: result.isSuccess,
       );
     }
     _fetchSupabaseStats();
@@ -769,7 +779,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               color: isSuccess ? AppColors.success : AppColors.error,
             ),
             const SizedBox(width: 10),
-            Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text(title)),
           ],
         ),
         content: Text(message),
@@ -1421,8 +1431,9 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       const GathererSettingsView(), // settings — profile, haptic, password, logout
       GoogleSheetImportScreen(
         userId: widget.userId,
-        onSubmit: (link) {
-          _submitLink(link);
+        termLabel: '$_currentSemester $_currentYear',
+        onSubmit: (link, formType) {
+          _submitLink(link, formType);
           setState(() => _currentIndex = 0); // Return to dashboard after submit
         },
       ),

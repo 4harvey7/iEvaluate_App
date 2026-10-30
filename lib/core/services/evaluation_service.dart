@@ -4,6 +4,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/sast_rating.dart';
+import 'eval_results_service.dart';
 import '../utils/word_cloud_layout.dart';
 
 // holds the summary stats for a whole department -- overall score, means, totals, etc.
@@ -46,7 +47,22 @@ class EvaluationSummary {
   /// the larger, earlier number. The difference is the backlog.
   final int formsScanned;
 
+  /// SET-15 department average on the % scale. Null = old-form term, where
+  /// [averageScore] (mean 1-5) is the figure. When set, [averageScore] holds
+  /// avgPct / 20 so mean-based thresholds (alerts) keep working.
+  final double? avgPct;
+
+  /// Supervisor evaluations (SUP-15) the head submitted this term, and the
+  /// faculty they could evaluate. Null on old-form terms.
+  final int? supervisorDone;
+  final int? supervisorTotal;
+
+  bool get isPct => avgPct != null;
+
   EvaluationSummary({
+    this.avgPct,
+    this.supervisorDone,
+    this.supervisorTotal,
     required this.averageScore,
     required this.managementMean,
     required this.performanceMean,
@@ -92,8 +108,15 @@ class InstructorPerformance {
   final double overallScore;   // their overall evaluation score
   final int subjectCount;      // how many subjects they teaching this term
   final String trend;          // "up", "down", or "stable" -- currently hardcoded to "up", bahala na
+  // SET-15 pooled overall % for terms scored with the new form. Null = old-form
+  // term, where overallScore (mean 1-5) is the figure. Never both in one term.
+  final double? setPct;
+
+  bool get isPct => setPct != null;
+  String get verbalLabel => isPct ? SastRating.verbalPct(setPct) : SastRating.verbal(overallScore);
 
   InstructorPerformance({
+    this.setPct,
     required this.id,
     required this.name,
     required this.department,
@@ -490,6 +513,37 @@ class EvaluationService {
           'EvaluationService - $formsScanned raw forms this term across ${rosterFacultyIds.length} rostered faculty '
           '(${activeFacultyIds.length} active, ${facultyIds.length} linked)');
 
+      // SET-15 term: the new forms write nothing to overall_total_survey, so the
+      // department figures come from eval_results (pooled % per instructor).
+      final setAll = await EvalResultsService.instructorPcts(termId);
+      final setFaculty = {
+        for (final e in setAll.entries)
+          if (facultyIds.contains(e.key)) e.key: e.value
+      };
+      if (setFaculty.isNotEmpty) {
+        final roster = <String>{...rosterFacultyIds, ...setFaculty.keys};
+        final avg = SastRating.averageOfPresent(setFaculty.values.map((v) => v.pct));
+        final respondents = setFaculty.values.fold<int>(0, (a, v) => a + v.respondents);
+        final done = await EvalResultsService.evaluatedBy(userId, termId);
+        final expected = (activeFacultyCount > 0 ? activeFacultyCount : roster.length) * 25.0;
+        return EvaluationSummary(
+          averageScore: avg == null ? 0 : avg / 20,
+          avgPct: avg,
+          managementMean: 0,
+          performanceMean: 0,
+          totalEvaluations: respondents,
+          completionRate: expected > 0
+              ? double.parse((respondents / expected).clamp(0.0, 1.0).toStringAsFixed(2))
+              : 0.0,
+          facultyCount: roster.length,
+          activeFacultyCount: activeFacultyCount,
+          evaluatedCount: setFaculty.length,
+          formsScanned: respondents,
+          supervisorDone: facultyIds.where(done.contains).length,
+          supervisorTotal: facultyIds.length,
+        );
+      }
+
       if ((stats as List).isEmpty) {
         debugPrint('EvaluationService - No records in overall_total_survey for faculty in term $termId. Dashboard will show 0.0.');
         // Scores are genuinely unknown, but forms may still have been
@@ -645,10 +699,54 @@ class EvaluationService {
           .filter('instructor_id', 'in', instructorIds.toList())
           .order('created_at', ascending: true);
 
-      return averagePerTerm(
-        (historyData as List).cast<Map<String, dynamic>>(),
-        membership: membership,
-      );
+      final rows = (historyData as List).cast<Map<String, dynamic>>();
+
+      // SET-15 terms: if any instructor has pooled new-form results, the whole
+      // chart is on the % scale (old means / 5 * 100). New-only terms have no
+      // overall_total_survey row, so they are added with their term labels.
+      final setPcts = await EvalResultsService.pooledPctsFor(instructorIds.toList());
+      if (setPcts.isEmpty) {
+        return averagePerTerm(rows, membership: membership);
+      }
+      final pctRows = <Map<String, dynamic>>[];
+      final seen = <String>{};
+      for (final r in rows) {
+        final pct = _pctOf(r, setPcts);
+        seen.add('${r['term_id']}|${r['instructor_id']}');
+        pctRows.add({...r, 'combined_score_mean': pct, 'overall_mean': null});
+      }
+      final extraTerms = <String>{};
+      for (final e in setPcts.entries) {
+        for (final t in e.value.keys) {
+          if (!seen.contains('$t|${e.key}')) extraTerms.add(t);
+        }
+      }
+      final termInfo = <String, dynamic>{};
+      if (extraTerms.isNotEmpty) {
+        final t = await _supabase
+            .from('academic_terms')
+            .select('id, semester, academic_year')
+            .filter('id', 'in', extraTerms.toList());
+        for (final x in t as List) {
+          termInfo[x['id'].toString()] = {'semester': x['semester'], 'academic_year': x['academic_year']};
+        }
+        for (final e in setPcts.entries) {
+          for (final entry in e.value.entries) {
+            if (seen.contains('${entry.key}|${e.key}') || termInfo[entry.key] == null) continue;
+            pctRows.add({
+              'term_id': entry.key,
+              'instructor_id': e.key,
+              'combined_score_mean': entry.value,
+              'academic_terms': termInfo[entry.key],
+            });
+          }
+        }
+      }
+      final hist = averagePerTerm(pctRows, membership: membership);
+      for (final h in hist) {
+        h['isPct'] = true;
+      }
+      return hist;
     } catch (e) {
       debugPrint('Error fetching dept history: $e');
       return [];
@@ -766,6 +864,13 @@ class EvaluationService {
   // combined_score_mean, with overall_mean standing in for older rows.
   // Null = the instructor has no answers this term; callers skip it rather
   // than treating it as 0.
+  // Same score on the common % scale: the SET-15 pooled overall % for that
+  // instructor + term when eval_results has it, else the old mean / 5 * 100.
+  static double? _pctOf(Map<String, dynamic> row, Map<String, Map<String, double>> setPcts) {
+    final set = setPcts[row['instructor_id']?.toString()]?[row['term_id']?.toString()];
+    return set ?? SastRating.meanToPct(_scoreOf(row));
+  }
+
   static double? _scoreOf(Map<String, dynamic> row) =>
       SastRating.parse(row['combined_score_mean']) ??
       SastRating.parse(row['overall_mean']);
@@ -792,6 +897,9 @@ class EvaluationService {
     final currentTermIndex = termIds.indexOf(resolvedTermId);
     final previousTermId = currentTermIndex > 0 ? termIds[currentTermIndex - 1] : null;
 
+    final setPcts = await EvalResultsService.instructorPcts(resolvedTermId);
+    final newTerm = setPcts.isNotEmpty;
+
     // big join to get instructor name, dept, and subject count all in one query
     final data = await _supabase
         .from('overall_total_survey')
@@ -816,19 +924,54 @@ class EvaluationService {
     // the row, and left the survivors out of order. PostgREST cannot express
     // the coalesce, so the sort happens here, over one term's rows.
     // Instructors with no score yet cannot be ranked, so they are left out.
-    final ranked = List<Map<String, dynamic>>.from(data as List)
-        .where((row) => _scoreOf(row) != null)
+    // A term with SET-15 results ranks on the pooled SET % only (instructors
+    // without one are left out, so scales are never mixed); an old-form term
+    // ranks on the mean exactly as before.
+    final rowsAll = List<Map<String, dynamic>>.from(data as List);
+    if (newTerm) {
+      // New forms write no overall_total_survey row: add instructors that only
+      // have SET-15 results, with the same user_info join.
+      final have = rowsAll.map((r) => r['instructor_id'].toString()).toSet();
+      final missing = setPcts.keys.where((id) => !have.contains(id)).toList();
+      if (missing.isNotEmpty) {
+        final extra = await _supabase.from('user_info').select('''
+          id,
+          first_name,
+          last_name,
+          department_table!user_id(
+            department_name!Department_name_ID(d_name)
+          ),
+          instructor_subjects!instructor_id(id, term_id)
+        ''').filter('id', 'in', missing);
+        for (final u in extra as List) {
+          rowsAll.add({'instructor_id': u['id'], 'user_info': u});
+        }
+      }
+    }
+    final ranked = rowsAll
+        .where((row) => newTerm
+            ? setPcts.containsKey(row['instructor_id'])
+            : _scoreOf(row) != null)
         .toList()
-      ..sort((a, b) => _scoreOf(b)!.compareTo(_scoreOf(a)!));
+      ..sort((a, b) => newTerm
+          ? setPcts[b['instructor_id']]!.pct.compareTo(setPcts[a['instructor_id']]!.pct)
+          : _scoreOf(b)!.compareTo(_scoreOf(a)!));
     final top = ranked.take(10).toList();
 
     // ── Batch-fetch previous term scores for trend comparison ────────────────
     // One extra query for all top-10 IDs at once — avoids N+1 per instructor.
     final Map<String, double> prevScores = {};
+    final prevSetPcts = (previousTermId != null && newTerm)
+        ? await EvalResultsService.instructorPcts(previousTermId)
+        : const <String, ({double pct, int respondents})>{};
     if (previousTermId != null) {
       final instructorIds =
           top.map((row) => row['instructor_id'] as String).toList();
 
+      for (final id in instructorIds) {
+        final p = prevSetPcts[id]?.pct;
+        if (p != null) prevScores[id] = p;
+      }
       if (instructorIds.isNotEmpty) {
         final prevData = await _supabase
             .from('overall_total_survey')
@@ -840,7 +983,7 @@ class EvaluationService {
           final id = row['instructor_id'] as String?;
           final prev = _scoreOf(Map<String, dynamic>.from(row as Map));
           if (id != null && prev != null) {
-            prevScores[id] = prev;
+            prevScores[id] = newTerm ? (prevSetPcts[id]?.pct ?? SastRating.meanToPct(prev)!) : prev;
           }
         }
       }
@@ -871,14 +1014,16 @@ class EvaluationService {
 
       // ── Real trend: compare current score vs previous term ─────────────────
       // Threshold of 0.1 — anything smaller is noise, not a real change.
-      final currentScore = _scoreOf(row)!; // ranked rows all have a score
+      final setPct = newTerm ? setPcts[row['instructor_id']]!.pct : null;
+      final currentScore = setPct ?? _scoreOf(row)!; // ranked rows all have a score
       final prevScore = prevScores[row['instructor_id'] as String];
+      final noise = newTerm ? 2.0 : 0.1; // 0.1 mean = 2 percentage points
       final String trend;
       if (prevScore == null) {
         trend = 'flat'; // no previous term data to compare — dont guess
-      } else if (currentScore - prevScore > 0.1) {
+      } else if (currentScore - prevScore > noise) {
         trend = 'up'; // improved by more than 0.1 — genuine increase
-      } else if (prevScore - currentScore > 0.1) {
+      } else if (prevScore - currentScore > noise) {
         trend = 'down'; // dropped by more than 0.1 — dean should notice
       } else {
         trend = 'flat'; // within noise threshold — status quo
@@ -888,7 +1033,8 @@ class EvaluationService {
         id: row['instructor_id'],
         name: '${userInfo['first_name']} ${userInfo['last_name']}', // combine first and last name
         department: deptName,
-        overallScore: currentScore,
+        overallScore: setPct != null ? setPct / 20 : currentScore,
+        setPct: setPct,
         subjectCount: subjects.length, // number of subjects they have assigned
         trend: trend, // real term-over-term trend, not hardcoded
       );
@@ -905,10 +1051,24 @@ class EvaluationService {
       String instructorId) async {
     final data = await _supabase
         .from('overall_total_survey')
-        .select('overall_mean, combined_score_mean, academic_terms(semester, academic_year)') // join to get term label
+        .select('term_id, overall_mean, combined_score_mean, academic_terms(semester, academic_year)') // join to get term label
         .eq('instructor_id', instructorId);
 
+    // Every term on the common % scale: SET-15 pooled % when present, else
+    // old mean / 5 * 100. Terms with only SET results are added too.
+    final setPcts = (await EvalResultsService.pooledPctsFor([instructorId]))[instructorId] ?? const <String, double>{};
     final rows = List<Map<String, dynamic>>.from(data as List);
+    final seen = rows.map((r) => r['term_id']?.toString()).toSet();
+    final extraIds = setPcts.keys.where((t) => !seen.contains(t)).toList();
+    if (extraIds.isNotEmpty) {
+      final extra = await _supabase.from('academic_terms').select('id, semester, academic_year').filter('id', 'in', extraIds);
+      for (final t in extra as List) {
+        rows.add({'term_id': t['id'], 'academic_terms': t});
+      }
+    }
+    for (final r in rows) {
+      r['_pct'] = setPcts[r['term_id']?.toString()] ?? SastRating.meanToPct(_scoreOf(r));
+    }
 
     // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
     const semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
@@ -927,7 +1087,7 @@ class EvaluationService {
 
     // A term with no answers has no score to chart; it is left out rather
     // than drawn as 0.
-    return rows.where((row) => _scoreOf(row) != null).map((row) {
+    return rows.where((row) => row['_pct'] != null).map((row) {
       final term = row['academic_terms'] as Map?;
       // Build compact label: "1st\n25-26"
       String label = 'Term';
@@ -944,7 +1104,7 @@ class EvaluationService {
       }
       return {
         'sem': label,
-        'score': _scoreOf(row)!,
+        'score': row['_pct'] as double, // percent (0-100)
       };
     }).toList();
   }
@@ -1152,7 +1312,8 @@ class EvaluationService {
   }
 
   // get all instructors in the dean's dept whose overall score is below the threshold.
-  // threshold default is 3.0 -- below that is considered low performance.
+  // threshold is a 1-5 mean (default 3.0 = 60%); it is compared on the common
+  // % scale: SET-15 pooled overall % when the term has it, else old mean / 5 * 100.
   // returns a list of ActionAlert objects, one per underperforming instructor
   Future<List<ActionAlert>> getDepartmentAlerts(String userId, {double threshold = 3.0}) async {
     try {
@@ -1210,12 +1371,16 @@ class EvaluationService {
       }
 
       // fetch only records where overall_mean is below the threshold -- these are the problem ones
+      final thresholdPct = SastRating.meanToPct(threshold)!;
+      final thresholdLabel = thresholdPct.toStringAsFixed(0);
+      final setPcts = await EvalResultsService.pooledPctsFor(facultyIds);
       final stats = await _supabase
           .from('overall_total_survey')
           .select('''
             overall_mean,
             combined_score_mean,
             instructor_id,
+            term_id,
             user_info!instructor_id(first_name, last_name)
           ''')
           .eq('term_id', termId)
@@ -1223,18 +1388,20 @@ class EvaluationService {
           ; // Filtering moved to Dart below
 
       final List<ActionAlert> alerts = [];
+        final surveyCovered = <String>{};
         for (var row in (stats as List)) {
+          surveyCovered.add(row['instructor_id'].toString());
           final userInfo = row['user_info'];
           final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
-          final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+          final score = _pctOf(Map<String, dynamic>.from(row as Map), setPcts);
 
           // Strict filter: only flag a real score strictly below the threshold
-          // (3.0). No score (null) is "no data", never a low score.
-          if (score != null && score < threshold) {
+          // (60%). No score (null) is "no data", never a low score.
+          if (score != null && score < thresholdPct) {
             alerts.add(ActionAlert(
               type: 'Performance',
               title: 'Low Performance Alert',
-              desc: "Instructor scored ${score.toStringAsFixed(2)}, which is below the strict 3.0 benchmark.",
+              desc: "Instructor scored ${score.toStringAsFixed(1)}%, which is below the strict 60% benchmark.",
               instructorId: row['instructor_id'],
               instructorName: name,
               dateFlagged: DateTime.now(),
@@ -1252,6 +1419,21 @@ class EvaluationService {
       final Map<String, String> instructorNames = {};
       for (var u in (usersData as List)) {
          instructorNames[u['id']] = '${u['first_name']} ${u['last_name']}';
+      }
+
+      // Instructors with SET-15 results this term but no overall_total_survey row.
+      for (final id in facultyIds) {
+        final p = setPcts[id]?[termId];
+        if (p != null && !surveyCovered.contains(id) && p < thresholdPct) {
+          alerts.add(ActionAlert(
+            type: 'Performance',
+            title: 'Low Performance Alert',
+            desc: "Instructor scored ${p.toStringAsFixed(1)}%, which is below the strict 60% benchmark.",
+            instructorId: id,
+            instructorName: instructorNames[id] ?? 'Unknown',
+            dateFlagged: DateTime.now(),
+          ));
+        }
       }
 
       // 2. Fetch ALL remarks for the department's faculty in the current term
@@ -1303,22 +1485,27 @@ class EvaluationService {
             instructor_id,
             overall_mean,
             combined_score_mean,
+            term_id,
             created_at,
             user_info!instructor_id(first_name, last_name)
           ''')
           .filter('instructor_id', 'in', facultyIds)
           .order('created_at', ascending: false); // newest first!
       
-      // Group historical scores by instructor
-      final Map<String, List<double>> instructorHistory = {};
+      // Group historical scores by instructor, newest first. A term counts if it
+      // has a survey row OR a SET-15 pooled pct.
+      final Map<String, List<({DateTime at, double score})>> instructorHistory = {};
+      final surveyTerms = <String>{}; // "instructor|term" already counted from a survey row
       final Map<String, String> instructorNamesForHistory = {};
       
       for (var row in (historyData as List)) {
         final iId = row['instructor_id'] as String;
         // Terms without a score (no answers) are not strikes and are skipped.
-        final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+        final score = _pctOf(Map<String, dynamic>.from(row as Map), setPcts);
         if (score != null) {
-          instructorHistory.putIfAbsent(iId, () => []).add(score);
+          instructorHistory.putIfAbsent(iId, () => []).add(
+              (at: DateTime.tryParse('${row['created_at']}') ?? DateTime.fromMillisecondsSinceEpoch(0), score: score));
+          surveyTerms.add('$iId|${row['term_id']}');
         }
         
         if (!instructorNamesForHistory.containsKey(iId)) {
@@ -1327,22 +1514,40 @@ class EvaluationService {
         }
       }
       
+      // Terms that only have SET-15 results (new forms write no survey row).
+      if (setPcts.isNotEmpty) {
+        final termRows = await _supabase.from('academic_terms').select('id, created_at');
+        final termAt = {
+          for (final t in termRows as List)
+            t['id'].toString(): DateTime.tryParse('${t['created_at']}') ?? DateTime.fromMillisecondsSinceEpoch(0)
+        };
+        for (final inst in setPcts.entries) {
+          for (final t in inst.value.entries) {
+            if (surveyTerms.contains('${inst.key}|${t.key}')) continue;
+            instructorHistory.putIfAbsent(inst.key, () => []).add((at: termAt[t.key] ?? DateTime.fromMillisecondsSinceEpoch(0), score: t.value));
+          }
+        }
+      }
+      for (final id in instructorHistory.keys) {
+        instructorNamesForHistory.putIfAbsent(id, () => instructorNames[id] ?? 'Unknown');
+      }
+
       // Evaluate the 3-strike rule
       for (final entry in instructorHistory.entries) {
         final iId = entry.key;
-        final scores = entry.value;
+        final scores = (entry.value..sort((a, b) => b.at.compareTo(a.at))).map((e) => e.score).toList();
         
         // Ensure they have at least 3 active semesters
         if (scores.length >= 3) {
           // Check the 3 most recent semesters (which are the first 3 in the list since we ordered descending)
           final last3 = scores.sublist(0, 3);
           
-          // If ALL 3 are below the threshold (usually 3.0), strike 3!
-          if (last3.every((score) => score < threshold)) {
+          // If ALL 3 are below the threshold (usually 60%), strike 3!
+          if (last3.every((score) => score < thresholdPct)) {
              alerts.add(ActionAlert(
                type: 'Termination',
                title: '3-Strike Alert: Termination Review',
-               desc: 'Instructor has scored below ${threshold.toStringAsFixed(1)} for 3 consecutive active semesters. Immediate intervention or deactivation required.',
+               desc: 'Instructor has scored below $thresholdLabel% for 3 consecutive active semesters. Immediate intervention or deactivation required.',
                instructorId: iId,
                instructorName: instructorNamesForHistory[iId] ?? 'Unknown',
                dateFlagged: DateTime.now(),
