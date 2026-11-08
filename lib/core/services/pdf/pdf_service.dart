@@ -673,9 +673,9 @@ class PdfService {
     final freq = sumWordCounts([
       for (final w in data) MapEntry((w['word'] ?? '').toString(), SastRating.parseInt(w['count']) ?? 1),
     ]);
-    const height = 150.0;
+    const height = 230.0;
     // Scale the biggest word to the column so it is not dropped for being too wide.
-    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 7, maxSize: 40 * width / 290);
+    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 13, maxSize: 46, maxWords: 14, padding: 3, allowRotate: false);
 
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       pw.Text("Students' Feedback on $name's Performance", style: const pw.TextStyle(fontSize: 11)),
@@ -821,9 +821,9 @@ class PdfService {
         pw.Text('COMMENTS:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 4),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Expanded(flex: 11, child: paragraph),
+          pw.Expanded(flex: 1, child: paragraph),
           pw.SizedBox(width: 14),
-          pw.Expanded(flex: 9, child: _pwWordCloud(instructorName, wordCloudData, width: 210)),
+          pw.Expanded(flex: 1, child: _pwWordCloud(instructorName, wordCloudData, width: 388)),
         ]),
         pw.SizedBox(height: 18),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [

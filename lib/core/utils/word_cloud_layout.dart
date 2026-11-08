@@ -50,6 +50,7 @@ List<CloudWord> layoutWordCloud(
   double maxSize = 40,
   int maxWords = 100,
   double padding = 1.2,
+  bool allowRotate = true,
 }) {
   final entries = freq.entries.where((e) => e.key.isNotEmpty).toList()
     ..sort((a, b) {
@@ -102,7 +103,7 @@ List<CloudWord> layoutWordCloud(
     final t = math.sqrt((e.value - minC) / span);
     final size = minSize + (maxSize - minSize) * t;
     // ~25%, never the biggest item, and only short single words (never phrases).
-    final canRot = !e.key.contains(' ') && e.key.length <= 12;
+    final canRot = allowRotate && !e.key.contains(' ') && e.key.length <= 12;
     final wantRot = canRot && i != 0 && (i + 1) % 4 == 0;
     final cw = tryPlace(e, size, wantRot) ?? (canRot ? tryPlace(e, size, !wantRot) : null);
     if (cw != null) placed.add(cw);
