@@ -63,6 +63,29 @@ void main() {
     expect(RegExp(r'/Type\s*/Page(?![a-z])').allMatches(text).length, 5);
   });
 
+  test('comments page with a 2500+ char narrative still builds', () async {
+    final bytes = await PdfService().buildInstructorDetailedReport(
+      instructorName: 'Juan Dela Cruz',
+      department: 'IT',
+      term: '1st Semester',
+      academicYear: '2025-2026',
+      mgmtScore: 4.3,
+      perfScore: 4.4,
+      overallScore: 4.35,
+      totalEvals: 90,
+      managementMeans: List<double?>.filled(10, 4.3),
+      performanceMeans: List<double?>.filled(10, 4.4),
+      aiSuggestion: '',
+      studentInterpretation: List.filled(60, 'Students describe the lessons as clear and engaging.').join(' '),
+      wordCloudData: const [
+        {'word': 'instructor', 'count': 9},
+        {'word': 'good', 'count': 5},
+      ],
+    );
+    final text = latin1.decode(bytes, allowInvalid: true);
+    expect(RegExp(r'/Type\s*/Page(?![a-z])').allMatches(text).length, 2);
+  });
+
   test('comment text falls back gracefully without AI data', () {
     final t = PdfService.buildSastCommentText(
       instructorName: 'X', mgmt: 4.67, perf: 4.68, overall: 4.68);

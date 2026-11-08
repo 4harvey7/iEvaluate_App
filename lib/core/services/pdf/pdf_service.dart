@@ -674,7 +674,8 @@ class PdfService {
       for (final w in data) MapEntry((w['word'] ?? '').toString(), SastRating.parseInt(w['count']) ?? 1),
     ]);
     const height = 150.0;
-    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 7, maxSize: 40);
+    // Scale the biggest word to the column so it is not dropped for being too wide.
+    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 7, maxSize: 40 * width / 290);
 
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       pw.Text("Students' Feedback on $name's Performance", style: const pw.TextStyle(fontSize: 11)),
@@ -726,13 +727,16 @@ class PdfService {
     required List<Map<String, dynamic>> wordCloudData,
     required SastSignatories signatories,
   }) {
+    // A Row cannot split across pages: cap the text so the Row always fits one page.
+    const maxChars = 1400;
+    final shown = narrative.length <= maxChars
+        ? narrative
+        : '${narrative.substring(0, narrative.lastIndexOf(' ', maxChars).clamp(0, maxChars)).trimRight()}...';
     final paragraph = pw.Text(
-      narrative,
+      shown,
       textAlign: pw.TextAlign.justify,
       style: const pw.TextStyle(fontSize: 9, lineSpacing: 2),
     );
-    // A Row cannot split across pages: very long text goes below the cloud.
-    final longText = narrative.length > 1800;
 
     pw.Widget field(String label, String value) => pw.Row(children: [
           pw.Text('$label: ', style: const pw.TextStyle(fontSize: 9)),
@@ -816,16 +820,11 @@ class PdfService {
         pw.SizedBox(height: 10),
         pw.Text('COMMENTS:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 4),
-        if (longText) ...[
-          pw.Center(child: pw.SizedBox(width: 420, child: _pwWordCloud(instructorName, wordCloudData, width: 420))),
-          pw.SizedBox(height: 8),
-          paragraph,
-        ] else
-          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Expanded(flex: 3, child: paragraph),
-            pw.SizedBox(width: 14),
-            pw.Expanded(flex: 2, child: _pwWordCloud(instructorName, wordCloudData)),
-          ]),
+        pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+          pw.Expanded(flex: 11, child: paragraph),
+          pw.SizedBox(width: 14),
+          pw.Expanded(flex: 9, child: _pwWordCloud(instructorName, wordCloudData, width: 210)),
+        ]),
         pw.SizedBox(height: 18),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           sign('Prepared by:', signatories.preparedByName, signatories.preparedByTitle),
