@@ -40,7 +40,7 @@ android {
         create("release") {
             // Credentials: android/key.properties (git-ignored), else KEYSTORE_* env vars.
             // No defaults on purpose; with neither, storeFile stays unset and release builds fail.
-            val props = java.util.Properties()
+            val props = Properties()
             rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
             val ksFile = props.getProperty("storeFile")?.let { rootProject.file(it) }
                 ?: System.getenv("KEYSTORE_FILE")?.let { file(it) }
@@ -64,14 +64,21 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Use release keystore when available; fall back to debug for local dev.
-            val releaseSigning = signingConfigs.findByName("release")
-            signingConfig = if (releaseSigning?.storeFile != null) {
-                releaseSigning
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Never fall back to the debug key: a missing keystore fails the
+            // release build (check below), debug builds are unaffected.
+            signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+// Checked when the task graph is known, so only release tasks trip it.
+gradle.taskGraph.whenReady {
+    val releaseRequested = allTasks.any { it.project == project && it.name.contains("Release") }
+    if (releaseRequested && android.signingConfigs.getByName("release").storeFile == null) {
+        throw GradleException(
+            "No release keystore configured. Create android/key.properties (see docs/DEVELOPER_UPDATE_GUIDE.md) " +
+            "or set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD."
+        )
     }
 }
 
