@@ -8,6 +8,8 @@
          notification can be shown. The plugins declare it too, but listing
          it here makes it visible that this app sends notifications. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- In-app updates: hand the downloaded APK to the system installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
         android:label="iEvaluate"
         android:name="${applicationName}"

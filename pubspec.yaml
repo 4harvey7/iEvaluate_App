@@ -54,6 +54,9 @@ dependencies:
   firebase_messaging: ^16.5.0
   path: ^1.9.1
   flutter_local_notifications: ^22.3.0
+  package_info_plus: ^10.2.2
+  open_filex: ^5.0.0
+  crypto: ^3.0.8
 
 dev_dependencies:
   flutter_test:
