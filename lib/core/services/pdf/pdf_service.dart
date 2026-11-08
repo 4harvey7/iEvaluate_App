@@ -8,7 +8,6 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import '../evaluation_service.dart';
 import '../../utils/sast_rating.dart';
-import '../../utils/theme_list_parser.dart';
 import '../../utils/word_cloud_layout.dart';
 
 
@@ -223,8 +222,6 @@ class PdfService {
     required List<double?> performanceMeans,
     required String aiSuggestion,
     String studentInterpretation = '',
-    String positiveThemes = '',
-    String improvementInsights = '',
     String overallTone = '',
     required List<Map<String, dynamic>> wordCloudData,
     SastSignatories signatories = SastSignatories.defaults,
@@ -246,8 +243,6 @@ class PdfService {
       performanceMeans: performanceMeans,
       aiSuggestion: aiSuggestion,
       studentInterpretation: studentInterpretation,
-      positiveThemes: positiveThemes,
-      improvementInsights: improvementInsights,
       overallTone: overallTone,
       wordCloudData: wordCloudData,
       signatories: signatories,
@@ -274,8 +269,6 @@ class PdfService {
     required List<double?> performanceMeans,
     required String aiSuggestion,
     String studentInterpretation = '',
-    String positiveThemes = '',
-    String improvementInsights = '',
     String overallTone = '',
     required List<Map<String, dynamic>> wordCloudData,
     SastSignatories signatories = SastSignatories.defaults,
@@ -352,8 +345,6 @@ class PdfService {
       perf: perfScore,
       overall: overallScore,
       studentInterpretation: studentInterpretation,
-      positiveThemes: positiveThemes,
-      improvementInsights: improvementInsights,
       overallTone: overallTone,
       aiSuggestion: aiSuggestion,
       wordCloudData: wordCloudData,
@@ -557,15 +548,13 @@ class PdfService {
   }
 
   /// One flowing paragraph for the COMMENTS block, combining the ratings, the
-  /// word cloud terms and all five stored AI columns. Empty parts are skipped.
+  /// word cloud terms and the stored AI columns (themes excluded). Empty parts are skipped.
   static String buildSastCommentText({
     required String instructorName,
     required double? mgmt,
     required double? perf,
     required double? overall,
     String studentInterpretation = '',
-    String positiveThemes = '',
-    String improvementInsights = '',
     String overallTone = '',
     String aiSuggestion = '',
     List<Map<String, dynamic>> wordCloudData = const [],
@@ -611,20 +600,6 @@ class PdfService {
       sb.write(', the overall evaluation of $instructorName is $vo.');
       if (interp.isNotEmpty) sb.write(' ${_endSentence(interp)}');
     }
-
-    // List -> lead-in phrase + natural list; prose -> its own sentence(s).
-    void themes(String raw, String leadIn) {
-      final v = parseThemeValue(raw);
-      if (v.items.isNotEmpty) {
-        final list = ThemeValue(items: v.items.map((i) => lowerFirst(bare(i))).toList()).toNaturalList();
-        sb.write(' $leadIn $list.');
-      } else if (v.text.isNotEmpty) {
-        sb.write(' ${_endSentence(v.text)}');
-      }
-    }
-
-    themes(positiveThemes, 'Students particularly appreciated');
-    themes(improvementInsights, 'Areas identified for improvement include');
 
     final rec = bare(aiSuggestion);
     if (rec.isNotEmpty) {
@@ -673,9 +648,9 @@ class PdfService {
     final freq = sumWordCounts([
       for (final w in data) MapEntry((w['word'] ?? '').toString(), SastRating.parseInt(w['count']) ?? 1),
     ]);
-    const height = 230.0;
+    const height = 200.0;
     // Scale the biggest word to the column so it is not dropped for being too wide.
-    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 13, maxSize: 46, maxWords: 14, padding: 3, allowRotate: false);
+    final placed = layoutWordCloud(freq, width: width, height: height, minSize: 12, maxSize: 30, maxWords: 14, padding: 3, allowRotate: false);
 
     return pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
       pw.Text("Students' Feedback on $name's Performance", style: const pw.TextStyle(fontSize: 11)),
@@ -728,14 +703,15 @@ class PdfService {
     required SastSignatories signatories,
   }) {
     // A Row cannot split across pages: cap the text so the Row always fits one page.
-    const maxChars = 1400;
-    final shown = narrative.length <= maxChars
+    const hardCap = 2600;
+    final shown = narrative.length <= hardCap
         ? narrative
-        : '${narrative.substring(0, narrative.lastIndexOf(' ', maxChars).clamp(0, maxChars)).trimRight()}...';
+        : '${narrative.substring(0, narrative.lastIndexOf(' ', hardCap).clamp(0, hardCap)).trimRight()}...';
+    final len = shown.length;
     final paragraph = pw.Text(
       shown,
       textAlign: pw.TextAlign.justify,
-      style: const pw.TextStyle(fontSize: 9, lineSpacing: 2),
+      style: pw.TextStyle(fontSize: len <= 1300 ? 10.0 : (len <= 1800 ? 9.0 : 8.0), lineSpacing: 2),
     );
 
     pw.Widget field(String label, String value) => pw.Row(children: [
@@ -821,11 +797,11 @@ class PdfService {
         pw.Text('COMMENTS:', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
         pw.SizedBox(height: 4),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-          pw.Expanded(flex: 1, child: paragraph),
+          pw.Expanded(flex: 5, child: paragraph),
           pw.SizedBox(width: 14),
-          pw.Expanded(flex: 1, child: _pwWordCloud(instructorName, wordCloudData, width: 388)),
+          pw.Expanded(flex: 4, child: _pwWordCloud(instructorName, wordCloudData, width: 340)),
         ]),
-        pw.SizedBox(height: 18),
+        pw.SizedBox(height: 12),
         pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
           sign('Prepared by:', signatories.preparedByName, signatories.preparedByTitle),
           sign('Checked and Verified:', signatories.checkedByName, signatories.checkedByTitle),

@@ -131,8 +131,6 @@ void main() {
     final t = PdfService.buildSastCommentText(
       instructorName: 'X', mgmt: 4.67, perf: 4.68, overall: 4.68,
       studentInterpretation: 'Students are happy with the clear lessons.',
-      positiveThemes: '{"Clear explanation","Strong preparedness",Fairness}',
-      improvementInsights: '{"More examples"}',
       overallTone: 'Positive',
       aiSuggestion: 'Keep using real-world examples',
       wordCloudData: const [{'word': 'clear', 'count': 3}],
@@ -142,8 +140,7 @@ void main() {
     expect(t, startsWith('Integrated with the quantitative ratings'));
     expect(t, contains('(clear)'));
     expect(t, contains("indicates that students are happy with the clear lessons."));
-    expect(t, contains('Students particularly appreciated clear explanation, strong preparedness, and fairness.'));
-    expect(t, contains('Areas identified for improvement include more examples.'));
+    expect(t, isNot(contains('appreciated')));
     expect(t, contains('It is recommended that the instructor keep using real-world examples.'));
     expect(t, endsWith("Overall, the tone of the students' feedback is positive."));
     expect(t, isNot(contains('\n')));
@@ -160,32 +157,6 @@ void main() {
     expect(t, isNot(contains('improvement')));
     expect(t, isNot(contains('tone')));
     expect(t, endsWith('It is recommended that the instructor add quizzes.'));
-  });
-
-  test('prose columns are inserted as their own sentences without lead-ins', () {
-    final t = PdfService.buildSastCommentText(
-      instructorName: 'X', mgmt: 4.5, perf: 4.5, overall: 4.5,
-      studentInterpretation: 'Several students indicated that the lessons were engaging. They also noted fair grading.',
-      positiveThemes: 'The instructor is consistently praised for clear explanations.',
-      improvementInsights: 'There are no discernible areas for improvement mentioned in the feedback',
-      aiSuggestion: 'The instructor should keep it up.',
-      overallTone: 'Positive',
-    );
-    // ignore: avoid_print
-    print(t);
-    expect(t, contains('the overall evaluation of X is Outstanding. Several students indicated that the lessons were engaging. They also noted fair grading.'));
-    expect(t, contains(' The instructor is consistently praised for clear explanations.'));
-    expect(t, contains(' There are no discernible areas for improvement mentioned in the feedback.'));
-    expect(t, isNot(contains('particularly appreciated')));
-    expect(t, isNot(contains('Areas identified')));
-    expect(t, isNot(contains('indicates that')));
-    expect(t, isNot(contains('..')));
-    final n = PdfService.buildSastCommentText(
-      instructorName: 'X', mgmt: 4.5, perf: 4.5, overall: 4.5,
-      positiveThemes: 'No positive feedback was provided in this period.',
-      improvementInsights: 'A recurring theme for improvement centers on pacing.',
-    );
-    expect(n, contains(' No positive feedback was provided in this period. A recurring theme for improvement centers on pacing.'));
   });
 
   test('signatories default when row missing', () {

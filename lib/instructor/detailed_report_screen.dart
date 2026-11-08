@@ -61,8 +61,6 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
   bool _hasResults = false;
   List<Map<String, dynamic>> _wordCloudData = [];
   String _aiInterpretation = '';
-  String _aiPositive = '';
-  String _aiImprovement = '';
   String _aiTone = '';
   // Extra PDF data; each load is best-effort and falls back silently.
   String _college = '';
@@ -182,8 +180,6 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           _wordCloudData = List<Map<String, dynamic>>.from(words);
           _aiSuggestion = aiData?['ai_suggestion'];
           _aiInterpretation = (aiData?['student_interpretation'] ?? '').toString();
-          _aiPositive = (aiData?['positive_themes'] ?? '').toString();
-          _aiImprovement = (aiData?['improvement_insights'] ?? '').toString();
           _aiTone = (aiData?['overall_tone'] ?? '').toString();
           _summaryText = _aiSuggestion ?? "No significant trends identified for this period.";
 
@@ -357,8 +353,6 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
         courseTaught: _courseTaught,
         subjectReports: _subjectReports,
         studentInterpretation: _aiInterpretation,
-        positiveThemes: _aiPositive,
-        improvementInsights: _aiImprovement,
         overallTone: _aiTone,
         signatories: _signatories,
         term: widget.term,
