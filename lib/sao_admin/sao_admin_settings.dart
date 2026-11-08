@@ -9,6 +9,7 @@ import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/update_tile.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/blocking_progress_overlay.dart';
 import '../core/services/term_watcher.dart';
@@ -1250,10 +1251,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
               ),
               const SizedBox(height: 32),
 
-              // version label at the bottom — at least we know what prototype we on
-              const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              ),
+              const UpdateTile(),
             ],
           ),
         ),

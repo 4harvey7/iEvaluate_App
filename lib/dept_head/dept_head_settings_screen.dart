@@ -10,6 +10,7 @@ import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/update_tile.dart';
 import '../widgets/deactivate_account_dialog.dart';
 import '../widgets/controller_disposer.dart';
 
@@ -817,10 +818,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Version number at the bottom — for the QA people and curious users
-              const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              ),
+              const UpdateTile(),
             ],
           ),
         ),

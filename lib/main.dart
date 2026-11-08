@@ -23,6 +23,7 @@ import 'core/services/push_notification_service.dart';
 import 'core/services/term_watcher.dart';
 import 'widgets/profile_completion_gate.dart';
 import 'widgets/term_change_gate.dart';
+import 'widgets/update_tile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,7 +80,10 @@ Widget screenForRole(String role, String userId) {
 
   // Every login lands here, so this is where a missing ID or address is asked
   // for -- once per login, for every role (see profile_completion_gate.dart).
-  return ProfileCompletionGate(userId: userId, role: role, child: home);
+  // UpdateCheckGate offers a newer APK once per app start (update_tile.dart).
+  return UpdateCheckGate(
+    child: ProfileCompletionGate(userId: userId, role: role, child: home),
+  );
 }
 
 class MyApp extends StatelessWidget {

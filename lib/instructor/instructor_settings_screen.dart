@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/update_tile.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
@@ -796,10 +797,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
               ),
               const SizedBox(height: 32),
 
-              // Version label — just the prototype badge at the very bottom
-              const Center(
-                child: Text('iEvaluate Version 1.0.0 (Prototype)', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              ),
+              const UpdateTile(),
             ],
           ),
         ),

@@ -9,6 +9,7 @@ import '../core/services/auth_service.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
+import '../widgets/update_tile.dart';
 import '../widgets/deactivate_account_dialog.dart';
 import '../widgets/controller_disposer.dart';
 import '../sast_guide/sast_guide_screen.dart';
@@ -740,6 +741,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                   ),
                 ),
             ),
+            const SizedBox(height: 32),
+            const UpdateTile(),
           ],
         ),
       ),
