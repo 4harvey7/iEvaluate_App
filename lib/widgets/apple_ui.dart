@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter/services.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
@@ -1034,10 +1033,7 @@ class AppleFloatingTabBar extends StatelessWidget {
                   selected: selected,
                   child: ApplePressable(
                     semanticLabel: item.label,
-                    onTap: () {
-                      if (!selected) HapticFeedback.selectionClick();
-                      onSelected(index);
-                    },
+                    onTap: () => onSelected(index),
                     child: AnimatedContainer(
                       height: 54,
                       duration: const Duration(milliseconds: 220),

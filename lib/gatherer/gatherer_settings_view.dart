@@ -1,6 +1,5 @@
 // lib/gatherer/gatherer_settings_view.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -25,9 +24,6 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
   final _supabase = Supabase.instance.client;
   final _authService = AuthService();
 
-  bool _hapticFeedback = true;
-  static const _hapticPrefKey = 'gatherer_haptic_feedback';
-
   bool _validationNotifications = true;
   static const _validationNotifPrefKey = 'gatherer_validation_notifications';
 
@@ -41,20 +37,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
   void initState() {
     super.initState();
     _loadUserProfile();
-    _loadHapticPref();
     _loadValidationNotifPref();
-  }
-
-  Future<void> _loadHapticPref() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => _hapticFeedback = prefs.getBool(_hapticPrefKey) ?? true);
-  }
-
-  Future<void> _setHaptic(bool val) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_hapticPrefKey, val);
-    if (val) HapticFeedback.mediumImpact();
-    if (mounted) setState(() => _hapticFeedback = val);
   }
 
   Future<void> _loadValidationNotifPref() async {
@@ -607,19 +590,6 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
             const SizedBox(height: 32),
 
             const AppleSectionHeader(title: 'Scanner Preferences'),
-            const SizedBox(height: 12),
-            Card(
-              color: AppColors.surface,
-              elevation: 1,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: _buildSwitchTile(
-                title: 'Haptic Feedback',
-                subtitle: 'Vibrate phone on successful scan.',
-                icon: Icons.vibration,
-                value: _hapticFeedback,
-                onChanged: _setHaptic,
-              ),
-            ),
             const SizedBox(height: 12),
             Card(
               color: AppColors.surface,

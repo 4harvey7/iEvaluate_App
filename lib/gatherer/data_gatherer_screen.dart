@@ -892,7 +892,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   // ─── Scan Logic ───────────────────────────────────────────────────────────
 
   // called when scanner captures a photo — creates a new ScanTask and queues it
-  // also trigger haptic if enabled, and auto-upload if not paused
+  // also auto-upload if not paused
   void _performScan(String path, FormCheck formCheck) {
     // create a new scan task with unique ID based on current timestamp
     final newTask = ScanTask(
@@ -913,14 +913,6 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     });
 
     _saveQueueToStorage(); // save to storage immediately — dont lose this scan
-
-    // Haptic feedback if enabled — vibrate phone so scanner know it worked
-    SharedPreferences.getInstance().then((prefs) {
-      final hapticEnabled = prefs.getBool('gatherer_haptic_feedback') ?? true;
-      if (hapticEnabled) {
-        HapticFeedback.mediumImpact(); // medium buzz, not too strong
-      }
-    });
 
     // only auto-upload if we not paused — if paused, stays pending until resume.
     // Not started in this frame: the scanner is switching back to the camera
@@ -1345,7 +1337,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         onResume: _resumeSync,
         onReview: _openReview,
       ),
-      const GathererSettingsView(), // settings — profile, haptic, password, logout
+      const GathererSettingsView(), // settings — profile, password, logout
       GoogleSheetImportScreen(
         userId: widget.userId,
         onSubmit: (link) {
