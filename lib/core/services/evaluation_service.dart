@@ -1160,7 +1160,30 @@ class EvaluationService {
   // get all instructors in the dean's dept whose overall score is below the threshold.
   // fixed 3.0 benchmark (kAlertBenchmark) -- below that is low performance.
   // returns a list of ActionAlert objects, one per underperforming instructor
-  // No item wording exists in the app (only M1-M10 / P1-P10 keys), so labels are "Item 1-20".
+  // Item labels are short versions of the official SAST form wording, keyed by column (m1..p10, lowercase).
+  static const _kSastItemLabels = <String, String>{
+    'm1': 'Management 1: Gives reasonable course/subject assignments',
+    'm2': 'Management 2: Earns appreciation and kind attention from students',
+    'm3': 'Management 3: Gives orientation about the subject and evaluation',
+    'm4': 'Management 4: Gives tests/projects within the course objectives',
+    'm5': 'Management 5: Shows deep interest in assisting students',
+    'm6': "Management 6: Shows sympathetic insight into students' feelings",
+    'm7': 'Management 7: Checks and records test papers/term papers',
+    'm8': 'Management 8: Is on time and regular in meeting the class',
+    'm9': 'Management 9: Apportions fair subject/course assignments',
+    'm10': 'Management 10: Sustains class attention for the whole period',
+    'p1': 'Performance 1: Presents lessons clearly, methodically, substantially',
+    'p2': 'Performance 2: Motivates students to learn',
+    'p3': 'Performance 3: Applies appropriate educational methods and techniques',
+    'p4': 'Performance 4: Shows mastery of the lesson',
+    'p5': 'Performance 5: Is ready for the class',
+    'p6': "Performance 6: Inspires students' self-reliance in learning",
+    'p7': 'Performance 7: Notices student difficulty and makes lessons easier',
+    'p8': 'Performance 8: Integrates values into the lesson',
+    'p9': 'Performance 9: Speaks the language of instruction clearly and fluently',
+    'p10': 'Performance 10: Delivers thought-provoking questions',
+  };
+
   Future<Map<String, List<Map<String, dynamic>>>> _lowestItems(List<String> ids, String termId) async {
     final cols = [for (final p in ['m', 'p']) for (var i = 1; i <= 10; i++) '$p$i'];
     final sums = <String, List<double>>{};
@@ -1191,7 +1214,7 @@ class EvaluationService {
         e.key: ([
           for (var i = 0; i < 20; i++)
             if (counts[e.key]![i] > 0)
-              {'label': 'Item ${i + 1} (${i < 10 ? 'Management' : 'Performance'})', 'avg': e.value[i] / counts[e.key]![i]}
+              {'label': _kSastItemLabels[cols[i]] ?? cols[i], 'avg': e.value[i] / counts[e.key]![i]}
         ]..sort((a, b) => (a['avg'] as double).compareTo(b['avg'] as double)))
             .take(3)
             .toList(),
