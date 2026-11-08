@@ -182,9 +182,7 @@ class ScanImageViewer extends StatelessWidget {
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete this scan?'),
-        content: const Text(
-          'Are you sure you want to remove this scan from the queue? This cannot be undone.',
-        ),
+        content: const Text('Are you sure you want to delete this?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

@@ -440,8 +440,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Discard Scan?',
             style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
-        content: const Text(
-            'This will permanently remove this failed scan record. Are you sure?',
+        content: const Text('Are you sure you want to delete this?',
             style: TextStyle(color: AppColors.textSecondary)),
         actions: [
           TextButton(

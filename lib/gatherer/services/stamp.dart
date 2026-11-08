@@ -307,8 +307,9 @@ class DuplicateStampAnswer {
 }
 
 /// What the phone scan webhook said about an upload that n8n discarded on its
-/// own (the form is not counted; nothing for the gatherer to retry).
-enum ScanDiscard { duplicateStamp, tooFewAnswers }
+/// own (the form is not counted; nothing for the gatherer to retry), or held
+/// in the review queue (needsReview).
+enum ScanDiscard { duplicateStamp, tooFewAnswers, needsReview }
 
 class ScanAnswer {
   final ScanDiscard discard;
@@ -367,10 +368,21 @@ class ScanAnswer {
     if (lower.startsWith(_autoPrefix)) {
       return ScanAnswer(ScanDiscard.tooFewAnswers, message);
     }
+    // Flagged with no auto-reject: saved to the review queue, waits for a person.
+    if ((m['status'] ?? '').toString().toLowerCase() == 'flagged' &&
+        m['auto_rejected'] == null) {
+      return ScanAnswer(
+        ScanDiscard.needsReview,
+        message.isNotEmpty ? message : 'Flagged for manual review.',
+      );
+    }
     return null;
   }
 
   /// Stored on the local ScanTask as `outcome`.
-  String get outcomeCode =>
-      discard == ScanDiscard.duplicateStamp ? Stamp.duplicate : 'too_few_answers';
+  String get outcomeCode => switch (discard) {
+        ScanDiscard.duplicateStamp => Stamp.duplicate,
+        ScanDiscard.tooFewAnswers => 'too_few_answers',
+        ScanDiscard.needsReview => 'needs_review',
+      };
 }

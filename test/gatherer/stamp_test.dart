@@ -151,15 +151,47 @@ void main() {
       expect(a.outcomeCode, 'too_few_answers');
     });
 
-    test('normal answers are not discards', () {
-      expect(ScanAnswer.tryParse({'status': 'success'}), isNull);
+    test('phone webhook min-5 discard answer (n8n Respond to Webhook)', () {
+      final a = ScanAnswer.tryParse({
+        'status': 'discarded',
+        'flagged': true,
+        'auto_rejected': 'min_answered_5',
+        'task_id': 'SCAN-1',
+        'stamp_no': null,
+        'review_reasons': ['low_answers'],
+        'message': 'Discarded automatically: fewer than 5 of the 20 items '
+            'were answered (only 2), so this form is not counted.',
+      });
+      expect(a!.discard, ScanDiscard.tooFewAnswers);
+      expect(a.message, contains('only 2'));
+    });
+
+    test('flagged without auto-reject is needs review (phone webhook)', () {
+      final a = ScanAnswer.tryParse({
+        'status': 'flagged',
+        'flagged': true,
+        'task_id': 'SCAN-2',
+        'review_reasons': ['stamp_missing'],
+        'identity_check': null,
+        'auto_rejected': null,
+        'stamp_no': null,
+        'message': 'Flagged for manual review (stamp_missing).',
+      });
+      expect(a!.discard, ScanDiscard.needsReview);
+      expect(a.outcomeCode, 'needs_review');
+      expect(a.message, 'Flagged for manual review (stamp_missing).');
+      // A flagged duplicate stays a duplicate, not a review.
       expect(
         ScanAnswer.tryParse({
           'status': 'flagged',
-          'message': 'Flagged for manual review (stamp_missing).',
-        }),
-        isNull,
+          'auto_rejected': 'duplicate_stamp',
+        })!.discard,
+        ScanDiscard.duplicateStamp,
       );
+    });
+
+    test('normal answers are not discards', () {
+      expect(ScanAnswer.tryParse({'status': 'success'}), isNull);
       expect(ScanAnswer.tryParse(null), isNull);
     });
   });

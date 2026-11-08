@@ -25,10 +25,11 @@ import 'gatherer_sync_view.dart';
 import 'gatherer_settings_view.dart';
 import 'google_sheet_import_screen.dart';
 import 'data_validation_screen.dart';
+import 'failed_scan_detail_screen.dart';
+import '../sao_admin/import_error_detail_screen.dart';
 import '../widgets/apple_ui.dart';
 
 import 'gatherer_drawer.dart';
-import 'scan_image_viewer.dart';
 import 'models/scan_task.dart';
 import 'services/capture_normalise.dart';
 import 'services/form_signature.dart';
@@ -402,14 +403,12 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
               ? SyncStatus.pending
               : t.status;
 
+          // copyWith keeps every other field, including the n8n outcome
+          // (discarded / already scanned), so the label survives a restart.
           loaded.add(
-            ScanTask(
-              id: t.id,
+            t.copyWith(
               localPath: resolvedPath,
               status: status,
-              retryCount: t.retryCount,
-              errorMessage: t.errorMessage,
-              formSuspect: t.formSuspect,
               termId: t.termId ?? savedTermId,
             ),
           );
@@ -515,6 +514,110 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       _localQueue.removeWhere((t) => idsToDelete.contains(t.id));
     });
     _saveQueueToStorage();
+  }
+
+  // Marks uploads still pending in the review queue (failed_scan_queue or
+  // import_errors) as NEEDS REVIEW and puts resolved ones back to a plain
+  // success. Only touches success rows with no outcome or needs_review, so an
+  // already-scanned / too-few-answers / not-a-SAST label is never overwritten.
+  Future<void> _refreshReviewFlags() async {
+    final tasks = _localQueue
+        .where(
+          (t) =>
+              t.status == SyncStatus.success &&
+              (t.outcome == null || t.isNeedsReview),
+        )
+        .toList();
+    if (tasks.isEmpty) return;
+
+    final ids = tasks.map((t) => t.id).toList();
+    final pending = <String>{};
+    try {
+      for (var i = 0; i < ids.length; i += 100) {
+        final chunk = ids.skip(i).take(100).toList();
+        for (final table in const ['failed_scan_queue', 'import_errors']) {
+          final rows = await _supabase
+              .from(table)
+              .select('task_id')
+              .inFilter('task_id', chunk)
+              .eq('status', 'pending');
+          pending.addAll((rows as List).map((r) => r['task_id'].toString()));
+        }
+      }
+    } catch (e) {
+      // Offline: keep the flags as they are rather than clear them wrongly.
+      debugPrint('refreshReviewFlags error: $e');
+      return;
+    }
+
+    var changed = false;
+    for (final t in tasks) {
+      if (pending.contains(t.id) && !t.isNeedsReview) {
+        t.outcome = 'needs_review';
+        t.outcomeMessage = null;
+        changed = true;
+      } else if (!pending.contains(t.id) && t.isNeedsReview) {
+        t.outcome = null;
+        t.outcomeMessage = null;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    if (mounted) setState(() {});
+    await _saveQueueToStorage();
+  }
+
+  // Opens the pending review row for a NEEDS REVIEW upload, then re-checks
+  // the flags so a reviewed upload turns back into a plain success.
+  Future<void> _openReview(ScanTask task) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    Map<String, dynamic>? scan;
+    Map<String, dynamic>? importError;
+    try {
+      scan = await _supabase
+          .from('failed_scan_queue')
+          .select()
+          .eq('task_id', task.id)
+          .eq('status', 'pending')
+          .limit(1)
+          .maybeSingle();
+      if (scan == null) {
+        importError = await _supabase
+            .from('import_errors')
+            .select()
+            .eq('task_id', task.id)
+            .eq('status', 'pending')
+            .limit(1)
+            .maybeSingle();
+      }
+    } catch (e) {
+      debugPrint('openReview error: $e');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not load the review. Check the connection.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    if (scan != null) {
+      final row = scan;
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => FailedScanDetailScreen(scan: row)),
+      );
+    } else if (importError != null) {
+      final row = importError;
+      await navigator.push(
+        MaterialPageRoute(builder: (_) => ImportErrorDetailScreen(error: row)),
+      );
+    } else {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Already resolved')),
+      );
+    }
+    await _refreshReviewFlags();
   }
 
   // pause all uploads — no more sending to n8n until resume is called
@@ -1000,226 +1103,40 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             ? reasonMsg
             : 'This is not a valid SAST evaluation form.';
 
-        final imageFile = File(task.localPath);
-        final hasImage = imageFile.existsSync();
-
-        // 1. Pop-up message dialog informing user scan is rejected,
-        // displaying the image first before deletion with pinch-to-zoom inspect capability!
+        // Kept in the queue (labelled NOT A SAST FORM) so the gatherer can
+        // look at the photo and delete it themselves. Not a counted form.
+        task.status = SyncStatus.success; // nothing left to send
+        task.outcome = 'not_a_sast_form';
+        task.outcomeMessage = displayReason;
+        task.errorMessage = null;
+        if (_scannedToday > 0) _scannedToday--;
         if (mounted) {
-          await showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      color: AppColors.error, size: 24),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Invalid Scan Rejected',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (hasImage) ...[
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            ctx,
-                            MaterialPageRoute(
-                              builder: (_) => ScanImageViewer(
-                                task: task,
-                                rejectionReason: displayReason,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                height: 180,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.black12,
-                                  border: Border.all(
-                                      color: AppColors.borderSubtle),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Image.file(
-                                  imageFile,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 900, // 180 dp tall preview of a full-sensor photo
-                                  errorBuilder: (_, error, stackTrace) =>
-                                      const Center(
-                                    child: Icon(Icons.broken_image,
-                                        color: AppColors.textSecondary),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              right: 8,
-                              bottom: 8,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.7),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.zoom_in_rounded,
-                                        color: Colors.white, size: 14),
-                                    SizedBox(width: 4),
-                                    Text(
-                                      'Tap to view image',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    // Exact rejection reason from n8n (e.g. "This is a photo of a bowl of food, not a SAST form.")
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: AppColors.error.withValues(alpha: 0.25)),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.error_outline_rounded,
-                              color: AppColors.error, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              displayReason,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: AppColors.borderHairline,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.info_outline,
-                              color: AppColors.textSecondary, size: 16),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'This image is not a form. It will be removed directly from the sync queue and will not be sent to validation.',
-                              style: TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
-                  ),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Delete & Remove from Queue',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
+          setState(() {});
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Not a SAST form: kept in queue'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 6),
             ),
           );
-        }
-
-        // 2. NOW delete image file directly from local storage after user has seen and inspected it
-        try {
-          final f = File(task.localPath);
-          if (await f.exists()) {
-            await f.delete();
-          }
-        } catch (err) {
-          debugPrint('[AUTO-PURGE] Error deleting non-SAST file: $err');
-        }
-
-        // 3. Directly remove from the sync queue, decrement counter, and move directly to Sync Queue tab
-        if (mounted) {
-          final messenger = ScaffoldMessenger.of(context);
-          setState(() {
-            _localQueue.removeWhere((t) => t.id == task.id);
-            if (_scannedToday > 0) _scannedToday--;
-            _currentIndex = 3; // Move directly to Sync Queue tab, do not go to validation
-          });
-          await _saveQueueToStorage();
-
-          if (mounted) {
-            messenger.showSnackBar(
-              const SnackBar(
-                content: Text('Invalid scan deleted and removed from queue.'),
-                backgroundColor: AppColors.error,
-                duration: Duration(seconds: 3),
-              ),
-            );
-          }
         }
         return;
       }
 
+      // n8n flagged the page but could not save it to the review queue: the
+      // page is lost unless it is sent again, so it must stay retryable.
+      final reviewReasons = dataMap?['review_reasons'];
+      if (reviewReasons is List &&
+          reviewReasons.contains('internal_error_not_saved')) {
+        throw Exception('n8n did not save this page');
+      }
+
       // n8n took the page but discarded it on its own: the same paper form
       // was already scanned this term (duplicate stamp), or fewer than 5 of
-      // the 20 items were answered. The upload is finished -- retrying would
-      // only be discarded again -- but it is NOT a counted form, so it must
-      // not look like a plain success.
+      // the 20 items were answered -- or it holds the page for review. The
+      // upload is finished -- retrying would only repeat that -- but it is
+      // NOT a counted form, so it must not look like a plain success.
       final discard = ScanAnswer.tryParse(resData);
       if (discard != null) {
         task.status = SyncStatus.success; // nothing left to send
@@ -1231,12 +1148,18 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                discard.discard == ScanDiscard.duplicateStamp
-                    ? 'Already scanned${discard.stampNo != null ? ' (stamp ${discard.stampNo})' : ''}: '
-                          'this form is not counted again.'
-                    : discard.message,
+                switch (discard.discard) {
+                  ScanDiscard.duplicateStamp =>
+                    'Already scanned${discard.stampNo != null ? ' (stamp ${discard.stampNo})' : ''}: '
+                        'this form is not counted again.',
+                  ScanDiscard.needsReview =>
+                    'Needs review: held in the review queue.',
+                  ScanDiscard.tooFewAnswers => discard.message,
+                },
               ),
-              backgroundColor: AppColors.warning,
+              backgroundColor: discard.discard == ScanDiscard.needsReview
+                  ? Colors.deepPurple
+                  : AppColors.warning,
               behavior: SnackBarBehavior.floating,
               duration: const Duration(seconds: 6),
             ),
@@ -1346,6 +1269,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       await _uploadToN8N(task); // await each upload before moving to next
     }
     if (mounted) setState(() => _isSyncing = false); // done, clear syncing flag
+    await _refreshReviewFlags();
   }
 
   // ─── Build ────────────────────────────────────────────────────────────────
@@ -1397,8 +1321,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       GathererScannerView(
         onScan: _performScan, // called when a photo is taken
         queueCount: _localQueue.length,
-        onOpenSync: () =>
-            setState(() => _currentIndex = 3), // jump to sync queue tab
+        onOpenSync: () {
+          setState(() => _currentIndex = 3); // jump to sync queue tab
+          _refreshReviewFlags();
+        },
         onMenuPressed: () =>
             _scaffoldKey.currentState?.openDrawer(), // open the side drawer
         onOpenImportData: () =>
@@ -1417,6 +1343,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         onDeleteMultiple: _deleteMultipleTasks,
         onPause: _pauseSync,
         onResume: _resumeSync,
+        onReview: _openReview,
       ),
       const GathererSettingsView(), // settings — profile, haptic, password, logout
       GoogleSheetImportScreen(
@@ -1502,8 +1429,10 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
       // side drawer — handles navigation between tabs and logout
       drawer: GathererDrawer(
         currentIndex: _currentIndex,
-        onMenuTap: (index) =>
-            setState(() => _currentIndex = index), // switch tab from drawer
+        onMenuTap: (index) {
+          setState(() => _currentIndex = index); // switch tab from drawer
+          if (index == 3) _refreshReviewFlags();
+        },
         onImportTap: () => setState(() => _currentIndex = 5),
         userName: _userName,
         userRole: _userRole,
@@ -1517,6 +1446,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
             : 0, // Fallback so it doesn't crash on drawer screens
         onSelected: (idx) {
           setState(() => _currentIndex = idx);
+          if (idx == 3) _refreshReviewFlags();
         },
         items: const [
           AppleTabItem(

@@ -17,6 +17,10 @@ class GathererSyncView extends StatefulWidget {
   final VoidCallback onPause;
   final VoidCallback onResume;
 
+  /// Opens the review screen for a NEEDS REVIEW row. Optional: without it the
+  /// row shows no review button.
+  final void Function(ScanTask)? onReview;
+
   const GathererSyncView({
     super.key,
     required this.queue,
@@ -28,6 +32,7 @@ class GathererSyncView extends StatefulWidget {
     this.onDeleteMultiple,
     required this.onPause,
     required this.onResume,
+    this.onReview,
   });
 
   @override
@@ -69,43 +74,7 @@ class _GathererSyncViewState extends State<GathererSyncView> {
     final count = _selectedIds.length;
     if (count == 0) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete selected scans?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Are you sure you want to remove $count scan${count > 1 ? 's' : ''} from the queue? This cannot be undone.',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            ),
-          ],
-        ),
-      ),
-    ) ?? false;
+    final confirmed = await _confirmDelete();
 
     if (!confirmed) return;
 
@@ -123,46 +92,36 @@ class _GathererSyncViewState extends State<GathererSyncView> {
     });
   }
 
-  Future<void> _confirmSingleDelete(ScanTask task) async {
-    final confirmed = await showDialog<bool>(
+  /// One delete confirmation for every delete in the queue. Resolves false on
+  /// Cancel or a tap outside, so a swiped row snaps back.
+  Future<bool> _confirmDelete() async {
+    return await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete this scan?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Are you sure you want to remove this scan from the queue? This cannot be undone.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
-            ),
-            const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-            ),
-          ],
+        title: const Text('Delete?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        content: const Text(
+          'Are you sure you want to delete this?',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     ) ?? false;
-
-    if (confirmed == true) widget.onDelete(task);
   }
 
   @override
@@ -341,25 +300,7 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                             ),
                             child: const Icon(Icons.delete, color: Colors.white),
                           ),
-                          confirmDismiss: (direction) async {
-                            return await showDialog<bool>(
-                              context: context,
-                              builder: (_) => AlertDialog(
-                                backgroundColor: AppColors.surface,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                title: const Text('Remove from queue?', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                                content: Text('Are you sure you want to remove scan ${task.id}? This will discard the scan and cannot be undone.', style: const TextStyle(color: AppColors.textSecondary)),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-                                    onPressed: () => Navigator.pop(context, true),
-                                    child: const Text('Remove', style: TextStyle(color: Colors.white)),
-                                  ),
-                                ],
-                              ),
-                            ) ?? false;
-                          },
+                          confirmDismiss: (_) => _confirmDelete(),
                           onDismissed: (_) => widget.onDelete(task),
                           child: Card(
                             color: isSelected ? AppColors.primary.withValues(alpha: 0.08) : AppColors.surface,
@@ -432,7 +373,9 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                                           IconButton(
                                             icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.error),
                                             tooltip: 'Remove from queue',
-                                            onPressed: () => _confirmSingleDelete(task),
+                                            onPressed: () async {
+                                              if (await _confirmDelete()) widget.onDelete(task);
+                                            },
                                             constraints: const BoxConstraints(),
                                             padding: const EdgeInsets.only(left: 6),
                                           ),
@@ -491,26 +434,36 @@ class _GathererSyncViewState extends State<GathererSyncView> {
     );
   }
 
+  // Review rows use their own colour so they never read as a discard.
+  static const Color _reviewColor = Colors.deepPurple;
+
+  Widget _outcomeSubtitle(String label, Color color, String? message) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+        if ((message ?? '').isNotEmpty)
+          Text(
+            message!,
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+      ],
+    );
+  }
+
   Widget _buildSubtitle(ScanTask task) {
-    // Uploaded, but n8n discarded the form on its own (it is not counted).
+    // Uploaded, but n8n did not count it as a plain form.
     if (task.status == SyncStatus.success && task.outcome != null) {
-      final label = task.isAlreadyScanned
-          ? 'ALREADY SCANNED'
-          : 'DISCARDED (FEWER THAN 5 ANSWERS)';
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label, style: const TextStyle(color: AppColors.warning, fontSize: 11, fontWeight: FontWeight.bold)),
-          if ((task.outcomeMessage ?? '').isNotEmpty)
-            Text(
-              task.outcomeMessage!,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-        ],
-      );
+      return switch (task.outcome) {
+        'needs_review' => _outcomeSubtitle('NEEDS REVIEW', _reviewColor,
+            'Held for review. Tap the review button to check it.'),
+        'not_a_sast_form' => _outcomeSubtitle('NOT A SAST FORM', AppColors.error, task.outcomeMessage),
+        'duplicate_stamp' => _outcomeSubtitle('ALREADY SCANNED', AppColors.warning, task.outcomeMessage),
+        _ => _outcomeSubtitle('DISCARDED (FEWER THAN 5 ANSWERS)', AppColors.warning, task.outcomeMessage),
+      };
     }
     if (task.status == SyncStatus.failed) {
       return Text(task.errorMessage ?? 'Upload failed', style: const TextStyle(color: AppColors.error, fontSize: 11));
@@ -533,12 +486,22 @@ class _GathererSyncViewState extends State<GathererSyncView> {
       case SyncStatus.uploading:
         return const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary));
       case SyncStatus.success:
-        if (task.outcome != null) {
-          // Sent, but not counted — never the green tick.
-          return Icon(task.isAlreadyScanned ? Icons.copy_all_rounded : Icons.block,
-              color: AppColors.warning, size: 20);
-        }
-        return const Icon(Icons.check_circle, color: AppColors.success, size: 20);
+        // Sent, but not counted — never the green tick.
+        return switch (task.outcome) {
+          null => const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+          'needs_review' => widget.onReview == null
+              ? const Icon(Icons.rate_review_outlined, color: _reviewColor, size: 20)
+              : IconButton(
+                  icon: const Icon(Icons.rate_review_outlined, color: _reviewColor, size: 20),
+                  tooltip: 'Review',
+                  onPressed: () => widget.onReview!(task),
+                  constraints: const BoxConstraints(),
+                  padding: EdgeInsets.zero,
+                ),
+          'not_a_sast_form' => const Icon(Icons.block, color: AppColors.error, size: 20),
+          'duplicate_stamp' => const Icon(Icons.copy_all_rounded, color: AppColors.warning, size: 20),
+          _ => const Icon(Icons.block, color: AppColors.warning, size: 20),
+        };
       case SyncStatus.failed:
         return IconButton(
           icon: const Icon(Icons.refresh, color: AppColors.warning, size: 20),
