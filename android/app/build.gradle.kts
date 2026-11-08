@@ -36,19 +36,20 @@ android {
 
     signingConfigs {
         create("release") {
-            // ── Release keystore ──────────────────────────────────────────────
-            // Defaults to the local keystore/release.jks created during setup.
-            // Override with environment variables for CI/CD:
-            //   KEYSTORE_FILE     – path to your .jks / .keystore file
-            //   KEYSTORE_PASSWORD – store password
-            //   KEY_ALIAS         – key alias
-            //   KEY_PASSWORD      – key password
-            val ksFile = System.getenv("KEYSTORE_FILE") ?: "keystore/release.jks"
-            if (file(ksFile).exists()) {
-                storeFile = file(ksFile)
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "ievaluate2026"
-                keyAlias = System.getenv("KEY_ALIAS") ?: "ievaluate"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: "ievaluate2026"
+            // Credentials: android/key.properties (git-ignored), else KEYSTORE_* env vars.
+            // No defaults on purpose; with neither, storeFile stays unset and release builds fail.
+            val props = java.util.Properties()
+            rootProject.file("key.properties").takeIf { it.exists() }?.inputStream()?.use { props.load(it) }
+            val ksFile = props.getProperty("storeFile")?.let { rootProject.file(it) }
+                ?: System.getenv("KEYSTORE_FILE")?.let { file(it) }
+            val storePass = props.getProperty("storePassword") ?: System.getenv("KEYSTORE_PASSWORD")
+            val alias = props.getProperty("keyAlias") ?: System.getenv("KEY_ALIAS")
+            val keyPass = props.getProperty("keyPassword") ?: System.getenv("KEY_PASSWORD")
+            if (ksFile != null && ksFile.exists() && storePass != null && alias != null && keyPass != null) {
+                storeFile = ksFile
+                storePassword = storePass
+                keyAlias = alias
+                keyPassword = keyPass
             }
         }
     }

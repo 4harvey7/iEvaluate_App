@@ -93,7 +93,14 @@ Output file: `build\app\outputs\flutter-apk\app-release.apk`
 Notes:
 - `.env.json` holds the app keys (git ignores it). Without `--dart-define-from-file` the app builds but cannot reach Supabase.
 - The build is signed with `android/app/keystore/release.jks`. If the file is missing, the build fails on purpose. It never falls back to the debug key.
-- To use another keystore, set these environment variables before building: `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. If you do not set them, `build.gradle.kts` uses its built-in defaults. Read that file to see them. Never copy passwords into docs or chat.
+- Signing credentials come from `android/key.properties` (git ignores it), else from the env vars `KEYSTORE_FILE`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`. There are no defaults: with neither, a release build fails. Create `android/key.properties`:
+  ```
+  storePassword=YOUR_STORE_PASSWORD
+  keyPassword=YOUR_KEY_PASSWORD
+  keyAlias=YOUR_KEY_ALIAS
+  storeFile=app/keystore/release.jks
+  ```
+  `storeFile` is relative to `android/`. Never commit this file or share the passwords.
 
 ### Step 4. Get the SHA-256
 ```powershell
