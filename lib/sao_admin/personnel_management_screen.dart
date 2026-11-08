@@ -1,6 +1,7 @@
 // lib/sao_admin/personnel_management_screen.dart
 // This screen manages the SAO staff — the people running the evaluation system.
 // Different from user_management (academics), this is for the SAO office folks.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
@@ -49,7 +50,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
     
     try {
       final currentUser = _supabase.auth.currentUser;
-      debugPrint('[PERSONNEL_MGMT] Logged in as: ${currentUser?.email} (ID: ${currentUser?.id})');
+      if (kDebugMode) debugPrint('[PERSONNEL_MGMT] Logged in as: ${currentUser?.email} (ID: ${currentUser?.id})');
 
       // 1. Fetch Users from Sao_users (SAO Admin/Staff)
       // includes user info and role data via joins

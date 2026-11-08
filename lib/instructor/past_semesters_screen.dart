@@ -1,6 +1,7 @@
 // Screen for viewing all past semesters with evaluation scores.
 // Basically the "history tab" — where you see how far you've come, or how far you fell.
 // Pull-to-refresh works, bar chart is tappable, murag interactive siya. importente.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -197,7 +198,7 @@ class _PastSemestersScreenState extends State<PastSemestersScreen>
       if (mounted) setState(() => _isTermLoading = true);
 
       debugPrint('[PastSemesters] =========================================');
-      debugPrint('[PastSemesters] LOAD TERM: ${widget.userId} | term=$termId');
+      if (kDebugMode) debugPrint('[PastSemesters] LOAD TERM: ${widget.userId} | term=$termId');
       // 1. Get subjects for this instructor+term via instructor_subjects junction table.
       final subjectsList = await _supabase
           .from('instructor_subjects')

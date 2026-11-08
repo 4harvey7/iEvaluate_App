@@ -192,7 +192,7 @@ class AuthService {
         // The auth account now exists with no profile row. Only the service
         // role can delete an auth user, so the app cannot clean this up --
         // hence the instruction to contact the SAO office.
-        debugPrint('[AUTH] Duplicate at user_info insert; auth user $userId is orphaned.');
+        if (kDebugMode) debugPrint('[AUTH] Duplicate at user_info insert; auth user $userId is orphaned.');
         await signOut();
         return AuthResult(
           success: false,
@@ -386,25 +386,16 @@ class AuthService {
           return const AuthResult(success: false, error: 'Incorrect ID or password. Please try again.');
         }
 
-        // ilike, not eq: IDs are stored as typed, so 'ctu-1234' must still find
-        // 'CTU-1234'. limit(1) rather than maybeSingle() because maybeSingle
-        // THROWS when more than one row comes back -- meaning a single
-        // duplicated ID in the table used to lock out both of those people and
-        // every login attempt on that ID. Ordering by created_at makes the
-        // choice deterministic (oldest account wins) for as long as any
-        // pre-existing duplicates remain.
-        final matches = await _supabase
-            .from('user_info')
-            .select('email')
-            .ilike('university_id', typedId)
-            .order('created_at', ascending: true)
-            .limit(1);
+        // get_login_email (migration 34) matches case-insensitively and picks
+        // the oldest account on a duplicated ID. anon can no longer read
+        // user_info directly; the RPC returns this one email and nothing else.
+        final email = await _supabase.rpc('get_login_email', params: {'p_university_id': typedId});
 
-        if (matches.isEmpty || matches.first['email'] == null) {
+        if (email is! String || email.isEmpty) {
           // we give the same error whether ID exist or not, security measure ni siya
           return const AuthResult(success: false, error: 'Incorrect ID or password. Please try again.');
         }
-        emailToUse = matches.first['email'] as String;
+        emailToUse = email;
       }
 
       // STEP 2: now we actually try to login with supabase auth using the email

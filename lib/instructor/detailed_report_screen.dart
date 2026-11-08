@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/pdf/pdf_service.dart';
@@ -148,7 +149,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
       // No fallback that recomputes means from sast_all_raw_data_survey: it
       // counted blank answers as 0 and divided by every form. The report shows
       // the stored values or says there are no results yet.
-      debugPrint('Fetched ${data.length} question means for user: ${widget.userId}');
+      if (kDebugMode) debugPrint('Fetched ${data.length} question means for user: ${widget.userId}');
 
       if (mounted) {
         setState(() {

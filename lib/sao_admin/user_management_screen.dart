@@ -1,6 +1,7 @@
 // lib/sao_admin/user_management_screen.dart
 // This screen manage all the academic users — professors, dept heads, etc.
 // If a person teach in a classroom, they probably here somewhere.
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/env.dart';
@@ -100,7 +101,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
       debugPrint('[USER_MGMT] Raw DB Response Count: ${usersResponse.length}');
       for (var u in usersResponse) {
          final ui = u['user_info'];
-         debugPrint(' - Found: ${ui != null ? '${ui['first_name']} ${ui['last_name']}' : "MISSING_USER_INFO"} | ID: ${u['user_id']} | Status: ${ui != null ? ui['account_status'] : "N/A"}');
+         if (kDebugMode) debugPrint(' - Found: ${ui != null ? '${ui['first_name']} ${ui['last_name']}' : "MISSING_USER_INFO"} | ID: ${u['user_id']} | Status: ${ui != null ? ui['account_status'] : "N/A"}');
       }
 
       if (mounted) {

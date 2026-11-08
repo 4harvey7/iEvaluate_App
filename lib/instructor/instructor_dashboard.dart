@@ -3,6 +3,7 @@
 // If this break, everybody panic. So pray lang that the Supabase is up.
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -99,7 +100,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshDashboardData(isInitial: true);
     });
-    debugPrint('[INSTRUCTOR] 📥 Received User ID: ${widget.userId}');
+    if (kDebugMode) debugPrint('[INSTRUCTOR] 📥 Received User ID: ${widget.userId}');
   }
 
   // Listen to system settings in real time — so if the admin change the semester,

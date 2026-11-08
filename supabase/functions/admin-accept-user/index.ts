@@ -58,6 +58,18 @@ async function authoriseCaller(
   targetUserId: string,
   status: string,
 ): Promise<Authority> {
+  // A pending signup can already hold a DEPARTMENT_HEAD row, so a role row
+  // alone is no authority: the caller's own account must be approved.
+  const { data: callerInfo } = await client
+    .from('user_info')
+    .select('account_status, disabled')
+    .eq('id', callerId)
+    .maybeSingle()
+  if (String(callerInfo?.account_status ?? '').trim().toLowerCase() !== 'approved' ||
+      callerInfo?.disabled === true) {
+    throw new Error('Forbidden: Admin access required')
+  }
+
   // ── SAO admin? ────────────────────────────────────────────────────────────
   // maybeSingle, not single: a caller absent from Sao_users is now the normal
   // case rather than an error. single() throws on zero rows, which would refuse

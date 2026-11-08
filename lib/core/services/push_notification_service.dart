@@ -131,7 +131,7 @@ class PushNotificationService {
     try {
       final token = await _fcm.getToken();
       if (token != null) {
-        debugPrint('FCM Token: $token');
+        if (kDebugMode) debugPrint('FCM Token: $token');
         await _saveTokenToDatabase(token);
       }
 
@@ -214,7 +214,7 @@ class PushNotificationService {
           .from('user_info')
           .update({'fcm_token': token})
           .eq('id', user.id);
-      debugPrint('FCM Token successfully saved to Supabase for user ${user.id}');
+      if (kDebugMode) debugPrint('FCM Token successfully saved to Supabase for user ${user.id}');
     } catch (e) {
       debugPrint('Failed to save FCM token to Supabase: $e');
     }

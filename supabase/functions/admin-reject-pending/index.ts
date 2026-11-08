@@ -64,7 +64,14 @@ serve(async (req) => {
     try { await supabaseAdmin.from('instructor_departments').delete().eq('instructor_id', targetUserId) } catch (_) {}
     try { await supabaseAdmin.from('department_table').delete().eq('user_id', targetUserId) } catch (_) {}
     try { await supabaseAdmin.from('Sao_users').delete().eq('user_id', targetUserId) } catch (_) {}
-    await supabaseAdmin.from('user_info').delete().eq('id', targetUserId)
+    // user_info is the row the admin sees. If it cannot be deleted (e.g. another
+    // table still references it), stop here instead of reporting success.
+    const { error: infoDeleteError } = await supabaseAdmin
+      .from('user_info').delete().eq('id', targetUserId)
+    if (infoDeleteError) {
+      console.error(`[admin-reject-pending] user_info delete failed: ${infoDeleteError.message}`)
+      throw new Error('Delete failed: this account still has linked records and was not removed.')
+    }
 
     // ── Step 2: Fully delete from auth.users ─────────────────────────────────
     // This frees the email so the person can sign up again if they want to.
@@ -94,7 +101,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
-    const safeMessages = ['Unauthorized', 'Forbidden', 'Invalid input', 'User not found', 'This action is only']
+    const safeMessages = ['Unauthorized', 'Forbidden', 'Invalid input', 'User not found', 'This action is only', 'Delete failed']
     const msg = safeMessages.some(m => error.message?.startsWith(m))
       ? error.message
       : 'Operation failed. Please try again.'

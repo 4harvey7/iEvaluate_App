@@ -1,6 +1,7 @@
 // lib/sao_admin/admin_dashboard.dart
 // The big boss screen. This is where admin feel very important.
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -8,6 +9,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/services/account_activation_service.dart';
+import '../core/services/identity_validator.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'user_management_screen.dart';
 import '../sast_guide/sast_guide_screen.dart';
@@ -419,7 +421,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                     children: [
                       SafeIconButton(
                         icon: const Icon(Icons.check_circle, color: AppColors.success),
-                        onPressed: () => _onApprovePressed(user, fullName, subDetail),
+                        onPressed: () async => _showPendingUserDetails(context, user, fullName, subDetail),
                       ),
                       SafeIconButton(
                         icon: const Icon(Icons.cancel, color: AppColors.error),
@@ -612,23 +614,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         // call the edge function to officially welcome them to the system
         await _supabase.functions.invoke('admin-accept-user', body: {'targetUserId': userId});
       } else {
-        // Rejected — this is a NEW pending account so we DELETE it completely.
-        // No evaluation data exists yet, so nothing valuable is lost.
-        // Clean up ALL related rows first — order matters because of foreign keys.
-        try {
-          // For instructors / dept heads
-          await _supabase.from('instructor_departments').delete().eq('instructor_id', userId);
-        } catch (_) {}
-        try {
-          await _supabase.from('department_table').delete().eq('user_id', userId);
-        } catch (_) {}
-        try {
-          // For SAO Staff — Sao_users has a FK to user_info so MUST be deleted first
-          await _supabase.from('Sao_users').delete().eq('user_id', userId);
-        } catch (_) {}
-        // Now safe to delete the main user record
-        await _supabase.from('user_info').delete().eq('id', userId);
-        debugPrint('[DASHBOARD] Rejected pending account fully deleted: $userId');
+        // Rejected — this is a NEW pending account so we DELETE it completely
+        // (DB rows + auth user). This must go through the edge function: RLS
+        // only lets a user delete their own rows, so deleting from the phone
+        // matched 0 rows, raised no error, and the card came back.
+        await _supabase.functions.invoke('admin-reject-pending', body: {'targetUserId': userId});
+        if (kDebugMode) debugPrint('[DASHBOARD] Rejected pending account fully deleted: $userId');
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -644,8 +635,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     } catch (e) {
       debugPrint('[DASHBOARD] Approval/Rejection Error: $e');
       if (mounted) {
+        // show the server's real reason instead of a generic line
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Action failed. Please try again.'), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text(IdentityValidator.describeEdgeFunctionError(e,
+                fallback: 'Action failed. Please try again.')),
+            backgroundColor: AppColors.error,
+          ),
         );
       }
     }

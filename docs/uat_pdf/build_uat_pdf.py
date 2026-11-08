@@ -27,7 +27,7 @@ STEP  = re.compile(r'^\s{0,3}(?P<n>\d{1,2})\.\s+(?P<text>.*)$')
 
 TRAILING = ["Expected Result", "Actual Result", "Comments", "Tester / Date",
             "Panelist Remarks"]
-LEADING  = ["Title / Business Scenario", "Preconditions", "Test Data", "NOTE",
+LEADING  = ["Title / Business Scenario", "Revision", "Account Needed", "Preconditions", "Test Data", "NOTE",
             "Note"]
 
 
@@ -172,6 +172,9 @@ def case_html(case_id, title, fields, steps, logo_uri):
     else:
         cell = esc_par([title])
     rows.append('<tr><th>Title / Business Scenario</th><td colspan="2">%s</td></tr>' % cell)
+    for lbl in ("Revision", "Account Needed"):
+        if fields.get(lbl):
+            rows.append('<tr><th>%s</th><td colspan="2">%s</td></tr>' % (lbl, esc_par(fields[lbl])))
     rows.append('<tr><th>Preconditions</th><td colspan="2">%s</td></tr>'
                 % esc_par(fields.get("Preconditions", [])))
     rows.append('<tr><th>Test Data</th><td colspan="2">%s</td></tr>'
@@ -195,6 +198,12 @@ def case_html(case_id, title, fields, steps, logo_uri):
                 % esc_par(fields.get("Expected Result", [])))
     rows.append('<tr><th>Actual Result<br>(Pass/Fail)</th><td colspan="2">%s</td></tr>'
                 % esc_par(fields.get("Actual Result", [])))
+    shot = os.path.join(OUT, "screenshots", case_id + ".png")
+    if os.path.isfile(shot):
+        cell = '<img class="shot" src="screenshots/%s.png" alt="">' % case_id
+    else:
+        cell = "&nbsp;"
+    rows.append('<tr><th>Screenshot</th><td colspan="2" class="shotcell">%s</td></tr>' % cell)
     rows.append('<tr><th>Comments /<br>Attachments<br>(Screenshots, Logs)</th>'
                 '<td colspan="2" class="tall">%s</td></tr>'
                 % esc_par(fields.get("Comments", [])))
@@ -241,6 +250,8 @@ p:last-child { margin-bottom:0; }
 .exp span { font-weight:bold; font-style:italic; }
 p.hl { font-weight:bold; }
 .marker { font-weight:bold; font-style:italic; text-align:center; margin-bottom:3px; }
+.shot { width:6cm; height:auto; display:block; margin:2px auto; }
+.shotcell { height:40px; }
 .tall { height:52px; }
 .remarks { height:66px; }
 tr, td, th { page-break-inside:avoid; }
@@ -270,6 +281,7 @@ def build(fname, module, stem, logo_uri):
         pages.append(text_page(title, body, logo_uri))
 
     ncase = 0
+    stats = []
     for idx, (title, body) in enumerate(blocks):
         if idx < len(front):
             continue
@@ -278,6 +290,8 @@ def build(fname, module, stem, logo_uri):
             ncase += 1
             fields, steps = parse_case(body)
             pages.append(case_html(m.group(1), m.group(2).strip(), fields, steps, logo_uri))
+            ar = " ".join(fields.get("Actual Result", [])).strip().upper()
+            stats.append("pass" if ar.startswith("PASS") else "fail" if ar.startswith("FAIL") else "notrun")
         else:
             pages.append(text_page(title, body, logo_uri))
 
@@ -287,16 +301,60 @@ def build(fname, module, stem, logo_uri):
     out = os.path.join(OUT, stem + ".html")
     open(out, "w", encoding="utf-8").write(doc)
     print("%-32s cases=%d pages=%d -> %s" % (fname, ncase, len(pages), out))
-    return out
+    return out, pages, stats
+
+
+def pdf(html_path):
+    import subprocess
+    pdf_path = html_path[:-5] + ".pdf"
+    chrome = next((c for c in (r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                               r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+                   if os.path.exists(c)), None)
+    if not chrome:
+        print("no Chrome/Edge found; html only: " + html_path); return
+    subprocess.run([chrome, "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                    "--print-to-pdf=" + pdf_path, "file:///" + html_path.replace("\\", "/")],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print("  pdf:", pdf_path if os.path.exists(pdf_path) else "FAILED")
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "screenshots"), exist_ok=True)
     import shutil
     shutil.copyfile(LOGO, os.path.join(OUT, "ctu_logo.png"))
     logo_uri = "ctu_logo.png"
+    order = {"UAT_SAO_Admin": 0, "UAT_SAO_Staff": 1, "UAT_Department_Head": 2, "UAT_Instructor_Module": 3}
+    names = {"UAT_SAO_Admin": "SAO Administrator", "UAT_SAO_Staff": "SAO Staff (Data Gatherer)",
+             "UAT_Department_Head": "Department Head", "UAT_Instructor_Module": "Instructor"}
+    results = {}
     for f, mod, stem in FILES:
-        build(f, mod, stem, logo_uri)
+        out, pages, stats = build(f, mod, stem, logo_uri)
+        pdf(out)
+        results[stem] = (pages, stats)
+    rows, body = [], []
+    tot = [0, 0, 0, 0]
+    for stem in sorted(results, key=order.get):
+        pages, stats = results[stem]
+        c = [len(stats), stats.count("pass"), stats.count("fail"), stats.count("notrun")]
+        tot = [a + b for a, b in zip(tot, c)]
+        rows.append("<tr><td>%s</td>%s</tr>" % (names[stem], "".join('<td class="n">%d</td>' % x for x in c)))
+        body.append('<section class="page"><div class="uat-title">%s</div></section>' % html.escape(names[stem]))
+        body.extend(pages)
+    rows.append('<tr class="tot"><td>Total</td>%s</tr>' % "".join('<td class="n">%d</td>' % x for x in tot))
+    cover = ('<section class="page">%s<table class="uat sum"><tr><th style="text-align:left">Role</th>'
+             '<th>Cases</th><th>Pass</th><th>Fail</th><th>Not Run</th></tr>%s</table>'
+             '<p style="margin-top:10px">Revised 2026-11-01 for app build of 2026-10-28. '
+             'Pass/Fail is read from each Actual Result.</p></section>'
+             % (letterhead(logo_uri).replace("USER ACCEPTANCE TESTING", "USER ACCEPTANCE TESTING - ALL ROLES"),
+                "".join(rows)))
+    extra = ".sum td.n, .sum th { text-align:center; width:12%; } .sum td { padding:5px; } .tot td { font-weight:bold; }"
+    doc = ("<!doctype html><html><head><meta charset='utf-8'><title>iEvaluate UAT - All Roles</title>"
+           "<style>%s%s</style></head><body>%s%s</body></html>" % (CSS, extra, cover, "".join(body)))
+    allp = os.path.join(OUT, "UAT_iEvaluate_All_Roles.html")
+    open(allp, "w", encoding="utf-8").write(doc)
+    print("combined ->", allp)
+    pdf(allp)
 
 
 main()

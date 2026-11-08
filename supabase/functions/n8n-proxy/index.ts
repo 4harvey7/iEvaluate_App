@@ -62,8 +62,18 @@ serve(async (req) => {
         .eq('user_id', caller.id)
         .maybeSingle()
 
+      // A pending signup can hold an SAO_STAFF row, so the account must also be approved.
+      const { data: callerInfo, error: infoError } = await supabaseAdmin
+        .from('user_info')
+        .select('account_status, disabled')
+        .eq('id', caller.id)
+        .maybeSingle()
+      const approved = !infoError &&
+        String(callerInfo?.account_status ?? '').trim().toLowerCase() === 'approved' &&
+        callerInfo?.disabled !== true
+
       const roleName = (saoRole as any)?.roles?.Roles?.toUpperCase()
-      if (roleError || !roleName || (!roleName.includes('SAO_ADMIN') && !roleName.includes('SAO_STAFF'))) {
+      if (roleError || !approved || !roleName || (!roleName.includes('SAO_ADMIN') && !roleName.includes('SAO_STAFF'))) {
         return new Response(JSON.stringify({ error: 'Forbidden: SAO permissions required' }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 403,

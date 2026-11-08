@@ -2,6 +2,8 @@
 // Real-time dashboard of how well (or badly) everything is running
 // Shows AI accuracy, staff productivity, and dept evaluation progress
 // If numbers look bad, dili ta ang blame — we just display the truth
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -10,6 +12,19 @@ import '../widgets/apple_ui.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/services/term_aware_state.dart';
 
+/// Error -> sentence for the "couldn't load" card. Offline and timeout get
+/// their own wording; anything else is a generic load failure.
+String describeMetricsLoadError(Object e) {
+  final text = e.toString();
+  if (e is SocketException ||
+      e is TimeoutException ||
+      text.contains('SocketException') ||
+      text.contains('Failed host lookup') ||
+      text.contains('ClientException')) {
+    return "You're offline or the connection is too slow. Check your internet and try again.";
+  }
+  return "Couldn't load the live metrics. Please try again.";
+}
 
 class LiveSystemMetricsScreen extends StatefulWidget {
   const LiveSystemMetricsScreen({super.key});
@@ -26,6 +41,9 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
   final _settingsService = SystemSettingsService();
 
   bool _isLoading = true; // true while fetching all the metrics, pray it's fast
+  // set when a metric query failed (offline, timeout, server error). The
+  // screen then shows a retry card instead of zeros that look like real data.
+  String? _loadError;
   String? _currentTermId; // the active term — all queries are filtered by this
 
   // AI Accuracy — counts how many records were auto-processed vs manually fixed
@@ -56,20 +74,25 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
   // master loader — gets the current term first, then fires all metric loaders in parallel
   // parallel loading because we're not animals — why wait one by one
   Future<void> _loadAllMetrics() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
     try {
       final settings = await _settingsService.getSettings(); // get current term config
       _currentTermId = settings.termId; // save the term ID for filtering
 
-      // load all three metric groups at same time — concurrent is good
+      // load all three metric groups at same time — concurrent is good.
+      // Capped so an offline phone does not sit on the skeleton for ~40 s.
       await Future.wait([
         _loadAiAccuracy(),
         _loadStaffProductivity(),
         _loadDeptProgress(),
-      ]);
+      ]).timeout(const Duration(seconds: 15));
     } catch (e) {
-      // something crashed, log it and show whatever data we managed to load
+      // a metric failed — show the error state, never a row of zeros
       debugPrint('LiveMetrics error: $e');
+      if (mounted) setState(() => _loadError = describeMetricsLoadError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false); // stop spinner no matter what
     }
@@ -131,7 +154,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
         });
       }
     } catch (e) {
-      debugPrint('loadAiAccuracy error: $e'); // log and continue — dili ta mag-crash for one metric
+      debugPrint('loadAiAccuracy error: $e');
+      rethrow; // let _loadAllMetrics show the error state
     }
   }
 
@@ -182,6 +206,7 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
       if (mounted) setState(() => _staffProductivity = grouped.values.toList());
     } catch (e) {
       debugPrint('loadStaffProductivity error: $e');
+      rethrow;
     }
   }
 
@@ -260,7 +285,11 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
           }).toList();
         });
       }
-    } catch (_) {} // if even the fallback fails, just silently do nothing — bahala na
+    } catch (e) {
+      // the fallback failed too (usually offline) — report it, don't show an empty list
+      debugPrint('loadDeptProgressFallback error: $e');
+      rethrow;
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────
@@ -301,6 +330,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
       ),
       body: _isLoading
           ? const AppleLoadingState(label: 'Loading live metrics…')
+          : _loadError != null
+          ? _buildErrorState()
           : RefreshIndicator(
               onRefresh: _loadAllMetrics, // pull down to refresh — same as the button
               child: SingleChildScrollView(
@@ -341,6 +372,25 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
                 ),
               ),
             ),
+    );
+  }
+
+  // shown instead of the metrics when loading failed — never zeros
+  Widget _buildErrorState() {
+    return ListView(
+      padding: const EdgeInsets.all(24.0),
+      children: [
+        AppleEmptyState(
+          icon: Icons.cloud_off_rounded,
+          title: "Couldn't load metrics",
+          message: _loadError!,
+          action: FilledButton.icon(
+            onPressed: _loadAllMetrics,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ),
+      ],
     );
   }
 
