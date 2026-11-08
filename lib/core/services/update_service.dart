@@ -107,6 +107,28 @@ class UpdateService {
     }
   }
 
+  /// GET [uri], retrying after each of [delays] only on a transient 502/503/504
+  /// (GitHub's edge). Any other status is returned as-is.
+  @visibleForTesting
+  static Future<http.StreamedResponse> sendWithRetry(
+    http.Client client,
+    Uri uri, {
+    List<Duration> delays = const [
+      Duration(seconds: 2),
+      Duration(seconds: 4),
+      Duration(seconds: 6),
+    ],
+  }) async {
+    for (var i = 0;; i++) {
+      final res = await client.send(http.Request('GET', uri));
+      if (i >= delays.length || ![502, 503, 504].contains(res.statusCode)) {
+        return res;
+      }
+      await res.stream.drain<void>();
+      await Future<void>.delayed(delays[i]);
+    }
+  }
+
   /// Downloads the APK, verifies its SHA-256, then opens the system installer.
   /// [onProgress] gets 0..1, or null when the size is unknown.
   static Future<void> downloadAndInstall(
@@ -125,7 +147,7 @@ class UpdateService {
         File(p.join((await getTemporaryDirectory()).path, 'update.apk'));
     final client = http.Client();
     try {
-      final res = await client.send(http.Request('GET', uri));
+      final res = await sendWithRetry(client, uri);
       if (res.statusCode != 200) {
         throw UpdateException('Download failed (HTTP ${res.statusCode}).');
       }

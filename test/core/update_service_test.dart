@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ievaluateapp_final/core/services/update_service.dart';
 
 void main() {
@@ -33,6 +35,40 @@ void main() {
       final other = sha256.convert(utf8.encode('abd')).toString();
       expect(UpdateService.hashMatches(abc, other), isFalse);
       expect(UpdateService.hashMatches('', computed), isFalse);
+    });
+  });
+
+  group('UpdateService.sendWithRetry', () {
+    final uri = Uri.parse('https://example.com/a.apk');
+    const noWait = [Duration.zero, Duration.zero, Duration.zero];
+
+    (http.Client, int Function()) fake(List<int> statuses) {
+      var calls = 0;
+      final client = MockClient.streaming((req, body) async {
+        final status = statuses[calls < statuses.length ? calls : statuses.length - 1];
+        calls++;
+        return http.StreamedResponse(Stream.value([1, 2, 3]), status);
+      });
+      return (client, () => calls);
+    }
+
+    test('retries 504, 504 then succeeds on 200', () async {
+      final (client, calls) = fake([504, 504, 200]);
+      final res = await UpdateService.sendWithRetry(client, uri, delays: noWait);
+      expect(res.statusCode, 200);
+      expect(calls(), 3);
+    });
+    test('always 504 gives up after 4 attempts', () async {
+      final (client, calls) = fake([504]);
+      final res = await UpdateService.sendWithRetry(client, uri, delays: noWait);
+      expect(res.statusCode, 504);
+      expect(calls(), 4);
+    });
+    test('404 is not retried', () async {
+      final (client, calls) = fake([404]);
+      final res = await UpdateService.sendWithRetry(client, uri, delays: noWait);
+      expect(res.statusCode, 404);
+      expect(calls(), 1);
     });
   });
 
