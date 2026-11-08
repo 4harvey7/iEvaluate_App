@@ -190,10 +190,8 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
     try {
       // Get the dept summary — overall score, completion rate, etc.
       final summary = await _evaluationService.getDepartmentSummary(widget.userId);
-      // Use dept average as threshold: show instructors below the dept mean
-      // If no average yet, default to 3.0 so alerts still work — smart move
-      final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0;
-      final alerts = await _evaluationService.getDepartmentAlerts(widget.userId, threshold: deptAvg);
+      // Alerts use the fixed 3.0 benchmark, not the department average.
+      final alerts = await _evaluationService.getDepartmentAlerts(widget.userId);
       final wordCloud = await _evaluationService.getDeptWordFrequencies(widget.userId);
       // Fetch the historical performance of the whole department
       final history = await _evaluationService.getDepartmentHistory(widget.userId);
@@ -654,7 +652,7 @@ class _DepartmentDashboardScreenState extends State<DepartmentDashboardScreen> {
                           title: Text(alert.title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 4.0),
-                            child: Text(alert.desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4), overflow: TextOverflow.ellipsis),
+                            child: Text(alert.desc, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4), maxLines: 2, overflow: TextOverflow.ellipsis),
                           ),
                           trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: AppColors.textSecondary),
                           onTap: () {

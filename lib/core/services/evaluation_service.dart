@@ -164,6 +164,7 @@ class ActionAlert {
   final String? instructorName; // their name, for display
   final String? subjectCode;    // related subject, if applicable
   final DateTime dateFlagged;   // when this alert was generated
+  final Map<String, dynamic>? details; // the numbers behind the flag, for the "Why flagged" list
 
   ActionAlert({
     required this.type,
@@ -173,8 +174,13 @@ class ActionAlert {
     this.instructorName,
     this.subjectCode,
     required this.dateFlagged,
+    this.details,
   });
 }
+
+// Fixed benchmark: an instructor's own score below this is a Performance alert,
+// and three consecutive semesters below it is a Termination review.
+const double kAlertBenchmark = 3.0;
 
 // a formal intervention report created by a dean for an underperforming instructor
 // gets saved to the database and optionally triggers an email notification
@@ -335,7 +341,7 @@ class EvaluationService {
   // returns empty summary (all zeros) if anything is missing, bahala na the UI show zeros
   Future<EvaluationSummary> getDepartmentSummary(String userId) async {
     try {
-      debugPrint('EvaluationService - Fetching summary for Dean: $userId');
+      if (kDebugMode) debugPrint('EvaluationService - Fetching summary for Dean: $userId');
       final deptData = await _supabase
           .from('department_table')
           .select('Department_name_ID')
@@ -343,7 +349,7 @@ class EvaluationService {
           .maybeSingle(); // find what department this dean belongs to
 
       if (deptData == null) {
-        debugPrint('EvaluationService - No department found for Dean: $userId');
+        if (kDebugMode) debugPrint('EvaluationService - No department found for Dean: $userId');
         return _emptySummary(); // dean has no dept?? return zeros, dili ta crash
       }
       final deptId = deptData['Department_name_ID']; // the department ID we need
@@ -993,7 +999,7 @@ class EvaluationService {
   // and produces SubjectAnalytic objects for each subject. this method is the big one, pray lang it run fast.
   Future<List<SubjectAnalytic>> getSubjectAnalyticsForDept(String userId) async {
     try {
-      debugPrint('SubjectAnalytics - Start for user: $userId');
+      if (kDebugMode) debugPrint('SubjectAnalytics - Start for user: $userId');
       final deptData = await _supabase
           .from('department_table')
           .select('Department_name_ID')
@@ -1152,9 +1158,47 @@ class EvaluationService {
   }
 
   // get all instructors in the dean's dept whose overall score is below the threshold.
-  // threshold default is 3.0 -- below that is considered low performance.
+  // fixed 3.0 benchmark (kAlertBenchmark) -- below that is low performance.
   // returns a list of ActionAlert objects, one per underperforming instructor
-  Future<List<ActionAlert>> getDepartmentAlerts(String userId, {double threshold = 3.0}) async {
+  // No item wording exists in the app (only M1-M10 / P1-P10 keys), so labels are "Item 1-20".
+  Future<Map<String, List<Map<String, dynamic>>>> _lowestItems(List<String> ids, String termId) async {
+    final cols = [for (final p in ['m', 'p']) for (var i = 1; i <= 10; i++) '$p$i'];
+    final sums = <String, List<double>>{};
+    final counts = <String, List<int>>{};
+    const page = 1000;
+    for (var from = 0;; from += page) {
+      final rows = await _supabase
+          .from('sast_all_raw_data_survey')
+          .select('id, instructor_id, ${cols.join(', ')}')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', ids)
+          .order('id')
+          .range(from, from + page - 1) as List;
+      for (final r in rows) {
+        final id = r['instructor_id']?.toString();
+        if (id == null) continue;
+        final sm = sums.putIfAbsent(id, () => List.filled(20, 0.0));
+        final ct = counts.putIfAbsent(id, () => List.filled(20, 0));
+        for (var i = 0; i < 20; i++) {
+          final v = SastRating.parse(r[cols[i]]);
+          if (v != null) { sm[i] += v; ct[i]++; }
+        }
+      }
+      if (rows.length < page) break;
+    }
+    return {
+      for (final e in sums.entries)
+        e.key: ([
+          for (var i = 0; i < 20; i++)
+            if (counts[e.key]![i] > 0)
+              {'label': 'Item ${i + 1} (${i < 10 ? 'Management' : 'Performance'})', 'avg': e.value[i] / counts[e.key]![i]}
+        ]..sort((a, b) => (a['avg'] as double).compareTo(b['avg'] as double)))
+            .take(3)
+            .toList(),
+    };
+  }
+
+  Future<List<ActionAlert>> getDepartmentAlerts(String userId) async {
     try {
       final deptData = await _supabase
           .from('department_table')
@@ -1209,38 +1253,76 @@ class EvaluationService {
         return []; // no faculty, no alerts
       }
 
-      // fetch only records where overall_mean is below the threshold -- these are the problem ones
+      // Term order + names, used for the termination consecutive check and labels.
+      final termRows = await _supabase
+          .from('academic_terms')
+          .select('id, semester, academic_year')
+          .order('created_at', ascending: true);
+      final Map<String, int> termIndex = {};
+      final List<String> termNames = [];
+      for (final t in (termRows as List)) {
+        termIndex[t['id'].toString()] = termNames.length;
+        termNames.add('${t['semester'] ?? ''} ${t['academic_year'] ?? ''}'.trim());
+      }
+
       final stats = await _supabase
           .from('overall_total_survey')
-          .select('''
+          .select("""
             overall_mean,
             combined_score_mean,
+            management_mean,
+            performance_mean,
+            total_responses,
             instructor_id,
             user_info!instructor_id(first_name, last_name)
-          ''')
+          """)
           .eq('term_id', termId)
-          .filter('instructor_id', 'in', facultyIds)
-          ; // Filtering moved to Dart below
+          .filter('instructor_id', 'in', facultyIds);
 
       final List<ActionAlert> alerts = [];
-        for (var row in (stats as List)) {
-          final userInfo = row['user_info'];
-          final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
-          final score = _scoreOf(Map<String, dynamic>.from(row as Map));
+      final lowIds = <String>[];
+      for (var row in (stats as List)) {
+        final userInfo = row['user_info'];
+        final name = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
+        final score = _scoreOf(Map<String, dynamic>.from(row as Map));
 
-          // Strict filter: only flag a real score strictly below the threshold
-          // (3.0). No score (null) is "no data", never a low score.
-          if (score != null && score < threshold) {
-            alerts.add(ActionAlert(
-              type: 'Performance',
-              title: 'Low Performance Alert',
-              desc: "Instructor scored ${score.toStringAsFixed(2)}, which is below the strict 3.0 benchmark.",
-              instructorId: row['instructor_id'],
-              instructorName: name,
-              dateFlagged: DateTime.now(),
-            ));
-          }
+        // Strict: only a real score below 3.0. No score (null) is "no data".
+        if (score != null && score < kAlertBenchmark) {
+          final mgmt = SastRating.parse(row['management_mean']);
+          final perf = SastRating.parse(row['performance_mean']);
+          lowIds.add(row['instructor_id']);
+          alerts.add(ActionAlert(
+            type: 'Performance',
+            title: 'Low Performance Alert',
+            desc: "Instructor scored ${score.toStringAsFixed(2)}, which is below the strict 3.0 benchmark.",
+            instructorId: row['instructor_id'],
+            instructorName: name,
+            dateFlagged: DateTime.now(),
+            details: {
+              'score': score,
+              'benchmark': kAlertBenchmark,
+              'term': termIndex[termId] != null ? termNames[termIndex[termId]!] : null,
+              'total_responses': SastRating.parseInt(row['total_responses']),
+              'management_mean': mgmt,
+              'performance_mean': perf,
+              'weaker': (mgmt == null || perf == null) ? null : (mgmt <= perf ? 'Management' : 'Performance'),
+            },
+          ));
         }
+      }
+
+      // Three lowest-scoring survey items per flagged instructor (this term).
+      if (lowIds.isNotEmpty) {
+        try {
+          final items = await _lowestItems(lowIds, termId);
+          for (final a in alerts.where((a) => a.type == 'Performance')) {
+            final low = items[a.instructorId];
+            if (low != null) a.details!['lowest_items'] = low;
+          }
+        } catch (e) {
+          debugPrint('Could not load per-item scores for alerts: $e'); // non-fatal
+        }
+      }
 
         // --- ADD NEGATIVE SENTIMENT FLAGS (> 50% Critical) ---
       // 1. Get instructor names safely without relying on Foreign Keys
@@ -1291,63 +1373,54 @@ class EvaluationService {
             instructorId: instructorId,
             instructorName: name,
             dateFlagged: DateTime.now(),
+            details: {'bad_count': badCount, 'total': total},
           ));
         }
       }
 
       // --- ADD 3-STRIKE TERMINATION FLAGS ---
-      // Fetch entire history for these faculty members, ordered by newest first
+      // Three most recent scored terms must be three CONSECUTIVE distinct
+      // semesters (adjacent in academic_terms order), each below the benchmark.
       final historyData = await _supabase
           .from('overall_total_survey')
-          .select('''
-            instructor_id,
-            overall_mean,
-            combined_score_mean,
-            created_at,
-            user_info!instructor_id(first_name, last_name)
-          ''')
-          .filter('instructor_id', 'in', facultyIds)
-          .order('created_at', ascending: false); // newest first!
-      
-      // Group historical scores by instructor
-      final Map<String, List<double>> instructorHistory = {};
+          .select('instructor_id, term_id, overall_mean, combined_score_mean, user_info!instructor_id(first_name, last_name)')
+          .filter('instructor_id', 'in', facultyIds);
+
+      final Map<String, List<({int idx, double score})>> instructorHistory = {};
       final Map<String, String> instructorNamesForHistory = {};
-      
       for (var row in (historyData as List)) {
         final iId = row['instructor_id'] as String;
         // Terms without a score (no answers) are not strikes and are skipped.
         final score = _scoreOf(Map<String, dynamic>.from(row as Map));
-        if (score != null) {
-          instructorHistory.putIfAbsent(iId, () => []).add(score);
+        final idx = termIndex[row['term_id']?.toString()];
+        if (score != null && idx != null) {
+          instructorHistory.putIfAbsent(iId, () => []).add((idx: idx, score: score));
         }
-        
         if (!instructorNamesForHistory.containsKey(iId)) {
           final userInfo = row['user_info'];
           instructorNamesForHistory[iId] = userInfo != null ? '${userInfo['first_name']} ${userInfo['last_name']}' : 'Unknown';
         }
       }
-      
-      // Evaluate the 3-strike rule
+
       for (final entry in instructorHistory.entries) {
-        final iId = entry.key;
-        final scores = entry.value;
-        
-        // Ensure they have at least 3 active semesters
-        if (scores.length >= 3) {
-          // Check the 3 most recent semesters (which are the first 3 in the list since we ordered descending)
-          final last3 = scores.sublist(0, 3);
-          
-          // If ALL 3 are below the threshold (usually 3.0), strike 3!
-          if (last3.every((score) => score < threshold)) {
-             alerts.add(ActionAlert(
-               type: 'Termination',
-               title: '3-Strike Alert: Termination Review',
-               desc: 'Instructor has scored below ${threshold.toStringAsFixed(1)} for 3 consecutive active semesters. Immediate intervention or deactivation required.',
-               instructorId: iId,
-               instructorName: instructorNamesForHistory[iId] ?? 'Unknown',
-               dateFlagged: DateTime.now(),
-             ));
-          }
+        final h = entry.value..sort((x, y) => y.idx.compareTo(x.idx)); // newest first
+        if (h.length < 3) continue;
+        final last3 = h.sublist(0, 3);
+        final consecutive = last3[0].idx - last3[1].idx == 1 && last3[1].idx - last3[2].idx == 1;
+        if (consecutive && last3.every((r) => r.score < kAlertBenchmark)) {
+          alerts.add(ActionAlert(
+            type: 'Termination',
+            title: '3-Strike Alert: Termination Review',
+            desc: 'Instructor has scored below ${kAlertBenchmark.toStringAsFixed(1)} for 3 consecutive semesters. Immediate intervention or deactivation required.',
+            instructorId: entry.key,
+            instructorName: instructorNamesForHistory[entry.key] ?? 'Unknown',
+            dateFlagged: DateTime.now(),
+            details: {
+              'semesters': [
+                for (final r in last3) {'term': termNames[r.idx], 'score': r.score}
+              ],
+            },
+          ));
         }
       }
 

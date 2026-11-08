@@ -68,13 +68,8 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
         return; // No user ID = no dept = nothing to show
       }
 
-      // Fetch dept average first — same threshold used on the dashboard
-      // This keeps the alert criteria consistent across all screens
-      final summary = await _evaluationService.getDepartmentSummary(userId);
-      final deptAvg = summary.averageScore > 0 ? summary.averageScore : 3.0; // Default 3.0 if no data
-
-      // Get all current alerts for this department
-      final alerts = await _evaluationService.getDepartmentAlerts(userId, threshold: deptAvg);
+      // Get all current alerts for this department (fixed 3.0 benchmark)
+      final alerts = await _evaluationService.getDepartmentAlerts(userId);
       // Get all previously recorded intervention logs
       final logs = await _evaluationService.getInterventionLog(userId);
 
@@ -119,6 +114,37 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
   // Opens a form where dean fills in the mandated action and remarks.
   // On submit, creates a new intervention record in the database.
   // ==========================================
+  // Plain-text "why flagged" lines built from alert.details (null-safe).
+  List<String> _whyFlaggedLines(ActionAlert alert) {
+    final d = alert.details;
+    if (d == null) return [];
+    String f(dynamic v) => v is num ? v.toStringAsFixed(2) : '$v';
+    final lines = <String>[];
+    switch (alert.type) {
+      case 'Performance':
+        lines.add('• Score ${f(d['score'])} vs benchmark ${f(d['benchmark'])}'
+            '${d['term'] != null ? ' (${d['term']})' : ''}');
+        if (d['total_responses'] != null) lines.add('• Based on ${d['total_responses']} responses');
+        if (d['management_mean'] != null && d['performance_mean'] != null) {
+          lines.add('• Management ${f(d['management_mean'])} vs Performance ${f(d['performance_mean'])}'
+              '${d['weaker'] != null ? ' (weaker: ${d['weaker']})' : ''}');
+        }
+        for (final i in (d['lowest_items'] as List? ?? const [])) {
+          lines.add('• Low item: ${i['label']} (${f(i['avg'])})');
+        }
+        break;
+      case 'Sentiment':
+        lines.add('• ${d['bad_count']} of ${d['total']} remarks are critical');
+        break;
+      case 'Termination':
+        for (final s in (d['semesters'] as List? ?? const [])) {
+          lines.add('• ${s['term'] ?? 'Semester'}: ${f(s['score'])}');
+        }
+        break;
+    }
+    return lines;
+  }
+
   void _showDraftingSheet(ActionAlert alert) {
     String selectedAction = _actionTypes.first; // Default to first option
     final TextEditingController notesController = TextEditingController();
@@ -167,7 +193,11 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                     // Show who this intervention is for — no confusion
                     Text('Instructor: ${alert.instructorName ?? 'Unknown'}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                     // Show why they were flagged — gives context to the action
-                    Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                    Text('Flagged for: ${alert.desc}', style: const TextStyle(color: AppColors.error, fontSize: 13, fontWeight: FontWeight.bold)),
+                    ..._whyFlaggedLines(alert).map((l) => Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(l, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                        )),
                     const SizedBox(height: 24),
 
                     // Dropdown for Action Type — pick what mandated action to apply
@@ -406,7 +436,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                                             Text(alert.instructorName ?? 'Unknown Instructor', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 16), overflow: TextOverflow.ellipsis),
                                             const SizedBox(height: 4),
                                             // Description — why they were flagged
-                                            Text(alert.desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
+                                            Text(alert.desc, style: const TextStyle(color: AppColors.textPrimary, fontSize: 13), maxLines: 3, overflow: TextOverflow.ellipsis),
                                           ],
                                         ),
                                       ),
