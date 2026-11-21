@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsFor } from '../_shared/cors.ts'
 
 // Map logical action names to n8n webhook paths
 const ACTION_PATHS: Record<string, string> = {
@@ -18,7 +14,39 @@ const ACTION_PATHS: Record<string, string> = {
   'import-error-correction': 'import-error-correction',
 }
 
+// Largest accepted request body: a phone scan is ~3-5 MB of base64.
+const MAX_BODY_BYTES = 15 * 1024 * 1024
+
+// Fields the app actually sends per action; anything else is dropped.
+// Score keys (m1..m10, p1..p10) are matched by pattern.
+const SCORE_KEY = /^[mp](10|[1-9])$/
+const ACTION_FIELDS: Record<string, string[]> = {
+  'scan-upload': ['user_id', 'term_id', 'task_id', 'filename', 'paper_size', 'form_suspect', 'timestamp', 'image'],
+  'link-upload': ['user_id', 'term_id', 'link', 'type', 'semester', 'academic_year', 'timestamp'],
+  'manual-correction': [
+    'failed_scan_id', 'task_id', 'user_id', 'term_id', 'instructor', 'instructor_id', 'subject',
+    'subject_name', 'subject_id', 'remarks', 'student_id', 'stamp_no', 'stamp_source',
+    'manually_corrected', 'validation_status', 'correction_source', 'timestamp',
+  ],
+  'bulk-import': ['link', 'term_id', 'user_id'],
+  'import-error-correction': [
+    'import_error_id', 'corrected_instructor_id', 'corrected_subject_id', 'term_id',
+    'resolved_by', 'raw_data', 'source', 'timestamp',
+  ],
+}
+
+function pickFields(action: string, payload: any): Record<string, unknown> {
+  const allowed = ACTION_FIELDS[action]
+  const out: Record<string, unknown> = {}
+  if (!allowed || !payload || typeof payload !== 'object') return out
+  for (const [k, v] of Object.entries(payload)) {
+    if (allowed.includes(k) || (action === 'manual-correction' && SCORE_KEY.test(k))) out[k] = v
+  }
+  return out
+}
+
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
@@ -43,7 +71,17 @@ serve(async (req) => {
     }
 
     // ── 2. Parse Request Body ────────────────────────────────────────────────
-    const body = await req.json().catch(() => ({}))
+    // Cap the body (Content-Length first, then the real size) before parsing.
+    const declared = Number(req.headers.get('Content-Length') || 0)
+    const rawBody = declared > MAX_BODY_BYTES ? null : await req.text()
+    if (rawBody === null || rawBody.length > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: 'Payload too large' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 413,
+      })
+    }
+    let body: any = {}
+    try { body = JSON.parse(rawBody) } catch { /* invalid JSON falls through to the action check */ }
     const { action, payload } = body
 
     if (!action || !ACTION_PATHS[action]) {
@@ -83,7 +121,15 @@ serve(async (req) => {
 
     // ── 4. Resolve Target n8n Webhook URL ─────────────────────────────────────
     // Configured exclusively in Supabase Secrets — completely invisible to mobile client!
-    const n8nBase = (Deno.env.get('N8N_BASE_URL') || 'http://5.104.84.162:5678').trim().replace(/\/+$/, '')
+    const n8nBase = (Deno.env.get('N8N_BASE_URL') || '').trim().replace(/\/+$/, '')
+    const allowHttp = (Deno.env.get('N8N_ALLOW_HTTP') || 'false').trim().toLowerCase() === 'true'
+    if (!n8nBase || (!n8nBase.startsWith('https://') && !allowHttp)) {
+      console.error('n8n-proxy: N8N_BASE_URL is unset or not https (set N8N_ALLOW_HTTP=true for local testing only)')
+      return new Response(JSON.stringify({ error: 'Service misconfigured' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      })
+    }
     const useTest = (Deno.env.get('USE_N8N_TEST') || 'false').trim().toLowerCase() === 'true'
     const webhookPrefix = useTest ? 'webhook-test' : 'webhook'
     const webhookPath = ACTION_PATHS[action]
@@ -104,7 +150,7 @@ serve(async (req) => {
 
     // Inject verified user_id into payload to prevent spoofing
     const enrichedPayload = {
-      ...(payload || {}),
+      ...pickFields(action, payload),
       user_id: caller.id,
     }
 
@@ -142,13 +188,15 @@ serve(async (req) => {
           status: 504,
         })
       }
-      return new Response(JSON.stringify({ error: `Could not connect to automation server: ${fetchErr.message}` }), {
+      console.error('n8n-proxy: upstream fetch failed:', fetchErr)
+      return new Response(JSON.stringify({ error: 'Could not connect to automation server' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 502,
       })
     }
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message || 'Internal server error' }), {
+    console.error('n8n-proxy error:', error)
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })

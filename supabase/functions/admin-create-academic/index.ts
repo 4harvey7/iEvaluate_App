@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { corsFor } from '../_shared/cors.ts'
 import {
   assertDepartmentHeadVacant,
   HEAD_CONFLICT_PREFIX,
@@ -15,11 +16,6 @@ import {
   rollbackAuthUser,
   validateIdentityFormat,
 } from '../_shared/identity_guard.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 // 🛡️ Helper: SHA-256 Hashing
 async function hashString(str: string) {
@@ -43,6 +39,7 @@ function generateTempPassword() {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {

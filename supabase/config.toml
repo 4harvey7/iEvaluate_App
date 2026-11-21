@@ -6,6 +6,11 @@ verify_jwt = true
 [functions.admin-activate-account]
 verify_jwt = true
 
+[functions.retention-storage-cleanup]
+# Called by pg_cron/pg_net (migration 040) with no user JWT; the
+# x-retention-secret header is checked in the function code.
+verify_jwt = false
+
 [functions.delete-user]
 enabled = true
 verify_jwt = false

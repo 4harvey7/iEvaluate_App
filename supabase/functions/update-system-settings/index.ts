@@ -1,13 +1,10 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { corsFor } from '../_shared/cors.ts'
 import { escapeHtml } from '../_shared/html.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
@@ -29,6 +26,18 @@ serve(async (req) => {
       .single()
 
     if (adminError || (adminCheck as any)?.roles?.Roles !== 'SAO_ADMIN') {
+      throw new Error('Forbidden: Admin access required')
+    }
+
+    // Role alone is not enough: the admin must also be approved and not disabled.
+    const { data: callerInfo, error: infoError } = await supabaseAdmin
+      .from('user_info')
+      .select('account_status, disabled')
+      .eq('id', caller.id)
+      .maybeSingle()
+    if (infoError ||
+        String(callerInfo?.account_status ?? '').trim().toLowerCase() !== 'approved' ||
+        callerInfo?.disabled === true) {
       throw new Error('Forbidden: Admin access required')
     }
 
@@ -84,6 +93,7 @@ serve(async (req) => {
       status: 200,
     })
   } catch (error) {
+    console.error('update-system-settings error:', error)
     const safeMessage = ['Unauthorized', 'Forbidden:', 'BREVO_SENDER_EMAIL'].some(
       m => error.message?.startsWith(m)
     ) ? error.message : 'Operation failed. Please try again.'

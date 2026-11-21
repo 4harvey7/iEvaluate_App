@@ -8,15 +8,11 @@ import {
   validateIdentityFormat,
 } from '../_shared/identity_guard.ts'
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { corsFor } from '../_shared/cors.ts'
 import {
   assertDepartmentHeadVacant,
   HEAD_CONFLICT_PREFIX,
 } from '../_shared/department_head_guard.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 async function hashString(str: string) {
   const encoder = new TextEncoder()
@@ -72,6 +68,7 @@ function employmentForRole(roleName: unknown): string | null {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {

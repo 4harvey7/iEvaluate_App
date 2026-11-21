@@ -1,13 +1,9 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { corsFor } from '../_shared/cors.ts'
 import { isDepartmentHeadRole } from '../_shared/department_head_guard.ts'
 import { escapeHtml, escapeMultiline } from '../_shared/html.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 // WHO MAY CALL THIS
 //
@@ -51,7 +47,7 @@ class HttpError extends Error {
   }
 }
 
-function json(body: unknown, status: number): Response {
+function json(body: unknown, status: number, corsHeaders: Record<string, string>): Response {
   return new Response(JSON.stringify(body), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status,
@@ -59,6 +55,7 @@ function json(body: unknown, status: number): Response {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
@@ -209,7 +206,7 @@ serve(async (req) => {
       .select('id')
     if (claimError) throw claimError
     if (!claimed || claimed.length === 0) {
-      return json({ message: 'Email already sent' }, 200)
+      return json({ message: 'Email already sent' }, 200, corsHeaders)
     }
 
     // ── 7. Send via Brevo; give the claim back if it fails ─────────────────
@@ -285,14 +282,14 @@ serve(async (req) => {
     if (logError) console.error('send-intervention-email audit log failed:', logError)
 
     console.log(`Intervention email sent for report ${report.id}`)
-    return json({ message: 'Email sent successfully' }, 200)
+    return json({ message: 'Email sent successfully' }, 200, corsHeaders)
 
   } catch (error) {
     if (error instanceof HttpError) {
-      return json({ error: error.message }, error.status)
+      return json({ error: error.message }, error.status, corsHeaders)
     }
     // Details stay in the function log; the client gets a generic message.
     console.error('send-intervention-email error:', error)
-    return json({ error: 'Could not send the notification email' }, 500)
+    return json({ error: 'Could not send the notification email' }, 500, corsHeaders)
   }
 })

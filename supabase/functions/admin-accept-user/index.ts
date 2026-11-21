@@ -1,12 +1,8 @@
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
+import { corsFor } from '../_shared/cors.ts'
 import { isDepartmentHeadRole } from '../_shared/department_head_guard.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
 
 /** How far the caller's authority over the target account reaches. */
 type Authority = 'sao_admin' | 'dept_head'
@@ -141,6 +137,7 @@ async function authoriseCaller(
 }
 
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {

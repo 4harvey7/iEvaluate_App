@@ -1,10 +1,6 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 import { createAdminClient } from '../_shared/admin_client.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsFor } from '../_shared/cors.ts'
 
 // 🛡️ SHA-256 Hashing for secure storage
 async function hashString(str: string) {
@@ -43,6 +39,7 @@ const COPY = {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsFor(req)
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
