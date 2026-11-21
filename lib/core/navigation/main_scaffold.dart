@@ -35,6 +35,7 @@ import '../../theme/app_colors.dart';
 import '../../login_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../services/push_notification_service.dart';
+import '../utils/initials.dart';
 import '../../widgets/logout_confirmation_dialog.dart';
 import '../../widgets/apple_ui.dart';
 import 'role_nav_config.dart';
@@ -219,23 +220,6 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 
-  /// Avatar initials for a full display name: first name + surname.
-  ///
-  /// A middle name is skipped on purpose. "Rodz Harvey Licayan" gives "RL",
-  /// which is what the Settings profile card shows from first_name and
-  /// last_name -- the two screens have to agree, or the account looks like it
-  /// belongs to two people (DEF-05).
-  static String _initialsOf(String fullName) {
-    final words = fullName
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
-    if (words.isEmpty) return '?';
-    if (words.length == 1) return words.first[0].toUpperCase();
-    return '${words.first[0]}${words.last[0]}'.toUpperCase();
-  }
-
   // ── Drawer ────────────────────────────────────────────────────────────────
   Widget _buildDrawer(BuildContext ctx, RoleNavConfig config) {
     final displayName = _userName.isNotEmpty ? _userName : '...';
@@ -244,7 +228,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     // first_name + last_name -- the same account looked like two different
     // people depending on the screen. First word + LAST word matches Settings,
     // and is the pair that actually identifies someone.
-    final initials = _initialsOf(_userName);
+    final initials = initialsOf(_userName);
 
     return Drawer(
       backgroundColor: AppColors.surface,
@@ -509,6 +493,11 @@ class _MainScaffoldState extends State<MainScaffold> {
               _myDrawerKey, // uniquely assigned in initState, but accessible globally via getter
           backgroundColor: AppColors.background,
           drawer: _buildDrawer(context, config),
+          // DEF-V1: re-read the name on every open so a Settings profile edit
+          // shows up without signing in again.
+          onDrawerChanged: (open) {
+            if (open) _fetchUserInfo();
+          },
           // We use IndexedStack to preserve tab state for everyone EXCEPT Dept Head and Instructor,
           // because their tabs are incredibly heavy (charts, lists, AI clouds)
           // and keeping them all alive causes UI thread freezing during drawer slide.

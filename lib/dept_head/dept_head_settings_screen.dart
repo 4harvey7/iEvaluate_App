@@ -2,6 +2,7 @@
 // Settings screen for the dept head — where they change name, password, and other stuff.
 // Also where they can delete their account if they feeling dramatic. ayaw.
 import 'package:flutter/material.dart';
+import '../core/utils/initials.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -33,7 +34,6 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
   // because missing a problem is worse than getting too many notifs
   bool _lowPerformanceAlerts = true;  // Alert when instructor drops below 3.0
   bool _negativeSentimentAlerts = true; // Alert when AI detects angry comments
-  bool _weeklyDepartmentDigest = true; // Weekly summary — good for busy dean
 
   // --- INTERACTIVE PROFILE STATE ---
   // These hold the user's actual name and role — loaded from database
@@ -64,7 +64,7 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
       // Fetch first and last name and alert prefs from user_info table
       final data = await _supabase
           .from('user_info')
-          .select('first_name, last_name, alert_performance, alert_sentiment, alert_digest')
+          .select('first_name, last_name, alert_performance, alert_sentiment')
           .eq('id', user.id)
           .maybeSingle();
 
@@ -84,7 +84,6 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
             // Load alert settings (default to true if null in DB)
             _lowPerformanceAlerts = data['alert_performance'] ?? true;
             _negativeSentimentAlerts = data['alert_sentiment'] ?? true;
-            _weeklyDepartmentDigest = data['alert_digest'] ?? true;
           }
           
           if (deptData != null) {
@@ -497,22 +496,9 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                     }
                     
                     try {
-                      // Attempt to re-authenticate or just update if session is fresh
-                      // Supabase allows password update if there's a valid session.
-                      final email = _supabase.auth.currentUser?.email ?? '';
-                      final verifyResp = await _supabase.auth.signInWithPassword(
-                          email: email, password: currentPw);
-                      if (verifyResp.user == null) {
-                        if (isDialogOpen && dialogContext.mounted) {
-                          setDialogState(() => isUpdating = false);
-                        }
-                        messenger.showSnackBar(const SnackBar(
-                            content: Text('Current password is incorrect.'),
-                            backgroundColor: AppColors.error));
-                        return;
-                      }
-
-                      final result = await _authService.updatePassword(newPw);
+                      // Verifies the current password first; a wrong one comes back as
+                      // 'Current password is incorrect.' (see AuthService.changePassword).
+                      final result = await _authService.changePassword(currentPassword: currentPw, newPassword: newPw);
                       
                       if (result.success) {
                         if (isDialogOpen && dialogContext.mounted) {
@@ -595,14 +581,8 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
   // Shows profile card, notification toggles, security section, and logout button
   @override
   Widget build(BuildContext context) {
-    // Generate initials from first + last name — e.g. "Juan Dela Cruz" → "JD"
-    String initials = "U"; // Default if name empty
-    if (_firstName.isNotEmpty) {
-      initials = _firstName[0]; // First letter of first name
-      if (_lastName.isNotEmpty) {
-        initials += _lastName[0]; // Plus first letter of last name
-      }
-    }
+    // DEF-V5: the same helper as the drawer, so both show the same initials.
+    final initials = initialsOf('$_firstName $_lastName');
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -707,18 +687,6 @@ class _DeptHeadSettingsScreenState extends State<DeptHeadSettingsScreen> {
                       onChanged: (val) {
                         setState(() => _negativeSentimentAlerts = val);
                         _updateAlertSetting('alert_sentiment', val);
-                      },
-                    ),
-                    const Divider(height: 1, indent: 56),
-                    // Toggle: get a weekly email digest — for the dean who love summary
-                    _buildSwitchTile(
-                      title: 'Weekly Digest',
-                      subtitle: 'Receive a summary of department activity.',
-                      icon: Icons.summarize,
-                      value: _weeklyDepartmentDigest,
-                      onChanged: (val) {
-                        setState(() => _weeklyDepartmentDigest = val);
-                        _updateAlertSetting('alert_digest', val);
                       },
                     ),
                   ],

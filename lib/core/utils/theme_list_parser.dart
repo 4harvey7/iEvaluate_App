@@ -142,8 +142,9 @@ List<String> themeBullets(Object? raw) {
   if (listLike) {
     return parseThemeValue(raw).items.map(_sentence).toList();
   }
+  // A bullet always reads as a sentence, like the array items above.
   final p = themeParagraph(raw);
-  return p.isEmpty ? const [] : [p];
+  return p.isEmpty ? const [] : [_sentence(p)];
 }
 
 String _sentence(String text) {

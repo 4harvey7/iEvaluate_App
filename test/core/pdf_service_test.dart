@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ievaluateapp_final/core/services/evaluation_service.dart';
 import 'package:ievaluateapp_final/core/services/pdf/pdf_service.dart';
 import 'package:ievaluateapp_final/core/utils/theme_list_parser.dart';
 
@@ -157,6 +158,54 @@ void main() {
     expect(t, isNot(contains('improvement')));
     expect(t, isNot(contains('tone')));
     expect(t, endsWith('It is recommended that the instructor add quizzes.'));
+  });
+
+  test('byCollege groups and sorts alphabetically; consolidated report builds', () async {
+    InstructorPerformance p(String last, String first, String college) => InstructorPerformance(
+          id: '$last$first',
+          name: '$first $last',
+          department: 'IT',
+          overallScore: 4.5,
+          subjectCount: 1,
+          trend: 'up',
+          firstName: first,
+          lastName: last,
+          college: college,
+          deptCode: 'IT',
+          mgmtScore: 4.4,
+          perfScore: null,
+          totalResponses: 12,
+        );
+    final groups = PdfService.byCollege([
+      p('Zamora', 'Ana', 'College of Technology'),
+      p('Cruz', 'Juan', 'College of Arts'),
+      p('Abad', 'Ben', 'College of Technology'),
+      p('Santos', 'Eva', 'College of Arts'),
+      p('Lim', 'Mia', 'College of Technology'),
+      p('Bote', 'Rey', 'College of Arts'),
+    ]);
+    expect(groups.keys.toList(), ['College of Arts', 'College of Technology']);
+    expect(groups['College of Arts']!.map((r) => r.lastName), ['Bote', 'Cruz', 'Santos']);
+    expect(groups['College of Technology']!.map((r) => r.lastName), ['Abad', 'Lim', 'Zamora']);
+
+    final bytes = await PdfService().buildConsolidatedReport(
+      term: '1st Semester',
+      academicYear: '2025-2026',
+      college: 'College of Arts',
+      department: 'IT',
+      rows: groups['College of Arts']!,
+      signatories: SastSignatories.defaults,
+    );
+    expect(bytes, isNotEmpty);
+
+    final all = await PdfService().buildConsolidatedReportAll(
+      term: '1st Semester',
+      academicYear: '2025-2026',
+      groups: groups,
+      signatories: SastSignatories.defaults,
+    );
+    expect(all, isNotEmpty);
+    expect(all.length, greaterThan(bytes.length));
   });
 
   test('signatories default when row missing', () {

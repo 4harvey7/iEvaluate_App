@@ -2,6 +2,7 @@
 // This is the settings screen for the SAO Admin. Importente kaayo ni sya.
 // If you break this, good luck explaining to the boss.
 import 'package:flutter/material.dart';
+import '../core/utils/initials.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -607,22 +608,8 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                     }
 
                     try {
-                      // Step 1: Verify current password by re-signing in
-                      // we re-authenticate to confirm identity — murag double check sa guard
-                      final email = _supabase.auth.currentUser?.email ?? '';
-                      final verifyResp = await _supabase.auth.signInWithPassword(
-                        email: email, password: currentPw);
-                      if (verifyResp.user == null) {
-                        // wrong current password — dili ta makaproceed
-                        if (isDialogOpen && dialogContext.mounted) {
-                          setDialogState(() => isUpdating = false);
-                        }
-                        messenger.showSnackBar(const SnackBar(content: Text('Current password is incorrect.'), backgroundColor: AppColors.error));
-                        return;
-                      }
-
-                      // Step 2: Update to new password — current one was correct so go ahead
-                      final result = await _authService.updatePassword(newPw);
+                      // Verifies the current password, then updates (AuthService.changePassword).
+                      final result = await _authService.changePassword(currentPassword: currentPw, newPassword: newPw);
 
                       if (result.success) {
                         if (isDialogOpen && dialogContext.mounted) {
@@ -848,15 +835,10 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically generate initials based on the user's name
-    // defaults to "AD" if name is somehow empty — "AD" for Admin, clever
-    String initials = "AD";
-    if (_firstName.isNotEmpty) {
-      initials = _firstName[0]; // take first letter of first name
-      if (_lastName.isNotEmpty) {
-        initials += _lastName[0]; // append first letter of last name
-      }
-    }
+    // DEF-V5: the same helper as the drawer; "AD" (Admin) until the name loads.
+    final initials = _firstName.isEmpty && _lastName.isEmpty
+        ? 'AD'
+        : initialsOf('$_firstName $_lastName');
 
     return Scaffold(
       backgroundColor: AppColors.background,

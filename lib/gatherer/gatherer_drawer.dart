@@ -9,6 +9,7 @@ import '../core/services/auth_service.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../core/navigation/role_switch_screen.dart';
 import '../core/navigation/role_nav_config.dart';
+import '../core/utils/initials.dart';
 
 // the drawer widget — StatefulWidget because it loads badge counts on open
 class GathererDrawer extends StatefulWidget {
@@ -81,10 +82,8 @@ class _GathererDrawerState extends State<GathererDrawer> {
   Widget build(BuildContext context) {
     // Use parent-provided name; fall back to '...' only if truly not yet loaded
     final displayName = widget.userName.isNotEmpty ? widget.userName : '...';
-    // extract initials from the display name — e.g. "John Doe" -> "JD"
-    final initials = widget.userName.isNotEmpty
-        ? widget.userName.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join()
-        : '?'; // fallback to '?' if name not loaded yet
+    // First + last word, the same initials Settings shows (DEF-R8).
+    final initials = initialsOf(widget.userName);
 
     return Drawer(
       backgroundColor: AppColors.surface,

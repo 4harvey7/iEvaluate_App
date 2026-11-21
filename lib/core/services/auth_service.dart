@@ -956,6 +956,44 @@ class AuthService {
     }
   }
 
+  // 7b. CHANGE PASSWORD FROM SETTINGS
+  // Proves the current password (by signing in again as the SAME user) before
+  // updatePassword. A failed sign-in throws before the client stores anything,
+  // so the existing session is left untouched; a successful one just refreshes
+  // this same user's session.
+  Future<AuthResult> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    final email = _supabase.auth.currentUser?.email ?? '';
+    if (email.isEmpty) {
+      return const AuthResult(success: false, error: 'Your session has expired. Please log in again.');
+    }
+    try {
+      await _supabase.auth.signInWithPassword(email: email, password: currentPassword);
+    } on AuthException catch (e) {
+      debugPrint('[AUTH] Change Password verify failed: ${e.runtimeType} ${e.statusCode} ${e.code}');
+      if (e is AuthRetryableFetchException || _isNetworkError(e.message)) {
+        return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
+      }
+      final msg = e.message.toLowerCase();
+      if (msg.contains('too many requests') || msg.contains('rate limit')) {
+        return const AuthResult(success: false, error: 'Too many attempts. Please wait a moment and try again.');
+      }
+      if (e.code == 'invalid_credentials' || msg.contains('invalid login') || msg.contains('invalid credentials')) {
+        return const AuthResult(success: false, error: 'Current password is incorrect.');
+      }
+      return const AuthResult(success: false, error: 'Could not verify your current password. Please try again.');
+    } catch (e) {
+      debugPrint('[AUTH] Change Password verify error (type): ${e.runtimeType}');
+      if (e is SocketException || _isNetworkError(e.toString())) {
+        return const AuthResult(success: false, error: 'No internet connection. Please check your WiFi or mobile data.');
+      }
+      return const AuthResult(success: false, error: 'Could not verify your current password. Please try again.');
+    }
+    return updatePassword(newPassword);
+  }
+
   // Shows the provider's own wording in debug builds only, so a failing reset
   // can actually be diagnosed without exposing internals to real users.
   String _debugSuffix(String raw) => kDebugMode ? '\n\n[debug] $raw' : '';

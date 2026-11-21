@@ -210,6 +210,45 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
       // basin naa data there even if instructor_subjects is empty — we try our best
       List<Subject> subjects = [];
       if (subjectRows.isNotEmpty) {
+        // DEF-V3: the scores used to be hardcoded null here, so "Subjects This
+        // Term" never showed a mean. Read the stored means the same way the
+        // instructor's own My Subjects does (newest row per subject wins).
+        final ids = subjectRows
+            .map((r) => r['subject_id']?.toString())
+            .whereType<String>()
+            .toList();
+        final mgmtBySubject = <String, double?>{};
+        final perfBySubject = <String, double?>{};
+        if (ids.isNotEmpty) {
+          try {
+            final scoreRows = await Future.wait([
+              _supabase
+                  .from('management_results')
+                  .select('subject_id, overall_management_mean')
+                  .eq('instructor_id', instructorId)
+                  .eq('term_id', widget.currentTermId)
+                  .filter('subject_id', 'in', ids)
+                  .order('created_at', ascending: false),
+              _supabase
+                  .from('performance_results')
+                  .select('subject_id, overall_performance_mean')
+                  .eq('instructor_id', instructorId)
+                  .eq('term_id', widget.currentTermId)
+                  .filter('subject_id', 'in', ids)
+                  .order('created_at', ascending: false),
+            ]);
+            for (final r in scoreRows[0] as List) {
+              mgmtBySubject.putIfAbsent(r['subject_id'].toString(),
+                  () => SastRating.parse(r['overall_management_mean']));
+            }
+            for (final r in scoreRows[1] as List) {
+              perfBySubject.putIfAbsent(r['subject_id'].toString(),
+                  () => SastRating.parse(r['overall_performance_mean']));
+            }
+          } catch (e) {
+            debugPrint('InstructorDetailPage: subject score lookup failed: $e');
+          }
+        }
         // Primary path: subjects came from instructor_subjects join
         subjects = subjectRows.map((row) {
           final s = row['subjects'];
@@ -220,9 +259,8 @@ class _InstructorDetailPageState extends State<InstructorDetailPage> {
             'subject_code': subjectData?['subject_code'] ?? 'N/A',
             'subject_name': subjectData?['subject_name'] ?? 'Unknown Subject',
             'created_at': subjectData?['created_at'] ?? DateTime.now().toIso8601String(),
-            // Scores not included here — they come from management_results separately
-            'management_mean': null,
-            'performance_mean': null,
+            'management_mean': mgmtBySubject[row['subject_id']?.toString()],
+            'performance_mean': perfBySubject[row['subject_id']?.toString()],
           });
         }).toList();
       } else if (headDeptId != null) {

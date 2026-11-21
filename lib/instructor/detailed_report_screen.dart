@@ -187,7 +187,7 @@ class _DetailedReportScreenState extends State<DetailedReportScreen>
           // Performance and Overall exactly as stored. Without a row there is
           // nothing to show (not 0.00).
           if (summaryData != null) {
-            debugPrint('Found summary data: $summaryData');
+            if (kDebugMode) debugPrint('Found summary data: $summaryData');
             _mgmtScore = SastRating.parse(summaryData['management_mean']);
             _perfScore = SastRating.parse(summaryData['performance_mean']);
             _totalEvals = SastRating.parseInt(summaryData['total_responses']) ?? 0;

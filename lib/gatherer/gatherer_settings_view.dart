@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../login_screen.dart';
 import '../core/services/auth_service.dart';
+import '../core/utils/initials.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../widgets/apple_ui.dart';
@@ -97,6 +98,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
     final TextEditingController lastController = TextEditingController(text: _lastName);
     bool isSaving = false;
     bool isSheetOpen = true;
+    // Shown inside the sheet: a SnackBar would sit behind it (UAT S09 step 2).
+    String? nameError;
 
     showModalBottomSheet(
       context: context,
@@ -161,6 +164,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                       _buildInput(label: 'First Name', controller: firstController, icon: Icons.person),
                       const SizedBox(height: 16),
                       _buildInput(label: 'Last Name', controller: lastController, icon: Icons.person_outline),
+                      if (nameError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(nameError!, style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+                      ],
                       const SizedBox(height: 24),
                       SizedBox(
                         width: double.infinity,
@@ -176,11 +183,10 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                             final messenger = ScaffoldMessenger.of(this.context);
 
                             if (newFirst.isEmpty || newLast.isEmpty) {
-                              messenger.showSnackBar(
-                                const SnackBar(content: Text('Please fill in both first and last name.'), backgroundColor: AppColors.error),
-                              );
+                              setSheetState(() => nameError = 'Please fill in both first and last name.');
                               return;
                             }
+                            setSheetState(() => nameError = null);
 
                             FocusScope.of(context).unfocus();
                             if (isSheetOpen && sheetContext.mounted) {
@@ -452,7 +458,7 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
                           }
                           
                           try {
-                            final result = await _authService.updatePassword(newPw);
+                            final result = await _authService.changePassword(currentPassword: currentPw, newPassword: newPw);
                             
                             if (result.success) {
                               if (isDialogOpen && dialogContext.mounted) {
@@ -528,13 +534,8 @@ class _GathererSettingsViewState extends State<GathererSettingsView> {
 
   @override
   Widget build(BuildContext context) {
-    String initials = "U";
-    if (_firstName.isNotEmpty) {
-      initials = _firstName[0];
-      if (_lastName.isNotEmpty) {
-        initials += _lastName[0];
-      }
-    }
+    // Same helper as the drawer, so both show the same initials (DEF-R8).
+    final initials = initialsOf('$_firstName $_lastName');
 
     if (_isLoading) {
       return const AppleLoadingState(label: 'Loading gatherer settings…');

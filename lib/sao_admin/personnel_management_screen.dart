@@ -1082,7 +1082,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                                 ),
                                 // strikethrough if disabled — visual cue that account is off
                                 title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),
-                                subtitle: Text('${ui['university_id']} • ${person['role_data']?['Roles'] ?? 'N/A'}', overflow: TextOverflow.ellipsis),
+                                subtitle: Text('${ui['university_id'] ?? '—'} • ${person['role_data']?['Roles'] ?? 'N/A'}', overflow: TextOverflow.ellipsis),
                                 // admins get a shield icon — cannot be edited by others, dili pwede
                                 trailing: isTargetAdmin 
                                   ? const Icon(Icons.shield, color: AppColors.textSecondary, size: 20) // Admins cannot be edited by other admins

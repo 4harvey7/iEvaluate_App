@@ -51,15 +51,11 @@ class ScanImageViewer extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
             Text(
-              rejectionReason != null
-                  ? 'NOT A SAST FORM - REJECTED'
-                  : task.status.name.toUpperCase(),
+              _statusLabel.$1,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: rejectionReason != null
-                    ? AppColors.error
-                    : _statusColor(task.status),
+                color: _statusLabel.$2,
               ),
             ),
           ],
@@ -158,6 +154,22 @@ class ScanImageViewer extends StatelessWidget {
             )
           : null,
     );
+  }
+
+  // Same labels as the sync queue row: an upload n8n did not count keeps
+  // status success, so the outcome decides the label, never plain SUCCESS.
+  (String, Color) get _statusLabel {
+    if (rejectionReason != null || task.isNotSast) {
+      return ('NOT A SAST FORM - REJECTED', AppColors.error);
+    }
+    if (task.status == SyncStatus.success && task.outcome != null) {
+      return switch (task.outcome) {
+        'needs_review' => ('NEEDS REVIEW', Colors.deepPurple),
+        'duplicate_stamp' => ('ALREADY SCANNED', AppColors.warning),
+        _ => ('DISCARDED (FEWER THAN 5 ANSWERS)', AppColors.warning),
+      };
+    }
+    return (task.status.name.toUpperCase(), _statusColor(task.status));
   }
 
   Color _statusColor(SyncStatus status) {

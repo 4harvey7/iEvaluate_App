@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/utils/initials.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/services/automation_service.dart';
 import '../core/services/scan_image_service.dart';
@@ -1574,7 +1575,7 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
             _instructorSuggestions,
             itemBuilder: (item) => Row(
               children: [
-                _avatar(_initialsOf(item.name)),
+                _avatar(initialsOf(item.name)),
                 const SizedBox(width: 12),
                 Flexible(
                   child: Text(
@@ -1787,12 +1788,4 @@ class _FailedScanDetailScreenState extends State<FailedScanDetailScreen> {
           ),
         ),
       );
-
-  String _initialsOf(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    if (parts.isEmpty) return '';
-    final f = parts.first[0];
-    final l = parts.length > 1 ? parts.last[0] : '';
-    return '$f$l'.toUpperCase();
-  }
 }

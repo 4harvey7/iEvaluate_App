@@ -1,4 +1,4 @@
-// evaluation_service.dart
+﻿// evaluation_service.dart
 // this is the big boy service. handles all the evaluation data fetching.
 // talks to supabase, crunches numbers, returns summaries. importente kaayo.
 import 'package:flutter/foundation.dart';
@@ -92,6 +92,13 @@ class InstructorPerformance {
   final double overallScore;   // their overall evaluation score
   final int subjectCount;      // how many subjects they teaching this term
   final String trend;          // "up", "down", or "stable" -- currently hardcoded to "up", bahala na
+  final String firstName;
+  final String lastName;
+  final String college;        // colleges.name
+  final String deptCode;       // department_name.d_code
+  final double? mgmtScore;     // management_mean
+  final double? perfScore;     // performance_mean
+  final int totalResponses;
 
   InstructorPerformance({
     required this.id,
@@ -100,7 +107,16 @@ class InstructorPerformance {
     required this.overallScore,
     required this.subjectCount,
     required this.trend,
+    this.firstName = '',
+    this.lastName = '',
+    this.college = '',
+    this.deptCode = '',
+    this.mgmtScore,
+    this.perfScore,
+    this.totalResponses = 0,
   });
+
+  String get reportName => '$lastName, $firstName'.toUpperCase();
 }
 
 // holds analytics data for a specific subject -- avg score, dept avg, difficulty level, sentiment
@@ -776,7 +792,7 @@ class EvaluationService {
       SastRating.parse(row['combined_score_mean']) ??
       SastRating.parse(row['overall_mean']);
 
-  // get the top 10 instructors by overall score for the active term.
+  // get every scored instructor for the term (callers cap the list if they need to).
   // sorted descending so the best comes first. deans like to see who on top.
   Future<List<InstructorPerformance>> getTopInstructors({String? termId}) =>
       _guard('getTopInstructors', () => _topInstructors(termId),
@@ -786,8 +802,8 @@ class EvaluationService {
     final resolvedTermId = termId ?? await _getActiveTermId();
     if (resolvedTermId == null) return []; // no term, nobody on top today
 
-    // ── Find the previous term so we can compute a real trend ───────────────
-    // Same approach as faculty_roster_screen.dart — order terms by created_at,
+    // â”€â”€ Find the previous term so we can compute a real trend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Same approach as faculty_roster_screen.dart â€” order terms by created_at,
     // find the one immediately before the active term.
     final allTerms = await _supabase
         .from('academic_terms')
@@ -805,16 +821,19 @@ class EvaluationService {
           instructor_id,
           overall_mean,
           combined_score_mean,
+          management_mean,
+          performance_mean,
+          total_responses,
           user_info!instructor_id(\n            first_name, \n            last_name,
             department_table!user_id(
-              department_name!Department_name_ID(d_name)
+              department_name!Department_name_ID(d_name, d_code, colleges(name))
             ),
             instructor_subjects!instructor_id(id, term_id)
           )
         ''')
         .eq('term_id', resolvedTermId);
 
-    // ── Rank on the score this list actually shows ───────────────────────────
+    // â”€â”€ Rank on the score this list actually shows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // The query used to end `.order('overall_mean').limit(10)` while the score
     // displayed below is combined_score_mean, falling back to overall_mean only
     // when it is null. Ranking on one column and showing another cut
@@ -826,28 +845,22 @@ class EvaluationService {
         .where((row) => _scoreOf(row) != null)
         .toList()
       ..sort((a, b) => _scoreOf(b)!.compareTo(_scoreOf(a)!));
-    final top = ranked.take(10).toList();
+    final top = ranked;
 
-    // ── Batch-fetch previous term scores for trend comparison ────────────────
-    // One extra query for all top-10 IDs at once — avoids N+1 per instructor.
+    // â”€â”€ Fetch previous term scores for trend comparison â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Filter on term only (no id list) to keep the URL short.
     final Map<String, double> prevScores = {};
-    if (previousTermId != null) {
-      final instructorIds =
-          top.map((row) => row['instructor_id'] as String).toList();
+    if (previousTermId != null && top.isNotEmpty) {
+      final prevData = await _supabase
+          .from('overall_total_survey')
+          .select('instructor_id, overall_mean, combined_score_mean')
+          .eq('term_id', previousTermId);
 
-      if (instructorIds.isNotEmpty) {
-        final prevData = await _supabase
-            .from('overall_total_survey')
-            .select('instructor_id, overall_mean, combined_score_mean')
-            .eq('term_id', previousTermId)
-            .filter('instructor_id', 'in', instructorIds);
-
-        for (final row in prevData as List) {
-          final id = row['instructor_id'] as String?;
-          final prev = _scoreOf(Map<String, dynamic>.from(row as Map));
-          if (id != null && prev != null) {
-            prevScores[id] = prev;
-          }
+      for (final row in prevData as List) {
+        final id = row['instructor_id'] as String?;
+        final prev = _scoreOf(Map<String, dynamic>.from(row as Map));
+        if (id != null && prev != null) {
+          prevScores[id] = prev;
         }
       }
     }
@@ -864,30 +877,36 @@ class EvaluationService {
       // Defensive: department_table should hold one row per user. More than one
       // is a data fault, so name it rather than silently picking the first.
       String deptName = 'Unknown'; // default if we cant find the dept name
+      String deptCode = '';
+      String college = '';
       if (deptTables.length > 1) {
         deptName = 'Multiple Departments';
       } else if (deptTables.isNotEmpty && deptTables[0] != null) {
         final deptNameData = deptTables[0]['department_name'];
         if (deptNameData != null) {
           deptName = deptNameData['d_name'] ?? 'Unknown';
+          deptCode = deptNameData['d_code']?.toString() ?? '';
+          final c = deptNameData['colleges'];
+          final cm = c is List ? (c.isNotEmpty ? c.first : null) : c;
+          college = cm is Map ? (cm['name']?.toString() ?? '') : '';
         }
       }
       final allSubjects = userInfo['instructor_subjects'] as List? ?? [];
       final subjects = allSubjects.where((s) => s['term_id'] == resolvedTermId).toList(); // only count for selected term
 
-      // ── Real trend: compare current score vs previous term ─────────────────
-      // Threshold of 0.1 — anything smaller is noise, not a real change.
+      // â”€â”€ Real trend: compare current score vs previous term â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // Threshold of 0.1 â€” anything smaller is noise, not a real change.
       final currentScore = _scoreOf(row)!; // ranked rows all have a score
       final prevScore = prevScores[row['instructor_id'] as String];
       final String trend;
       if (prevScore == null) {
-        trend = 'flat'; // no previous term data to compare — dont guess
+        trend = 'flat'; // no previous term data to compare â€” dont guess
       } else if (currentScore - prevScore > 0.1) {
-        trend = 'up'; // improved by more than 0.1 — genuine increase
+        trend = 'up'; // improved by more than 0.1 â€” genuine increase
       } else if (prevScore - currentScore > 0.1) {
-        trend = 'down'; // dropped by more than 0.1 — dean should notice
+        trend = 'down'; // dropped by more than 0.1 â€” dean should notice
       } else {
-        trend = 'flat'; // within noise threshold — status quo
+        trend = 'flat'; // within noise threshold â€” status quo
       }
 
       return InstructorPerformance(
@@ -897,6 +916,13 @@ class EvaluationService {
         overallScore: currentScore,
         subjectCount: subjects.length, // number of subjects they have assigned
         trend: trend, // real term-over-term trend, not hardcoded
+        firstName: userInfo['first_name']?.toString() ?? '',
+        lastName: userInfo['last_name']?.toString() ?? '',
+        college: college,
+        deptCode: deptCode,
+        mgmtScore: SastRating.parse(row['management_mean']),
+        perfScore: SastRating.parse(row['performance_mean']),
+        totalResponses: (row['total_responses'] as num?)?.toInt() ?? 0,
       );
     }).whereType<InstructorPerformance>().toList(); // filter out the nulls we skipped
   }
@@ -916,7 +942,7 @@ class EvaluationService {
 
     final rows = List<Map<String, dynamic>>.from(data as List);
 
-    // Sort semantically: oldest year first, then 1st → 2nd → Summer within year
+    // Sort semantically: oldest year first, then 1st â†’ 2nd â†’ Summer within year
     const semOrder = {'1st': 0, '2nd': 1, 'Summer': 2};
     rows.sort((a, b) {
       final aTerm = a['academic_terms'] as Map?;
@@ -955,44 +981,6 @@ class EvaluationService {
     }).toList();
   }
 
-  // get the subjects taught by an instructor in the current active term with their scores.
-  // used in instructor detail views -- shows per-subject performance breakdown
-  Future<List<Map<String, dynamic>>> getInstructorSubjects(
-          String instructorId) =>
-      _guard('getInstructorSubjects', () => _instructorSubjects(instructorId),
-          const <Map<String, dynamic>>[]);
-
-  Future<List<Map<String, dynamic>>> _instructorSubjects(
-      String instructorId) async {
-    final termId = await _getActiveTermId();
-    if (termId == null) return []; // no active term, nothing to show
-
-    final data = await _supabase
-        .from('management_results')
-        .select('overall_management_mean, subjects!subject_id(subject_code, subject_name)')
-        .eq('instructor_id', instructorId)
-        .eq('term_id', termId); // only get subjects for the active term
-
-    return (data as List).map((row) {
-      final subjectRaw = row['subjects'];
-      Map<String, dynamic>? subject;
-      // supabase sometimes return as List, sometimes as Map -- handle both, wala choice
-      if (subjectRaw is List && subjectRaw.isNotEmpty) {
-        subject = subjectRaw[0]; // take first element if it's a list
-      } else if (subjectRaw is Map<String, dynamic>) {
-        subject = subjectRaw; // already a map, use directly
-      }
-      
-      if (subject == null) return null; // no subject data, skip
-      final score = SastRating.parse(row['overall_management_mean']);
-      if (score == null) return null; // no answers yet -- nothing to plot, not a 0
-
-      return {
-        'name': '${subject['subject_code']} - ${subject['subject_name']}', // formatted subject label
-        'score': score,
-      };
-    }).whereType<Map<String, dynamic>>().toList(); // remove nulls
-  }
 
   // get subject-level analytics for the dean's department.
   // groups management_results by subject, computes scores per instructor per subject,
@@ -1137,7 +1125,7 @@ class EvaluationService {
           deptAvg: double.parse(deptAvg.toStringAsFixed(2)),
           difficulty: avgScore < 3.5 ? 'High' : (avgScore < 4.5 ? 'Moderate' : 'Low'), // lower score = harder to do well
           sentiment: dominantSentiment, // sentiment based on student remarks tone
-          // Trend: compare subject avg to dept avg — no extra query needed.
+          // Trend: compare subject avg to dept avg â€” no extra query needed.
           // >0.1 above dept avg = up (subject doing well), >0.1 below = down (needs attention).
           trend: avgScore - deptAvg > 0.1
               ? 'up'
@@ -1546,7 +1534,8 @@ class EvaluationService {
   // create a new intervention report for an underperforming instructor.
   // saves to db then tries to send an email notification to the instructor.
   // email failure is non-critical -- the report still save even if email fail, wala choice
-  Future<void> createIntervention({
+  // Returns true if the email was sent, false if only the email failed.
+  Future<bool> createIntervention({
     required String instructorId,
     required String deanId,
     required String actionType,
@@ -1606,8 +1595,10 @@ class EvaluationService {
         },
       );
       debugPrint('[createIntervention] Email notification sent to instructor.');
+      return true;
     } catch (e) {
       debugPrint('[createIntervention] Email notification failed (non-critical): $e'); // log it but dont crash
+      return false;
     }
   }
 

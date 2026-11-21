@@ -291,7 +291,7 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                           }
                           try {
                             // Create the intervention record in the database
-                            await _evaluationService.createIntervention(
+                            final emailSent = await _evaluationService.createIntervention(
                               instructorId: alert.instructorId!,
                               deanId: deanId,
                               actionType: selectedAction, // The mandated action dean picked
@@ -305,7 +305,9 @@ class _InterventionReportsScreenState extends State<InterventionReportsScreen> {
                             if (mounted) {
                               _loadData(); // Reload so the new report appears in the log
                             }
-                            scaffoldMessenger.showSnackBar(const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success));
+                            scaffoldMessenger.showSnackBar(emailSent
+                                ? const SnackBar(content: Text('Intervention recorded successfully.'), backgroundColor: AppColors.success)
+                                : const SnackBar(content: Text('Recorded, but the email to the instructor could not be sent.'), backgroundColor: AppColors.error));
                           } catch (e) {
                             if (isSheetOpen && sheetContext.mounted) {
                               setSheetState(() => isSubmitting = false); // Re-enable on error

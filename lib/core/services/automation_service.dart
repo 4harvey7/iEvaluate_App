@@ -2,9 +2,8 @@
 //
 // ── Automation & n8n Gateway ──────────────────────────────────────────────────
 // Shields the backend IP from reverse engineering and network sniffing.
-//
-// Instead of making unauthenticated HTTP calls directly to the server IP
-// (http://5.104.84.162:5678), all requests route through the Supabase Edge Function
+// Instead of making unauthenticated HTTP calls directly to the server,
+// all requests route through the Supabase Edge Function
 // `n8n-proxy`. The Edge Function verifies the user's session JWT and role,
 // attaches secure headers, and forwards requests internally.
 //

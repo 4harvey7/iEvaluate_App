@@ -62,142 +62,220 @@ class PdfService {
   }
 
   // ─────────────────────────────────────────────────────────
-  //  Performance Report (SAO Admin)
+  //  Consolidated SAST Report (one college per PDF, alphabetized)
   // ─────────────────────────────────────────────────────────
-  Future<void> generatePerformanceReport({
-    required String title,
-    required Map<String, dynamic> overviewStats,
-    required List<InstructorPerformance> topInstructors,
+  /// Groups by college ('NO COLLEGE ASSIGNED' when blank); keys and rows alphabetical.
+  static Map<String, List<InstructorPerformance>> byCollege(List<InstructorPerformance> rows) {
+    final groups = <String, List<InstructorPerformance>>{};
+    for (final r in rows) {
+      final c = r.college.trim().isEmpty ? 'NO COLLEGE ASSIGNED' : r.college.trim();
+      groups.putIfAbsent(c, () => []).add(r);
+    }
+    final keys = groups.keys.toList()..sort();
+    return {
+      for (final k in keys) k: groups[k]!..sort((a, b) => a.reportName.compareTo(b.reportName)),
+    };
+  }
+
+  Future<void> generateConsolidatedReport({
+    required String term,
+    required String academicYear,
+    required String college,
+    required String department,
+    required List<InstructorPerformance> rows,
+    required SastSignatories signatories,
+  }) async {
+    final bytes = await buildConsolidatedReport(
+      term: term,
+      academicYear: academicYear,
+      college: college,
+      department: department,
+      rows: rows,
+      signatories: signatories,
+    );
+    final safe = '${college.replaceAll(' ', '_')}_${term}_$academicYear'.replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_');
+    await _saveAndShare(bytes, 'SAST_Consolidated_$safe.pdf');
+  }
+
+  Future<Uint8List> buildConsolidatedReport({
+    required String term,
+    required String academicYear,
+    required String college,
+    required String department,
+    required List<InstructorPerformance> rows,
+    required SastSignatories signatories,
   }) async {
     final pdf = pw.Document();
+    await _addCollegeSection(pdf, await _loadLetterheadImages(),
+        term: term, academicYear: academicYear, college: college,
+        department: department, rows: rows, signatories: signatories);
+    return pdf.save();
+  }
 
-    // Load logo from assets
-    pw.MemoryImage? logo;
-    try {
-      final ByteData logoData = await rootBundle.load('assets/images/CTU_logo.png');
-      logo = pw.MemoryImage(logoData.buffer.asUint8List());
-    } catch (e) {
-      debugPrint('Logo not found: $e');
+  Future<void> generateConsolidatedReportAll({
+    required String term,
+    required String academicYear,
+    required Map<String, List<InstructorPerformance>> groups,
+    required SastSignatories signatories,
+  }) async {
+    final bytes = await buildConsolidatedReportAll(
+        term: term, academicYear: academicYear, groups: groups, signatories: signatories);
+    final safe = '${term}_$academicYear'.replaceAll(' ', '_').replaceAll(RegExp(r'[^A-Za-z0-9_\-]'), '_');
+    await _saveAndShare(bytes, 'SAST_Consolidated_ALL_COLLEGES_$safe.pdf');
+  }
+
+  /// One PDF, one section (new page, own table and signatures) per college.
+  Future<Uint8List> buildConsolidatedReportAll({
+    required String term,
+    required String academicYear,
+    required Map<String, List<InstructorPerformance>> groups,
+    required SastSignatories signatories,
+  }) async {
+    final pdf = pw.Document();
+    final imgs = await _loadLetterheadImages();
+    for (final g in groups.entries) {
+      await _addCollegeSection(pdf, imgs,
+          term: term, academicYear: academicYear, college: g.key,
+          department: g.value.map((r) => r.deptCode).where((d) => d.isNotEmpty).toSet().join(', '),
+          rows: g.value, signatories: signatories);
+    }
+    return pdf.save();
+  }
+
+  Future<(pw.MemoryImage?, pw.MemoryImage?)> _loadLetterheadImages() async {
+    Future<pw.MemoryImage?> loadImage(String path) async {
+      try {
+        final ByteData data = await rootBundle.load(path);
+        return pw.MemoryImage(data.buffer.asUint8List());
+      } catch (e) {
+        debugPrint('Image not found ($path): $e');
+        return null;
+      }
     }
 
-    // Define colors for the prestige look
-    final primaryColor = PdfColor.fromHex('#F58220'); // CTU Orange/Primary
-    final headerBgColor = PdfColor.fromHex('#F8F9FA'); // Light gray background
-    final darkTextColor = PdfColor.fromHex('#1E293B'); // Slate 800
+    return (await loadImage('assets/images/ctu_seal.png'), await loadImage('assets/images/bagong_pilipinas.png'));
+  }
+
+  Future<void> _addCollegeSection(
+    pw.Document pdf,
+    (pw.MemoryImage?, pw.MemoryImage?) imgs, {
+    required String term,
+    required String academicYear,
+    required String college,
+    required String department,
+    required List<InstructorPerformance> rows,
+    required SastSignatories signatories,
+  }) async {
+    assert(rows.every((r) => r.college == college));
+    final seal = imgs.$1;
+    final bagong = imgs.$2;
+    final sorted = [...rows]..sort((a, b) => a.reportName.compareTo(b.reportName));
+
+    pw.Widget names(String t) => pw.Container(
+          alignment: pw.Alignment.centerLeft,
+          padding: const pw.EdgeInsets.all(3),
+          child: pw.Text(t, style: const pw.TextStyle(fontSize: 9)),
+        );
 
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
-        build: (pw.Context context) {
-          return [
-            // ── Official University Header ──
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                if (logo != null) pw.SizedBox(height: 60, width: 60, child: pw.Image(logo))
-                else pw.SizedBox(width: 60),
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    pw.Text('Republic of the Philippines', style: pw.TextStyle(fontSize: 10, color: darkTextColor)),
-                    pw.Text('CEBU TECHNOLOGICAL UNIVERSITY', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: darkTextColor)),
-                    pw.Text('ARGAO CAMPUS', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: primaryColor)),
-                    pw.Text('Ed Kintanar Street, Lamacan, Argao, Cebu', style: pw.TextStyle(fontSize: 10, color: darkTextColor)),
-                  ],
-                ),
-                pw.SizedBox(width: 60), // Balance the logo
-              ],
-            ),
-            pw.SizedBox(height: 20),
-            
-            // ── Report Title ──
-            pw.Container(
-              width: double.infinity,
-              padding: const pw.EdgeInsets.symmetric(vertical: 12),
-              decoration: pw.BoxDecoration(
-                border: pw.Border(top: pw.BorderSide(color: primaryColor, width: 2), bottom: pw.BorderSide(color: primaryColor, width: 2)),
-              ),
-              child: pw.Column(
-                children: [
-                  pw.Text('UNIVERSITY PERFORMANCE REPORT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: darkTextColor)),
-                  pw.SizedBox(height: 4),
-                  pw.Text(title.replaceAll('University Performance Report - ', ''), style: pw.TextStyle(fontSize: 12, color: darkTextColor)),
-                ]
-              )
-            ),
-            pw.SizedBox(height: 30),
-
-            // ── Overview Statistics ──
-            pw.Text('OVERVIEW STATISTICS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
-            pw.SizedBox(height: 10),
-            pw.Container(
-              padding: const pw.EdgeInsets.all(16),
-              decoration: pw.BoxDecoration(
-                color: headerBgColor,
-                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
-                border: pw.Border.all(color: PdfColors.grey300),
-              ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: [
-                  _buildPremiumStatItem('University Average', (overviewStats['overall'] ?? 'N/A').toString(), primaryColor),
-                  _buildPremiumStatItem('Total Evaluations', (overviewStats['totalEvals'] ?? 'N/A').toString(), darkTextColor),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 30),
-
-
-
-            // ── Top Performing Instructors Table ──
-            pw.Text('TOP PERFORMING INSTRUCTORS', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: primaryColor)),
-            pw.SizedBox(height: 10),
-            pw.TableHelper.fromTextArray(
-              headers: ['Rank', 'Instructor', 'Department', 'Score', 'Evals'],
-              data: topInstructors.asMap().entries.map((e) => [
-                '#${e.key + 1}',
-                e.value.name,
-                e.value.department.replaceAll('College of ', ''), // Shorten long names
-                e.value.overallScore.toStringAsFixed(2),
-                e.value.subjectCount.toString(),
-              ]).toList(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 11),
-              headerDecoration: pw.BoxDecoration(color: primaryColor), // Highlight the top performers table
-              cellStyle: const pw.TextStyle(fontSize: 10),
-              cellAlignment: pw.Alignment.centerLeft,
-              cellAlignments: {0: pw.Alignment.center, 3: pw.Alignment.center, 4: pw.Alignment.center},
-              border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
-              rowDecoration: const pw.BoxDecoration(
-                border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey200, width: 0.5)),
-              ),
-            ),
-            
-            pw.SizedBox(height: 40),
-            pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Text('Generated on: ${DateTime.now().toString().split('.')[0]}', style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600))
-            )
-          ];
-        },
+        margin: const pw.EdgeInsets.all(32),
+        build: (ctx) => [
+          _pwLetterhead(seal, bagong),
+          pw.SizedBox(height: 8),
+          pw.Center(
+            child: pw.Column(children: [
+              pw.Text("STUDENTS' ASSESSMENT SURVEY FOR TEACHERS (SAST)", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+              pw.Text('CONSOLIDATED REPORT (ALPHABETIZED)', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            ]),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            _pwField('Term', term),
+            _pwField('Academic Year', academicYear),
+          ]),
+          pw.SizedBox(height: 3),
+          pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+            _pwField('College', college),
+            _pwField('Department', department),
+          ]),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(width: 0.5),
+            columnWidths: const {
+              0: pw.FixedColumnWidth(36),
+              1: pw.FlexColumnWidth(3),
+              2: pw.FixedColumnWidth(32),
+              3: pw.FlexColumnWidth(),
+              4: pw.FlexColumnWidth(),
+              5: pw.FlexColumnWidth(),
+            },
+            children: [
+              pw.TableRow(children: [
+                _pwHdr('Ref. No.'), _pwHdr('Names of Instructors'), _pwHdr('N'),
+                _pwHdr('MANAGEMENT'), _pwHdr('PERFORMANCE'), _pwHdr('OVERALL'),
+              ]),
+              pw.TableRow(children: [
+                _pwHdr(''), _pwHdr(''), _pwHdr(''),
+                _pwPair(null, header: true), _pwPair(null, header: true), _pwPair(null, header: true),
+              ]),
+              for (var i = 0; i < sorted.length; i++)
+                pw.TableRow(children: [
+                  _pwVal('${i + 1}'),
+                  names(sorted[i].reportName),
+                  _pwVal('${sorted[i].totalResponses}'),
+                  _pwPair(sorted[i].mgmtScore),
+                  _pwPair(sorted[i].perfScore),
+                  _pwPair(sorted[i].overallScore),
+                ]),
+            ],
+          ),
+          pw.SizedBox(height: 24),
+          pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+            _pwSign('Prepared by:', signatories.preparedByName, signatories.preparedByTitle),
+            _pwSign('Checked and Verified:', signatories.checkedByName, signatories.checkedByTitle),
+            _pwSign('Certified Proper and In Order:', signatories.certifiedByName, signatories.certifiedByTitle),
+          ]),
+        ],
       ),
     );
-
-    final bytes = await pdf.save();
-    final fileName = '${title.replaceAll(' ', '_')}.pdf';
-    await _saveAndShare(bytes, fileName);
   }
 
-  pw.Widget _buildPremiumStatItem(String label, String value, PdfColor valueColor) {
-    return pw.Column(
-      children: [
-        pw.Text(label, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-        pw.SizedBox(height: 4),
-        pw.Text(value, style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: valueColor)),
-      ],
-    );
-  }
+  // Shared by the individual comments page and the consolidated report.
+  pw.Widget _pwField(String label, String value) => pw.Row(children: [
+        pw.Text('$label: ', style: const pw.TextStyle(fontSize: 9)),
+        pw.Text(value, style: pw.TextStyle(fontSize: 9, decoration: pw.TextDecoration.underline)),
+      ]);
+
+  pw.Widget _pwHdr(String t) => pw.Container(
+        alignment: pw.Alignment.center,
+        padding: const pw.EdgeInsets.all(2),
+        child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+      );
+
+  pw.Widget _pwVal(String t) => pw.Container(
+        alignment: pw.Alignment.center,
+        padding: const pw.EdgeInsets.all(3),
+        child: pw.Text(t, style: const pw.TextStyle(fontSize: 9)),
+      );
+
+  pw.Widget _pwPair(double? score, {bool header = false}) => pw.Row(children: [
+        pw.Expanded(child: header ? _pwHdr('Mean') : _pwVal(_fmt(score))),
+        pw.Expanded(child: header ? _pwHdr('VD') : _pwVal(SastRating.code(score))),
+      ]);
+
+  pw.Widget _pwSign(String label, String name, String title) => pw.Expanded(
+        child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
+          pw.Align(
+            alignment: pw.Alignment.centerLeft,
+            child: pw.Text(label, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+          ),
+          pw.SizedBox(height: 22),
+          pw.Text(name.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
+          pw.Text(title, style: const pw.TextStyle(fontSize: 8)),
+        ]),
+      );
 
   // ─────────────────────────────────────────────────────────
   //  Instructor Detailed Report (Instructor + Department Head)
@@ -385,6 +463,10 @@ class PdfService {
   static String _shortTerm(String term) =>
       term.trim().toUpperCase().replaceAll('SEMESTER', 'SEM');
 
+  // The built-in Helvetica only has Latin-1 glyphs, so SastRating's em dash
+  // would print as a box; use a plain hyphen for a missing mean in the PDF.
+  static String _fmt(double? score) => SastRating.format(score, empty: '-');
+
   pw.Widget _cell(String text, {double size = 8, bool bold = false, pw.TextAlign align = pw.TextAlign.left, PdfColor? bg}) {
     return pw.Container(
       color: bg,
@@ -410,7 +492,7 @@ class PdfService {
         for (var i = 0; i < items.length; i++)
           pw.TableRow(children: [
             _cell('${i + 1}. ${items[i].toLowerCase()}'),
-            _cell(SastRating.format(i < means.length ? means[i] : null), align: pw.TextAlign.center),
+            _cell(_fmt(i < means.length ? means[i] : null), align: pw.TextAlign.center),
             _cell(SastRating.code(i < means.length ? means[i] : null), align: pw.TextAlign.center),
           ]),
       ],
@@ -460,7 +542,7 @@ class PdfService {
             child: pw.Column(children: [
               if (college.trim().isNotEmpty)
                 pw.Text(college.trim().toUpperCase(), style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-              pw.Text("STUDENTS' ASSESSMENT SURVEY FOR TEACHERS (SAST) INDIVIDUAL REPORT${isOverall ? ' \u2014 OVERALL' : ''}",
+              pw.Text("STUDENTS' ASSESSMENT SURVEY FOR TEACHERS (SAST) INDIVIDUAL REPORT${isOverall ? ' - OVERALL' : ''}",
                   style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
               pw.Text('AY ${_shortTerm(term)} $academicYear'.trim(),
                   style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
@@ -516,11 +598,11 @@ class PdfService {
                 pw.SizedBox(height: 3),
                 pw.Row(children: [
                   pw.SizedBox(width: 130, child: pw.Text('Management Mean (MM)', style: const pw.TextStyle(fontSize: 9))),
-                  pw.Text(': ${SastRating.format(mgmtScore)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(': ${_fmt(mgmtScore)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 ]),
                 pw.Row(children: [
                   pw.SizedBox(width: 130, child: pw.Text('Performance Mean (PM)', style: const pw.TextStyle(fontSize: 9))),
-                  pw.Text(': ${SastRating.format(perfScore)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(': ${_fmt(perfScore)}', style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                 ]),
               ]),
             ),
@@ -529,7 +611,7 @@ class PdfService {
                 child: pw.Column(children: [
                   pw.Text('You are a/an', style: const pw.TextStyle(fontSize: 9)),
                   pw.Text(verbal, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-                  pw.Text('General Average ${SastRating.format(overallScore)}', style: const pw.TextStyle(fontSize: 10)),
+                  pw.Text('General Average ${_fmt(overallScore)}', style: const pw.TextStyle(fontSize: 10)),
                   pw.Text('Instructor/Professor', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
                 ]),
               ),
@@ -564,8 +646,8 @@ class PdfService {
     }
     final vm = SastRating.verbal(mgmt), vp = SastRating.verbal(perf), vo = SastRating.verbal(overall);
     final ratings = (vm == vp && vp == vo)
-        ? 'Management = ${SastRating.format(mgmt)}, Performance = ${SastRating.format(perf)}, Overall = ${SastRating.format(overall)}, all $vo'
-        : 'Management = ${SastRating.format(mgmt)} ($vm), Performance = ${SastRating.format(perf)} ($vp), Overall = ${SastRating.format(overall)} ($vo)';
+        ? 'Management = ${_fmt(mgmt)}, Performance = ${_fmt(perf)}, Overall = ${_fmt(overall)}, all $vo'
+        : 'Management = ${_fmt(mgmt)} ($vm), Performance = ${_fmt(perf)} ($vp), Overall = ${_fmt(overall)} ($vo)';
 
     final words = wordCloudData
         .map((w) => (w['word'] ?? '').toString().trim())
@@ -617,9 +699,11 @@ class PdfService {
     const s = pw.TextStyle(fontSize: 8);
     return pw.Row(
       crossAxisAlignment: pw.CrossAxisAlignment.center,
+      mainAxisAlignment: pw.MainAxisAlignment.center,
       children: [
         pw.SizedBox(width: 70, height: 70, child: seal != null ? pw.Image(seal) : pw.SizedBox()),
-        pw.Expanded(
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12),
           child: pw.Column(children: [
             pw.Text('Republic of the Philippines', style: const pw.TextStyle(fontSize: 10)),
             pw.Text('CEBU TECHNOLOGICAL UNIVERSITY', style: pw.TextStyle(fontSize: 15, fontWeight: pw.FontWeight.bold)),
@@ -629,7 +713,12 @@ class PdfService {
             pw.Text('Phone No.: (032) 401-0737 local 1780', style: s),
           ]),
         ),
-        pw.SizedBox(width: 70, height: 70, child: bagong != null ? pw.Image(bagong) : pw.SizedBox()),
+        pw.SizedBox(
+          width: 70,
+          height: 70,
+          // shortcut: scale keeps the 70pt layout footprint; overflow is 6pt per side, inside the 12pt padding.
+          child: bagong != null ? pw.Transform.scale(scale: 82 / 70, child: pw.Image(bagong)) : pw.SizedBox(),
+        ),
       ],
     );
   }
@@ -714,38 +803,8 @@ class PdfService {
       style: pw.TextStyle(fontSize: len <= 1300 ? 10.0 : (len <= 1800 ? 9.0 : 8.0), lineSpacing: 2),
     );
 
-    pw.Widget field(String label, String value) => pw.Row(children: [
-          pw.Text('$label: ', style: const pw.TextStyle(fontSize: 9)),
-          pw.Text(value, style: pw.TextStyle(fontSize: 9, decoration: pw.TextDecoration.underline)),
-        ]);
+    final field = _pwField, hdr = _pwHdr, val = _pwVal, pair = _pwPair, sign = _pwSign;
 
-    pw.Widget hdr(String t, {int span = 1}) => pw.Container(
-          alignment: pw.Alignment.center,
-          padding: const pw.EdgeInsets.all(2),
-          child: pw.Text(t, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-        );
-    pw.Widget val(String t) => pw.Container(
-          alignment: pw.Alignment.center,
-          padding: const pw.EdgeInsets.all(3),
-          child: pw.Text(t, style: const pw.TextStyle(fontSize: 9)),
-        );
-
-    pw.Widget pair(double? score, {bool header = false}) => pw.Row(children: [
-          pw.Expanded(child: header ? hdr('Mean') : val(SastRating.format(score))),
-          pw.Expanded(child: header ? hdr('VD') : val(SastRating.code(score))),
-        ]);
-
-    pw.Widget sign(String label, String name, String title) => pw.Expanded(
-          child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.center, children: [
-            pw.Align(
-              alignment: pw.Alignment.centerLeft,
-              child: pw.Text(label, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
-            ),
-            pw.SizedBox(height: 22),
-            pw.Text(name.toUpperCase(), style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, decoration: pw.TextDecoration.underline)),
-            pw.Text(title, style: const pw.TextStyle(fontSize: 8)),
-          ]),
-        );
 
     return [
         _pwLetterhead(seal, bagong),

@@ -327,7 +327,8 @@ class _FacultyRosterScreenState extends State<FacultyRosterScreen>
     } else if (_sortBy == 'Score (Lowest to Highest)') {
       filtered.sort((a, b) => byScore(a, b, desc: false)); // Worst to best — intervention mode
     } else if (_sortBy == 'Name (A-Z)') {
-      filtered.sort((a, b) => a['name'].compareTo(b['name'])); // Alphabetical — old school
+      // DEF-V2: case-insensitive, so "johnny" is not sorted after "UAT".
+      filtered.sort((a, b) => (a['name'] as String).toLowerCase().compareTo((b['name'] as String).toLowerCase()));
     }
     return filtered;
   }

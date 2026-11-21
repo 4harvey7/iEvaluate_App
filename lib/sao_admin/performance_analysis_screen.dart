@@ -12,6 +12,7 @@ import '../widgets/apple_ui.dart';
 import '../widgets/controller_disposer.dart';
 import '../core/services/term_aware_state.dart';
 import '../core/utils/sast_rating.dart';
+import '../widgets/instructor_detail_sheet.dart';
 
 // outer widget shell, nothing fancy yet
 class PerformanceAnalysisScreen extends StatefulWidget {
@@ -43,7 +44,18 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
   };
 
 
-  List<InstructorPerformance> _topInstructors = []; // ranked list of instructors by score
+  List<InstructorPerformance> _topInstructors = []; // all scored instructors
+  String? _college; // null = All Colleges
+  bool _lowestFirst = false;
+
+  List<String> get _colleges =>
+      (_topInstructors.map((i) => i.college).where((c) => c.isNotEmpty).toSet().toList()..sort());
+
+  List<InstructorPerformance> get _visible {
+    final l = _topInstructors.where((i) => _college == null || i.college == _college).toList();
+    l.sort((a, b) => _lowestFirst ? a.overallScore.compareTo(b.overallScore) : b.overallScore.compareTo(a.overallScore));
+    return l;
+  }
 
   // called once when screen opens — load everything
   @override
@@ -97,6 +109,8 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
             final isCurrent = r['id'] == activeTermId;
             return {
               'id': r['id'] as String,
+              'semester': '${r['semester'] ?? ''}',
+              'academic_year': '${r['academic_year'] ?? ''}',
               'label': '${r['semester']} ${r['academic_year']}${isCurrent ? ' (Current)' : ''}',
             };
           }).toList();
@@ -160,7 +174,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
   // ==========================================
   void _showAllInstructors() {
     final searchController = TextEditingController();
-    List<InstructorPerformance> filtered = List.from(_topInstructors); // start with all
+    List<InstructorPerformance> filtered = List.from(_visible); // start with the current filter
 
     showModalBottomSheet(
       context: context,
@@ -207,7 +221,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                     controller: searchController,
                     onChanged: (q) => setSheetState(() {
                       // filter locally, no new DB call needed
-                      filtered = _topInstructors.where((i) =>
+                      filtered = _visible.where((i) =>
                           i.name.toLowerCase().contains(q.toLowerCase()) ||
                           i.department.toLowerCase().contains(q.toLowerCase())).toList();
                     }),
@@ -268,186 +282,67 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
   }
 
   // ==========================================
-  // INSTRUCTOR DETAILS POP-UP (WITH ZOOMABLE CHART)
-  // shows historical score chart and current term subject breakdown
+  // INSTRUCTOR DETAILS SHEET — the shared widget does the UI and loading
   // ==========================================
+  bool _detailSheetOpen = false; // stops a double tap from stacking two sheets
+
   Future<void> _showInstructorDetailsSheet(InstructorPerformance instructor) async {
-    // Fetch detailed info on demand — ayaw fetch this for all instructors at once
-    final history = await _evaluationService.getInstructorHistory(instructor.id); // past term scores
-    final subjects = await _evaluationService.getInstructorSubjects(instructor.id); // current term subjects
+    if (_detailSheetOpen) return;
+    _detailSheetOpen = true;
+    try {
+      await showInstructorDetailSheet(
+        context,
+        instructorId: instructor.id,
+        name: instructor.name,
+        department: instructor.department,
+        termId: _selectedTermId,
+      );
+    } finally {
+      _detailSheetOpen = false;
+    }
+  }
 
-    if (!mounted) return;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (BuildContext sheetContext) {
-        double chartScale = 1.0; // current zoom level of the bar chart
-
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setSheetState) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.85, // takes 85% of screen
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Sticky Header — name, dept, and close button
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: const BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                          child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 24)),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-                              Text(instructor.department, style: const TextStyle(color: AppColors.textSecondary, fontSize: 14), overflow: TextOverflow.ellipsis),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                          onPressed: () => Navigator.pop(context), // close the sheet
-                        )
-                      ],
-                    ),
-                  ),
-
-                  // Scrollable Content — the chart and subject breakdown below
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Expanded(
-                                child: Text('Historical Performance', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                              ),
-                              // zoom controls for the bar chart
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.zoom_out, color: AppColors.primary),
-                                    onPressed: () {
-                                      // don't zoom out past 60% or the bars become invisible
-                                      if (chartScale > 0.6) setSheetState(() => chartScale -= 0.2);
-                                    },
-                                  ),
-                                  Text('${(chartScale * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // current zoom %
-                                  IconButton(
-                                    icon: const Icon(Icons.zoom_in, color: AppColors.primary),
-                                    onPressed: () {
-                                      // max zoom is 250%, don't let them go nuts
-                                      if (chartScale < 2.5) setSheetState(() => chartScale += 0.2);
-                                    },
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          // the bar chart container — scrollable horizontally if many terms
-                          Container(
-                            height: 220,
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(16)),
-                            child: history.isEmpty 
-                              ? const Center(child: Text("No historical data available", style: TextStyle(color: AppColors.textSecondary)))
-                              : SingleChildScrollView(
-                                scrollDirection: Axis.horizontal, // horizontal scroll if many bars
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(minWidth: MediaQuery.of(context).size.width - 80),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                    crossAxisAlignment: CrossAxisAlignment.end, // bars grow from bottom
-                                    children: history.map<Widget>((data) {
-                                      double barHeight = (data['score'] / 5.0) * 120; // scale bar to max 120px height
-                                      double barWidth = 40 * chartScale; // bar width scales with zoom
-
-                                      return Padding(
-                                        padding: EdgeInsets.symmetric(horizontal: 12.0 * chartScale),
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.end,
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(SastRating.format(data['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary)), // score label on top of bar (2 decimals)
-                                            const SizedBox(height: 8),
-                                            Container(
-                                              width: barWidth,
-                                              height: barHeight, // height proportional to score
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                borderRadius: BorderRadius.circular(6), // rounded tops look nice
-                                              ),
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(data['sem'], style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)), // semester label below bar
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                              ),
-                          ),
-                          const SizedBox(height: 32),
-                          // subject breakdown for the current term
-                          const Text('Current Semester Breakdown', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                          const SizedBox(height: 16),
-                          // show each subject with its score — or empty message if none
-                          subjects.isEmpty
-                            ? const Text("No subjects found for this term", style: TextStyle(color: AppColors.textSecondary))
-                            : Column(
-                                children: subjects.map<Widget>((subject) {
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12)),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Expanded(child: Text(subject['name'], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis)), // subject name
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                          decoration: BoxDecoration(color: AppColors.success.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
-                                          child: Text(SastRating.format(subject['score'] as double?), style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success)), // score badge
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                              ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+  // builds and saves one consolidated SAST PDF per college group
+  Future<void> _exportGroups(Map<String, List<InstructorPerformance>> groups) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+        content: Text(groups.length > 1 ? 'Saving all colleges report...' : 'Saving ${groups.length} college report(s)...')));
+    // building or sharing a PDF can throw, so keep it caught.
+    try {
+      final term = _terms.firstWhere((t) => t['id'] == _selectedTermId, orElse: () => {});
+      SastSignatories signatories;
+      try {
+        final row = await _supabase.from('report_signatories').select('*').eq('id', 1).maybeSingle();
+        signatories = SastSignatories.fromRow(row);
+      } catch (e) {
+        debugPrint('signatories lookup skipped: $e');
+        signatories = SastSignatories.defaults;
+      }
+      final termLabel = (term['semester'] ?? '').toUpperCase();
+      final ay = term['academic_year'] ?? '';
+      if (groups.length > 1) {
+        await _pdfService.generateConsolidatedReportAll(
+          term: termLabel, academicYear: ay, groups: groups, signatories: signatories);
+      } else {
+        final g = groups.entries.first;
+        await _pdfService.generateConsolidatedReport(
+          term: termLabel,
+          academicYear: ay,
+          college: g.key,
+          department: g.value.map((r) => r.deptCode).where((d) => d.isNotEmpty).toSet().join(', '),
+          rows: g.value,
+          signatories: signatories,
         );
-      },
-    );
+      }
+    } catch (e) {
+      debugPrint('Performance PDF export failed: $e');
+      if (mounted) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Could not export the PDF. Please try again.'),
+          backgroundColor: AppColors.error,
+        ));
+      }
+    }
   }
 
   // the main build — full-screen spinner on first load, dashboard after
@@ -476,24 +371,67 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
             onPressed: () async {
               // SafeIconButton already ignores taps while this runs.
               final messenger = ScaffoldMessenger.of(context);
-              messenger.showSnackBar(const SnackBar(content: Text('Saving PDF to Downloads...')));
-              // generatePerformanceReport only guards its logo load; building
-              // or sharing the PDF can still throw, which went uncaught.
-              try {
-                await _pdfService.generatePerformanceReport(
-                  title: 'University Performance Report - $_selectedLabel',
-                  overviewStats: _overviewStats,
-                  topInstructors: _topInstructors,
-                );
-              } catch (e) {
-                debugPrint('Performance PDF export failed: $e');
-                if (mounted) {
-                  messenger.showSnackBar(const SnackBar(
-                    content: Text('Could not export the PDF. Please try again.'),
-                    backgroundColor: AppColors.error,
-                  ));
-                }
+              // ignores the on-screen college filter so any college can be picked
+              final all = PdfService.byCollege(_topInstructors);
+              if (all.isEmpty) {
+                messenger.showSnackBar(const SnackBar(content: Text('No instructor results to export.')));
+                return;
               }
+              final picked = await showModalBottomSheet<Map<String, List<InstructorPerformance>>>(
+                context: context,
+                backgroundColor: Colors.transparent,
+                builder: (ctx) => Container(
+                  decoration: const BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                  ),
+                  child: SafeArea(
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      children: [
+                        Center(
+                          child: Container(width: 40, height: 4,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(color: AppColors.borderHairline, borderRadius: BorderRadius.circular(2))),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+                          child: Text('Export SAST Report',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: AppColors.textPrimary)),
+                        ),
+                        Card(
+                          color: AppColors.surface,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: ListTile(
+                            leading: const Icon(Icons.download, color: AppColors.primary),
+                            title: Text('Download all colleges (one PDF)',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            onTap: () => Navigator.pop(ctx, all),
+                          ),
+                        ),
+                        for (final g in all.entries)
+                          Card(
+                            color: AppColors.surface,
+                            margin: const EdgeInsets.only(bottom: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: ListTile(
+                              leading: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
+                              title: Text(g.key,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14), overflow: TextOverflow.ellipsis),
+                              subtitle: Text('${g.value.length} instructor(s)',
+                                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                              onTap: () => Navigator.pop(ctx, {g.key: g.value}),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+              if (picked == null) return;
+              await _exportGroups(picked);
             },
           ),
         ],
@@ -546,6 +484,43 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                       ),
                     ] else
                       Text(_selectedLabel, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13), overflow: TextOverflow.ellipsis), // fallback if no terms loaded
+                    const SizedBox(height: 8),
+                    // college filter — null means all colleges
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.borderHairline),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String?>(
+                          value: _colleges.contains(_college) ? _college : null,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down, color: AppColors.primary),
+                          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                          items: [
+                            const DropdownMenuItem<String?>(value: null, child: Text('All Colleges')),
+                            ..._colleges.map((c) => DropdownMenuItem<String?>(
+                                  value: c,
+                                  child: Text(c, overflow: TextOverflow.ellipsis),
+                                )),
+                          ],
+                          onChanged: (val) => setState(() => _college = val),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SegmentedButton<bool>(
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Highest first')),
+                        ButtonSegment(value: true, label: Text('Lowest first')),
+                      ],
+                      selected: {_lowestFirst},
+                      onSelectionChanged: (s) => setState(() => _lowestFirst = s.first),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -562,7 +537,9 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                 // instructor leaderboard section header with "View All" button
                 AppleSectionHeader(
                   title: 'Instructor Leaderboard',
-                  subtitle: 'Highest overall scores for the selected term.',
+                  subtitle: _lowestFirst
+                      ? 'Lowest overall scores for the selected term.'
+                      : 'Highest overall scores for the selected term.',
                   action: TextButton(
                       onPressed: () => _showAllInstructors(), // open the full list
                       child: const Text('View All'),
@@ -571,13 +548,13 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                 const SizedBox(height: 8),
                 // the actual leaderboard cards — top instructors by score
                 Column(
-                  children: _topInstructors.isEmpty
+                  children: _visible.isEmpty
                     ? [const AppleEmptyState(
                         icon: Icons.leaderboard_outlined,
                         title: 'No instructor results',
                         message: 'Evaluation results will appear when this term has responses.',
                       )]
-                    : _topInstructors.map((instructor) {
+                    : _visible.take(10).map((instructor) {
                         return Card(
                           color: AppColors.surface,
                           elevation: 2,
@@ -590,7 +567,7 @@ class _PerformanceAnalysisScreenState extends State<PerformanceAnalysisScreen>
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
                                 backgroundColor: AppColors.primary.withValues(alpha: 0.1),
-                                child: Text(instructor.name[0], style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                                child: Text(instructor.name.isNotEmpty ? instructor.name[0] : '?', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
                               ),
                               title: Text(instructor.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
                               subtitle: Text('${instructor.subjectCount} Subject(s) • ${instructor.department}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12), overflow: TextOverflow.ellipsis),

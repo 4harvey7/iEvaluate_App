@@ -3,6 +3,7 @@
 // change password, or do the extreme action of deleting their whole account.
 // Proceed with caution. Especially the delete part. Dili pwede undo.
 import 'package:flutter/material.dart';
+import '../core/utils/initials.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -512,24 +513,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                     }
                     
                     try {
-                      // Step 1: Verify current password by re-signing in — must confirm identity first
-                      final email = _supabase.auth.currentUser?.email ?? '';
-                      final verifyResp = await _supabase.auth.signInWithPassword(
-                          email: email, password: currentPw);
-
-                      if (verifyResp.user == null) {
-                        // Wrong current password — balik ka
-                        if (isDialogOpen && dialogContext.mounted) {
-                          setDialogState(() => isUpdating = false);
-                        }
-                        messenger.showSnackBar(const SnackBar(
-                            content: Text('Current password is incorrect.'),
-                            backgroundColor: AppColors.error));
-                        return;
-                      }
-
-                      // Step 2: Update to new password using auth service
-                      final result = await _authService.updatePassword(newPw);
+                      // Verifies the current password, then updates (AuthService.changePassword).
+                      final result = await _authService.changePassword(currentPassword: currentPw, newPassword: newPw);
                       if (result.success) {
                         if (isDialogOpen && dialogContext.mounted) {
                           isDialogOpen = false;
@@ -599,14 +584,8 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate initials from name — e.g. "Juan dela Cruz" → "JD"
-    String initials = "U"; // "U" for Unknown if name not loaded
-    if (_firstName.isNotEmpty) {
-      initials = _firstName[0];
-      if (_lastName.isNotEmpty) {
-        initials += _lastName[0]; // combine first letters
-      }
-    }
+    // DEF-V5: the same helper as the drawer, so both show the same initials.
+    final initials = initialsOf('$_firstName $_lastName');
 
     return Scaffold(
       backgroundColor: AppColors.background,

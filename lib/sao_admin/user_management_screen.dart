@@ -15,6 +15,7 @@ import '../theme/app_text_styles.dart';
 import '../core/navigation/main_scaffold.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/safe_button.dart';
+import '../widgets/instructor_detail_sheet.dart';
 import '../widgets/controller_disposer.dart';
 import '../core/utils/sast_rating.dart';
 
@@ -31,6 +32,11 @@ class _SittingHead {
 }
 
 // The widget shell — just a box that holds the real stuff inside
+/// Bumped by other admin screens (the dashboard's Approve / Reject / Activate)
+/// so the Users tab, kept alive in an IndexedStack, refetches instead of
+/// listing an account that was just removed.
+final usersChanged = ValueNotifier<int>(0);
+
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
 
@@ -64,6 +70,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void initState() {
     super.initState();
     _fetchData(); // go get the users, dili ta wait
+    usersChanged.addListener(_fetchData);
+  }
+
+  @override
+  void dispose() {
+    usersChanged.removeListener(_fetchData);
+    super.dispose();
   }
 
   // fetch all users from department_table with their info, roles, and departments
@@ -368,125 +381,77 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   // ── User Details Modal ────────────────────────────────────────
-  // shows a bottom sheet with details — different content for dept heads vs instructors
+  bool _detailOpen = false; // blocks a double-tap from opening two sheets
+
   Future<void> _showUserDetailsModal(Map<String, dynamic> user) async {
+    if (_detailOpen) return;
+    _detailOpen = true;
     final ui = user['user_info'];
-    final userId = user['user_id'];
-    final roleName = user['role_data']?['Roles'] ?? '';
-    final deptName = user['dept_data']?['d_name'] ?? 'No Dept';
-    final fullName = '${ui['first_name']} ${ui['last_name']}';
-    final isDeptHead = roleName.toUpperCase().contains('DEPARTMENT'); // check if dept head
-
-    // prepare containers for data we'll fetch below
-    List<Map<String, dynamic>> subjects = [];
-    Map<String, dynamic>? overallScore;
-    Map<String, dynamic>? deptSummary;
-
+    final userId = user['user_id'].toString();
+    final roleName = (user['role_data']?['Roles'] ?? '').toString();
+    final deptName = (user['dept_data']?['d_name'] ?? 'No Dept').toString();
+    final isDeptHead = roleName.toUpperCase().contains('DEPARTMENT');
     try {
-      // get the current active term — everything is scoped to this term
+      await showInstructorDetailSheet(
+        context,
+        instructorId: userId,
+        name: '${ui['first_name'] ?? ''} ${ui['last_name'] ?? ''}'.trim(),
+        roleLabel: roleName,
+        department: deptName,
+        termId: null,
+        extra: isDeptHead
+            ? FutureBuilder<Map<String, dynamic>?>(
+                future: _loadDeptSummary(userId),
+                builder: (_, snap) => snap.connectionState != ConnectionState.done
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()))
+                    : _buildDeptModal(snap.data, deptName),
+              )
+            : null,
+      );
+    } finally {
+      _detailOpen = false;
+    }
+  }
+
+  // dept head summary: average score / instructor count / responses for the current term
+  Future<Map<String, dynamic>?> _loadDeptSummary(String userId) async {
+    try {
       final settings = await _supabase.from('system_settings').select('current_term_id').limit(1).maybeSingle();
       final termId = settings?['current_term_id'];
-
-      if (isDeptHead) {
-        // for dept heads, show summary of all instructors under them
-        final deptRow = await _supabase.from('department_table').select('Department_name_ID').eq('user_id', userId).maybeSingle();
-        final deptId = deptRow?['Department_name_ID'];
-        if (deptId != null && termId != null) {
-          // Get all instructors in this department
-          final instrRows = await _supabase
-              .from('department_table')
-              .select('user_id')
-              .eq('Department_name_ID', deptId);
-          final instrIds = (instrRows as List).map((r) => r['user_id'].toString()).toList();
-
-          if (instrIds.isNotEmpty) {
-            // Sum their scores from overall_total_survey — compute dept average
-            final rows = await _supabase
-                .from('overall_total_survey')
-                .select('overall_mean, combined_score_mean, total_responses')
-                .eq('term_id', termId)
-                .filter('instructor_id', 'in', instrIds);
-            int total = 0;
-            final scores = <double?>[];
-            for (final r in (rows as List)) {
-              total += SastRating.parseInt(r['total_responses']) ?? 0;
-              // Stored score; null (no answers) is skipped below, not a 0.
-              scores.add(SastRating.parse(r['combined_score_mean']) ?? SastRating.parse(r['overall_mean']));
-            }
-            // package the summary into a map
-            deptSummary = {
-              'instructorCount': instrIds.length,
-              'avgScore': SastRating.averageOfPresent(scores), // null = no scores yet
-              'totalResponses': total,
-            };
-          }
-        }
+      final deptRow = await _supabase.from('department_table').select('Department_name_ID').eq('user_id', userId).maybeSingle();
+      final deptId = deptRow?['Department_name_ID'];
+      if (deptId == null || termId == null) return null;
+      final instrRows = await _supabase
+          .from('department_table')
+          .select('user_id')
+          .eq('Department_name_ID', deptId);
+      final instrIds = (instrRows as List).map((r) => r['user_id'].toString()).toList();
+      if (instrIds.isEmpty) return null;
+      final rows = await _supabase
+          .from('overall_total_survey')
+          .select('overall_mean, combined_score_mean, total_responses')
+          .eq('term_id', termId)
+          .filter('instructor_id', 'in', instrIds);
+      int total = 0;
+      final scores = <double?>[];
+      for (final r in (rows as List)) {
+        total += SastRating.parseInt(r['total_responses']) ?? 0;
+        // Stored score; null (no answers) is skipped below, not a 0.
+        scores.add(SastRating.parse(r['combined_score_mean']) ?? SastRating.parse(r['overall_mean']));
       }
-
-      // Fetch personal Instructor stats for EVERYONE (both regular Instructors AND Dept Heads)
-      if (termId != null) {
-        // get subjects assigned to this instructor this term
-        final rows = await _supabase
-            .from('instructor_subjects')
-            .select('subjects(subject_code, subject_name)')
-            .eq('instructor_id', userId)
-            .eq('term_id', termId);
-        subjects = (rows as List).map((r) {
-          final s = r['subjects'];
-          return Map<String, dynamic>.from(s is List ? s[0] : s ?? {});
-        }).toList();
-        
-        // get their personal overall evaluation score this term
-        overallScore = await _supabase.from('overall_total_survey')
-            .select('overall_mean, combined_score_mean, management_mean, performance_mean, total_responses')
-            .eq('instructor_id', userId).eq('term_id', termId).maybeSingle();
-      }
-    } catch (e) { debugPrint('UserDetailsModal error: $e'); } // log it and continue
-
-    if (!mounted) return;
-    // show the actual bottom sheet
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        height: MediaQuery.of(context).size.height * 0.75, // takes up 75% of screen height
-        decoration: const BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-        child: Column(children: [
-          // top header with user's name, role, and dept
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: AppColors.textPrimary, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-            child: Row(children: [
-              CircleAvatar(radius: 26, backgroundColor: AppColors.primary.withValues(alpha: 0.3),
-                  // first_name is nullable and may be empty; the cast and [0] threw.
-                  child: Text((ui['first_name'] ?? '').toString().isNotEmpty ? ui['first_name'].toString()[0] : '?', style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold))),
-              const SizedBox(width: 16),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(fullName, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                Text(roleName, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12), overflow: TextOverflow.ellipsis),
-                Text(deptName, style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 11), overflow: TextOverflow.ellipsis),
-              ])),
-            ]),
-          ),
-          // scrollable content — dept summary (if applicable) AND instructor scores (for everyone)
-          Expanded(child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                if (isDeptHead) ...[
-                  _buildDeptModal(deptSummary, deptName),
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                ],
-                // Show instructor details for EVERYONE (Dept Heads are instructors too!)
-                _buildInstructorModal(overallScore, subjects),
-              ],
-            ),
-          )),
-        ]),
-      ),
-    );
+      return {
+        'instructorCount': instrIds.length,
+        'avgScore': SastRating.averageOfPresent(scores), // null = no scores yet
+        'totalResponses': total,
+      };
+    } catch (e) {
+      debugPrint('DeptSummary error: $e');
+      return null;
+    }
   }
+
 
   // build the dept head modal content — shows dept stats like avg score, count
   Widget _buildDeptModal(Map<String, dynamic>? s, String name) {
@@ -505,49 +470,14 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     ]);
   }
 
-  // build the instructor modal content — shows score breakdown and their subjects
-  Widget _buildInstructorModal(Map<String, dynamic>? overall, List<Map<String, dynamic>> subjects) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      if (overall != null) ...[
-        const Text('Score Overview', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
-        const SizedBox(height: 12),
-        // three scores: overall, management, performance — the holy trinity of evaluation
-        Row(children: [
-          Expanded(child: _infoTile('Overall', (overall['combined_score_mean'] as num?)?.toStringAsFixed(2) ?? (overall['overall_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.primary)),
-          const SizedBox(width: 10),
-          Expanded(child: _infoTile('Management', (overall['management_mean'] as num?)?.toStringAsFixed(2) ?? '-', Colors.teal)),
-          const SizedBox(width: 10),
-          Expanded(child: _infoTile('Performance', (overall['performance_mean'] as num?)?.toStringAsFixed(2) ?? '-', AppColors.success)),
-        ]),
-        const SizedBox(height: 6),
-        // how many students actually submitted evaluations
-        Text('${overall['total_responses'] ?? 0} responses this term', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-        const SizedBox(height: 20),
-      ],
-      Text('Subjects This Term (${subjects.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary)),
-      const SizedBox(height: 12),
-      // show subject cards or empty message if none assigned
-      if (subjects.isEmpty) const Text('No subjects assigned.', style: TextStyle(color: AppColors.textSecondary))
-      else ...subjects.map((s) => Card(
-        color: AppColors.surface, margin: const EdgeInsets.only(bottom: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          leading: const Icon(Icons.menu_book, color: AppColors.primary, size: 20),
-          title: Text('${s['subject_code']} — ${s['subject_name']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 13), overflow: TextOverflow.ellipsis),
-        ),
-      )),
-    ]);
-  }
 
-  // small colored info tile with a big value and a label below
-  // reusable mini card, used all over the modals
+  // small colored info tile (used by the dept summary)
   Widget _infoTile(String label, String value, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withValues(alpha: 0.2))),
       child: Column(children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis), // the big number
+        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
       ]),
@@ -566,6 +496,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     int? selectedDeptId = _allDeptNames.isNotEmpty ? _allDeptNames.first['id'] : null;
     bool needsCode = false; // becomes true when creating a DEPARTMENT_HEAD, extra auth needed
     bool isSaving = false; // disable button while request in flight, ayaw double click
+    // Shown inside the dialog: a SnackBar would sit behind it (UAT A03 step 3).
+    String? formError;
 
     showDialog(
       context: context,
@@ -632,6 +564,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   if (blockingHead != null)
                     _buildHeadTakenBanner(
                         _headTakenMessage(blockingHead, selectedDeptId)),
+                  if (formError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(formError!, style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w600)),
+                  ],
                 ] else ...[
                   // step 2: verify with OTP code before creating a dept head — extra security
                   const Text('Creating a Department Head requires authorization.', textAlign: TextAlign.center),
@@ -663,7 +599,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 final em = emailController.text.trim();
                 final id = idController.text.trim();
                 if (fn.isEmpty || ln.isEmpty || em.isEmpty || id.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill in all required fields'), backgroundColor: Colors.red));
+                  setDialogState(() => formError = 'Please fill in all required fields');
                   return;
                 }
                 // Role is checked here, before the network round trip below:
@@ -671,7 +607,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 // BuildContext use ahead of the first await.
                 final roleMatches = _roles.where((r) => r['id'] == selectedRoleId).toList();
                 if (roleMatches.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a valid role'), backgroundColor: Colors.red));
+                  setDialogState(() => formError = 'Please select a valid role');
                   return;
                 }
                 final role = roleMatches.first;
@@ -682,10 +618,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 final formatError = IdentityValidator.validateFormat(
                   firstName: fn, lastName: ln, email: em, universityId: id,
                 );
-                if (formatError != null) {
-                  scaffoldMessenger.showSnackBar(SnackBar(content: Text(formatError), backgroundColor: AppColors.error));
-                  return;
-                }
+                setDialogState(() => formError = formatError);
+                if (formatError != null) return;
                 // Is this person already in the system? Checked here so the
                 // admin gets a clear message before an OTP is sent and before
                 // any account is created. The unique indexes in the database
@@ -1296,7 +1230,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                                   ),
                                   // strikethrough name if user is disabled — visual cue
                                   title: Text('${ui['first_name']} ${ui['last_name']}', style: TextStyle(fontWeight: FontWeight.bold, decoration: isActive ? null : TextDecoration.lineThrough), overflow: TextOverflow.ellipsis),
-                                  subtitle: Text('${ui['university_id']} • ${user['role_data']?['Roles'] ?? 'N/A'}\n${user['dept_data']?['d_name'] ?? 'No Dept'}', overflow: TextOverflow.ellipsis),
+                                  subtitle: Text('${ui['university_id'] ?? '—'} • ${user['role_data']?['Roles'] ?? 'N/A'}\n${user['dept_data']?['d_name'] ?? 'No Dept'}', overflow: TextOverflow.ellipsis),
                                   isThreeLine: true,
                                    // three dot menu with edit and enable/disable options
                                   trailing: PopupMenuButton<String>(

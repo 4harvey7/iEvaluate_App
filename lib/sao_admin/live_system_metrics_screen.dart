@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../core/utils/initials.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
 import '../core/navigation/main_scaffold.dart';
@@ -170,15 +171,24 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
 
       // sast_all_raw_data_survey has sao_staff_id referencing user_info
       // join user_info to get readable names instead of UUIDs — dili ta readable ang UUID
-      var query = _supabase
-          .from('sast_all_raw_data_survey')
-          .select('sao_staff_id, created_at, user_info!sao_staff_id(first_name, last_name)');
-      if (_currentTermId != null) query = query.eq('term_id', _currentTermId!); // term filter
-      final rows = await query;
+      // Paged: a plain select stops at 1000 rows (PostgREST max-rows), which
+      // undercounted staff and hid recent uploads, so this screen disagreed
+      // with Personnel's exact counts (DEF-R7). Same paging as evaluation_service.
+      final rows = <dynamic>[];
+      const page = 1000;
+      for (var from = 0;; from += page) {
+        var query = _supabase
+            .from('sast_all_raw_data_survey')
+            .select('sao_staff_id, created_at, user_info!sao_staff_id(first_name, last_name)');
+        if (_currentTermId != null) query = query.eq('term_id', _currentTermId!); // term filter
+        final batch = await query.order('id').range(from, from + page - 1) as List;
+        rows.addAll(batch);
+        if (batch.length < page) break;
+      }
 
       // Group by sao_staff_id — build a map of staff stats keyed by their user ID
       final Map<String, Map<String, dynamic>> grouped = {};
-      for (final r in (rows as List)) {
+      for (final r in rows) {
         final uid = r['sao_staff_id']?.toString() ?? 'unknown'; // fallback key if null
         if (!grouped.containsKey(uid)) {
           // first time seeing this staff — initialize their entry
@@ -481,8 +491,8 @@ class _LiveSystemMetricsScreenState extends State<LiveSystemMetricsScreen>
         final today = staff['today'] as int;
         final lastUpload = _formatLastUpload(staff['lastUpload'] as String); // human-readable time
         final name = staff['name'] as String;
-        // generate initials from name — take first letter of each word, max 2 letters
-        final initials = name.trim().split(' ').take(2).map((w) => w.isNotEmpty ? w[0] : '').join().toUpperCase();
+        // DEF-V5: first + last word, the same initials as the staff drawer.
+        final initials = initialsOf(name);
 
         return Card(
           color: AppColors.surface,

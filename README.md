@@ -155,7 +155,7 @@ The application uses a Flutter client communicating directly with a Supabase bac
 - **InterventionReportsScreen** (`lib/dept_head/intervention_reports_screen.dart`):
   - Displays automated alerts for performance drops and critical sentiment.
 - **DeptHeadSettingsScreen** (`lib/dept_head/dept_head_settings_screen.dart`):
-  - Handles Executive Intelligence toggles (Performance, Sentiment, Digest).
+  - Handles Executive Intelligence toggles (Performance, Sentiment).
   - Updates profile data and passwords.
 
 ### SAO Admin Role

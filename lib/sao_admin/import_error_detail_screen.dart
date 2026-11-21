@@ -7,6 +7,7 @@ import 'dart:async';
 // needed for jsonEncode in _submit()
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../core/utils/initials.dart';
 import '../core/services/automation_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_colors.dart';
@@ -1263,11 +1264,8 @@ class _ImportErrorDetailScreenState extends State<ImportErrorDetailScreen> {
 
   // extracts up to 2 initials from first and last name strings
   // returns uppercase string like "JD" for "John Doe"
-  String _initials(dynamic first, dynamic last) {
-    final f = first?.toString() ?? '';
-    final l = last?.toString() ?? '';
-    return '${f.isNotEmpty ? f[0] : ''}${l.isNotEmpty ? l[0] : ''}'.toUpperCase();
-  }
+  String _initials(dynamic first, dynamic last) =>
+      initialsOf('${first ?? ''} ${last ?? ''}');
 
   // reusable input decoration for the autocomplete text fields
   // consistent styling with optional prefix icon and suffix widget

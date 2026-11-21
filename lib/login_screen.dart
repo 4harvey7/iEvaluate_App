@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/agreements.dart';
 import 'core/navigation/role_nav_config.dart' show roleFromString;
@@ -41,9 +42,71 @@ class _LoginScreenState extends State<LoginScreen> {
     minutes: 5,
   ); // 5 minutes timeout, take a break
 
+  Timer? _lockoutTicker;
+
+  // The lockout survives an app restart; it used to live only in this State.
+  static const _prefCount = 'login_failed_count';
+  static const _prefLast = 'login_failed_last_ms';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLockout();
+  }
+
+  Future<void> _loadLockout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final last = prefs.getInt(_prefLast);
+      if (last == null) return;
+      final at = DateTime.fromMillisecondsSinceEpoch(last);
+      // Older failures than one lockout window no longer count.
+      if (DateTime.now().difference(at) >= _lockoutDuration) return;
+      _failedLoginAttempts = prefs.getInt(_prefCount) ?? 0;
+      _lastFailedAttempt = at;
+    } catch (_) {}
+  }
+
+  Future<void> _saveLockout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (_lastFailedAttempt == null) {
+        await prefs.remove(_prefCount);
+        await prefs.remove(_prefLast);
+      } else {
+        await prefs.setInt(_prefCount, _failedLoginAttempts);
+        await prefs.setInt(
+            _prefLast, _lastFailedAttempt!.millisecondsSinceEpoch);
+      }
+    } catch (_) {}
+  }
+
+  /// Shows the remaining lockout time. Returns false (and clears the lockout
+  /// and its message) once it has expired.
+  bool _updateLockoutMessage() {
+    final remaining =
+        _lockoutDuration - DateTime.now().difference(_lastFailedAttempt!);
+    if (remaining <= Duration.zero) {
+      // lockout already expired so we reset the counter, fresh start for the user
+      _failedLoginAttempts = 0;
+      _lastFailedAttempt = null;
+      if (_errorMessage?.startsWith('Too many failed attempts') ?? false) {
+        setState(() => _errorMessage = null);
+      }
+      return false;
+    }
+    setState(
+      () => _errorMessage =
+          'Too many failed attempts. Please wait ${remaining.inMinutes}m '
+          '${remaining.inSeconds % 60}s before trying again.',
+    );
+    return true;
+  }
+
   @override
   void dispose() {
     // clean up everything when this screen is gone, very important so we dont leak memory
+    _lockoutTicker?.cancel();
     _idController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -76,21 +139,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     // check if user already fail too many times and is currently locked out
     if (_failedLoginAttempts >= _maxAttempts && _lastFailedAttempt != null) {
-      final elapsed = DateTime.now().difference(_lastFailedAttempt!);
-      if (elapsed < _lockoutDuration) {
-        // calculate how much time is left in the lockout so user know how long to wait
-        final remaining = _lockoutDuration - elapsed;
-        final mins = remaining.inMinutes;
-        final secs = remaining.inSeconds % 60;
-        setState(
-          () => _errorMessage =
-              'Too many failed attempts. Please wait ${mins}m ${secs}s before trying again.',
-        );
+      if (_updateLockoutMessage()) {
+        // DEF-V4: tick every second so the countdown is live, not frozen
+        // until the next tap.
+        _lockoutTicker?.cancel();
+        _lockoutTicker = Timer.periodic(const Duration(seconds: 1), (t) {
+          if (!mounted || !_updateLockoutMessage()) t.cancel();
+        });
         return;
-      } else {
-        // lockout already expired so we reset the counter, fresh start for the user
-        _failedLoginAttempts = 0;
-        _lastFailedAttempt = null;
       }
     }
 
@@ -115,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // login success, reset the failed counter and send user to their dashboard
       _failedLoginAttempts = 0;
       _lastFailedAttempt = null;
+      _saveLockout();
       // A role the app has no screen for used to route to a fresh LoginScreen
       // with the session still open and no message. Say why instead.
       if (roleFromString(result.role) == null ||
@@ -139,6 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // login fail, increment the failed counter and show the error message
       _failedLoginAttempts++;
       _lastFailedAttempt = DateTime.now();
+      _saveLockout();
       setState(() => _errorMessage = result.error);
     }
   }

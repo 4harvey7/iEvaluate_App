@@ -718,7 +718,7 @@ Panelist Remarks:
 
 
 ================================================================================
-TC-D10  ACCOUNT SETTINGS - PROFILE, ALERTS AND SECURITY
+TC-D10  OBSOLETE - Weekly Digest toggle removed 2026-11-21 (ACCOUNT SETTINGS - PROFILE, ALERTS AND SECURITY)
 ================================================================================
 Revision      : updated - renamed "Account Settings"; three toggles; new text
 Account Needed: DEPT_HEAD (with access to the account's inbox)

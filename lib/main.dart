@@ -1,5 +1,6 @@
 // lib/main.dart
 // this is the main file. the big boss. the beginning of everything. dont mess it up
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/env.dart';
@@ -27,6 +28,9 @@ import 'widgets/update_tile.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Release builds log nothing through debugPrint (tokens, emails, ids can ride along).
+  if (!kDebugMode) debugPrint = (String? message, {int? wrapWidth}) {};
 
   // Initialize Firebase (will look for google-services.json automatically on Android)
   try {

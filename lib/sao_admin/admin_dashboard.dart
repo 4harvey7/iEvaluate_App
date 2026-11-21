@@ -604,7 +604,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       fullName: fullName,
       subtitle: subDetail,
     );
-    if (changed && mounted) _fetchDashboardData(); // activated, or already was
+    if (changed && mounted) {
+      _fetchDashboardData(); // activated, or already was
+      usersChanged.value++;
+    }
   }
 
   // approve or reject a user — this is the admin's divine power right here
@@ -631,6 +634,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           ),
         );
         _fetchDashboardData(); // refresh the list after decision
+        usersChanged.value++; // and the Users tab
       }
     } catch (e) {
       debugPrint('[DASHBOARD] Approval/Rejection Error: $e');

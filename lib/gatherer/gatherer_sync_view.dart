@@ -321,6 +321,7 @@ class _GathererSyncViewState extends State<GathererSyncView> {
                                   Navigator.of(context).push(MaterialPageRoute(
                                     builder: (_) => ScanImageViewer(
                                       task: task,
+                                      rejectionReason: task.isNotSast ? (task.outcomeMessage ?? '') : null,
                                       // The viewer pops itself after this runs.
                                       // Popping here too took a second route:
                                       // the gatherer screen, the root route.
