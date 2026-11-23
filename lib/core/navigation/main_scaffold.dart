@@ -32,7 +32,6 @@
 
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
-import '../../login_screen.dart';
 import '../../core/services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import '../utils/initials.dart';
@@ -137,24 +136,7 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   // ── Logout ────────────────────────────────────────────────────────────────
-  Future<void> _handleLogout(BuildContext ctx) async {
-    final navigator = Navigator.of(ctx);
-    final confirm = await showLogoutConfirmationDialog(ctx);
-    if (confirm == true) {
-      if (!ctx.mounted) return;
-      showLoggingOutOverlay(ctx);
-      await Future.delayed(
-        const Duration(milliseconds: 1500),
-      ); // wait for overlay
-      await _authService.signOut();
-      if (mounted) {
-        navigator.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-          (route) => false,
-        );
-      }
-    }
-  }
+  Future<void> _handleLogout(BuildContext ctx) => confirmAndSignOut(ctx, _authService);
 
   // ── Build one nested Navigator (one per bottom-nav tab) ───────────────────
   // Each tab gets its own Navigator so pushing sub-screens (e.g. SubjectDetail

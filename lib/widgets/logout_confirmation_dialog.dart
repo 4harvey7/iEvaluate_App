@@ -1,6 +1,29 @@
 import 'package:flutter/material.dart';
+import '../core/services/auth_service.dart';
+import '../login_screen.dart';
 import '../theme/app_colors.dart';
 import 'apple_ui.dart';
+
+/// The one sign-out flow every drawer and settings screen uses: confirm, show
+/// the overlay, end the session, then replace the whole app with the login
+/// screen.
+///
+/// The ROOT navigator is captured up front on purpose. Settings screens are
+/// pushed inside a tab's nested Navigator, and pushing Login there left the
+/// overlay (shown on the root navigator) on top forever (DEF-V11).
+Future<void> confirmAndSignOut(BuildContext context, AuthService authService) async {
+  final rootNavigator = Navigator.of(context, rootNavigator: true);
+  final confirm = await showLogoutConfirmationDialog(context);
+  if (confirm != true || !context.mounted) return;
+  showLoggingOutOverlay(context);
+  await Future.delayed(const Duration(milliseconds: 1500)); // let the overlay be seen
+  await authService.signOut();
+  if (!rootNavigator.mounted) return;
+  rootNavigator.pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const LoginScreen()),
+    (route) => false, // wipes the overlay too; no going back without login
+  );
+}
 
 /// Displays a popup confirmation modal dialog before signing out.
 /// Returns `true` if the user confirms logout, or `false`/`null` if cancelled.

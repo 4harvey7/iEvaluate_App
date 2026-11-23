@@ -627,20 +627,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     setState(() => _isPaused = true); // simple flag flip
   }
 
-  // resume uploads after pause — also auto-retry all pending tasks
-  void _resumeSync() async {
+  // resume uploads after pause — retries the same rows as Sync All (pending AND
+  // "Sync Failed"), one at a time, so the "N pending" chip and Resume agree.
+  void _resumeSync() {
     setState(() => _isPaused = false); // unpause
-    // Auto-retry any pending after resuming — dont make user tap retry manually
-    final pending = _localQueue
-        .where((t) => t.status == SyncStatus.pending)
-        .toList();
-    // One at a time, like _syncData. Firing them all at once read every image
-    // and its base64 copy into memory together — after a long paused shift
-    // that is enough to OOM a low-end phone and jank the UI thread.
-    for (final t in pending) {
-      if (_isPaused || !mounted) break;
-      await _uploadToN8N(t);
-    }
+    _syncData();
   }
 
   // ─── Link Import ──────────────────────────────────────────────────────────

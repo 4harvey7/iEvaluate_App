@@ -4,7 +4,6 @@
 // and the logout button at the bottom. Importente kaayo this drawer.
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
-import '../login_screen.dart';
 import '../core/services/auth_service.dart';
 import '../widgets/logout_confirmation_dialog.dart';
 import '../core/navigation/role_switch_screen.dart';
@@ -175,23 +174,7 @@ class _GathererDrawerState extends State<GathererDrawer> {
             const Divider(),
 
           // Log Out — red because it ends the session
-          _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () async {
-            final confirm = await showLogoutConfirmationDialog(context);
-            if (confirm == true) {
-              if (!context.mounted) return;
-              showLoggingOutOverlay(context);
-              await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
-              await _authService.signOut(); // sign out from supabase
-              if (context.mounted) {
-                // remove all routes and go to login — user cannot go back
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false, // remove everything from stack
-                );
-              }
-            }
-          }),
+          _buildDrawerItem(context, Icons.logout, 'Log Out', false, isLogout: true, onTap: () => confirmAndSignOut(context, _authService)),
         ],
       ),
     );

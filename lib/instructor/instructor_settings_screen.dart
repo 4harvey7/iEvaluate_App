@@ -743,23 +743,7 @@ class _InstructorSettingsScreenState extends State<InstructorSettingsScreen> {
                 width: double.infinity,
                 height: 54,
                 child: SafeOutlinedButton(
-                  onPressed: () async {
-                    final navigator = Navigator.of(context);
-                    final confirm = await showLogoutConfirmationDialog(context);
-                    if (confirm == true) {
-                      if (!context.mounted) return;
-                      showLoggingOutOverlay(context);
-                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
-                      await _authService.signOut(); // clear session from Supabase
-                      if (mounted) {
-                        // Send to login screen, remove all previous routes so user cant go back
-                        navigator.pushAndRemoveUntil(
-                          MaterialPageRoute(builder: (context) => const LoginScreen()),
-                              (route) => false,
-                        );
-                      }
-                    }
-                  },
+                  onPressed: () => confirmAndSignOut(context, _authService),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.error, width: 2),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

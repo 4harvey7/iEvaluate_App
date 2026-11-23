@@ -604,7 +604,9 @@ class AuthService {
   Future<void> signOut() async {
     debugPrint('[AUTH] User signing out...');
     try {
-      await _supabase.auth.signOut();
+      // gotrue drops the local session before the revoke call, so a slow or
+      // dead network only delays the server-side revoke; never hang the UI on it.
+      await _supabase.auth.signOut().timeout(const Duration(seconds: 10));
     } catch (e) {
       // if sign out fail we still move on, dili na namo i-force, just log it
       debugPrint('[AUTH] Error during signOut.');

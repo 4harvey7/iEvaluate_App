@@ -1203,20 +1203,7 @@ class _SaoAdminSettingsState extends State<SaoAdminSettings> {
                 width: double.infinity,
                 height: 54,
                 child: SafeOutlinedButton(
-                  onPressed: () async {
-                    final navigator = Navigator.of(context);
-                    final confirm = await showLogoutConfirmationDialog(context);
-                    if (confirm == true) {
-                      if (!context.mounted) return;
-                      showLoggingOutOverlay(context);
-                      await Future.delayed(const Duration(milliseconds: 1500)); // Show it for 1.5s
-                      await _authService.signOut(); // terminate the session
-                      if (mounted) {
-                        // send user back to login, remove all routes — no going back
-                        navigator.pushAndRemoveUntil(MaterialPageRoute(builder: (context) => const LoginScreen()), (route) => false);
-                      }
-                    }
-                  },
+                  onPressed: () => confirmAndSignOut(context, _authService),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: AppColors.error, width: 2), // red border — logout is serious
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
