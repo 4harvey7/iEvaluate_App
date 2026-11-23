@@ -13,6 +13,7 @@ import {
   assertDepartmentHeadVacant,
   HEAD_CONFLICT_PREFIX,
 } from '../_shared/department_head_guard.ts'
+import { ADMIN_ROLE, isActiveAccount, removesLastAdmin, roleChangeNeedsCode } from './logic.ts'
 
 async function hashString(str: string) {
   const encoder = new TextEncoder()
@@ -148,11 +149,13 @@ serve(async (req) => {
     // 20240130000016) would still stop it -- but with a message this function
     // is not expecting at a point where the user_info update has already been
     // applied.
+    const { data: roleRow } = await supabaseAdmin
+      .from('roles').select('Roles').eq('id', roleId).limit(1)
+    const newRoleOnRecord: string | null =
+      roleRow && roleRow.length > 0 ? roleRow[0].Roles : null
+
     if (isAcademic) {
-      const { data: roleRow } = await supabaseAdmin
-        .from('roles').select('Roles').eq('id', roleId).limit(1)
-      const effectiveRoleName =
-        roleRow && roleRow.length > 0 ? roleRow[0].Roles : roleName
+      const effectiveRoleName = newRoleOnRecord ?? roleName
 
       // The department dropdown is optional in the dialog. When it is not sent,
       // the role still lands on whatever department the person is already in,
@@ -177,10 +180,36 @@ serve(async (req) => {
       })
     }
 
+    // ── Admin role guard ──────────────────────────────────────────────────────
+    // The target's SAO role on record (null for academic accounts). Read here,
+    // not taken from the request: the request's isPromotion only ever said
+    // "promotion", so demoting an admin used to skip the code (DEF-V10).
+    const { data: currentSao, error: currentSaoError } = await supabaseAdmin
+      .from('Sao_users').select('roles(Roles)').eq('user_id', targetUserId).limit(1)
+    if (currentSaoError) throw currentSaoError // fail closed: an unknown role must not skip the code
+    const currentRole: string | null =
+      (currentSao && currentSao.length > 0 ? (currentSao[0] as any).roles?.Roles : null) ?? null
+    // An academic save writes department_table, not Sao_users, so the SAO role stays.
+    const newRole = isAcademic ? (newRoleOnRecord === ADMIN_ROLE ? ADMIN_ROLE : currentRole) : newRoleOnRecord
+
+    // Before the OTP block, like the head check: refuse before a code is spent.
+    if (currentRole === ADMIN_ROLE && newRole !== ADMIN_ROLE) {
+      const { data: admins, error: adminsError } = await supabaseAdmin
+        .from('Sao_users')
+        .select('user_id, roles!inner(Roles), user_info(account_status, disabled)')
+        .eq('roles.Roles', ADMIN_ROLE)
+        .neq('user_id', targetUserId)
+      if (adminsError) throw adminsError
+      const otherActiveAdmins = (admins ?? []).filter((a: any) => isActiveAccount(a.user_info)).length
+      if (removesLastAdmin({ currentRole, newRole, otherActiveAdmins })) {
+        throw new Error('Invalid input: this is the last active SAO admin. Make another admin first.')
+      }
+    }
+
     // ── OTP Protection Logic ──────────────────────────────────────────────────
-    // OTP is ONLY required when isPromotion=true (i.e., actual role escalation).
-    // Regular name edits or keeping the same role never need OTP.
-    const needsOTP = isPromotion === true
+    // Required for a flagged promotion (e.g. department head) and for ANY change
+    // into or out of SAO_ADMIN, own account included. Name-only edits never need it.
+    const needsOTP = roleChangeNeedsCode({ currentRole, newRole, isPromotion })
 
     if (needsOTP) {
       const { data: verifyData } = await supabaseAdmin

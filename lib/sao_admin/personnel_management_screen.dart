@@ -588,12 +588,12 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                     return;
                   }
                 }
-                // check if this is a promotion from non-admin to admin
-                final bool isUpgradingToAdmin = selectedRole['Roles'] == 'SAO_ADMIN' && 
-                    person['role_data']?['Roles'] != 'SAO_ADMIN';
+                // any move into or out of SAO_ADMIN; admin-update-role demands a code for both
+                final bool adminRoleChanging = (selectedRole['Roles'] == 'SAO_ADMIN') !=
+                    (person['role_data']?['Roles'] == 'SAO_ADMIN');
 
-                // promoting to SAO_ADMIN requires OTP — extra security layer, importente kaayo
-                if (isUpgradingToAdmin && !needsCode) {
+                // changing SAO_ADMIN requires OTP — extra security layer, importente kaayo
+                if (adminRoleChanging && !needsCode) {
                    final currentUser = _supabase.auth.currentUser;
                    
                    setDialogState(() => isSaving = true);
@@ -686,7 +686,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                       'roleId': selectedRoleId,
                       'roleName': roleName,
                       'isAcademic': false,
-                      'isPromotion': isUpgradingToAdmin, // true only when promoting to SAO_ADMIN
+                      'isPromotion': adminRoleChanging, // the server re-derives this from the roles on record
                       'verificationCode': codeController.text.trim(),
                     },
                     headers: {
