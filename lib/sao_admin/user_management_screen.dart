@@ -33,8 +33,8 @@ class _SittingHead {
 
 // The widget shell — just a box that holds the real stuff inside
 /// Bumped by other admin screens (the dashboard's Approve / Reject / Activate)
-/// so the Users tab, kept alive in an IndexedStack, refetches instead of
-/// listing an account that was just removed.
+/// so the Users and Personnel tabs, kept alive in an IndexedStack, refetch
+/// instead of listing an account that was just removed.
 final usersChanged = ValueNotifier<int>(0);
 
 class UserManagementScreen extends StatefulWidget {
@@ -60,6 +60,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   bool _isLoading = true; // spinner flag — true while we waiting for data
   String _searchQuery = ''; // what the admin typed in the search box
+  // DEF-V6: the search field is rebuilt after every load; owning the
+  // controller here keeps the box text in step with _searchQuery.
+  final _searchController = TextEditingController();
   String _selectedRoleFilter = 'All'; // which role filter is selected, default all
   String _selectedDeptFilter = 'All'; // department filter — new
   String _sortBy = 'Newest'; // sort order — newest or oldest first
@@ -76,6 +79,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   @override
   void dispose() {
     usersChanged.removeListener(_fetchData);
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -1133,6 +1137,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   child: Column(
                     children: [
                       AppleSearchField(
+                        controller: _searchController,
                         onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
                         hintText: 'Search Name or University ID',
                       ),

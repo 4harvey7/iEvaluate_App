@@ -32,6 +32,10 @@ class AuthResult {
 }
 
 class AuthService {
+  /// Bumped after a successful [updateProfile], so screens that loaded the
+  /// name once (drawers, dashboard headers) can re-read it.
+  static final profileChanged = ValueNotifier<int>(0);
+
   // this is our main connection to supabase, we use this for everything, importente kaayo ni
   final _supabase = Supabase.instance.client;
 
@@ -721,6 +725,7 @@ class AuthService {
         'last_name': cleanLastName,
       }).eq('id', userId);
 
+      profileChanged.value++;
       return const AuthResult(success: true);
     } catch (e) {
       debugPrint('[AUTH] Update Profile Error: $e');

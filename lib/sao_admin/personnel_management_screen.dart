@@ -13,6 +13,7 @@ import '../core/navigation/main_scaffold.dart';
 import '../widgets/safe_button.dart';
 import '../widgets/apple_ui.dart';
 import '../widgets/controller_disposer.dart';
+import 'user_management_screen.dart' show usersChanged;
 
 // the outer shell widget — just a box, nothing special yet
 class PersonnelManagementScreen extends StatefulWidget {
@@ -30,6 +31,8 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   bool _isLoading = true; // spinner flag
   
   String _searchQuery = ''; // search text
+  // Same as the Users tab (DEF-V6): keeps the box text across reloads.
+  final _searchController = TextEditingController();
   String _selectedRoleFilter = 'All'; // which role to filter by
   String _sortBy = 'Newest'; // sort direction
   final List<String> _sortOptions = ['Newest', 'Oldest', 'A-Z', 'Z-A']; // added sort options
@@ -39,6 +42,15 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
   void initState() {
     super.initState();
     _fetchData(); // fetch everything, dili ta wait for button click
+    // The dashboard's Approve / Reject also changes SAO staff accounts.
+    usersChanged.addListener(_fetchData);
+  }
+
+  @override
+  void dispose() {
+    usersChanged.removeListener(_fetchData);
+    _searchController.dispose();
+    super.dispose();
   }
 
   // fetch all SAO personnel and their roles from the database
@@ -989,6 +1001,7 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
                   child: Column(
                     children: [
                       AppleSearchField(
+                        controller: _searchController,
                         onChanged: (v) => setState(() => _searchQuery = v), // filter live as you type
                         hintText: 'Search name or university ID',
                       ),

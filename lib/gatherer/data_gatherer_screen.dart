@@ -157,6 +157,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
     _loadCachedDashboard(); // Load stale data instantly!
     _subscribeToSettings(); // listen for semester/term changes
     _fetchUserInfo(); // get the name and role of whoever logged in
+    AuthService.profileChanged.addListener(_fetchUserInfo); // DEF-V7: Settings rename
     _loadQueueFromStorage(); // restore queue from last session, murag resurrection
     _checkN8nStatus(); // ping n8n to see if its alive
     _fetchSupabaseStats(); // pull the numbers from the database
@@ -268,6 +269,7 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
   void dispose() {
     _settingsSubscription?.cancel(); // if we dont cancel, memory leak. bad.
     SchedulerBinding.instance.removeTimingsCallback(_logSlowFrames);
+    AuthService.profileChanged.removeListener(_fetchUserInfo);
     _linkController.dispose();
     super.dispose();
   }
@@ -1431,6 +1433,11 @@ class _DataGathererScreenState extends State<DataGathererScreen> {
         originalRole:
             widget.originalRole, // Pass this to show the return button
       ),
+      // DEF-V7: re-read the name on every open so a Settings profile edit
+      // shows up without signing in again (same as MainScaffold).
+      onDrawerChanged: (open) {
+        if (open) _fetchUserInfo();
+      },
       body: screens[_currentIndex], // show whichever screen is selected
       bottomNavigationBar: AppleFloatingTabBar(
         selectedIndex: _currentIndex < 4

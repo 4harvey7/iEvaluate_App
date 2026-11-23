@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../theme/app_colors.dart';
+import '../core/services/auth_service.dart';
 import '../core/services/system_settings_service.dart';
 import '../core/navigation/main_scaffold.dart';
 import 'models/subject.dart';
@@ -96,6 +97,8 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
     _loadCachedProfile(); // Load stale data instantly!
     _subscribeToSettings(); // start listening to system settings changes
     _subscribeToInterventions(); // also listen if the dept head is mad at you
+    // "Welcome back, <name>" follows a Settings rename without a manual sync.
+    AuthService.profileChanged.addListener(_fetchInstructorProfile);
     // Wait for first frame, then sync everything so the UI is ready first
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshDashboardData(isInitial: true);
@@ -379,6 +382,7 @@ class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
   void dispose() {
     // Clean up subscriptions or the memory will cry. Importente ni.
     _settingsSubscription?.cancel();
+    AuthService.profileChanged.removeListener(_fetchInstructorProfile);
     // removeChannel() both unsubscribes AND removes the channel from the Supabase
     // client registry — prevents server-side resource leaks on repeated navigation.
     // Fire-and-forget is intentional: dispose() is synchronous in Flutter.
